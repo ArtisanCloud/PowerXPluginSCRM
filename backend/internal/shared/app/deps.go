@@ -1,0 +1,114 @@
+package app
+
+import (
+	"context"
+
+	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/capabilities"
+	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/config"
+	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/grpc/client"
+	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/integrations/gateway"
+	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/logger"
+	authx "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/middleware"
+	adminmetrics "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/admin_console"
+	capmetrics "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/capability"
+	opsmetrics "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/operations"
+	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/services/authproxy"
+	iamservice "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/services/iam"
+	marketplacesvc "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/services/marketplace"
+	"github.com/sirupsen/logrus"
+	"gorm.io/gorm"
+
+	fweventbridge "github.com/ArtisanCloud/PowerXPlugin/framework/eventbridge"
+)
+
+type DelegatedAuthProxy interface {
+	Login(ctx context.Context, req iamservice.LoginRequest) (*iamservice.AuthTokens, error)
+	Refresh(ctx context.Context, refreshToken string) (*iamservice.AuthTokens, error)
+	Logout(ctx context.Context, refreshToken string) error
+	MeContext(ctx context.Context, accessToken string) (*authproxy.MeContext, error)
+}
+
+// Deps bundles shared infrastructure dependencies for handlers and services.
+type Deps struct {
+	DB                  *gorm.DB
+	Ctx                 context.Context
+	PowerXClient        *client.PowerXServiceClient
+	CapabilityGateway   gatewayClient
+	Config              *config.Config
+	CapabilitiesManager capabilities.Manager
+	CapabilityMetrics   *capmetrics.Metrics
+	TaxProviderClient   *marketplacesvc.TaxProviderClient
+	MarketplaceBilling  marketplacesvc.BillingClient
+	LicenseAuthority    marketplacesvc.LicenseAuthority
+	LicenseCache        marketplacesvc.LicenseCache
+	OperationsMetrics   *opsmetrics.Metrics
+	AdminConsoleMetrics *adminmetrics.Metrics
+	EventEmitter        fweventbridge.Emitter
+	IAMMode             iamservice.IAMMode
+	IAMModeSource       string
+	AuthProxy           DelegatedAuthProxy
+	IAMDirectory        iamservice.IAMDirectory
+}
+
+type gatewayClient interface {
+	Enabled() bool
+	Invoke(ctx context.Context, params gateway.InvokeParams) (*gateway.InvokeResult, error)
+	ListPlatformCapabilities(ctx context.Context, opts gateway.ListPlatformCapabilitiesOptions) ([]gateway.PlatformCapabilityRecord, error)
+	Close() error
+}
+
+// RuntimeDefaults returns the configured runtime ops defaults (if any).
+func (d *Deps) RuntimeDefaults() *config.RuntimeOpsDefaults {
+	if d == nil || d.Config == nil {
+		return nil
+	}
+	return d.Config.RuntimeOps
+}
+
+// RuntimeLogger provides a structured logger enriched with runtime metadata.
+func (d *Deps) RuntimeLogger(ctx context.Context, component string, extra logger.Fields) *logrus.Entry {
+	if extra == nil {
+		extra = logger.Fields{}
+	}
+	if ctx == nil && d != nil {
+		ctx = d.Ctx
+	}
+
+	var tenantID string
+	if tid, ok := authx.TenantUUIDFromContext(ctx); ok && tid != "" {
+		tenantID = tid
+	}
+
+	traceID := ""
+	if ctx != nil {
+		if v := ctx.Value("request_id"); v != nil {
+			if s, ok := v.(string); ok {
+				traceID = s
+			}
+		}
+	}
+
+	return logger.WithRuntimeFields(PluginID, tenantID, traceID, component, extra)
+}
+
+func (d *Deps) LocalIAMEnabled() bool {
+	return d != nil && d.IAMMode == iamservice.IAMModeLocal && d.IAMDirectory != nil
+}
+
+func (d *Deps) DelegatedIAMEnabled() bool {
+	return d != nil && d.IAMMode == iamservice.IAMModeDelegated && d.AuthProxy != nil
+}
+
+func (d *Deps) LocalDirectory() iamservice.IAMDirectory {
+	if d.LocalIAMEnabled() {
+		return d.IAMDirectory
+	}
+	return nil
+}
+
+func (d *Deps) DelegatedProxy() DelegatedAuthProxy {
+	if d.DelegatedIAMEnabled() {
+		return d.AuthProxy
+	}
+	return nil
+}

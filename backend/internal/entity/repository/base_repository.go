@@ -1,0 +1,492 @@
+package repository
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+)
+
+// Page 分页结果结构
+type Page[T any] struct {
+	List      T     `json:"list"`
+	PageIndex int   `json:"page_index"`
+	PageSize  int   `json:"page_size"`
+	Total     int64 `json:"total"`
+}
+
+// BaseRepository 提供通用的 CRUD 操作
+type BaseRepository[T any] struct {
+	DB *gorm.DB
+}
+
+// NewBaseRepository 创建新的 BaseRepository 实例
+func NewBaseRepository[T any](db *gorm.DB) *BaseRepository[T] {
+	return &BaseRepository[T]{DB: db}
+}
+
+func (r *BaseRepository[T]) WithDB(db *gorm.DB) *BaseRepository[T] {
+	r.DB = db
+	return r
+}
+
+func (r *BaseRepository[T]) OnConflictDoNothing() clause.OnConflict {
+	return clause.OnConflict{DoNothing: true}
+}
+
+// ErrTenantUuidRequired 指示缺少租户上下文。
+var ErrTenantUuidRequired = errors.New("tenant id is required for tenant-scoped operations")
+
+// BeginTenantTx 启动租户级事务并设置 app.tenant_uuid。
+func (r *BaseRepository[T]) BeginTenantTx(ctx context.Context, tenantID any) (*gorm.DB, error) {
+	if r.DB == nil {
+		return nil, errors.New("repository database is not initialized")
+	}
+	id, err := normalizeTenantUuid(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	tx := r.DB.WithContext(ctx).Begin()
+	if tx.Error != nil {
+		return nil, tx.Error
+	}
+	if tx.Dialector != nil && tx.Dialector.Name() != "sqlite" {
+		if err := tx.Exec("SET LOCAL app.tenant_uuid = ?", id).Error; err != nil {
+			_ = tx.Rollback()
+			return nil, err
+		}
+	}
+	return tx, nil
+}
+
+// WithTenantTx 在租户事务中执行回调。
+func (r *BaseRepository[T]) WithTenantTx(ctx context.Context, tenantID any, fn func(*gorm.DB) error) error {
+	if fn == nil {
+		return errors.New("transaction callback is required")
+	}
+	tx, err := r.BeginTenantTx(ctx, tenantID)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if p := recover(); p != nil {
+			_ = tx.Rollback()
+			panic(p)
+		}
+	}()
+	if err := fn(tx); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	return tx.Commit().Error
+}
+
+// CreateBatch 批量创建记录
+func (r *BaseRepository[T]) CreateBatch(ctx context.Context, objs []*T) ([]*T, error) {
+	if len(objs) == 0 {
+		return nil, nil
+	}
+
+	query := r.DB.WithContext(ctx)
+
+	result := query.Create(&objs)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return objs, nil
+}
+
+// Create 创建新记录，并返回创建后的对象
+func (r *BaseRepository[T]) Create(ctx context.Context, obj *T) (*T, error) {
+	query := r.DB.WithContext(ctx)
+
+	result := query.Create(obj)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return obj, nil
+}
+
+func getUpdatableColumns[T any](db *gorm.DB) []string {
+	var entity T
+	stmt := &gorm.Statement{DB: db}
+	_ = stmt.Parse(&entity)
+
+	var columns []string
+	for _, field := range stmt.Schema.Fields {
+		if field.PrimaryKey || field.DBName == "" {
+			continue
+		}
+		// 根据你业务判断是否排除这些字段：
+		if field.Name == "created_at" || field.Name == "updated_at" {
+			continue
+		}
+		columns = append(columns, field.DBName)
+	}
+	return columns
+}
+
+// Upsert 插入或更新单个记录，并返回执行后的对象
+func (r *BaseRepository[T]) Upsert(ctx context.Context, obj *T, uniqueFields []clause.Column) (*T, error) {
+	conflict := clause.OnConflict{
+		Columns: uniqueFields,
+	}
+	return r.UpsertWithConflict(ctx, obj, conflict)
+}
+
+// UpsertWithConflict allows callers to customize the ON CONFLICT target (columns, where clause, etc).
+// DoUpdates will default to all updatable columns when not explicitly set.
+func (r *BaseRepository[T]) UpsertWithConflict(ctx context.Context, obj *T, conflict clause.OnConflict) (*T, error) {
+	if conflict.DoUpdates == nil {
+		conflict.DoUpdates = clause.AssignmentColumns(getUpdatableColumns[T](r.DB))
+	}
+	query := r.DB.WithContext(ctx)
+	result := query.Clauses(conflict).Create(obj)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return obj, nil
+}
+
+// UpsertBatch 批量插入或更新记录，并返回执行后的对象列表
+func (r *BaseRepository[T]) UpsertBatch(ctx context.Context, objs []*T, uniqueFields []clause.Column) ([]*T, error) {
+	tx := r.DB.WithContext(ctx).Begin()
+	if tx.Error != nil {
+		return nil, tx.Error
+	}
+
+	result := tx.Clauses(clause.OnConflict{
+		Columns:   uniqueFields,
+		DoUpdates: clause.AssignmentColumns(getUpdatableColumns[T](r.DB)),
+	}).Create(objs)
+
+	if result.Error != nil {
+		tx.Rollback()
+		return nil, result.Error
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return nil, err
+	}
+
+	return objs, nil
+}
+
+// Update 更新记录，并返回更新后的对象
+func (r *BaseRepository[T]) Update(ctx context.Context, obj *T) (*T, error) {
+	query := r.DB.WithContext(ctx)
+
+	result := query.Save(obj)
+	if result.RowsAffected == 0 {
+		return nil, errors.New("record not found")
+	}
+	return obj, result.Error
+}
+
+func (r *BaseRepository[T]) UpdateByID(
+	ctx context.Context,
+	id uint64,
+	fields map[string]interface{},
+	callback func(*gorm.DB) *gorm.DB,
+) (*T, error) {
+
+	if id == 0 {
+		return nil, errors.New("invalid id")
+	}
+	if len(fields) == 0 {
+		return nil, errors.New("no fields to update")
+	}
+
+	// 允许更新的字段白名单（去除主键、created_at/updated_at 等）
+	allowCols := map[string]struct{}{}
+	for _, c := range getUpdatableColumns[T](r.DB) {
+		allowCols[strings.ToLower(c)] = struct{}{}
+	}
+
+	// 过滤不可更新字段（保留 map 中与白名单交集的键）
+	safeFields := make(map[string]interface{}, len(fields))
+	for k, v := range fields {
+		if _, ok := allowCols[strings.ToLower(k)]; ok {
+			safeFields[k] = v
+		}
+	}
+	if len(safeFields) == 0 {
+		return nil, errors.New("no valid fields to update")
+	}
+
+	// 执行更新
+	var mdl T
+	query := r.DB.WithContext(ctx).Model(&mdl).Where("id = ?", id)
+
+	if callback != nil {
+		query = callback(query)
+	}
+
+	res := query.Updates(safeFields)
+	if res.Error != nil {
+		return nil, res.Error
+	}
+	if res.RowsAffected == 0 {
+		return nil, errors.New("record not found")
+	}
+
+	// 读取并返回更新后的对象（复用已有的 GetById 逻辑和 callback）
+	return r.GetById(ctx, id, callback)
+}
+
+// Patch 部分更新记录
+func (r *BaseRepository[T]) Patch(ctx context.Context, where map[string]interface{}, fields map[string]interface{}) (*T, error) {
+	var obj T
+	query := r.DB.WithContext(ctx).Model(&obj)
+
+	for key, value := range where {
+		query = query.Where(key+" = ?", value)
+	}
+
+	result := query.Updates(fields)
+	if result.RowsAffected == 0 {
+		return nil, errors.New("record not found")
+	}
+	return &obj, result.Error
+}
+
+// Delete 删除记录
+func (r *BaseRepository[T]) Delete(ctx context.Context, where map[string]interface{}, obj *T, softDelete bool) (*T, error) {
+	var mdl T
+	query := r.DB.WithContext(ctx).Model(&mdl)
+
+	// 分支一：按 where 条件删除（推荐用于批量/覆盖式写入前的清理）
+	if where != nil {
+		for key, value := range where {
+			if strings.Contains(key, "?") {
+				query = query.Where(key, value)
+			} else {
+				query = query.Where(key+" = ?", value)
+			}
+		}
+		if !softDelete {
+			query = query.Unscoped()
+		}
+		result := query.Delete(&mdl)
+		// 数据库错误才返回；0 行删除视为幂等成功
+		if result.Error != nil {
+			return nil, result.Error
+		}
+		return nil, nil
+	}
+
+	// 分支二：按主键对象删除（期望严格命中 1 行）
+	if obj != nil {
+		if !softDelete {
+			query = query.Unscoped()
+		}
+		result := query.Delete(obj)
+		if result.Error != nil {
+			return nil, result.Error
+		}
+		if result.RowsAffected == 0 {
+			return nil, errors.New("record not found")
+		}
+		return obj, nil
+	}
+
+	return nil, errors.New("no delete condition provided")
+}
+
+// FindByCondition 查询并返回分页结果
+func (r *BaseRepository[T]) FindByCondition(
+	ctx context.Context,
+	conditions map[string]interface{},
+	page, pageSize int,
+	callback func(db *gorm.DB, opt interface{}) *gorm.DB,
+	opt interface{},
+) (*Page[[]*T], error) {
+	var objects []*T
+	var obj T
+
+	query := r.DB.WithContext(ctx)
+	for key, value := range conditions {
+		query = query.Where(key, value)
+	}
+	if callback != nil {
+		query = callback(query, opt)
+	}
+
+	var totalCount int64
+	countQuery := query.Model(&obj)
+	resultCount := countQuery.Count(&totalCount)
+	if resultCount.Error != nil {
+		return nil, resultCount.Error
+	}
+
+	query = query.Limit(pageSize).Offset((page - 1) * pageSize)
+	result := query.Find(&objects)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return &Page[[]*T]{
+		List:      objects,
+		PageIndex: page,
+		PageSize:  pageSize,
+		Total:     totalCount,
+	}, nil
+}
+
+// GetById 通过 ID 获取记录
+func (r *BaseRepository[T]) GetById(ctx context.Context, id uint64, callback func(*gorm.DB) *gorm.DB) (*T, error) {
+	var obj T
+
+	query := r.DB.WithContext(ctx).Where("id = ?", id)
+	if callback != nil {
+		query = callback(query)
+	}
+
+	result := query.First(&obj)
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return &obj, nil
+}
+
+// GetByUUID 通过 UUID 获取记录
+func (r *BaseRepository[T]) GetByUUID(ctx context.Context, uuid string, callback func(*gorm.DB) *gorm.DB) (*T, error) {
+	var obj T
+
+	query := r.DB.WithContext(ctx).Where("uuid = ?", uuid)
+	if callback != nil {
+		query = callback(query)
+	}
+
+	result := query.First(&obj)
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return &obj, nil
+}
+
+// ListIDsByCondition 返回满足条件记录的主键 ID 列表。
+// - conditions 推荐传等值 map，例如：{"status": "active"} 或 {"id": []uint64{1,2,3}}
+// - 会自动 Select("id")，扫描为 []uint64
+func (r *BaseRepository[T]) ListIDsByCondition(
+	ctx context.Context,
+	conditions map[string]interface{},
+) ([]uint64, error) {
+	var ids []uint64
+	var obj T
+
+	db := r.DB.WithContext(ctx).Model(&obj).Select("id")
+
+	// 等值/IN 查询（GORM 支持 map 形式，id: []X => IN）
+	if len(conditions) > 0 {
+		db = db.Where(conditions)
+	}
+
+	if err := db.Find(&ids).Error; err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
+// GetByCondition 根据条件查询单个记录
+func (r *BaseRepository[T]) GetByCondition(ctx context.Context, conditions map[string]interface{}, callback func(*gorm.DB) *gorm.DB) (*T, error) {
+	var obj T
+
+	query := r.DB.WithContext(ctx)
+	for key, value := range conditions {
+		query = query.Where(key, value)
+	}
+	if callback != nil {
+		query = callback(query)
+	}
+
+	result := query.First(&obj)
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return &obj, nil
+}
+
+// GetFirst 根据SQL条件查询单个记录
+func (r *BaseRepository[T]) GetFirst(ctx context.Context, query interface{}, args ...interface{}) (*T, error) {
+	var obj T
+
+	db := r.DB.WithContext(ctx).Where(query, args...)
+
+	result := db.First(&obj)
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return &obj, nil
+}
+
+// Exists 检查记录是否存在
+func (r *BaseRepository[T]) Exists(ctx context.Context, query interface{}, args ...interface{}) (bool, error) {
+	var count int64
+
+	db := r.DB.WithContext(ctx).Model(new(T)).Where(query, args...)
+
+	result := db.Count(&count)
+	if result.Error != nil {
+		return false, result.Error
+	}
+
+	return count > 0, nil
+}
+
+func normalizeTenantUuid(tenantID any) (string, error) {
+	switch v := tenantID.(type) {
+	case string:
+		id := strings.TrimSpace(v)
+		if id == "" {
+			return "", ErrTenantUuidRequired
+		}
+		return id, nil
+	case fmt.Stringer:
+		id := strings.TrimSpace(v.String())
+		if id == "" {
+			return "", ErrTenantUuidRequired
+		}
+		return id, nil
+	case uint64:
+		if v == 0 {
+			return "", ErrTenantUuidRequired
+		}
+		return fmt.Sprintf("%d", v), nil
+	case uint32:
+		if v == 0 {
+			return "", ErrTenantUuidRequired
+		}
+		return fmt.Sprintf("%d", v), nil
+	case int64:
+		if v <= 0 {
+			return "", ErrTenantUuidRequired
+		}
+		return fmt.Sprintf("%d", v), nil
+	case int:
+		if v <= 0 {
+			return "", ErrTenantUuidRequired
+		}
+		return fmt.Sprintf("%d", v), nil
+	default:
+		return "", ErrTenantUuidRequired
+	}
+}

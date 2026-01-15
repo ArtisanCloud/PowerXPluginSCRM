@@ -1,0 +1,88 @@
+entries:
+  # HTTP channel scopes
+  - scope: template.agent
+    channel: HTTP
+    resource: /api/v1/integration/dispatch
+    action: POST
+    version: 1
+    constraints: {}
+
+  # MCP channel scopes
+  - scope: agent.template
+    channel: MCP
+    resource: /integration/dispatch
+    action: CALL
+    version: 1
+    constraints: {}
+  - scope: agent.template.audit
+    channel: MCP
+    resource: /integration/dispatch
+    action: CALL
+    version: 1
+    constraints: {}
+  - scope: agent.template.compose
+    channel: MCP
+    resource: /integration/dispatch
+    action: CALL
+    version: 1
+    constraints: {}
+  - scope: agent.template.list
+    channel: MCP
+    resource: /integration/dispatch
+    action: CALL
+    version: 1
+    constraints: {}
+  - scope: agent.template.read
+    channel: MCP
+    resource: /integration/dispatch
+    action: CALL
+    version: 1
+    constraints: {}
+  - scope: agent.template.create
+    channel: MCP
+    resource: /integration/dispatch
+    action: CALL
+    version: 1
+    constraints: {}
+  - scope: agent.template.update
+    channel: MCP
+    resource: /integration/dispatch
+    action: CALL
+    version: 1
+    constraints: {}
+  - scope: agent.template.delete
+    channel: MCP
+    resource: /integration/dispatch
+    action: CALL
+    version: 1
+    constraints: {}
+  - scope: agent.template.validate
+    channel: MCP
+    resource: /integration/dispatch
+    action: CALL
+    version: 1
+    constraints: {}
+  - scope: agent.template.batch_clone
+    channel: MCP
+    resource: /integration/dispatch
+    action: CALL
+    version: 1
+    constraints: {}
+  - scope: agent.template.review
+    channel: MCP
+    resource: /integration/dispatch
+    action: CALL
+    version: 1
+    constraints: {}
+  - scope: agent.template.quality_distribute
+    channel: MCP
+    resource: /integration/dispatch
+    action: CALL
+    version: 1
+    constraints: {}
+  - scope: template.agent
+    channel: MCP
+    resource: /integration/dispatch
+    action: CALL
+    version: 1
+    constraints: {}

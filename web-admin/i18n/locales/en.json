@@ -1,0 +1,1055 @@
+{
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "add": "Add",
+    "search": "Search",
+    "loading": "Loading...",
+    "confirm": "Confirm",
+    "confirmation": "Confirmation",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "submit": "Submit",
+    "reset": "Reset",
+    "close": "Close",
+    "refresh": "Refresh",
+    "error": "Something went wrong",
+    "retry": "Retry",
+    "reload": "Reload",
+    "all": "All",
+    "selected": "{count} selected",
+    "total": "Total {count}",
+    "view": "View",
+    "export": "Export",
+    "import": "Import",
+    "welcome": "Welcome",
+    "appName": "PowerX Base"
+  },
+  "status": {
+    "active": "Active",
+    "inactive": "Inactive"
+  },
+  "menu": {
+    "openMarket": "Open Market",
+    "pluginMarketplace": "Plugin Marketplace",
+    "pluginReleaseCandidates": "Release Candidates",
+    "agent": "Agent",
+    "aiSettings": "AI Settings",
+    "aiSettingsModel": "Model Settings",
+    "aiSettingsCost": "Cost Settings",
+    "badge": "Badge",
+    "customers": "Customers",
+    "customerList": "Customer List",
+    "customerGroups": "Customer Groups",
+    "products": "Products",
+    "productList": "Product List",
+    "productCategories": "Product Categories",
+    "orders": "Orders",
+    "knowledgeSpace": "Knowledge Space",
+    "workflow": "Workflow",
+    "dashboard": "Dashboard",
+    "settings": "Settings",
+    "userManagement": "User Management",
+    "roleManagement": "Role Management",
+    "systemConfig": "System Config",
+    "pluginsMarket": "Plugins Market",
+    "pluginsInstalled": "Installed Plugins",
+    "loadFailed": "Failed to load menus",
+    "loadFailedDesc": "Unable to load menu data. Please check your network connection.",
+    "noItemsWarning": "No menu items found",
+    "itemCount": "{count} items",
+    "untitled": "Untitled",
+    "section": {
+      "untitled": "Untitled Section"
+    }
+  },
+  "navigation": {
+    "intro": "Plugin Intro",
+    "templates": "Templates",
+    "templatesCrud": "Template CRUD",
+    "templatesDevelop": "Templates Develop Guide",
+    "capabilities": "Plugin Capability Registry",
+    "capabilitiesExposure": "Exposure & Quotas",
+    "capabilitiesLifecycle": "Lifecycle Governance",
+    "capabilityLab": "PowerX Capability Lab",
+    "iam": "IAM & Access",
+    "iamOverview": "IAM Overview",
+    "iamDepartments": "Departments",
+    "iamMembers": "Members",
+    "iamRoles": "Roles",
+    "iamSettings": "IAM Settings",
+    "profile": "Profile",
+    "help": "Help",
+    "logout": "Logout"
+  },
+  "iam": {
+    "notifications": {
+      "loadTenantsFailed": "Unable to load tenants",
+      "selectTenant": "Please select a tenant first"
+    },
+    "overview": {
+      "title": "Tenant Overview",
+      "caption": "Manage tenant lifecycle, plans, and isolation for Standalone IAM.",
+      "createTenant": "Create Tenant",
+      "adjustPlan": "Adjust Plan",
+      "quickSettings": {
+        "title": "Quick settings",
+        "caption": "Prototype configuration knobs while the real API is still wiring up."
+      },
+      "tenantTable": {
+        "title": "Tenant list",
+        "caption": "Tenant details, plans, and statuses inside the plugin."
+      },
+      "planDrawer": {
+        "title": "Update tenant plan",
+        "caption": "Pick a plan tier and adjust the display name shown in the console.",
+        "planLabel": "Plan tier",
+        "displayName": "Display name"
+      },
+      "createModal": {
+        "title": "Register tenant",
+        "caption": "Provide a unique tenant key and name.",
+        "key": "Tenant Key",
+        "name": "Display Name",
+        "plan": "Plan",
+        "status": "Status"
+      },
+      "status": {
+        "active": "Active",
+        "suspended": "Suspended"
+      },
+      "statusUpdated": "Tenant status updated",
+      "updateFailed": "Failed to update tenant",
+      "createSuccess": "Tenant created",
+      "createFailed": "Failed to create tenant"
+    },
+    "departments": {
+      "title": "Departments",
+      "caption": "Build a tree structure to organize members and scope permissions.",
+      "selectTenant": "Select tenant",
+      "createButton": "New Department",
+      "treeTitle": "Department tree",
+      "emptyState": "No departments yet. Create the first node to start building the tree.",
+      "noDescription": "No description",
+      "editTitle": "Edit department",
+      "createTitle": "Create department",
+      "parentRoot": "Root (no parent)",
+      "fields": {
+        "name": "Name",
+        "code": "Code",
+        "description": "Description",
+        "parent": "Parent",
+        "sortOrder": "Sort order"
+      },
+      "loadFailed": "Failed to load departments",
+      "saveSuccess": "Department saved",
+      "saveFailed": "Failed to save department",
+      "deleteConfirm": "Remove department {name}?",
+      "deleteSuccess": "Department removed",
+      "deleteFailed": "Failed to delete department"
+    },
+    "members": {
+      "title": "Members",
+      "caption": "Invite members, assign departments, and lock accounts when needed.",
+      "hero": {
+        "kicker": "Organization & Access",
+        "title": "Organization & Permissions",
+        "description": "Review tenants, departments, members, and roles in a single view to maintain standalone IAM."
+      },
+      "tabs": {
+        "departments": "Departments",
+        "users": "Members",
+        "permissions": "Permissions"
+      },
+      "tabsDescription": {
+        "departments": "Maintain each tenant's department tree and reporting structure.",
+        "users": "Invite members, bulk import, and toggle status quickly.",
+        "permissions": "Preview recent roles and jump into the role center."
+      },
+      "metrics": {
+        "tenants": "Tenants",
+        "departments": "Departments",
+        "members": "Members",
+        "roles": "Roles preview"
+      },
+      "selectTenant": "Select tenant",
+      "createButton": "Invite Member",
+      "importButton": "Bulk Import",
+      "searchPlaceholder": "Search by email, username, or name",
+      "statusFilter": "Filter by status",
+      "noRoles": "No roles",
+      "disable": "Disable",
+      "enable": "Enable",
+      "editModal": {
+        "title": "Edit member",
+        "caption": "Update profile, department, or status."
+      },
+      "fields": {
+        "email": "Email",
+        "displayName": "Display name",
+        "username": "Username",
+        "phone": "Phone",
+        "department": "Department",
+        "status": "Status",
+        "noDepartment": "No department"
+      },
+      "table": {
+        "name": "Name",
+        "status": "Status",
+        "roles": "Roles",
+        "department": "Department"
+      },
+      "status": {
+        "active": "Active",
+        "disabled": "Disabled",
+        "locked": "Locked"
+      },
+      "loadFailed": "Failed to load members",
+      "saveSuccess": "Member saved",
+      "saveFailed": "Failed to save member",
+      "statusUpdated": "Member status updated",
+      "updateFailed": "Failed to update member",
+      "importModal": {
+        "title": "Bulk import members",
+        "caption": "Paste one member per line. Format: email,displayName",
+        "hint": "Only email is required. Optional values include display name. Members will receive default roles after creation.",
+        "placeholder": "user\\u0040example.com, Display Name",
+        "submit": "Import",
+        "empty": "Please provide at least one row",
+        "success": "Import finished",
+        "failed": "Import failed",
+        "summary": "{success} succeeded, {failed} failed."
+      },
+      "permissionsTab": {
+        "title": "Permissions",
+        "caption": "Preview recently used roles and jump to the role manager.",
+        "cta": "Open role manager",
+        "empty": "No roles for this tenant yet.",
+        "members": "{count} members",
+        "manage": "Manage role"
+      }
+    },
+    "roles": {
+      "hero": {
+        "kicker": "Roles & Access",
+        "title": "Role Governance",
+        "description": "Manage scopes and member assignments so Standalone IAM mirrors the host experience."
+      },
+      "planLabel": "Plan",
+      "filters": {
+        "tenantPlaceholder": "Select tenant",
+        "searchPlaceholder": "Search roles by name or code"
+      },
+      "scopeFilter": {
+        "all": "All scopes",
+        "system": "System roles",
+        "tenant": "Tenant roles"
+      },
+      "typeFilter": {
+        "all": "All types",
+        "system": "Built-in",
+        "custom": "Custom"
+      },
+      "scope": {
+        "system": "System",
+        "tenant": "Tenant"
+      },
+      "table": {
+        "name": "Role",
+        "code": "Code",
+        "scope": "Scope",
+        "members": "Members",
+        "actions": "Actions"
+      },
+      "badges": {
+        "system": "System"
+      },
+      "actions": {
+        "permissions": "Permissions",
+        "members": "Members",
+        "clone": "Clone",
+        "create": "Create Role"
+      },
+      "form": {
+        "createTitle": "Create role",
+        "editTitle": "Edit role",
+        "name": "Role name",
+        "code": "Role code",
+        "scope": "Scope",
+        "tenant": "Tenant",
+        "description": "Description",
+        "hint": "Provide the role name, scope, tenant, and optional description."
+      },
+      "permissionDrawer": {
+        "caption": "Select plugin permissions for this role"
+      },
+      "membersDrawer": {
+        "caption": "Choose members that belong to this role",
+        "searchPlaceholder": "Search by name or email",
+        "empty": "No members available",
+        "selectionSummary": "{count} selected"
+      },
+      "permissionTree": {
+        "search": "Search permissions",
+        "selectAll": "Select all",
+        "clear": "Clear",
+        "emptyTitle": "No permissions available",
+        "emptyDescription": "Seed permissions from the manifest first.",
+        "total": "{count} scopes"
+      },
+      "pagination": {
+        "summary": "Showing {start}-{end} of {total}"
+      },
+      "empty": {
+        "default": "No roles yet. Click “Create role” to get started.",
+        "search": "No roles matched your filters."
+      },
+      "notifications": {
+        "missingFieldsTitle": "Complete the required fields",
+        "missingFieldsDesc": "Role name and code cannot be empty",
+        "tenantRequiredTitle": "Select a tenant",
+        "tenantRequiredDesc": "Specify a tenant before creating or editing roles",
+        "updated": "Role updated",
+        "created": "Role created",
+        "saveFailedTitle": "Failed to save role",
+        "saveFailedDesc": "Please retry or check your connection",
+        "deleteConfirm": "Delete this role? This cannot be undone.",
+        "deleteSuccess": "Role deleted",
+        "deleteFailed": "Failed to delete role",
+        "loadFailed": "Unable to load role details",
+        "permissionsSaved": "Permissions updated",
+        "permissionsFailed": "Failed to update permissions",
+        "membersSaved": "Members updated",
+        "membersFailed": "Failed to update members"
+      }
+    }
+  },
+  "product": {
+    "sku": {
+      "title": "SKU Center",
+      "basicInfo": "Basic information",
+      "inventory": "Inventory",
+      "logistics": "Logistics",
+      "constraints": "Constraints",
+      "skus": "SKU list",
+      "add": "Add SKU",
+      "detail": "SKU detail",
+      "search": "Search SKU, code or specification",
+      "status": "Status",
+      "category": "Category",
+      "brand": "Brand",
+      "skuCode": "SKU Code",
+      "spu": "SPU",
+      "specifications": "Specifications",
+      "price": "Price",
+      "availableStock": "Available stock",
+      "inventoryStatus": "Inventory status",
+      "actions": "Actions",
+      "inStock": "In stock",
+      "lowStock": "Low stock"
+    }
+  },
+  "tenant": {
+    "add": "Add Tenant",
+    "tooltips": {
+      "saasSupport": "SaaS support enabled"
+    }
+  },
+  "organization": {
+    "description": "Manage organization, members, and permissions.",
+    "common": {
+      "cancel": "Cancel",
+      "save": "Save",
+      "reset": "Reset",
+      "up": "Move up",
+      "down": "Move down",
+      "edit": "Edit",
+      "delete": "Delete",
+      "none": "None",
+      "enabled": "Enabled",
+      "disabled": "Disabled"
+    },
+    "tabs": {
+      "departments": "Departments",
+      "users": "Users",
+      "permissions": "Permissions"
+    },
+    "department": {
+      "title": "Department management",
+      "description": "Maintain the organizational hierarchy and owners.",
+      "search": "Search departments…",
+      "add": "Add department",
+      "edit": "Edit department",
+      "empty": {
+        "title": "No departments yet",
+        "noResults": "No matching departments"
+      },
+      "table": {
+        "name": "Name",
+        "actions": "Actions"
+      },
+      "form": {
+        "name": "Name",
+        "parent": "Parent",
+        "noParent": "No parent",
+        "moveParent": "Move to",
+        "key": "Unique key",
+        "sort": "Sort order",
+        "leader": "Owner",
+        "status": "Status",
+        "meta": "Meta (JSON)"
+      },
+      "confirmDelete": "Delete this department?",
+      "pagination": {
+        "showing": "Showing {start}-{end} of {total}"
+      }
+    },
+    "user": {
+      "status": {
+        "active": "Active",
+        "inactive": "Inactive",
+        "suspended": "Suspended"
+      },
+      "title": "Tenant directory",
+      "rootManagement": "Root view",
+      "selectTenantDesc": "Pick a tenant to manage its users and roles.",
+      "searchTenants": "Search tenants…",
+      "filter": {
+        "status": "Status",
+        "plan": "Plan",
+        "allStatus": "All statuses",
+        "allPlans": "All plans"
+      },
+      "plan": {
+        "free": "Free",
+        "pro": "Pro",
+        "enterprise": "Enterprise"
+      },
+      "noTenantsFound": "No tenants found",
+      "noDomain": "No domain configured",
+      "userCount": "Users",
+      "createdAt": "Created at",
+      "loadFailed": "Failed to load tenants",
+      "description": "Manage tenant members, roles, and permissions.",
+      "importExport": "Import/Export",
+      "form": {
+        "title": "Invite member",
+        "name": "Name",
+        "username": "Username",
+        "email": "Email",
+        "phone": "Phone",
+        "department": "Department",
+        "role": "Role",
+        "status": "Status",
+        "selectRole": "Select role"
+      },
+      "export": {
+        "csv": "Export CSV",
+        "json": "Export JSON"
+      },
+      "import": {
+        "button": "Import members"
+      }
+    },
+    "permission": {
+      "title": "Permission governance",
+      "description": "Bundle common role templates and keep authorization consistent.",
+      "roleList": "Role list",
+      "search": "Search roles or keywords",
+      "systemRole": "System role",
+      "userCount": "{count} members",
+      "empty": {
+        "title": "No roles yet",
+        "create": "Create role",
+        "noResults": "No matching roles"
+      },
+      "add": "Add role template",
+      "edit": "Edit role template",
+      "roleConfig": "Role permission config",
+      "configDesc": "Select plugin resources that should be granted to this role.",
+      "form": {
+        "name": "Role name",
+        "namePlaceholder": "e.g. Admin / Reviewer",
+        "code": "Role code",
+        "codePlaceholder": "Lowercase letters, numbers, dots, or hyphen only",
+        "description": "Description",
+        "descriptionPlaceholder": "Explain usage scenario or scope",
+        "permissions": "Available permissions"
+      }
+    }
+  },
+  "theme": {
+    "light": "Light Theme",
+    "dark": "Dark Theme"
+  },
+  "termsOfService": "Terms of Service",
+  "privacyPolicy": "Privacy Policy",
+  "capabilities": {
+    "list": {
+      "title": "Capability catalog",
+      "description": "Review registered atomic capabilities and composite workflows. Grouped modules keep large catalogs scannable.",
+      "refresh": "Refresh",
+      "createButton": "Register capability",
+      "tableTitle": "Registered capabilities",
+      "tableHint": "Includes capability ID, type, execution mode and tags. After new submissions the list refreshes automatically.",
+      "tableEmpty": "No capability yet",
+      "column": {
+        "capability": "Capability",
+        "kind": "Type",
+        "execution": "Execution",
+        "tags": "Tags",
+        "checksum": "Checksum"
+      },
+      "kind": {
+        "workflow": "Workflow",
+        "capability": "Capability",
+        "tool": "Tool",
+        "default": "Capability"
+      },
+      "versionLabel": "Version {version}",
+      "noTags": "No tags",
+      "empty": "No capability registered yet. Click “Register capability” to add the first entry.",
+      "toast": {
+        "loadFailed": "Failed to load capability catalog"
+      }
+    },
+    "form": {
+      "title": "Capability Registration",
+      "description": "Describe the capability, protocols, and samples so reviewers and PowerX workflows can reuse it instantly.",
+      "capabilityId": "Capability ID",
+      "validationUnknown": "Pending validation",
+      "validationPassed": "Validation passed",
+      "validationFailedShort": "Validation failed",
+      "steps": {
+        "basic": "Metadata",
+        "basicDesc": "Namespace, localized names, summary, scenarios, and tags",
+        "protocol": "Protocols & Schema",
+        "protocolDesc": "Input/output schemas plus REST/gRPC/Workflow/Agent entrypoints",
+        "samples": "Samples & Submission",
+        "samplesDesc": "Sample payloads, error codes, demo URL, and owner info"
+      },
+      "namespace": "Namespace",
+      "resource": "Resource",
+      "action": "Action",
+      "displayName": "Display name",
+      "summary": "Summary",
+      "descriptionField": "Description",
+      "localeZh": "Chinese",
+      "localeEn": "English",
+      "scenario": "Usage scenario",
+      "scenarioHint": "Explain the tenant scope, prerequisites, and when to use this capability.",
+      "tags": "Tags",
+      "tagsHint": "Separate with commas, e.g. workflow,agent",
+      "sensitivity": "Sensitivity",
+      "tenantScope": "Tenant scope",
+      "inputSchema": "Input schema",
+      "outputSchema": "Output schema",
+      "restPath": "REST path",
+      "grpcService": "gRPC service",
+      "workflowTemplate": "Workflow template",
+      "agentStream": "Agent SSE channel",
+      "asyncTitle": "Execution & Async settings",
+      "executionMode": "Execution mode",
+      "callbackUrl": "Callback URL",
+      "statusEndpoint": "Status endpoint",
+      "sseChannel": "SSE channel",
+      "sampleRequest": "Sample request",
+      "sampleResponse": "Sample response",
+      "jsonHint": "Please provide valid JSON for documentation and reviewers.",
+      "errorCodes": "Error codes",
+      "addRow": "Add row",
+      "errorCode": "Code",
+      "errorMessage": "Message",
+      "errorSolution": "Remediation",
+      "errorEmpty": "No error codes yet. Click “Add row” to provide details.",
+      "demoUrl": "Demo URL",
+      "demoHint": "Include tenant, credentials, or any steps reviewers should follow.",
+      "ownerName": "Owner name",
+      "ownerEmail": "Owner email",
+      "previewTitle": "Preview",
+      "previewName": "Name (ZH)",
+      "previewOwner": "Contact",
+      "previewSummary": "Summary",
+      "previewPlaceholder": "No summary provided yet.",
+      "validationFailed": "Please fix the highlighted issues",
+      "validateButton": "Validate",
+      "saveDraft": "Save draft",
+      "lastSaved": "Draft auto-saved at {time}",
+      "toast": {
+        "templateFailed": "Unable to load form template",
+        "validateFailed": "Validation failed",
+        "saved": "Draft saved",
+        "savedDesc": "Your draft is synced and can be resumed later.",
+        "validateBlock": "Validation blocked submission",
+        "fixBeforeSubmit": "Please resolve the errors before submitting again.",
+        "submitted": "Submission successful",
+        "submittedDesc": "Capability {id} is now in the review queue.",
+        "submitFailed": "Submission failed",
+        "invalidJson": "JSON parse error",
+        "fixJson": "Please verify the sample request/response fields.",
+        "genericError": "Unexpected error, please try again."
+      },
+      "debug": {
+        "title": "Capability Debugger",
+        "description": "Preview payloads and invoke plugin endpoints directly without going through the PowerX gateway.",
+        "docLink": "View guide",
+        "capability": "Capability ID",
+        "action": "Action",
+        "protocol": "Protocol",
+        "targetMode": "Target",
+        "target": {
+          "local": "Plugin endpoint",
+          "gateway": "PowerX gateway"
+        },
+        "apiBase": "API base URL",
+        "payload": "Payload template",
+        "payloadInvalid": "Invalid JSON payload",
+        "resetTemplate": "Reset",
+        "applyTemplate": "Apply template",
+        "tenantUuid": "Tenant UUID",
+        "mockModule": "Mock module",
+        "requestId": "Request ID",
+        "invoke": "Start debugging",
+        "requestPreview": "Request preview",
+        "collapsedPreview": "Click to expand request preview",
+        "status": "Status",
+        "statusFailed": "Failed",
+        "statusIdle": "Idle",
+        "duration": "Duration",
+        "traceId": "Trace ID",
+        "warnings": "Warnings",
+        "errors": "Errors",
+        "errorDetails": "Error details",
+        "responseData": "Response data",
+        "rawResponse": "Raw response",
+        "history": "Recent history",
+        "historySuccess": "Success",
+        "historyFail": "Failed",
+        "clearHistory": "Clear history",
+        "noHistory": "No history entries",
+        "capabilityRequired": "Capability ID is required",
+        "openDraft": "Debug current draft",
+        "openExisting": "Debug",
+        "payloadHint": "Only payload.body/query are sent to the actual endpoint; metadata is client-side only."
+      }
+    },
+    "mcp": {
+      "openPanel": "MCP session debugger",
+      "panelTitle": "MCP session debugger",
+      "panelDescription": "Register or resume MCP sessions, send heartbeats, and invoke tools without leaving the plugin admin console.",
+      "docLink": "MCP guide",
+      "session": {
+        "title": "Session control",
+        "description": "Create runtime assignments, acknowledge readiness, refresh heartbeats, or close the session after debugging."
+      },
+      "fields": {
+        "runtimeAssignment": "Runtime assignment ID",
+        "jwtId": "JWT ID",
+        "registerState": "Register state",
+        "capabilitiesHash": "Capabilities hash",
+        "ackState": "ACK state",
+        "heartbeatMissed": "Missed heartbeats",
+        "closeReason": "Close reason",
+        "tenantUuid": "Tenant UUID",
+        "lastPing": "Last ping",
+        "createdAt": "Created at",
+        "updatedAt": "Updated at",
+        "sessionId": "Session ID",
+        "toolScope": "Tool scope",
+        "capabilityId": "Capability ID",
+        "intent": "Intent",
+        "idempotencyKey": "Idempotency key",
+        "signature": "Signature",
+        "messageId": "Message ID",
+        "traceId": "Trace ID",
+        "correlationId": "Correlation ID",
+        "issuedAt": "Issued at",
+        "payload": "Payload",
+        "metadata": "Metadata"
+      },
+      "actions": {
+        "register": "Register session",
+        "ack": "Send ACK",
+        "heartbeat": "Heartbeat",
+        "close": "Close session",
+        "invoke": "Invoke MCP tool",
+        "applyCapability": "Use current capability",
+        "debugCapability": "MCP debug",
+        "clearHistory": "Clear history",
+        "connectStream": "Connect SSE",
+        "disconnectStream": "Disconnect",
+        "clearEvents": "Clear events",
+        "issuedNow": "Now"
+      },
+      "toast": {
+        "runtimeRequired": "Runtime assignment ID is required.",
+        "sessionRequired": "Please create or select a session first.",
+        "toolScopeRequired": "Tool scope is required.",
+        "registered": "Session registered",
+        "acknowledged": "Session acknowledged",
+        "heartbeat": "Heartbeat sent",
+        "closed": "Session closed",
+        "invoked": "Invoke completed",
+        "capabilityMissing": "Current draft has no capability ID yet.",
+        "capabilitySynced": "Capability synced to MCP payload"
+      },
+      "invoke": {
+        "title": "Invoke envelope",
+        "description": "Fill the integration envelope, including trace IDs and payload_ref JSON. The payload is automatically minified before sending.",
+        "status": "Status",
+        "failed": "Failed",
+        "idle": "Idle",
+        "history": "Invoke history",
+        "historySuccess": "Success",
+        "historyFail": "Failed",
+        "noHistory": "No invoke history yet."
+      },
+      "errors": {
+        "invalidPayload": "Payload JSON is invalid.",
+        "invalidMetadata": "Metadata JSON is invalid.",
+        "invalidIssuedAt": "Issued-at timestamp is invalid."
+      },
+      "stream": {
+        "title": "SSE events",
+        "description": "Subscribe to /mcp/sse for the active session to watch register/ack/heartbeat/invoke events in real time.",
+        "connected": "Connected",
+        "disconnected": "Disconnected",
+        "empty": "No stream events yet. Connect after registering a session."
+      },
+      "streamError": "Stream connection failed. Retry or reconnect."
+    },
+    "exposure": {
+      "title": "Capability Exposure & Tenant Quotas",
+      "description": "Configure REST/GraphQL/gRPC/Webhook/Workflow/Agent channels, authentication strategies, rate limits and tenant authorizations for approved capabilities. Generated assets are synced to PowerX within minutes.",
+      "capability": "Capability ID",
+      "updatedAt": "Last updated: {time}",
+      "sections": {
+        "channels": "Channel matrix",
+        "enabled": "channels enabled",
+        "channelHint": "Once enabled the channel appears in API Gateway, Workflow Builder, or Agent Hub.",
+        "auth": "Authentication",
+        "rateLimit": "Rate limiting",
+        "quotas": "Tenant quotas",
+        "tenantHint": "Unauthorized or over-quota tenants are blocked automatically.",
+        "noQuotas": "No tenant quotas yet. Add an entry below."
+      },
+      "fields": {
+        "capabilityId": "Capability ID",
+        "docsVersion": "Docs version",
+        "sdkVersion": "SDK version",
+        "tenant": "Tenant",
+        "displayName": "Display name",
+        "target": "Target service/topic",
+        "description": "Description",
+        "scopes": "Channel scopes",
+        "scopePlaceholder": "scope.one, scope.two",
+        "strategy": "Strategy",
+        "audience": "Audience",
+        "scopeList": "OAuth scopes",
+        "rpm": "Requests per minute",
+        "burst": "Burst limit",
+        "concurrency": "Concurrency",
+        "tenant": "Tenant",
+        "tenantId": "Tenant ID",
+        "tenantName": "Tenant name",
+        "quota": "Quota",
+        "status": "Status",
+        "notes": "Notes"
+      },
+      "actions": {
+        "load": "Load Configuration",
+        "resetChannels": "Reset Channels",
+        "addTenant": "Save tenant quota"
+      },
+      "toast": {
+        "templateFail": "Failed to load channel template",
+        "capabilityRequired": "Capability ID is required",
+        "loadFail": "Unable to load exposure configuration",
+        "saveSuccess": "Exposure settings saved",
+        "saveFailed": "Save failed, please retry later",
+        "quotaSaved": "Tenant quota updated",
+        "quotaFailed": "Failed to update tenant quota",
+        "tenantRequired": "Tenant ID is required"
+      }
+    },
+    "lifecycle": {
+      "badge": "Lifecycle",
+      "title": "Capability Lifecycle Plans",
+      "description": "Describe upgrade/deprecation diffs, rollout windows, and notification channels so subscribers are warned and can roll back safely.",
+      "fields": {
+        "capabilityId": "Capability ID",
+        "changeType": "Change type",
+        "notificationChannels": "Notification channels",
+        "graceHours": "Observation window (hours)",
+        "dualRun": "Dual-run deadline",
+        "diffSummary": "Diff summary",
+        "rollbackPlan": "Rollback plan",
+        "impactScope": "Impact scope",
+        "migrationGuide": "Migration guide / URL",
+        "statusNotes": "Status notes"
+      },
+      "placeholders": {
+        "capability": "com.powerx.demo.template.create",
+        "changeType": "Select change type",
+        "channels": "Choose notification channels",
+        "graceHours": "72",
+        "diffSummary": "Explain breaking changes, tenants, required actions...",
+        "rollbackPlan": "Document the fallback procedure",
+        "impactScope": "e.g. tenant A, production env",
+        "migrationGuide": "Documentation link or notes",
+        "windowLabel": "wave-1",
+        "percent": "50",
+        "condition": "Condition (optional)"
+      },
+      "sections": {
+        "windows": "Rollout windows",
+        "windowHint": "Split rollout into waves with percentage, time range, and optional conditions.",
+        "windowLabel": "Rollout wave",
+        "noWindow": "No rollout window yet. Add one to describe the gray release plan.",
+        "channels": "Notification channels",
+        "noChannels": "Not configured",
+        "grace": "Observation window",
+        "dualRun": "Dual-run",
+        "notSet": "Not set",
+        "windowTimeline": "Execution timeline"
+      },
+      "actions": {
+        "loadPlans": "Load plans",
+        "addWindow": "Add wave",
+        "removeWindow": "Remove wave",
+        "createPlan": "Create lifecycle plan",
+        "refresh": "Refresh"
+      },
+      "list": {
+        "title": "Lifecycle plans",
+        "description": "Manage version upgrades, deprecation, and rollback paths for the selected capability.",
+        "empty": "No lifecycle plans yet. Create one to govern version changes.",
+        "planMeta": "Created by {author} at {time}"
+      },
+      "units": {
+        "hours": "hours"
+      },
+      "status": {
+        "draft": "Draft",
+        "pending": "Pending",
+        "approved": "Approved",
+        "paused": "Paused",
+        "completed": "Completed"
+      },
+      "toast": {
+        "templateFailed": "Failed to load lifecycle template",
+        "loadFailed": "Failed to load lifecycle plans",
+        "capabilityRequired": "Capability ID is required",
+        "required": "Please complete the required fields",
+        "planCreated": "Lifecycle plan created",
+        "createFailed": "Failed to create lifecycle plan",
+        "statusUpdated": "Status updated",
+        "statusDesc": "Plan switched to {status}",
+        "statusFailed": "Failed to update lifecycle status"
+      }
+    }
+  },
+  "intro": {
+    "title": "Base Template Plugin",
+    "description": "Explore the starter template plugin for PowerX and learn how to build reusable modules quickly.",
+    "viewIntro": "View introduction"
+  },
+  "auth": {
+    "backToHome": "Back to home",
+    "backToLogin": "Back to login",
+    "welcomeBack": "Welcome back",
+    "loginSubtitle": "Sign in with your PowerX account to continue.",
+    "identifier": "Email or phone",
+    "email": "Email",
+    "password": "Password",
+    "remember": "Remember me",
+    "required": "Please fill out the required fields.",
+    "loginFailed": "Login failed, please check your credentials.",
+    "signingIn": "Signing in...",
+    "loginButton": "Sign in",
+    "signUpNow": "Sign up now",
+    "signInNow": "Sign in now",
+    "createAccount": "Create account",
+    "creatingAccount": "Creating account...",
+    "registerSubtitle": "Create a local admin profile to unlock IAM capabilities.",
+    "registerFailed": "Registration failed, please try again later.",
+    "registerSuccessTitle": "Registration successful!",
+    "registerSuccessDesc": "Welcome aboard! Redirecting you home in {seconds} seconds.",
+    "invalidEmail": "Please enter a valid email address.",
+    "passwordTooShort": "Password must be at least 6 characters.",
+    "passwordMismatch": "Passwords do not match.",
+    "mustAgreeTerms": "Please read and agree to the terms before continuing.",
+    "agreeTerms": "I agree to the",
+    "and": "and",
+    "termsInfo": "Agreeing means you accept the policies. You can update preferences anytime.",
+    "terms": {
+      "mustRead": "Please review and accept the Terms of Service and Privacy Policy first.",
+      "ready": "You're done reading, you can check the consent box now."
+    },
+    "passwordStrength": {
+      "weak": "Weak",
+      "medium": "Medium",
+      "strong": "Strong"
+    },
+    "login": {
+      "forgotPassword": "Forgot password?",
+      "noAccount": "Don’t have an account?"
+    },
+    "register": {
+      "username": "Username",
+      "confirmPassword": "Confirm password"
+    },
+    "hasAccount": "Already have an account?",
+    "reading": {
+      "complete": "Full content reviewed",
+      "scroll": "Scroll to the bottom to continue",
+      "enough": "Reading time completed",
+      "remainingTime": "{seconds}s remaining",
+      "readyTerms": "You can accept the terms",
+      "readyPrivacy": "You can accept the policy"
+    },
+    "termsModal": {
+      "title": "Terms of Service"
+    },
+    "privacyModal": {
+      "title": "Privacy Policy"
+    },
+    "modal": {
+      "accept": "I have read and agree"
+    },
+    "forgot": {
+      "title": "Reset password",
+      "subtitle": "Enter your email address and we’ll send you a reset link.",
+      "sentTitleShort": "Email sent",
+      "sentSubtitle": "Please check your inbox and click the reset link.",
+      "sentTitle": "Reset email sent to {email}",
+      "sentDesc": "Check your inbox (and spam folder) and click the link to reset your password.",
+      "resend": "Resend email",
+      "send": "Send reset email",
+      "sending": "Sending...",
+      "requiredEmail": "Please enter your email address.",
+      "sendError": "Failed to send the reset email. Please try again later.",
+      "emailLabel": "Email address",
+      "emailPlaceholder": "Enter your email address",
+      "emailHint": "We’ll send the reset link to this address.",
+      "tips": {
+        "expire": "• The reset link expires in 24 hours",
+        "spam": "• Check your spam folder if you don’t see the email",
+        "email": "• Make sure the email address is correct"
+      }
+    },
+    "delegated": {
+      "bannerTitle": "PowerX session expired",
+      "bannerDescription": "The host login is no longer valid. Please return to PowerX or wait for the administrator to reinject the credential.",
+      "retry": "Request token",
+      "loginDisabled": "Running in delegated mode. Please return to the PowerX host console to authenticate."
+    }
+  },
+  "landing": {
+    "hero": {
+      "title": "Powerx Plugin Scrm Plugin",
+      "description": "Welcome to the starter intro page. It highlights template CRUD, navigation and multilingual experiences for local development.",
+      "cards": {
+        "quickstart": {
+          "title": "Quickstart",
+          "body": "Use the template management example to understand plugin configs, menus and permission declarations."
+        },
+        "reusable": {
+          "title": "Reusable templates",
+          "body": "Extract common sections into templates and reuse them across pages for a consistent experience."
+        },
+        "api": {
+          "title": "API showcase",
+          "body": "The backend ships a minimal template API that can connect to PowerX or be extended for production workloads."
+        }
+      },
+      "ctaLogin": "Try the login flow",
+      "stats": {
+        "adminShell": "Admin shell",
+        "backend": "Backend service"
+      }
+    },
+    "next": {
+      "title": "What\u2019s next",
+      "cards": {
+        "crud": {
+          "title": "Explore template CRUD",
+          "body": "Visit the \"Template CRUD\" page to experience list, create, edit and delete flows end-to-end.",
+          "cta": "Open template manager"
+        },
+        "guide": {
+          "title": "Read the developer guide",
+          "body": "The \"Develop Guide\" explains folder structure, dependency injection and API registration steps.",
+          "cta": "View develop guide"
+        }
+      }
+    }
+  },
+  "templates": {
+    "overview": {
+      "title": "Template Overview",
+      "description": "Templates help you bootstrap new experiences with consistent structures and reusable content blocks.",
+      "cards": {
+        "create": "Create",
+        "createDescription": "Draft reusable templates that can be applied across multiple pages or workflows.",
+        "automation": "Automation",
+        "automationDescription": "Combine templates with automation to accelerate onboarding and delivery.",
+        "analytics": "Insights",
+        "analyticsDescription": "Measure how templates are used and optimise collaboration in your team."
+      }
+    },
+    "develop": {
+      "title": "Development Guide",
+      "description": "Understand the backend and frontend touch points for extending the template module.",
+      "structure": "Key directories",
+      "steps": "Implementation steps",
+      "step1": "Define the GORM model and migrations for template storage.",
+      "step2": "Expose repository and service layers for business logic.",
+      "step3": "Register HTTP APIs under /api/v1/templates with RBAC protection.",
+      "step4": "Connect the Nuxt pages to the APIs and polish the user experience."
+    },
+    "crud": {
+      "title": "Template CRUD",
+      "description": "Manage demo templates with create, update and delete operations.",
+      "create": "New Template",
+      "formTitle": "Template Form",
+      "fields": {
+        "name": "Template Name",
+        "namePlaceholder": "Enter template name",
+        "description": "Description",
+        "descriptionPlaceholder": "Describe the purpose of this template",
+        "content": "Content",
+        "contentPlaceholder": "Write the template content"
+      },
+      "actions": {
+        "save": "Save Template",
+        "update": "Update Template"
+      },
+      "listTitle": "Existing Templates",
+      "deleteTitle": "Delete Template",
+      "deleteDescription": "This action cannot be undone.",
+      "deleteConfirm": "Are you sure you want to delete \"{name}\"?",
+      "readonlyTitle": "Templates are controlled by the host",
+      "readonlyDescription": "Running in Delegated mode. CRUD is read-only until the host grants `base.templates.*` permissions.",
+      "readonlyToast": "Read-only mode enforced by PowerX. Ask your admin to grant template permissions."
+    },
+    "form": {
+      "modalDescription": "Fill out the template details below.",
+      "name": "Template Name",
+      "description": "Description",
+      "content": "Content"
+    }
+  },
+  "message": {
+    "saveSuccess": "Saved successfully",
+    "deleteSuccess": "Deleted successfully",
+    "error": "Operation failed, please try again",
+    "confirmDelete": "Are you sure you want to delete? This action cannot be undone.",
+    "noData": "No data available",
+    "networkError": "Network error, please check your connection",
+    "templateCreated": "Template created successfully"
+  }
+}

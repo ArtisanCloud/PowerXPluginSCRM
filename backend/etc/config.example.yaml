@@ -1,0 +1,217 @@
+# Skeleton 插件示例配置
+# 将本文件复制为 backend/etc/config.yaml 即可覆盖默认配置。
+#
+# Auth / IAM / 运行模式环境变量速查（未在 YAML 中硬编码，以免泄露敏感信息）：
+#   POWERX_PROXY                - 设为 1 时表示运行在宿主 iframe/代理下（Delegated 模式）
+#   POWERX_RBAC_DELEGATE        - true/1/on 时强制委托宿主 IAM（即使 POWERX_PROXY=0），只读本地数据
+#   POWERX_CORE_ENDPOINT        - Delegated 模式访问宿主 Core API 的基址（默认 http://localhost:8077）
+#   POWERX_AUTH_TOKEN           - 插件向宿主 Core 鉴权用的服务 Token
+#   POWERX_AUTH_OPTIONAL        - 调试专用，true 时允许未携带 Token 的请求（仅限本地）
+#   PLUGIN_IAM_TENANT_KEY/NAME  - Standalone 模式默认租户唯一键与显示名
+#   PLUGIN_IAM_ADMIN_EMAIL      - Standalone 模式默认管理员邮箱（用于 migrate/seed）
+#   PLUGIN_IAM_ADMIN_PASSWORD   - Standalone 模式默认管理员密码（用于 migrate/seed）
+#   NUXT_PUBLIC_INSIDE_POWERX   - 前端运行时使用，'1' 代表宿主模式；否则渲染 Standalone 菜单（含“组织与权限”）
+#   NUXT_PUBLIC_POWERX_PROXY    - 与上类似，供 runtimeConfig 判断 API Base
+
+server:
+  bind_addr: ":8078"
+  api_prefix: "/api/v1"
+  log_level: "debug"
+  dev_mode: true
+
+# gRPC 上游（可选，默认关闭）
+grpc_upstream:
+  address: "localhost:8079"
+  tenant_uuid: "00000000-0000-0000-0000-000000000001"
+  use_tls: false
+  connect_mode: "lazy"
+  optional: true
+
+gateway:
+  # Skeleton 开发通常通过 px-plugin login 写入 .env.local 中的 PX_GATEWAY_BASE_URL / PX_TOOL_TOKEN / PX_TOOL_REFRESH_TOKEN / PX_TENANT_UUID。
+  # 若留空则默认关闭 Gateway 调用，`PX_USE_MOCK` 可指定 media,eventfabric 等模块名称以启用内存 Mock。
+  # 注意：只要 base_url/tool_token/tenant_uuid 任一不为空，就会触发 Gateway 配置校验（必须三者齐全）。
+  # 因此默认将 base_url 与 tenant_uuid 留空，避免在未登录/未配置 Token 时阻塞本地启动。
+  base_url: ""
+  tool_token: ""
+  refresh_token: ""
+  tenant_uuid: ""
+  timeout: "10s"
+  user_agent: "powerx-plugin-skeleton/dev"
+  use_mock: []
+
+database:
+  # 开发建议：默认使用 Postgres（更接近生产；SQLite 仅保留最小可跑通子集，且不保证所有表/约束/时间字段行为一致）。
+  driver: "postgres"
+  # 你可以复用本机 Postgres，但务必使用独立 schema，避免与宿主/其它插件冲突。
+  # 先确保数据库存在（例如 com_powerx_plugin_base），schema 会由程序自动创建。
+  dsn: "postgres://powerx:powerx@localhost:5432/com_powerx_plugin_base?sslmode=disable"
+  schema: "public"
+  # 如需快速本地试跑（最小能力集）可切到 SQLite：
+  # driver: "sqlite"
+  # dsn: "file:../../.cache/powerxplugin.db?cache=shared&_fk=1"
+  # schema: ""
+  maxIdleConns: 10
+  maxOpenConns: 100
+  connMaxLifetime: 1h
+  connMaxIdleTime: 30m
+  slowThreshold: 200ms
+  preferSimpleProtocol: true
+  prepareStmt: false
+  skipDefaultTx: false
+  logLevel: "silent"
+  devMode: false
+  healthTimeout: 5s
+
+runtime:
+  run_migrate: false
+
+runtime_ops:
+  heartbeat_seconds: 15
+  heartbeat_misses: 3
+  quota_window_minutes: 5
+  restart_backoff_start_seconds: 5
+  restart_backoff_max_seconds: 120
+  log_retention_days: 7
+  cpu_default: "500m"
+  memory_default: "512Mi"
+  network_profile: "standard"
+  observability:
+    loki_endpoint: ""
+    tempo_endpoint: ""
+  alerts:
+    health_failure_rate: 0.5
+    p95_latency_ms: 500
+    error_rate: 0.05
+    quota_usage: 0.9
+    billing_anomaly: 0.2
+
+context:
+  hmac_secret: "dev-hmac-secret"
+  key_id: "dev"
+  jwks_url: ""
+  issuer: ""
+  audience: ""
+  ttl: "5m"
+
+security:
+  enable_cors: true
+  cors_origins:
+    - "http://localhost:3031"
+    - "http://127.0.0.1:3031"
+  rate_limit:
+    enabled: false
+
+# Customer 鉴权（Mini-App / 2C）
+# - local: Skeleton 模式，插件自管 customer 表与登录签发
+# - delegate: 宿主模式，插件转发到 PowerX CRM/IAM 校验端点，不落库
+customer_auth:
+  mode: "local" # local | delegate
+  delegate_endpoint: "" # delegate 模式必填，例如 http://127.0.0.1:8077/api/v1/customer/auth/validate
+  delegate_timeout: "3s"
+  jwt_issuer: ""   # local 模式可选：覆盖 issuer
+  jwt_audience: "" # local 模式可选：覆盖 audience
+  jwt_secret: ""   # local 模式必填（生产环境），开发可通过 env 注入
+  cache_ttl_seconds: 0 # 0=禁用；delegate 模式缓存 TTL 不得超过 token exp
+
+monitoring:
+  metrics:
+    enabled: true
+    path: "/api/v1/admin/runtime/metrics"
+  health_check:
+    enabled: true
+    path: "/healthz"
+
+logging:
+  level: "debug"
+  format: "text"
+  output: "stdout"
+
+integration:
+  idempotency:
+    provider: redis
+    redis_url: "redis://localhost:6379"
+    ttl_hours: 24
+  envelope:
+    payload_threshold_bytes: 1048576
+  webhook:
+    retry_policy: [60, 300, 900]
+    dlq_topic: "plugin.webhook.dlq"
+  secrets:
+    rotation_days_default: 30
+  billing:
+    tax_provider: stripe_tax
+    stripe_tax:
+      api_key: "sk_test_xxx"
+      user_id: ""
+      location: "US"
+      api_base_url: "https://api.stripe.com"
+      webhook_secret: ""
+      timeout_seconds: 15
+    avalara:
+      user_id: ""
+      license_key: ""
+      company_code: ""
+      environment: "sandbox"
+      base_url: "https://sandbox-rest.avatax.com"
+      client_id: ""
+      client_secret: ""
+      timeout_seconds: 15
+    reconciliation:
+      vendor_share: 0.8
+      platform_share: 0.15
+      fee_share: 0.05
+      currency: "USD"
+    async_queue: "marketplace.billing.async"
+    http_timeout_seconds: 15
+    retry_backoff_seconds: [5, 30, 120]
+
+marketplace:
+  checklist:
+    graphql_path: "/api/v1/admin/marketplace/checklist/graphql"
+    docs_url: "specs/006-marketplace-business/contracts/ready-checklist.graphql"
+  documentation:
+    overview: "specs/006-marketplace-business/quickstart.md"
+    ready_checklist: "specs/006-marketplace-business/contracts/ready-checklist.graphql"
+    listing_playbook: "specs/006-marketplace-business/spec.md"
+  recommendation:
+    enabled: false
+    default_weight: 0.0
+    experiment_topic: "marketplace.recommendation.experiments"
+    frequency_minutes: 60
+  license:
+    offline_allowance_hours: 72
+    cache:
+      provider: redis
+      redis_url: "redis://localhost:6379"
+      key_prefix: "powerx:marketplace:licenses"
+    reminder:
+      lead_hours: 0
+      channels: []
+
+operations:
+  support:
+    webhook_secret: "replace-me"
+    default_channels:
+      - channel: "marketplace_ticket"
+        address: "https://support.powerx.dev/plugins/base"
+        escalates: ["agent", "engineer"]
+      - channel: "vendor_email"
+        address: "vendor-support@example.com"
+        escalates: ["agent", "manager"]
+      - channel: "emergency_hotline"
+        address: "+1-800-555-0100"
+        escalates: ["manager"]
+  incident:
+    status_page_url: "https://status.powerx.dev/plugins/base"
+    security_contacts: ["security@powerx.io"]
+    communication_modes: ["support_hub", "status_page", "security_email", "hotline"]
+  sla:
+    timezone: "UTC"
+    daily_cron: "0 5 * * *"
+
+# 如需切换到 Postgres，可以将 driver 设置为 postgres 并提供 dsn，例如：
+# database:
+#   driver: "postgres"
+#   dsn: "postgres://powerx:powerx@localhost:5432/com_powerx_plugin_base?sslmode=disable"
+#   schema: "public"

@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package marketplace;
+
+option go_package = "github.com/ArtisanCloud/PowerXPlugin/skeleton/backend/internal/transport/grpc/marketplace";
+
+message IssueLicenseRequest {
+  string tenant_uuid = 1;
+  string listing_id = 2;
+  string plan_id = 3;
+  string issued_by = 4;
+  bool trial = 5;
+  int64 expires_at_unix = 6;
+  string payment_intent_id = 7;
+}
+
+message IssueLicenseResponse {
+  License license = 1;
+}
+
+message RenewLicenseRequest {
+  string tenant_uuid = 1;
+  string license_id = 2;
+  string plan_id = 3;
+  string renewal_token = 4;
+  int64 expires_at_unix = 5;
+}
+
+message RenewLicenseResponse {
+  License license = 1;
+}
+
+message VerifyLicenseRequest {
+  string tenant_uuid = 1;
+  string listing_id = 2;
+}
+
+message VerifyLicenseResponse {
+  bool valid = 1;
+  string reason = 2;
+  License license = 3;
+}
+
+message License {
+  string id = 1;
+  string tenant_uuid = 2;
+  string listing_id = 3;
+  string plan_id = 4;
+  string status = 5;
+  string token = 6;
+  int64 expires_at_unix = 7;
+  int64 offline_until_unix = 8;
+  string renewal_token = 9;
+  string settlement_currency = 10;
+  double exchange_rate = 11;
+}
+
+service LicenseService {
+  rpc Issue(IssueLicenseRequest) returns (IssueLicenseResponse);
+  rpc Renew(RenewLicenseRequest) returns (RenewLicenseResponse);
+  rpc Verify(VerifyLicenseRequest) returns (VerifyLicenseResponse);
+}

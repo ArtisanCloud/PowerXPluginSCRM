@@ -1,0 +1,1119 @@
+{
+  "common": {
+    "save": "保存",
+    "cancel": "取消",
+    "delete": "删除",
+    "edit": "编辑",
+    "add": "新增",
+    "search": "搜索",
+    "loading": "加载中...",
+    "confirm": "确认",
+    "confirmation": "确认操作",
+    "back": "返回",
+    "next": "下一步",
+    "previous": "上一步",
+    "submit": "提交",
+    "reset": "重置",
+    "close": "关闭",
+    "refresh": "刷新",
+    "error": "发生错误",
+    "retry": "重试",
+    "reload": "重新加载",
+    "all": "全部",
+    "selected": "已选 {count} 项",
+    "total": "共 {count} 条",
+    "view": "查看",
+    "export": "导出",
+    "import": "导入",
+    "welcome": "欢迎",
+    "appName": "PowerX 基础插件"
+  },
+  "status": {
+    "active": "启用",
+    "inactive": "停用"
+  },
+  "menu": {
+    "openMarket": "开放市场",
+    "pluginMarketplace": "插件市场",
+    "pluginReleaseCandidates": "发布候选",
+    "agent": "智能体",
+    "aiSettings": "AI 设置",
+    "aiSettingsModel": "模型配置",
+    "aiSettingsCost": "成本配置",
+    "badge": "徽章",
+    "customers": "客户管理",
+    "customerList": "客户列表",
+    "customerGroups": "客户分组",
+    "products": "产品管理",
+    "productList": "产品列表",
+    "productCategories": "产品分类",
+    "orders": "订单管理",
+    "knowledgeSpace": "知识空间",
+    "workflow": "流程",
+    "dashboard": "仪表盘",
+    "settings": "设置",
+    "userManagement": "用户管理",
+    "roleManagement": "角色管理",
+    "systemConfig": "系统配置",
+    "pluginsMarket": "应用市场",
+    "pluginsInstalled": "已安装",
+    "loadFailed": "菜单加载失败",
+    "loadFailedDesc": "无法加载菜单数据，请检查网络连接。",
+    "noItemsWarning": "未找到菜单项",
+    "itemCount": "共 {count} 项",
+    "untitled": "未命名菜单",
+    "section": {
+      "untitled": "未命名分类"
+    }
+  },
+  "navigation": {
+    "intro": "插件介绍",
+    "templates": "模板管理",
+    "templatesCrud": "模板 CRUD",
+    "templatesDevelop": "开发指南",
+    "capabilities": "插件能力注册",
+    "capabilitiesExposure": "能力暴露配置",
+    "capabilitiesLifecycle": "生命周期治理",
+    "capabilityLab": "PowerX 能力调试",
+    "iam": "组织与权限",
+    "iamOverview": "租户总览",
+    "iamDepartments": "组织结构",
+    "iamMembers": "成员管理",
+    "iamRoles": "角色权限",
+    "iamSettings": "租户配置",
+    "profile": "个人中心",
+    "help": "帮助",
+    "logout": "退出"
+  },
+  "iam": {
+    "notifications": {
+      "loadTenantsFailed": "加载租户失败",
+      "selectTenant": "请先选择租户"
+    },
+    "overview": {
+      "title": "租户总览",
+      "caption": "查看并管理 Standalone 租户、套餐与状态。",
+      "createTenant": "新建租户",
+      "adjustPlan": "调整套餐",
+      "quickSettings": {
+        "title": "快速设置",
+        "caption": "在真正接 API 之前，先用本地状态模拟显示与安全策略。"
+      },
+      "tenantTable": {
+        "title": "租户列表",
+        "caption": "查看当前插件内的租户、套餐与状态。"
+      },
+      "planDrawer": {
+        "title": "更新套餐与名称",
+        "caption": "选择套餐档位并更新在控制台展示的名称。",
+        "planLabel": "套餐档位",
+        "displayName": "展示名称"
+      },
+      "createModal": {
+        "title": "注册租户",
+        "caption": "租户 Key 需保持唯一。",
+        "key": "租户 Key",
+        "name": "租户名称",
+        "plan": "套餐",
+        "status": "状态"
+      },
+      "status": {
+        "active": "启用",
+        "suspended": "停用"
+      },
+      "statusUpdated": "租户状态已更新",
+      "updateFailed": "更新租户失败",
+      "createSuccess": "租户创建成功",
+      "createFailed": "创建租户失败"
+    },
+    "departments": {
+      "title": "组织与部门",
+      "caption": "构建树形结构以划分成员职责与权限范围。",
+      "selectTenant": "选择租户",
+      "createButton": "新建部门",
+      "treeTitle": "部门树",
+      "emptyState": "暂未创建部门，点击右上角按钮即可新增。",
+      "noDescription": "暂无描述",
+      "editTitle": "编辑部门",
+      "createTitle": "创建部门",
+      "parentRoot": "根节点（无上级）",
+      "fields": {
+        "name": "名称",
+        "code": "唯一编码",
+        "description": "描述",
+        "parent": "上级部门",
+        "sortOrder": "排序"
+      },
+      "loadFailed": "加载部门失败",
+      "saveSuccess": "部门已保存",
+      "saveFailed": "保存部门失败",
+      "deleteConfirm": "确认删除 {name} 吗？",
+      "deleteSuccess": "部门已删除",
+      "deleteFailed": "删除部门失败"
+    },
+    "members": {
+      "title": "成员管理",
+      "caption": "邀请成员、调整部门并在必要时禁用账号。",
+      "hero": {
+        "kicker": "组织与成员",
+        "title": "组织架构与权限",
+        "description": "在单页内审视租户、部门、成员与角色，快速完成 Standalone IAM 的日常维护。"
+      },
+      "tabs": {
+        "departments": "组织结构",
+        "users": "成员列表",
+        "permissions": "角色与权限"
+      },
+      "tabsDescription": {
+        "departments": "维护部门树与汇报关系，确保组织架构与租户状态一致。",
+        "users": "邀请成员、批量导入与状态切换，支持跨租户筛选与搜索。",
+        "permissions": "快速跳转角色与权限配置，查看成员覆盖范围。"
+      },
+      "metrics": {
+        "tenants": "租户总数",
+        "departments": "部门数量",
+        "members": "成员数量",
+        "roles": "预览角色"
+      },
+      "selectTenant": "选择租户",
+      "createButton": "邀请成员",
+      "importButton": "批量导入",
+      "searchPlaceholder": "邮箱、用户名或姓名",
+      "statusFilter": "状态筛选",
+      "noRoles": "暂无角色",
+      "disable": "禁用",
+      "enable": "启用",
+      "editModal": {
+        "title": "编辑成员",
+        "caption": "更新成员信息、部门与状态。"
+      },
+      "fields": {
+        "email": "邮箱",
+        "displayName": "显示名",
+        "username": "用户名",
+        "phone": "手机号",
+        "department": "所属部门",
+        "status": "状态",
+        "noDepartment": "未分配部门"
+      },
+      "table": {
+        "name": "姓名",
+        "status": "状态",
+        "roles": "角色",
+        "department": "部门"
+      },
+      "status": {
+        "active": "启用",
+        "disabled": "禁用",
+        "locked": "锁定"
+      },
+      "loadFailed": "加载成员失败",
+      "saveSuccess": "成员已保存",
+      "saveFailed": "保存成员失败",
+      "statusUpdated": "成员状态已更新",
+      "updateFailed": "更新成员失败",
+      "importModal": {
+        "title": "批量导入成员",
+        "caption": "每行一个成员，格式：email,显示名",
+        "hint": "仅邮箱为必填字段，可选显示名；导入后可在列表中继续编辑。",
+        "placeholder": "示例：user＠example.com，张三",
+        "submit": "开始导入",
+        "empty": "请至少输入一行成员信息",
+        "success": "导入完成",
+        "failed": "导入失败",
+        "summary": "成功 {success} 条，失败 {failed} 条。"
+      },
+      "permissionsTab": {
+        "title": "权限治理",
+        "caption": "查看最近使用的角色并快速跳转到角色中心完成权限配置。",
+        "cta": "前往角色管理",
+        "empty": "当前租户暂无角色，请前往角色页创建。",
+        "members": "{count} 名成员",
+        "manage": "管理角色"
+      }
+    },
+    "roles": {
+      "hero": {
+        "kicker": "角色与权限",
+        "title": "角色治理",
+        "description": "集中管理角色、权限与成员分配，保持 Standalone 与宿主体验一致。"
+      },
+      "planLabel": "套餐",
+      "filters": {
+        "tenantPlaceholder": "选择租户",
+        "searchPlaceholder": "搜索角色名称或代码"
+      },
+      "scopeFilter": {
+        "all": "全部作用域",
+        "system": "系统角色",
+        "tenant": "租户角色"
+      },
+      "typeFilter": {
+        "all": "全部类型",
+        "system": "系统内置",
+        "custom": "自定义"
+      },
+      "scope": {
+        "system": "系统角色",
+        "tenant": "租户角色"
+      },
+      "table": {
+        "name": "角色名称",
+        "code": "角色代码",
+        "scope": "作用域",
+        "members": "成员数",
+        "actions": "操作"
+      },
+      "badges": {
+        "system": "系统"
+      },
+      "actions": {
+        "permissions": "配置权限",
+        "members": "管理成员",
+        "clone": "克隆",
+        "create": "新建角色"
+      },
+      "form": {
+        "createTitle": "新建角色",
+        "editTitle": "编辑角色",
+        "name": "角色名称",
+        "code": "角色代码",
+        "scope": "作用域",
+        "tenant": "归属租户",
+        "description": "角色描述",
+        "hint": "填写角色名称、作用域与所属租户。"
+      },
+      "permissionDrawer": {
+        "caption": "勾选需要授权的插件权限"
+      },
+      "membersDrawer": {
+        "caption": "选择可访问该角色的成员",
+        "searchPlaceholder": "搜索成员姓名、邮箱",
+        "empty": "暂无可选成员",
+        "selectionSummary": "已选择 {count} 人"
+      },
+      "permissionTree": {
+        "search": "搜索权限",
+        "selectAll": "全选",
+        "clear": "清空",
+        "emptyTitle": "暂无可用权限",
+        "emptyDescription": "请先从 Manifest 同步或执行种子脚本。",
+        "total": "共 {count} 条"
+      },
+      "pagination": {
+        "summary": "显示 {start}-{end} / 共 {total} 条"
+      },
+      "empty": {
+        "default": "暂未创建角色，点击「新建角色」开始配置。",
+        "search": "没有匹配的角色，请调整筛选条件。"
+      },
+      "notifications": {
+        "missingFieldsTitle": "请填写必填字段",
+        "missingFieldsDesc": "角色名称与代码不能为空",
+        "tenantRequiredTitle": "请选择租户",
+        "tenantRequiredDesc": "需要指定租户才能创建或编辑角色",
+        "updated": "角色已更新",
+        "created": "角色已创建",
+        "saveFailedTitle": "保存角色失败",
+        "saveFailedDesc": "请稍后重试或检查网络连接",
+        "deleteConfirm": "确定要删除该角色吗？",
+        "deleteSuccess": "角色已删除",
+        "deleteFailed": "删除角色失败",
+        "loadFailed": "加载角色详情失败",
+        "permissionsSaved": "权限已更新",
+        "permissionsFailed": "更新权限失败",
+        "membersSaved": "成员列表已更新",
+        "membersFailed": "更新成员失败"
+      }
+    }
+  },
+  "product": {
+    "sku": {
+      "title": "SKU 管理",
+      "basicInfo": "基础信息",
+      "inventory": "库存信息",
+      "logistics": "物流信息",
+      "constraints": "约束规则",
+      "skus": "SKU 列表",
+      "add": "新增 SKU",
+      "detail": "SKU 详情",
+      "search": "搜索 SKU、编码或规格",
+      "status": "状态",
+      "category": "分类",
+      "brand": "品牌",
+      "skuCode": "SKU 编码",
+      "spu": "所属 SPU",
+      "specifications": "规格参数",
+      "price": "售卖价格",
+      "availableStock": "可用库存",
+      "inventoryStatus": "库存状态",
+      "actions": "操作",
+      "inStock": "现货",
+      "lowStock": "低库存"
+    }
+  },
+  "tenant": {
+    "add": "新增租户",
+    "tooltips": {
+      "saasSupport": "标记为支持 SaaS 托管"
+    }
+  },
+  "organization": {
+    "description": "管理组织、成员与权限。",
+    "common": {
+      "cancel": "取消",
+      "save": "保存",
+      "reset": "重置",
+      "up": "上移",
+      "down": "下移",
+      "edit": "编辑",
+      "delete": "删除",
+      "none": "无",
+      "enabled": "启用",
+      "disabled": "停用"
+    },
+    "tabs": {
+      "departments": "部门",
+      "users": "用户",
+      "permissions": "权限"
+    },
+    "department": {
+      "title": "部门管理",
+      "description": "维护组织层级与负责人。",
+      "search": "搜索部门…",
+      "add": "新增部门",
+      "edit": "编辑部门",
+      "empty": {
+        "title": "暂无部门",
+        "noResults": "未找到相关部门"
+      },
+      "table": {
+        "name": "名称",
+        "actions": "操作"
+      },
+      "form": {
+        "name": "名称",
+        "parent": "上级部门",
+        "noParent": "无上级",
+        "moveParent": "移动到",
+        "key": "唯一键 Key",
+        "sort": "排序",
+        "leader": "负责人",
+        "status": "状态",
+        "meta": "扩展 Meta(JSON)"
+      },
+      "confirmDelete": "确认删除该部门？",
+      "pagination": {
+        "showing": "显示 {start}-{end} / 共 {total} 条"
+      }
+    },
+    "user": {
+      "status": {
+        "active": "启用",
+        "inactive": "停用",
+        "suspended": "已冻结"
+      },
+      "title": "租户目录",
+      "rootManagement": "超级管理员视图",
+      "selectTenantDesc": "选择租户以管理其用户和角色。",
+      "searchTenants": "搜索租户…",
+      "filter": {
+        "status": "状态",
+        "plan": "套餐",
+        "allStatus": "全部状态",
+        "allPlans": "全部套餐"
+      },
+      "plan": {
+        "free": "基础版",
+        "pro": "专业版",
+        "enterprise": "企业版"
+      },
+      "noTenantsFound": "未找到租户",
+      "noDomain": "未配置域名",
+      "userCount": "用户数",
+      "createdAt": "创建时间",
+      "loadFailed": "租户加载失败",
+      "description": "管理租户成员、角色与权限。",
+      "importExport": "导入/导出",
+      "form": {
+        "title": "邀请成员",
+        "name": "姓名",
+        "username": "用户名",
+        "email": "邮箱",
+        "phone": "手机号",
+        "department": "部门",
+        "role": "角色",
+        "status": "状态",
+        "selectRole": "选择角色"
+      },
+      "export": {
+        "csv": "导出 CSV",
+        "json": "导出 JSON"
+      },
+      "import": {
+        "button": "导入成员"
+      }
+    },
+    "permission": {
+      "title": "权限治理",
+      "description": "组合常用角色模板并统一授权。",
+      "roleList": "角色列表",
+      "search": "搜索角色或关键字",
+      "systemRole": "系统角色",
+      "userCount": "{count} 名成员",
+      "empty": {
+        "title": "暂无角色",
+        "create": "创建角色",
+        "noResults": "没有匹配的角色"
+      },
+      "add": "新增角色模板",
+      "edit": "编辑角色模板",
+      "roleConfig": "角色权限配置",
+      "configDesc": "为角色挑选需要授权的插件资源。",
+      "form": {
+        "name": "角色名称",
+        "namePlaceholder": "例如：管理员/审核员",
+        "code": "角色代码",
+        "codePlaceholder": "只允许小写字母、数字、点或连字符",
+        "description": "描述",
+        "descriptionPlaceholder": "说明角色用途或适用范围",
+        "permissions": "可用权限"
+      }
+    }
+  },
+  "theme": {
+    "light": "浅色模式",
+    "dark": "深色模式"
+  },
+  "intro": {
+    "title": "Base 模板插件",
+    "description": "了解 PowerX 基础模板插件，快速搭建可复用的业务模块。",
+    "viewIntro": "查看介绍"
+  },
+  "auth": {
+    "backToHome": "返回首页",
+    "backToLogin": "返回登录",
+    "welcomeBack": "欢迎回来",
+    "loginSubtitle": "使用 PowerX 账号登录，继续管理插件。",
+    "identifier": "邮箱或手机号",
+    "email": "邮箱地址",
+    "password": "密码",
+    "remember": "记住登录状态",
+    "required": "请填写必填信息",
+    "loginFailed": "登录失败，请检查账号或密码。",
+    "signingIn": "登录中...",
+    "loginButton": "登录",
+    "signUpNow": "立即注册",
+    "signInNow": "立即登录",
+    "createAccount": "创建账号",
+    "creatingAccount": "正在创建账号...",
+    "registerSubtitle": "设置管理员信息，解锁本地 IAM 能力。",
+    "registerFailed": "注册失败，请稍后重试。",
+    "registerSuccessTitle": "注册成功！",
+    "registerSuccessDesc": "恭喜您注册成功！{seconds} 秒后将自动跳转到首页。",
+    "invalidEmail": "请输入有效的邮箱地址",
+    "passwordTooShort": "密码至少需要 6 位字符",
+    "passwordMismatch": "两次输入的密码不一致",
+    "mustAgreeTerms": "请阅读并同意条款后继续。",
+    "agreeTerms": "我已阅读并同意",
+    "and": "以及",
+    "termsInfo": "阅读并勾选即视为同意条款，可在设置中更新偏好。",
+    "terms": {
+      "mustRead": "请先阅读并同意服务条款和隐私政策",
+      "ready": "您已完成阅读，现在可以勾选同意"
+    },
+    "passwordStrength": {
+      "weak": "弱",
+      "medium": "中",
+      "strong": "强"
+    },
+    "login": {
+      "forgotPassword": "忘记密码？",
+      "noAccount": "还没有账号？"
+    },
+    "register": {
+      "username": "用户名",
+      "confirmPassword": "确认密码"
+    },
+    "hasAccount": "已经有账号？",
+    "signInNow": "立即登录",
+    "backToLogin": "返回登录",
+    "reading": {
+      "complete": "已阅读完整内容",
+      "scroll": "请滚动到底部",
+      "enough": "阅读时间充足",
+      "remainingTime": "还需 {seconds} 秒",
+      "readyTerms": "可以同意条款",
+      "readyPrivacy": "可以同意政策"
+    },
+    "termsModal": {
+      "title": "服务条款"
+    },
+    "privacyModal": {
+      "title": "隐私政策"
+    },
+    "modal": {
+      "accept": "我已阅读并同意"
+    },
+    "forgot": {
+      "title": "重置密码",
+      "subtitle": "输入您的邮箱地址，我们将发送重置密码链接。",
+      "sentTitleShort": "邮件已发送",
+      "sentSubtitle": "请检查您的邮箱并点击重置链接。",
+      "sentTitle": "重置邮件已发送到 {email}",
+      "sentDesc": "请检查邮箱（包含垃圾邮箱），点击邮件中的链接完成密码重置。",
+      "resend": "重新发送邮件",
+      "send": "发送重置邮件",
+      "sending": "发送中...",
+      "requiredEmail": "请输入邮箱地址",
+      "sendError": "发送重置密码邮件失败，请稍后重试。",
+      "emailLabel": "邮箱地址",
+      "emailPlaceholder": "请输入您的邮箱地址",
+      "emailHint": "我们将向此邮箱发送密码重置链接。",
+      "tips": {
+        "expire": "• 重置链接将在 24 小时后过期",
+        "spam": "• 如果没有收到邮件，请检查垃圾邮件文件夹",
+        "email": "• 确保邮箱地址输入正确"
+      }
+    },
+    "delegated": {
+      "bannerTitle": "PowerX 会话已失效",
+      "bannerDescription": "宿主登录态不可用，请返回 PowerX 重新登录或等待管理员重新注入凭证。",
+      "retry": "重试请求",
+      "loginDisabled": "当前运行于宿主 Delegated 模式，本地登录入口已禁用，请回到 PowerX 宿主完成登录。"
+    }
+  },
+  "termsOfService": "服务条款",
+  "privacyPolicy": "隐私政策",
+  "capabilities": {
+    "catalogSync": {
+      "title": "能力目录未刷新？",
+      "desc": "能力目录默认从 plugin.yaml 的 capabilities.imports/provides 解析，无需额外生成 catalog.json。若你要生成 capabilities/catalog.json 用于发布/校验，请使用 PowerXPlugin 仓库内的 catalog 工具。",
+      "command": ""
+    },
+    "list": {
+      "title": "能力目录",
+      "description": "查看插件当前注册的原子能力与复合任务，快速发起新能力的建模与审批。",
+      "refresh": "刷新",
+      "createButton": "注册能力",
+      "tableTitle": "已注册能力",
+      "tableHint": "包含能力 ID、执行模式与标签。提交新的能力后会自动刷新列表。",
+      "tableEmpty": "暂无能力",
+      "column": {
+        "capability": "能力",
+        "kind": "类型",
+        "execution": "执行模式",
+        "tags": "标签",
+        "checksum": "版本校验"
+      },
+      "kind": {
+        "workflow": "Workflow（流程）",
+        "capability": "原子能力",
+        "tool": "工具",
+        "default": "能力"
+      },
+      "versionLabel": "版本 {version}",
+      "noTags": "未设置标签",
+      "empty": "尚未注册任何能力，点击“注册能力”即可创建第一条记录。",
+      "toast": {
+        "loadFailed": "加载能力目录失败"
+      }
+    },
+    "form": {
+      "title": "插件能力注册",
+      "description": "填写能力元数据、协议与示例，提交后即可触发审批与暴露流程。",
+      "capabilityId": "能力 ID",
+      "validationUnknown": "等待校验",
+      "validationPassed": "校验通过",
+      "validationFailedShort": "校验未通过",
+      "steps": {
+        "basic": "基础信息",
+        "basicDesc": "命名空间、展示名称、摘要、场景与标签",
+        "protocol": "协议与 Schema",
+        "protocolDesc": "输入/输出 Schema、REST、gRPC、Workflow、Agent 等入口",
+        "samples": "示例与提交",
+        "samplesDesc": "示例请求/响应、错误码、演示入口与负责人"
+      },
+      "namespace": "命名空间",
+      "resource": "资源名称",
+      "action": "动作",
+      "displayName": "展示名称",
+      "summary": "摘要",
+      "descriptionField": "描述",
+      "localeZh": "中文",
+      "localeEn": "English",
+      "scenario": "应用场景",
+      "scenarioHint": "说明能力适用的业务场景、租户范围、输入前置条件等",
+      "tags": "标签",
+      "tagsHint": "使用逗号分隔，例如 workflow,agent",
+      "sensitivity": "敏感级别",
+      "tenantScope": "租户范围",
+      "inputSchema": "输入 Schema",
+      "outputSchema": "输出 Schema",
+      "restPath": "REST 路径",
+      "grpcService": "gRPC Service",
+      "workflowTemplate": "Workflow 模板",
+      "agentStream": "Agent SSE 通道",
+      "asyncTitle": "执行与异步配置",
+      "executionMode": "执行模式",
+      "callbackUrl": "Callback URL",
+      "statusEndpoint": "状态查询接口",
+      "sseChannel": "SSE 通道",
+      "sampleRequest": "示例请求",
+      "sampleResponse": "示例响应",
+      "jsonHint": "请输入合法 JSON，便于文档与审核复用",
+      "errorCodes": "错误码列表",
+      "addRow": "新增一行",
+      "errorCode": "错误码",
+      "errorMessage": "错误描述",
+      "errorSolution": "解决建议",
+      "errorEmpty": "暂无错误码，可点击“新增一行”。",
+      "demoUrl": "体验地址",
+      "demoHint": "例如体验账号、租户名称、登录方式等",
+      "ownerName": "负责人姓名",
+      "ownerEmail": "负责人邮箱",
+      "previewTitle": "预览",
+      "previewName": "中文名称",
+      "previewOwner": "联系人",
+      "previewSummary": "摘要",
+      "previewPlaceholder": "暂未填写摘要",
+      "validationFailed": "存在待修复的问题",
+      "validateButton": "校验",
+      "saveDraft": "保存草稿",
+      "lastSaved": "草稿已于 {time} 自动保存",
+      "stepsButton": {
+        "basic": "基础信息",
+        "protocol": "协议与 Schema",
+        "samples": "示例"
+      },
+      "toast": {
+        "templateFailed": "无法加载表单模板",
+        "validateFailed": "校验失败",
+        "saved": "草稿已保存",
+        "savedDesc": "我们已将草稿同步到后端，稍后可继续编辑。",
+        "validateBlock": "校验未通过",
+        "fixBeforeSubmit": "请修复提示后再尝试提交。",
+        "submitted": "提交成功",
+        "submittedDesc": "能力 {id} 已进入审核列表。",
+        "submitFailed": "提交失败",
+        "invalidJson": "JSON 无法解析",
+        "fixJson": "请检查示例请求/响应字段。",
+        "genericError": "发生未知错误，请稍后重试。"
+      },
+      "debug": {
+        "title": "能力调试面板",
+        "description": "无需依赖 PowerX Gateway，直接调用插件本地接口验证协议配置是否正确。",
+        "docLink": "查看文档",
+        "capability": "能力 ID",
+        "action": "动作",
+        "protocol": "协议",
+        "targetMode": "调试目标",
+        "target": {
+          "local": "插件本地接口",
+          "gateway": "PowerX 网关"
+        },
+        "apiBase": "API Base 地址",
+        "payload": "调试 Payload",
+        "payloadInvalid": "JSON 解析失败",
+        "resetTemplate": "重置",
+        "applyTemplate": "套用模板",
+        "tenantUuid": "Tenant UUID",
+        "mockModule": "Mock 模块",
+        "requestId": "请求 ID",
+        "invoke": "开始调试",
+        "requestPreview": "请求预览",
+        "collapsedPreview": "点击展开请求预览",
+        "status": "状态",
+        "statusFailed": "失败",
+        "statusIdle": "未调用",
+        "duration": "耗时",
+        "traceId": "Trace ID",
+        "warnings": "警告",
+        "errors": "错误",
+        "errorDetails": "错误详情",
+        "responseData": "响应数据",
+        "rawResponse": "原始响应",
+        "history": "最近调用记录",
+        "historySuccess": "成功",
+        "historyFail": "失败",
+        "clearHistory": "清空记录",
+        "noHistory": "暂无记录",
+        "capabilityRequired": "请先填写能力 ID",
+        "openDraft": "调试当前草稿",
+        "openExisting": "调试",
+        "payloadHint": "只有 payload.body/query 会真正发送到接口，其他字段仅用于构造请求。"
+      }
+    },
+    "mcp": {
+      "openPanel": "MCP 会话调试",
+      "panelTitle": "MCP 会话调试",
+      "panelDescription": "无需 curl，就能在插件后台完成 REGISTER / ACK / Heartbeat / Invoke / SSE 全流程联调。",
+      "docLink": "阅读 MCP 手册",
+      "session": {
+        "title": "会话控制",
+        "description": "创建 Runtime Assignment、发送 ACK/Heartbeat，并在调试结束后主动关闭会话。"
+      },
+      "fields": {
+        "runtimeAssignment": "Runtime Assignment ID",
+        "jwtId": "JWT ID",
+        "registerState": "注册状态",
+        "capabilitiesHash": "能力清单哈希",
+        "ackState": "ACK 状态",
+        "heartbeatMissed": "漏心跳次数",
+        "closeReason": "关闭原因",
+        "tenantUuid": "租户 UUID",
+        "lastPing": "最后心跳",
+        "createdAt": "创建时间",
+        "updatedAt": "更新时间",
+        "sessionId": "Session ID",
+        "toolScope": "Tool Scope",
+        "capabilityId": "能力 ID",
+        "intent": "Intent",
+        "idempotencyKey": "幂等键",
+        "signature": "签名",
+        "messageId": "Message ID",
+        "traceId": "Trace ID",
+        "correlationId": "Correlation ID",
+        "issuedAt": "Issued At",
+        "payload": "Payload JSON",
+        "metadata": "Metadata JSON"
+      },
+      "actions": {
+        "register": "注册会话",
+        "ack": "发送 ACK",
+        "heartbeat": "发送心跳",
+        "close": "关闭会话",
+        "invoke": "执行 Invoke",
+        "applyCapability": "引用当前能力",
+        "debugCapability": "MCP 调试",
+        "clearHistory": "清空历史",
+        "connectStream": "连接 SSE",
+        "disconnectStream": "断开",
+        "clearEvents": "清空事件",
+        "issuedNow": "当前时间"
+      },
+      "toast": {
+        "runtimeRequired": "Runtime Assignment ID 不能为空。",
+        "sessionRequired": "请先创建或选择一个 Session。",
+        "toolScopeRequired": "必须填写 Tool Scope。",
+        "registered": "会话注册成功",
+        "acknowledged": "ACK 已提交",
+        "heartbeat": "心跳已发送",
+        "closed": "会话已关闭",
+        "invoked": "Invoke 完成",
+        "capabilityMissing": "当前草稿还没有能力 ID。",
+        "capabilitySynced": "已将当前能力写入 MCP payload。"
+      },
+      "invoke": {
+        "title": "Invoke 数据包",
+        "description": "填写 Integration Envelope（含 Trace/Correlation/IssuedAt 与 payload_ref JSON），直接调用 MCP 工具。",
+        "status": "状态",
+        "failed": "失败",
+        "idle": "空闲",
+        "history": "调用历史",
+        "historySuccess": "成功",
+        "historyFail": "失败",
+        "noHistory": "暂无历史记录"
+      },
+      "errors": {
+        "invalidPayload": "Payload JSON 无法解析。",
+        "invalidMetadata": "Metadata JSON 无法解析。",
+        "invalidIssuedAt": "IssuedAt 时间格式不正确。"
+      },
+      "stream": {
+        "title": "SSE 事件",
+        "description": "订阅 /mcp/sse，实时查看 register/ack/heartbeat/invoke 推送。",
+        "connected": "已连接",
+        "disconnected": "未连接",
+        "empty": "暂无事件，请先连接 SSE。"
+      },
+      "streamError": "SSE 连接失败，请重试。"
+    },
+    "exposure": {
+      "title": "能力暴露通道配置",
+      "description": "为通过审批的能力配置多协议通道、鉴权策略、限流与租户授权，并同步到宿主工作流/Agent/开放平台。",
+      "capability": "能力 ID",
+      "updatedAt": "最近更新：{time}",
+      "list": {
+        "title": "已注册能力",
+        "description": "选择一个能力，打开其 REST/gRPC/Workflow/MCP 等暴露通道。",
+        "refresh": "刷新列表",
+        "empty": "暂无可配置的能力，请先完成能力注册。",
+        "updatedAt": "上次同步：{time}",
+        "columns": {
+          "capability": "能力",
+          "descriptor": "描述",
+          "exposure": "暴露状态"
+        },
+        "actions": {
+          "configure": "配置通道"
+        },
+        "status": {
+          "unconfigured": "未配置",
+          "synced": "已同步",
+          "pending": "待同步",
+          "failed": "同步失败"
+        }
+      },
+      "sections": {
+        "channels": "通道配置",
+        "enabled": "通道已启用",
+        "channelHint": "启用后将出现在宿主的 API/Workflow/Agent 列表中",
+        "descriptorNote": "协议细节来自 {path} 的 metadata.protocols.{key}，如需调整请编辑 YAML",
+        "auth": "鉴权与凭证",
+        "rateLimit": "限流与熔断",
+        "quotas": "租户授权与配额",
+        "tenantHint": "未授权租户无法调用；额度超限将被阻断",
+        "noQuotas": "暂无租户授权，可在下方添加。"
+      },
+      "fields": {
+        "capabilityId": "能力 ID",
+        "docsVersion": "文档版本",
+        "sdkVersion": "SDK 版本",
+        "tenant": "租户",
+        "displayName": "展示名称",
+        "target": "目标 Service/Topic",
+        "description": "描述",
+        "scopes": "作用域",
+        "scopePlaceholder": "scope.one, scope.two",
+        "strategy": "鉴权策略",
+        "audience": "Audience",
+        "scopeList": "OAuth Scope 列表",
+        "rpm": "每分钟请求数",
+        "burst": "突发上限",
+        "concurrency": "并发数",
+        "tenant": "租户",
+        "tenantId": "租户 ID",
+        "tenantName": "租户名称",
+        "quota": "额度",
+        "status": "状态",
+        "notes": "备注",
+        "method": "方法",
+        "path": "路径",
+        "service": "Service",
+        "template": "Workflow 模板",
+        "channelPath": "通道文件",
+        "toolId": "工具 ID"
+      },
+      "actions": {
+        "load": "加载配置",
+        "resetChannels": "重置通道",
+        "addTenant": "保存租户额度"
+      },
+      "toast": {
+        "templateFail": "无法加载通道模板",
+        "capabilityRequired": "请先填写能力 ID",
+        "loadFail": "加载暴露配置失败",
+        "catalogFailed": "无法加载能力列表",
+        "saveSuccess": "暴露配置已保存",
+        "saveFailed": "保存失败，请稍后重试",
+        "quotaSaved": "租户额度已更新",
+        "quotaFailed": "租户额度更新失败",
+        "tenantRequired": "请填写租户 ID"
+      }
+    },
+    "lifecycle": {
+      "badge": "版本治理",
+      "title": "能力生命周期计划",
+      "description": "生成能力升级/下线的差异说明、灰度窗口和通知矩阵，确保订阅方提前感知并可随时回滚。",
+      "catalog": {
+        "title": "可管理的能力",
+        "description": "同步插件能力目录，挑选需要规划生命周期的能力。",
+        "refresh": "刷新列表",
+        "empty": "暂无可管理的能力，请先完成能力注册。",
+        "updatedAt": "最近变更：{time}",
+        "columns": {
+          "capability": "能力",
+          "descriptor": "描述",
+          "status": "状态"
+        },
+        "actions": {
+          "manage": "管理计划"
+        },
+        "status": {
+          "unplanned": "未创建",
+          "pending": "待审批",
+          "scheduled": "执行中",
+          "completed": "已完成"
+        }
+      },
+      "fields": {
+        "capabilityId": "能力 ID",
+        "changeType": "变更类型",
+        "notificationChannels": "通知渠道",
+        "graceHours": "灰度观察时长（小时）",
+        "dualRun": "双版本并行截止",
+        "diffSummary": "差异摘要",
+        "rollbackPlan": "回滚策略",
+        "impactScope": "影响范围",
+        "migrationGuide": "迁移指引/链接",
+        "statusNotes": "状态备注"
+      },
+      "placeholders": {
+        "capability": "com.powerx.demo.template.create",
+        "changeType": "请选择变更类型",
+        "channels": "选择需要通知的渠道",
+        "graceHours": "72",
+        "diffSummary": "说明新旧版本差异、影响范围、订阅方动作...",
+        "rollbackPlan": "描述回退入口、负责人、时间线等",
+        "impactScope": "如 租户A、生产环境",
+        "migrationGuide": "迁移文档链接或备注",
+        "windowLabel": "wave-1",
+        "percent": "50",
+        "condition": "条件（可选）"
+      },
+      "sections": {
+        "windows": "灰度窗口",
+        "windowHint": "按照波次拆分灰度百分比、时间与条件，便于追踪通知与执行",
+        "windowLabel": "灰度节点",
+        "noWindow": "尚未添加灰度窗口，可点击右上角“新增波次”。",
+        "channels": "通知渠道",
+        "noChannels": "尚未配置渠道",
+        "grace": "观察期",
+        "dualRun": "双版本并行",
+        "notSet": "未设置",
+        "windowTimeline": "执行波次"
+      },
+      "actions": {
+        "loadPlans": "加载计划",
+        "addWindow": "新增波次",
+        "removeWindow": "移除波次",
+        "createPlan": "创建生命周期计划",
+        "refresh": "刷新列表"
+      },
+      "list": {
+        "title": "计划列表",
+        "description": "包含当前能力的全部生命周期计划，可随时暂停、回滚或完成。",
+        "empty": "暂无计划，先创建一条生命周期计划即可在此处管理。",
+        "planMeta": "由 {author} 于 {time} 创建"
+      },
+      "modalHint": "填写计划后可提交执行，必要时可以暂停或回滚。",
+      "units": {
+        "hours": "小时"
+      },
+      "status": {
+        "draft": "草稿",
+        "pending": "待执行",
+        "approved": "已批准",
+        "paused": "已暂停",
+        "completed": "已完成"
+      },
+      "toast": {
+        "templateFailed": "无法加载生命周期模板",
+        "catalogFailed": "无法加载能力目录",
+        "loadFailed": "加载生命周期计划失败",
+        "capabilityRequired": "请填写能力 ID 后再操作",
+        "required": "请先完成必填字段",
+        "planCreated": "生命周期计划已创建",
+        "createFailed": "创建生命周期计划失败",
+        "statusUpdated": "状态已更新",
+        "statusDesc": "计划已切换至 {status}",
+        "statusFailed": "更新计划状态失败"
+      }
+    }
+  },
+  "landing": {
+    "hero": {
+      "title": "PowerX 基础插件",
+      "description": "欢迎使用 PowerX 插件脚手架示例页面，快速了解模板 CRUD、菜单导航与多语言体验。",
+      "cards": {
+        "quickstart": {
+          "title": "快速入门",
+          "body": "通过模板管理示例了解插件配置、菜单与权限声明方式。"
+        },
+        "reusable": {
+          "title": "可复用模板",
+          "body": "将常用片段抽象为模板，在多个页面中复用，保持体验一致。"
+        },
+        "api": {
+          "title": "API 演示",
+          "body": "后端提供最小实现的模板 API，可直接对接 PowerX 平台或扩展为生产级服务。"
+        }
+      },
+      "ctaLogin": "体验登录",
+      "stats": {
+        "adminShell": "前端壳层",
+        "backend": "后端服务"
+      }
+    },
+    "next": {
+      "title": "下一步",
+      "cards": {
+        "crud": {
+          "title": "探索模板 CRUD",
+          "body": "在“模板 CRUD”页面体验完整的模板列表、创建、编辑和删除流程。",
+          "cta": "前往模板管理"
+        },
+        "guide": {
+          "title": "了解开发指引",
+          "body": "“开发指南”页面说明目录结构、依赖注入与接口注册等关键步骤。",
+          "cta": "查看开发指南"
+        }
+      }
+    }
+  },
+  "templates": {
+    "overview": {
+      "title": "模板概览",
+      "description": "使用模板构建一致的业务体验，加速团队协作与交付。",
+      "cards": {
+        "create": "创建",
+        "createDescription": "编写可复用的模板，快速应用到多个页面或流程。",
+        "automation": "自动化",
+        "automationDescription": "结合自动化能力，让模板在上线流程中自动执行。",
+        "analytics": "洞察",
+        "analyticsDescription": "衡量模板的使用效果，持续优化协作效率。"
+      }
+    },
+    "develop": {
+      "title": "开发介绍",
+      "description": "了解模板模块在后端与前端的关键实现步骤。",
+      "structure": "核心目录",
+      "steps": "实施步骤",
+      "step1": "定义模板的 GORM 模型与迁移。",
+      "step2": "实现仓储与服务层封装业务逻辑。",
+      "step3": "在 /api/v1/templates 下注册受 RBAC 保护的 HTTP 接口。",
+      "step4": "将 Nuxt 页面接入 API，并优化用户体验。"
+    },
+    "crud": {
+      "title": "模板 CRUD",
+      "description": "创建、更新与删除示例模板，体验完整流程。",
+      "create": "新建模板",
+      "formTitle": "模板表单",
+      "fields": {
+        "name": "模板名称",
+        "namePlaceholder": "请输入模板名称",
+        "description": "描述",
+        "descriptionPlaceholder": "简要描述模板用途",
+        "content": "内容",
+        "contentPlaceholder": "编写模板内容"
+      },
+      "actions": {
+        "save": "保存模板",
+        "update": "更新模板"
+      },
+      "listTitle": "模板列表",
+      "deleteTitle": "删除模板",
+      "deleteDescription": "确认删除该模板？",
+      "deleteConfirm": "确认删除 \"{name}\" 模板？",
+      "readonlyTitle": "宿主控制模板权限",
+      "readonlyDescription": "当前运行于宿主 Delegated 模式，模板 CRUD 仅供查看。请在 PowerX 控制台调整 RBAC 后再尝试写操作。",
+      "readonlyToast": "宿主模式下模板仅可查看，请联系管理员开放权限。"
+    },
+    "form": {
+      "modalDescription": "请填写下方的模板信息。",
+      "name": "模板名称",
+      "description": "描述",
+      "content": "内容"
+    }
+  },
+  "message": {
+    "saveSuccess": "保存成功",
+    "deleteSuccess": "删除成功",
+    "error": "操作失败，请重试",
+    "confirmDelete": "确定要删除吗？该操作不可恢复。",
+    "noData": "暂无数据",
+    "networkError": "网络异常，请检查连接",
+    "templateCreated": "模板创建成功"
+  }
+}

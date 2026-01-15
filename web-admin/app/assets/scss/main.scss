@@ -1,0 +1,226 @@
+// PowerX Note Plugin - Main SCSS
+// Advanced styles and component-specific styles
+
+// Import Sass color module for modern color functions
+@use "sass:color";
+
+// SCSS Variables
+$primary-color: #2563eb;
+$primary-hover: #1d4ed8;
+$primary-light: #dbeafe;
+
+$secondary-color: #64748b;
+$secondary-hover: #475569;
+$secondary-light: #f1f5f9;
+
+$success-color: #059669;
+$warning-color: #d97706;
+$error-color: #dc2626;
+$info-color: #0891b2;
+
+// Background colors
+$bg-primary: #ffffff;
+$bg-secondary: #f8fafc;
+$bg-tertiary: #f1f5f9;
+
+// Text colors
+$text-primary: #0f172a;
+$text-secondary: #64748b;
+$text-muted: #94a3b8;
+
+// Border colors
+$border-color: #e2e8f0;
+$border-hover: #cbd5e1;
+
+// Spacing
+$spacing-xs: 0.25rem;
+$spacing-sm: 0.5rem;
+$spacing-md: 1rem;
+$spacing-lg: 1.5rem;
+$spacing-xl: 2rem;
+$spacing-2xl: 3rem;
+
+// Border radius
+$radius-sm: 0.25rem;
+$radius-md: 0.375rem;
+$radius-lg: 0.5rem;
+$radius-xl: 0.75rem;
+
+// Font sizes
+$font-xs: 0.75rem;
+$font-sm: 0.875rem;
+$font-base: 1rem;
+$font-lg: 1.125rem;
+$font-xl: 1.25rem;
+$font-2xl: 1.5rem;
+$font-3xl: 1.875rem;
+
+// Breakpoints
+$breakpoint-sm: 640px;
+$breakpoint-md: 768px;
+$breakpoint-lg: 1024px;
+$breakpoint-xl: 1280px;
+
+// Mixins
+@mixin button-variant($bg-color, $hover-color, $text-color: white) {
+  background-color: $bg-color;
+  color: $text-color;
+  border: 1px solid $bg-color;
+
+  &:hover:not(:disabled) {
+    background-color: $hover-color;
+    border-color: $hover-color;
+  }
+
+  &:focus {
+    box-shadow: 0 0 0 3px rgba($bg-color, 0.25);
+  }
+}
+
+@mixin card-shadow($level: 1) {
+  @if $level == 1 {
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  } @else if $level == 2 {
+    box-shadow:
+      0 4px 6px -1px rgba(0, 0, 0, 0.1),
+      0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  } @else if $level == 3 {
+    box-shadow:
+      0 10px 15px -3px rgba(0, 0, 0, 0.1),
+      0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  }
+}
+
+@mixin responsive($breakpoint) {
+  @if $breakpoint == sm {
+    @media (min-width: $breakpoint-sm) {
+      @content;
+    }
+  } @else if $breakpoint == md {
+    @media (min-width: $breakpoint-md) {
+      @content;
+    }
+  } @else if $breakpoint == lg {
+    @media (min-width: $breakpoint-lg) {
+      @content;
+    }
+  } @else if $breakpoint == xl {
+    @media (min-width: $breakpoint-xl) {
+      @content;
+    }
+  }
+}
+
+// Button variants
+.btn-primary {
+  @include button-variant($primary-color, $primary-hover);
+}
+
+.btn-secondary {
+  @include button-variant($secondary-color, $secondary-hover);
+}
+
+.btn-success {
+  @include button-variant(
+    $success-color,
+    color.adjust($success-color, $lightness: -10%)
+  );
+}
+
+.btn-warning {
+  @include button-variant(
+    $warning-color,
+    color.adjust($warning-color, $lightness: -10%)
+  );
+}
+
+.btn-error {
+  @include button-variant(
+    $error-color,
+    color.adjust($error-color, $lightness: -10%)
+  );
+}
+
+.btn-outline {
+  background: transparent;
+  color: $primary-color;
+  border: 1px solid $primary-color;
+
+  &:hover:not(:disabled) {
+    background: $primary-color;
+    color: white;
+  }
+}
+
+// Card variants
+.card-elevated {
+  @include card-shadow(2);
+
+  &:hover {
+    @include card-shadow(3);
+  }
+}
+
+// Status indicators
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: $spacing-xs $spacing-sm;
+  border-radius: $radius-xl;
+  font-size: $font-xs;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+
+  &.status-todo {
+    background: color.adjust($secondary-color, $lightness: 40%);
+    color: $secondary-color;
+  }
+
+  &.status-progress {
+    background: color.adjust($info-color, $lightness: 40%);
+    color: $info-color;
+  }
+
+  &.status-done {
+    background: color.adjust($success-color, $lightness: 40%);
+    color: $success-color;
+  }
+
+  &.status-blocked {
+    background: color.adjust($error-color, $lightness: 40%);
+    color: $error-color;
+  }
+}
+
+// Priority indicators
+.priority-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: $spacing-xs $spacing-sm;
+  border-radius: $radius-xl;
+  font-size: $font-xs;
+  font-weight: 600;
+
+  &.priority-low {
+    background: color.adjust($success-color, $lightness: 45%);
+    color: color.adjust($success-color, $lightness: -10%);
+  }
+
+  &.priority-medium {
+    background: color.adjust($warning-color, $lightness: 45%);
+    color: color.adjust($warning-color, $lightness: -10%);
+  }
+
+  &.priority-high {
+    background: color.adjust($error-color, $lightness: 45%);
+    color: color.adjust($error-color, $lightness: -10%);
+  }
+
+  &.priority-urgent {
+    background: $error-color;
+    color: white;
+  }
+}
+
+

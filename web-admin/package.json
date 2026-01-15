@@ -1,0 +1,46 @@
+{
+  "name": "com-powerx-plugin-scrm-web-admin",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node ./node_modules/nuxi/bin/nuxi.mjs dev",
+    "build": "node ./node_modules/nuxi/bin/nuxi.mjs build",
+    "postinstall": "node ./scripts/postinstall-lightningcss.mjs",
+    "lint": "node -e \"console.log('Lint checks pending configuration');\"",
+    "test": "node ./node_modules/vitest/dist/cli.js run --dir tests/unit",
+    "test:unit": "node ./node_modules/vitest/dist/cli.js run --dir tests/unit",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@artisan-cloud/plugin-framework-admin": "^0.0.1-alpha",
+    "@artisan-cloud/plugin-framework-client": "^0.0.1-alpha",
+    "@nuxt/icon": "^2.0.0",
+    "@nuxt/ui": "^3.3.2",
+    "@nuxtjs/color-mode": "^3.5.2",
+    "@nuxtjs/i18n": "^10.1.0",
+    "@pinia/nuxt": "^0.11.2",
+    "@vueuse/core": "^14.1.0",
+    "echarts": "^5.6.0",
+    "file-saver": "^2.0.5",
+    "nuxi": "^3.29.3",
+    "nuxt": "^4.2.0",
+    "papaparse": "^5.5.3",
+    "sass": "^1.91.0",
+    "tailwindcss": "^4.1.15",
+    "valibot": "^1.2.0",
+    "vue-echarts": "^7.0.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.57.0",
+    "@tailwindcss/postcss": "^4.1.15",
+    "autoprefixer": "^10.4.21",
+    "esbuild": "0.27.2",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.8"
+  },
+  "optionalDependencies": {
+    "@oxc-minify/binding-linux-x64-gnu": "0.95.0",
+    "@oxc-parser/binding-linux-x64-gnu": "0.95.0",
+    "@oxc-transform/binding-linux-x64-gnu": "0.95.0"
+  }
+}
