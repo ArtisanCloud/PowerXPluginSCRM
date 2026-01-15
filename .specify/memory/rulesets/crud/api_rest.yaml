@@ -1,0 +1,55 @@
+# HTTP Envelope & REST 约定
+kind: ruleset
+id: crud_api_rest
+version: 1.0.0
+exports:
+  envelope:
+    success: boolean
+    message: string | null
+    data: object | array | null
+    error:
+      code: string
+      message: string
+      details: object | array | string | null
+    timestamp: string
+    request_id: string | null
+  page:
+    items: array
+    total: integer
+    page: integer
+    page_size: integer
+checks:
+  - id: rest-methods
+    desc: 资源具备 GET/GET:id/POST/PUT/DELETE 的最小集合
+    assert:
+      type: route
+      target: backend/internal/transport/http/**
+      route_set:
+        - GET /api/v1/{resource}
+        - GET /api/v1/{resource}/:id
+        - POST /api/v1/{resource}
+        - PUT /api/v1/{resource}/:id
+        - DELETE /api/v1/{resource}/:id
+  - id: api-rest-validate
+    desc: 写接口必须有参数验证
+    assert:
+      type: grep
+      target: backend/internal/transport/http/**
+      pattern:
+        - binding:"
+  - id: api-rest-response
+    desc: 返回统一使用 contracts.ResponseXXX 辅助方法
+    assert:
+      type: grep
+      target: backend/internal/transport/http/**
+      pattern:
+        - "contracts.Response"
+  - id: api-rest-route-register
+    desc: CRUD 资源实现后必须在对应 routes.go 中注册到 HTTP 路由树，确保 /api/v1 下的入口可被访问
+    assert:
+      type: manual
+      instructions: |
+        为新增的 CRUD 模块确认：
+        1) 在所属模块的 routes.go 中声明 HTTP group 与 GET/POST/PUT/DELETE handlers；
+        2) 在 admin/tenant 等聚合 routers（例如 backend/internal/transport/http/admin/routes.go）里引入并调用 RegisterRoutes;
+        3) 若存在多租户/平台区分，分别在需要的 router group 中挂载，避免出现 404。

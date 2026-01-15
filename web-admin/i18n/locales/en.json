@@ -68,6 +68,27 @@
   },
   "navigation": {
     "intro": "Plugin Intro",
+    "scrm": "SCRM Modules",
+    "scrmSocialChannelGovernance": "Social Channel Governance",
+    "scrmLeadCaptureSmartAssignment": "Lead Capture & Smart Assignment",
+    "scrmCommunityCustomerEngagement": "Community & Customer Engagement",
+    "scrmContentEngagementAutomation": "Content Engagement Automation",
+    "scrmSocialSellingFieldCollab": "Social Selling & Field Collaboration",
+    "scrmMobileFrontlineCapabilities": "Mobile Frontline Capabilities",
+    "scrmSmartTaggingCustomerSegmentation": "Smart Tagging & Segmentation",
+    "scrmCustomerServiceCollaborationLoop": "Customer Service Collaboration Loop",
+    "scrmSystemIntegrationDataOrchestration": "System Integration & Data Orchestration",
+    "scrmSocialCommerceDistribution": "Social Commerce & Distribution",
+    "scrmComplianceSecurityRiskControl": "Compliance, Security & Risk Control",
+    "scrmAnalyticsInsights": "Analytics & Insights",
+    "scrmAigcAutomationIntelligence": "AIGC Automation Intelligence",
+    "scrmPlatformEcosystemExtensibility": "Platform Ecosystem Extensibility",
+    "scrmSectionChannelsLeads": "Channels & Leads",
+    "scrmSectionOperations": "Customer Operations",
+    "scrmSectionEngagement": "Engagement & Collaboration",
+    "scrmSectionIntegrationCommerce": "Integration & Commerce",
+    "scrmSectionComplianceInsights": "Compliance & Insights",
+    "scrmSectionIntelligenceEcosystem": "Intelligence & Ecosystem",
     "templates": "Templates",
     "templatesCrud": "Template CRUD",
     "templatesDevelop": "Templates Develop Guide",
@@ -84,6 +105,10 @@
     "profile": "Profile",
     "help": "Help",
     "logout": "Logout"
+  },
+  "scrm": {
+    "placeholderTitle": "Module Planning",
+    "placeholderDescription": "This module page is pending implementation. Refer to the plan document first."
   },
   "iam": {
     "notifications": {

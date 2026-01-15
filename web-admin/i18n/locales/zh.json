@@ -68,6 +68,27 @@
   },
   "navigation": {
     "intro": "插件介绍",
+    "scrm": "SCRM 模块",
+    "scrmSocialChannelGovernance": "社交触点接入与账号治理",
+    "scrmLeadCaptureSmartAssignment": "线索获取与智能分配",
+    "scrmCommunityCustomerEngagement": "社群与客户运营",
+    "scrmContentEngagementAutomation": "内容分发与互动自动化",
+    "scrmSocialSellingFieldCollab": "社交销售与外勤协同",
+    "scrmMobileFrontlineCapabilities": "移动前线作业能力",
+    "scrmSmartTaggingCustomerSegmentation": "智能标签与客户分群",
+    "scrmCustomerServiceCollaborationLoop": "客户成功与运营协作闭环",
+    "scrmSystemIntegrationDataOrchestration": "系统集成与数据流转",
+    "scrmSocialCommerceDistribution": "社交交易与分销",
+    "scrmComplianceSecurityRiskControl": "合规、安全与风控",
+    "scrmAnalyticsInsights": "数据分析与洞察",
+    "scrmAigcAutomationIntelligence": "AIGC 自动化智能",
+    "scrmPlatformEcosystemExtensibility": "平台生态与可扩展性",
+    "scrmSectionChannelsLeads": "触点与线索",
+    "scrmSectionOperations": "客户运营",
+    "scrmSectionEngagement": "互动与协同",
+    "scrmSectionIntegrationCommerce": "集成与交易",
+    "scrmSectionComplianceInsights": "合规与洞察",
+    "scrmSectionIntelligenceEcosystem": "智能与生态",
     "templates": "模板管理",
     "templatesCrud": "模板 CRUD",
     "templatesDevelop": "开发指南",
@@ -84,6 +105,10 @@
     "profile": "个人中心",
     "help": "帮助",
     "logout": "退出"
+  },
+  "scrm": {
+    "placeholderTitle": "模块规划页面",
+    "placeholderDescription": "该模块页面待实现，请先参考对应的规划文档。"
   },
   "iam": {
     "notifications": {

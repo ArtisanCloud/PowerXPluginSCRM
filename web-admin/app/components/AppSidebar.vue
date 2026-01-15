@@ -19,6 +19,31 @@
         </UButton>
       </div>
 
+      <div class="space-y-4">
+        <div v-for="section in scrmSections" :key="section.titleKey">
+          <div class="px-3 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+            {{ t(section.titleKey) }}
+          </div>
+          <div class="space-y-1">
+            <UButton
+              v-for="item in section.items"
+              :key="item.to"
+              :to="item.to"
+              variant="ghost"
+              color="neutral"
+              class="w-full justify-start"
+              :class="{
+                'bg-primary-50 text-primary-600 dark:bg-primary-950 dark:text-primary-400':
+                  isExactActive(item.to),
+              }"
+            >
+              <UIcon :name="item.icon" class="w-4 h-4 mr-3" />
+              {{ t(item.labelKey) }}
+            </UButton>
+          </div>
+        </div>
+      </div>
+
       <div>
         <div class="px-3 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
           {{ t('navigation.templates') }}
@@ -212,6 +237,108 @@ const showIAMMenu = computed(() => auth.localIAMEnabled?.value ?? false);
 const userStore = useUserStore();
 const { isRoot } = storeToRefs(userStore);
 const showCapabilityLab = computed(() => Boolean(isRoot.value));
+const scrmSections = [
+  {
+    titleKey: "navigation.scrmSectionChannelsLeads",
+    items: [
+      {
+        to: "/scrm/social_channel_governance",
+        labelKey: "navigation.scrmSocialChannelGovernance",
+        icon: "i-heroicons-globe-alt",
+      },
+      {
+        to: "/scrm/lead_capture_smart_assignment",
+        labelKey: "navigation.scrmLeadCaptureSmartAssignment",
+        icon: "i-heroicons-bolt",
+      },
+    ],
+  },
+  {
+    titleKey: "navigation.scrmSectionOperations",
+    items: [
+      {
+        to: "/scrm/community_customer_engagement",
+        labelKey: "navigation.scrmCommunityCustomerEngagement",
+        icon: "i-heroicons-users",
+      },
+      {
+        to: "/scrm/smart_tagging_customer_segmentation",
+        labelKey: "navigation.scrmSmartTaggingCustomerSegmentation",
+        icon: "i-heroicons-tag",
+      },
+      {
+        to: "/scrm/customer_service_collaboration_loop",
+        labelKey: "navigation.scrmCustomerServiceCollaborationLoop",
+        icon: "i-heroicons-hand-raised",
+      },
+    ],
+  },
+  {
+    titleKey: "navigation.scrmSectionEngagement",
+    items: [
+      {
+        to: "/scrm/content_engagement_automation",
+        labelKey: "navigation.scrmContentEngagementAutomation",
+        icon: "i-heroicons-chat-bubble-left-right",
+      },
+      {
+        to: "/scrm/social_selling_field_collab",
+        labelKey: "navigation.scrmSocialSellingFieldCollab",
+        icon: "i-heroicons-briefcase",
+      },
+      {
+        to: "/scrm/mobile_frontline_capabilities",
+        labelKey: "navigation.scrmMobileFrontlineCapabilities",
+        icon: "i-heroicons-device-phone-mobile",
+      },
+    ],
+  },
+  {
+    titleKey: "navigation.scrmSectionIntegrationCommerce",
+    items: [
+      {
+        to: "/scrm/system_integration_data_orchestration",
+        labelKey: "navigation.scrmSystemIntegrationDataOrchestration",
+        icon: "i-heroicons-arrow-path-rounded-square",
+      },
+      {
+        to: "/scrm/social_commerce_distribution",
+        labelKey: "navigation.scrmSocialCommerceDistribution",
+        icon: "i-heroicons-shopping-bag",
+      },
+    ],
+  },
+  {
+    titleKey: "navigation.scrmSectionComplianceInsights",
+    items: [
+      {
+        to: "/scrm/compliance_security_risk_control",
+        labelKey: "navigation.scrmComplianceSecurityRiskControl",
+        icon: "i-heroicons-shield-check",
+      },
+      {
+        to: "/scrm/analytics_insights",
+        labelKey: "navigation.scrmAnalyticsInsights",
+        icon: "i-heroicons-chart-bar",
+      },
+    ],
+  },
+  {
+    titleKey: "navigation.scrmSectionIntelligenceEcosystem",
+    items: [
+      {
+        to: "/scrm/aigc_automation_intelligence",
+        labelKey: "navigation.scrmAigcAutomationIntelligence",
+        icon: "i-heroicons-cpu-chip",
+      },
+      {
+        to: "/scrm/platform_ecosystem_extensibility",
+        labelKey: "navigation.scrmPlatformEcosystemExtensibility",
+        icon: "i-heroicons-squares-plus",
+      },
+    ],
+  },
+];
 
 onMounted(() => {
   if (!userStore.context && !userStore.isLoading) {
@@ -257,6 +384,7 @@ const isGroupActive = (prefixes: string | string[]) => {
 const toggleTemplatesMenu = () => {
   showTemplatesMenu.value = !showTemplatesMenu.value;
 };
+
 
 watch(
   () => route.path,

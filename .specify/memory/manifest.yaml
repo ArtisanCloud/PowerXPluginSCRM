@@ -1,0 +1,54 @@
+# .specify/memory/manifest.yaml
+# PowerXPlugin Spec-Kit Manifest
+# 定义插件侧（含后端 & 前端）的别名、指南与规则集，以供 /plan 与 /tasks 阶段加载。
+
+manifest: .specify/memory/manifest.yaml
+
+use:
+  - "@plugin-crud-http"         # 后端 HTTP API
+  - "@plugin-crud-grpc"         # 后端 gRPC 接口
+  - "@plugin-frontend-admin"    # 前端 web-admin UI
+
+include:
+  - dev_crud_http_guides.md
+  - dev_crud_grpc_guides.md
+  - dev_sts_guides.md
+  - dev_frontend_guides.md
+
+rulesets:
+  # --------------------------------------
+  # Backend Rulesets (CRUD / STS)
+  # --------------------------------------
+  - rulesets/crud_http.yaml
+  - rulesets/crud_grpc.yaml
+  - rulesets/sts.yaml
+
+  # --------------------------------------
+  # Frontend Rulesets (Nuxt / Admin UI)
+  # --------------------------------------
+  - rulesets/frontend_admin.yaml
+
+  # --------------------------------------
+  # CRUD细分规则
+  # --------------------------------------
+  - rulesets/crud/api_rest.yaml
+  - rulesets/crud/handler_http.yaml
+  - rulesets/crud/dto.yaml
+  - rulesets/crud/service.yaml
+  - rulesets/crud/repository.yaml
+  - rulesets/crud/model.yaml
+  - rulesets/crud/migration.yaml
+  - rulesets/crud/transport_grpc.yaml
+  - rulesets/crud/di.yaml
+  - rulesets/crud/test.yaml
+
+  # --------------------------------------
+  # Frontend细分规则（Nuxt 4 + Nuxt UI 3.3.x）
+  # --------------------------------------
+  - rulesets/crud/frontend/nuxt_pages.yaml
+  - rulesets/crud/frontend/nuxt_components.yaml
+  - rulesets/crud/frontend/nuxt_api_client.yaml
+  - rulesets/crud/frontend/nuxt_stores.yaml
+  - rulesets/crud/frontend/nuxt_i18n.yaml
+  - rulesets/crud/frontend/nuxt_layout.yaml
+  - rulesets/crud/frontend/nuxt_tests.yaml

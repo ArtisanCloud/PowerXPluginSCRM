@@ -1,0 +1,115 @@
+kind: ruleset
+name: plugin/crud/frontend/nuxt_components
+version: 1
+
+components:
+  files:
+    - target: web-admin/app/components/templates/TemplateForm.vue
+      template: builtin/nuxt_component_form_modal
+      params:
+        # Nuxt UI 3.3.2：使用 UModal + v-model:open；按钮 color 使用 {primary|secondary|...}
+        fields:
+          - { key: "name", label: "Name", type: "text", required: true, max: 255 }
+          - { key: "description", label: "Description", type: "textarea" }
+          - { key: "content", label: "Content", type: "textarea" }
+  tokens:
+    members_panel:
+      description: |
+        Members 页面（/admin/iam/members）使用与 PowerX 底座一致的“高对比卡片”主题：浅色模式为半透明白板，深色模式为 #0f192a~#111a2b 的海军蓝，并保持 16px 圆角。
+      light:
+        panel: "`bg-white/95 border border-gray-100 shadow-lg`"
+        heading: "`text-gray-900 font-semibold`"
+        body: "`text-gray-600`（正文） / `text-gray-500`（次级）"
+      dark:
+        panel: "`dark:bg-slate-900/80 dark:border-slate-800/70`"
+        heading: "`dark:text-white`"
+        body: "`dark:text-slate-200`"
+    members_section_heading:
+      description: |
+        卡片或面板内的区块（部门、成员、权限等）在亮/暗模式下的文本、图标配色必须对齐：标题为纯白 (#fdfcff)，描述/辅助文字为淡蓝灰 (#d6e2ff)，禁用文字不低于 #94a3b8。
+      classes:
+        title: "`text-gray-900 dark:text-white`"
+        description: "`text-gray-600 dark:text-slate-200`"
+        icon: "`text-primary-600 dark:text-slate-100`（必要时使用 #93c5fd）"
+
+nuxt_ui:
+  colors: [primary, secondary, success, info, warning, error, neutral]  # palette reference
+  select:
+    syntax: '<USelect v-model="value" :items="items" class="w-48" />'
+    notes:
+      - Use `items` (not `options`) to pass choices.
+      - Add width classes (e.g., `w-full`) when needed.
+  select_menu:
+    syntax: |
+      <USelectMenu
+        v-model="value"
+        :items="items"
+        value-key="value"
+        label-key="label"
+        :portal="false"
+        class="w-full"
+      />
+    notes:
+      - "USelectMenu 支持搜索、多选，列表项仍然用 items 数组；可用于头像/自定义插槽场景。"
+      - "在 UModal、抽屉等容器里必须设置 :portal=\"false\"（或传入 portal={ to: '#id' } 指向弹层外 DOM 节点），防止内容被 Teleport 到 aria-hidden 的祖先之外触发 `descendant retained focus` 告警。"
+      - "如需默认选项结构，可使用 Nuxt UI 示例：const items = ref([{ label: 'xxx', value: 'xxx', avatar: { src: '...' } }]) 并传给 <USelectMenu v-model='value' :avatar='value?.avatar' :items='items' />。"
+  modal:
+    preferUModal: true
+    paddingClass: "p-4 sm:p-5"
+    width: "max-w-3xl w-full"
+    notes:
+      - 如需更宽的编辑表单，可覆盖 `ui.content`（例如 `'max-w-6xl w-[90vw] mx-auto'`）而不是直接设置 inline 样式，保持组件一致性。
+    close:
+      useCloseProp: true
+      preventClose: true
+    slots:
+      body: Place form fields in `#body` slot to ensure they render.
+      footer: Place action buttons in `#footer`.
+      contentSlot: content
+    accessibility:
+      - Blur active element before closing to avoid aria-hidden focus warnings.
+      - Provide `title` and `description` for dialog accessibility.
+  form:
+    useFormComponent: true
+    schemaLibrary: valibot
+    submitEvent: FormSubmitEvent
+    layout:
+      spacingClass: space-y-4
+      containerClass: "p-4 sm:p-5"
+      buttonsAlign: end
+    fields:
+      wrapWithFormField: true
+      labelI18nKey: recommended
+      inputs:
+        useModelValue: true
+        textareaRowsDefault: 3
+        notes:
+          - Nuxt UI 3 中不存在 `UFormGroup`，请使用 `UFormField` 包裹输入项
+    buttons:
+      cancel:
+        color: neutral
+        variant: subtle
+        type: button
+      submit:
+        color: primary
+        type: submit
+    notifications:
+      preferredComponent: "~/components/ToastAlert.vue"
+      notes:
+        - 所有跨页成功/失败/提醒提示优先使用 `ToastAlert`，保持右下角 Teleport 样式一致。
+        - 通过 `v-model` 控制显隐，例如 `<ToastAlert v-model="toast.visible" :title="toast.title" :message="toast.message" :color="toast.color" />`。
+        - 仅当宿主页面已经提供现成通知栈且必须复用时，才可直接使用 Nuxt UI 的 `useToast()`，否则请维护本地响应式状态驱动 `ToastAlert`。
+    dropdown_menu:
+      items:
+        handlerProp: onSelect
+        notes:
+          - "子项点击使用 `onSelect` 回调（Nuxt UI 3 语义），而不是自定义 click。例：`[{ label: '删除', icon: 'i-heroicons-trash', onSelect() { ... } }]`。"
+    errorHandling:
+      schemaValidation: true
+      toastOnError: optional
+  table:
+    columns:
+      notes:
+        - "Nuxt UI 3 的 `UTable` 依赖 TanStack 列定义，`key/label` 需要通过 `useNormalizedColumns([...])` 转换为 `accessorKey/header`，并在模板中使用 `#<column>-cell` 槽位。"
+
+gates.require: [PG-FE-UI-001]
