@@ -14,13 +14,13 @@
 **Goal**: Allow admins to connect and list channel accounts with valid status and error reporting.
 **Independent Test**: Create an account and confirm it appears with Connected status or error.
 
-- [ ] T007 [US1] Implement account service for create/list/get in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/backend/internal/services/social_channel_governance/account_service.go
-- [ ] T008 [US1] Enforce account uniqueness in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/backend/internal/services/social_channel_governance/account_service.go
-- [ ] T009 [US1] Map credential-expired errors to Expired status in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/backend/internal/services/social_channel_governance/account_service.go
-- [ ] T010 [US1] Implement REST handlers for list/create/get in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/backend/internal/transport/http/social_channel_governance/account_handler.go
-- [ ] T011 [US1] Wire routes in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/backend/internal/transport/http/social_channel_governance/routes.go
-- [ ] T012 [US1] Build account list UI shell in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/web-admin/app/pages/scrm/social_channel_governance/[topic].vue
-- [ ] T013 [US1] Add account list store/service in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/web-admin/app/stores/scrm/social_channel_governance/account_store.ts
+- [X] T007 [US1] Implement account service for create/list/get in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/backend/internal/services/admin/social_channel_governance/account_service.go
+- [X] T008 [US1] Enforce account uniqueness in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/backend/internal/services/admin/social_channel_governance/account_service.go
+- [X] T009 [US1] Map credential-expired errors to Expired status in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/backend/internal/services/admin/social_channel_governance/account_service.go
+- [X] T010 [US1] Implement REST handlers for list/create/get in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/backend/internal/transport/http/admin/social_channel_governance/account_handler.go
+- [X] T011 [US1] Wire routes in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/backend/internal/transport/http/admin/social_channel_governance/routes.go
+- [X] T012 [US1] Build account list UI shell in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/web-admin/app/pages/scrm/social_channel_governance/[topic].vue
+- [X] T013 [US1] Add account list store/service in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/web-admin/app/stores/scrm/social_channel_governance/account_store.ts
 
 ## Phase 4: User Story 2 (P2) - Assign Ownership and Members
 **Goal**: Assign owner and member scope to a connected account.
