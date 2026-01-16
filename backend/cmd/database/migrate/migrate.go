@@ -17,6 +17,7 @@ import (
 	operationsModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/operations"
 	runtimeOpsModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/runtime_ops"
 	securityModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/security"
+	socialModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/social_channel_governance"
 	templateModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/template"
 	toolgrantModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/tool_grant"
 	"github.com/jackc/pgconn"
@@ -59,6 +60,8 @@ var businessTables = []interface{}{
 	&adminconsoleModel.AuditEvent{},
 	&adminconsoleModel.ConfigChange{},
 	&adminconsoleModel.JobRun{},
+	&socialModel.ChannelAccount{},
+	&socialModel.AuditEvent{},
 }
 
 var iamTables = []interface{}{

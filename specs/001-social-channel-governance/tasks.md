@@ -5,10 +5,10 @@
 - [X] T002 Review decisions in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/specs/001-social-channel-governance/research.md
 
 ## Phase 2: Foundational
-- [ ] T003 Define domain table constants in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/backend/internal/domain/models/model.go
-- [ ] T004 Create social channel governance models in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/backend/internal/domain/models/social_channel_governance/
-- [ ] T005 [P] Implement repository interfaces in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/backend/internal/domain/repository/social_channel_governance/
-- [ ] T006 Register models in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/backend/cmd/database/migrate/migrate.go
+- [X] T003 Define domain table constants in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/backend/internal/domain/models/model.go
+- [X] T004 Create social channel governance models in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/backend/internal/domain/models/social_channel_governance/
+- [X] T005 [P] Implement repository interfaces in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/backend/internal/domain/repository/social_channel_governance/
+- [X] T006 Register models in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/backend/cmd/database/migrate/migrate.go
 
 ## Phase 3: User Story 1 (P1) - Onboard a Channel Account
 **Goal**: Allow admins to connect and list channel accounts with valid status and error reporting.

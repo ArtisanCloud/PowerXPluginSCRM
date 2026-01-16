@@ -78,4 +78,6 @@ const (
 	TableIAMRolePermissions              = "iam_role_permissions"
 	TableIAMRefreshTokens                = "iam_refresh_tokens"
 	TableIAMAuditLogs                    = "iam_audit_logs"
+	TableSocialChannelAccounts           = "social_channel_accounts"
+	TableSocialChannelAuditEvents        = "social_channel_audit_events"
 )
