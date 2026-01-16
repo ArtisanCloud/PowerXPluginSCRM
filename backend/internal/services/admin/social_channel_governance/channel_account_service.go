@@ -8,6 +8,7 @@ import (
 	model "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/social_channel_governance"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository"
 	SocialRepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/social_channel_governance"
+	SocialObs "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/social_channel_governance"
 	"gorm.io/datatypes"
 )
 
@@ -105,6 +106,13 @@ func (s *ChannelAccountService) CreateAccount(ctx context.Context, tenantUUID st
 	if err != nil {
 		return nil, err
 	}
+	SocialObs.EmitChannelAccountCreated(
+		ctx,
+		tenantUUID,
+		created.AccountUUID,
+		SocialObs.ResolveActorUserUUID(ctx, created.OwnerUserUUID),
+		created.Status,
+	)
 	if validationErr != nil {
 		return created, validationErr
 	}

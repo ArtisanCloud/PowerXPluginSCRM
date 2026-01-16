@@ -22,5 +22,7 @@ npm run dev
 ## Verify
 
 1. Open `http://localhost:3100/scrm/social_channel_governance/account-permission`.
-2. Confirm the page loads and shows the governance placeholder.
-3. Once APIs are wired, verify you can create an account and see it in the list.
+2. Confirm the Channel Accounts list loads under the admin UI.
+3. Create a channel account and verify it appears in the list with status.
+4. Update channel account members and confirm the account updates in the list.
+5. Update channel account capabilities and confirm the update response persists.

@@ -41,8 +41,8 @@
 - [X] T021 [US3] Add capability API client in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/web-admin/app/composables/api/services/socialChannelGovernance.ts
 
 ## Phase 6: Polish & Cross-Cutting Concerns
-- [ ] T022 Add audit event hooks in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/backend/internal/observability/social_channel_governance/
-- [ ] T023 Update quickstart verification steps in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/specs/001-social-channel-governance/quickstart.md
+- [X] T022 Add audit event hooks in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/backend/internal/observability/social_channel_governance/
+- [X] T023 Update quickstart verification steps in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/specs/001-social-channel-governance/quickstart.md
 
 ## Dependencies
 

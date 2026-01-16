@@ -8,6 +8,7 @@ import (
 	model "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/social_channel_governance"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository"
 	SocialRepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/social_channel_governance"
+	SocialObs "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/social_channel_governance"
 	"gorm.io/datatypes"
 )
 
@@ -55,5 +56,16 @@ func (s *ChannelAccountCapabilityService) UpdateChannelAccountCapabilities(ctx c
 		}
 		payload[clean] = value
 	}
-	return s.repo.UpdateChannelAccountCapabilities(ctx, tenantUUID, accountUUID, payload)
+	updated, err := s.repo.UpdateChannelAccountCapabilities(ctx, tenantUUID, accountUUID, payload)
+	if err != nil {
+		return nil, err
+	}
+	SocialObs.EmitChannelAccountCapabilitiesChanged(
+		ctx,
+		tenantUUID,
+		accountUUID,
+		SocialObs.ResolveActorUserUUID(ctx, ""),
+		capabilities,
+	)
+	return updated, nil
 }

@@ -117,7 +117,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CapabilitySettings'
+                $ref: '#/components/schemas/ChannelAccount'
 components:
   parameters:
     AccountUuid:

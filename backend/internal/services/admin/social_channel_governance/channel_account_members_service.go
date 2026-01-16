@@ -6,9 +6,9 @@ import (
 	"sort"
 	"strings"
 
-	model "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/social_channel_governance"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository"
 	SocialRepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/social_channel_governance"
+	SocialObs "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/social_channel_governance"
 )
 
 type ChannelAccountMemberUpdateRequest struct {
@@ -44,7 +44,23 @@ func (s *ChannelAccountMemberService) UpdateChannelAccountMembers(ctx context.Co
 	if len(cleaned) == 0 {
 		return nil, errors.New("member_user_uuids is required")
 	}
-	return s.repo.UpdateChannelAccountMembers(ctx, tenantUUID, accountUUID, req.OwnerUserUUID, cleaned)
+	account, err := s.repo.UpdateChannelAccountMembers(ctx, tenantUUID, accountUUID, req.OwnerUserUUID, cleaned)
+	if err != nil {
+		return nil, err
+	}
+	actor := ""
+	if req.OwnerUserUUID != nil {
+		actor = *req.OwnerUserUUID
+	}
+	SocialObs.EmitChannelAccountMembersChanged(
+		ctx,
+		tenantUUID,
+		accountUUID,
+		SocialObs.ResolveActorUserUUID(ctx, actor),
+		req.OwnerUserUUID,
+		cleaned,
+	)
+	return account, nil
 }
 
 func normalizeUUIDList(values []string) []string {
