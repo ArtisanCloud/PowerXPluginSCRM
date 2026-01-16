@@ -42,6 +42,10 @@ backend/tmp/
 backend/coverage.out
 backend/etc/config.yaml
 backend/etc/host-values.yaml
+backend/vendor/
+*.exe
+*.test
+*.out
 
 # Root-level overrides (non-production secrets)
 config/config.yaml

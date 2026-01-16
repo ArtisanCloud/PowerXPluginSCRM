@@ -1,0 +1,223 @@
+openapi: 3.0.3
+info:
+  title: Social Channel Governance API
+  version: 1.0.0
+servers:
+  - url: /v1
+paths:
+  /social/channel-accounts:
+    get:
+      summary: List channel accounts
+      responses:
+        '200':
+          description: Account list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ChannelAccount'
+    post:
+      summary: Create channel account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChannelAccountCreate'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelAccount'
+  /social/channel-accounts/{account_uuid}:
+    get:
+      summary: Get channel account
+      parameters:
+        - $ref: '#/components/parameters/AccountUuid'
+      responses:
+        '200':
+          description: Account
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelAccount'
+    patch:
+      summary: Update channel account
+      parameters:
+        - $ref: '#/components/parameters/AccountUuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChannelAccountUpdate'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelAccount'
+    delete:
+      summary: Delete channel account
+      parameters:
+        - $ref: '#/components/parameters/AccountUuid'
+      responses:
+        '204':
+          description: Deleted
+  /social/channel-accounts/{account_uuid}/members:
+    post:
+      summary: Update account members
+      parameters:
+        - $ref: '#/components/parameters/AccountUuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountMembersUpdate'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelAccount'
+  /social/channel-accounts/{account_uuid}/capabilities:
+    get:
+      summary: Get account capabilities
+      parameters:
+        - $ref: '#/components/parameters/AccountUuid'
+      responses:
+        '200':
+          description: Capabilities
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CapabilitySettings'
+    patch:
+      summary: Update account capabilities
+      parameters:
+        - $ref: '#/components/parameters/AccountUuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CapabilitySettings'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CapabilitySettings'
+components:
+  parameters:
+    AccountUuid:
+      name: account_uuid
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  schemas:
+    ChannelAccount:
+      type: object
+      properties:
+        account_uuid:
+          type: string
+          format: uuid
+        tenant_uuid:
+          type: string
+          format: uuid
+        channel:
+          type: string
+          enum: [wechat, feishu, dingding]
+        app_type:
+          type: string
+        account_id:
+          type: string
+        display_name:
+          type: string
+        status:
+          type: string
+          enum: [pending, connected, expired, disabled]
+        owner_user_uuid:
+          type: string
+          format: uuid
+        member_user_uuids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        capabilities:
+          $ref: '#/components/schemas/CapabilitySettings'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - account_uuid
+        - tenant_uuid
+        - channel
+        - app_type
+        - account_id
+        - display_name
+        - status
+        - owner_user_uuid
+        - capabilities
+    ChannelAccountCreate:
+      type: object
+      properties:
+        channel:
+          type: string
+          enum: [wechat, feishu, dingding]
+        app_type:
+          type: string
+        account_id:
+          type: string
+        display_name:
+          type: string
+        owner_user_uuid:
+          type: string
+          format: uuid
+      required:
+        - channel
+        - app_type
+        - account_id
+        - display_name
+        - owner_user_uuid
+    ChannelAccountUpdate:
+      type: object
+      properties:
+        display_name:
+          type: string
+        status:
+          type: string
+          enum: [pending, connected, expired, disabled]
+        owner_user_uuid:
+          type: string
+          format: uuid
+    AccountMembersUpdate:
+      type: object
+      properties:
+        member_user_uuids:
+          type: array
+          items:
+            type: string
+            format: uuid
+      required:
+        - member_user_uuids
+    CapabilitySettings:
+      type: object
+      additionalProperties:
+        type: boolean

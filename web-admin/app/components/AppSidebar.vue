@@ -247,6 +247,26 @@ const scrmSections = [
         icon: "i-heroicons-globe-alt",
       },
       {
+        to: "/scrm/social_channel_governance/account-permission",
+        labelKey: "navigation.scrmSocialChannelAccountPermission",
+        icon: "i-heroicons-identification",
+      },
+      {
+        to: "/scrm/social_channel_governance/unified-access",
+        labelKey: "navigation.scrmSocialChannelUnifiedAccess",
+        icon: "i-heroicons-link",
+      },
+      {
+        to: "/scrm/social_channel_governance/health-ops",
+        labelKey: "navigation.scrmSocialChannelHealthOps",
+        icon: "i-heroicons-heart",
+      },
+      {
+        to: "/scrm/social_channel_governance/attribution-tracking",
+        labelKey: "navigation.scrmSocialChannelAttributionTracking",
+        icon: "i-heroicons-tag",
+      },
+      {
         to: "/scrm/lead_capture_smart_assignment",
         labelKey: "navigation.scrmLeadCaptureSmartAssignment",
         icon: "i-heroicons-bolt",

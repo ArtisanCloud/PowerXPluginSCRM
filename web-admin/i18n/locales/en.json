@@ -69,7 +69,11 @@
   "navigation": {
     "intro": "Plugin Intro",
     "scrm": "SCRM Modules",
-    "scrmSocialChannelGovernance": "Social Channel Governance",
+    "scrmSocialChannelGovernance": "Touchpoint Hub",
+    "scrmSocialChannelAccountPermission": "Account & Member Management",
+    "scrmSocialChannelUnifiedAccess": "Channel Access & Setup",
+    "scrmSocialChannelHealthOps": "Connection Health & Alerts",
+    "scrmSocialChannelAttributionTracking": "Attribution & Source Tracking",
     "scrmLeadCaptureSmartAssignment": "Lead Capture & Smart Assignment",
     "scrmCommunityCustomerEngagement": "Community & Customer Engagement",
     "scrmContentEngagementAutomation": "Content Engagement Automation",

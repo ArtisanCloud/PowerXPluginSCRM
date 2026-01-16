@@ -69,7 +69,11 @@
   "navigation": {
     "intro": "插件介绍",
     "scrm": "SCRM 模块",
-    "scrmSocialChannelGovernance": "社交触点接入与账号治理",
+    "scrmSocialChannelGovernance": "触点管理中心",
+    "scrmSocialChannelAccountPermission": "账号与成员管理",
+    "scrmSocialChannelUnifiedAccess": "渠道接入与配置",
+    "scrmSocialChannelHealthOps": "连接健康与告警",
+    "scrmSocialChannelAttributionTracking": "来源追踪与归因",
     "scrmLeadCaptureSmartAssignment": "线索获取与智能分配",
     "scrmCommunityCustomerEngagement": "社群与客户运营",
     "scrmContentEngagementAutomation": "内容分发与互动自动化",
