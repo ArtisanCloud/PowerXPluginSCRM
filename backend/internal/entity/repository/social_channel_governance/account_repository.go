@@ -180,3 +180,35 @@ func (r *AccountRepository) UpdateChannelAccountMembers(ctx context.Context, ten
 	}
 	return &out, nil
 }
+
+func (r *AccountRepository) UpdateChannelAccountCapabilities(ctx context.Context, tenantUUID, accountUUID string, capabilities datatypes.JSONMap) (*model.ChannelAccount, error) {
+	if r == nil || r.DB == nil {
+		return nil, errors.New("repository database is not initialized")
+	}
+	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
+	accountUUID = strings.ToLower(strings.TrimSpace(accountUUID))
+	if tenantUUID == "" || accountUUID == "" {
+		return nil, repository.ErrTenantUuidRequired
+	}
+	now := time.Now().UTC()
+	var out model.ChannelAccount
+	err := r.WithTenantTx(ctx, tenantUUID, func(tx *gorm.DB) error {
+		res := tx.Model(&model.ChannelAccount{}).
+			Where("tenant_uuid = ? AND account_uuid = ?", tenantUUID, accountUUID).
+			Updates(map[string]any{
+				"capabilities": capabilities,
+				"updated_at":   now,
+			})
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return ErrAccountNotFound
+		}
+		return tx.Where("tenant_uuid = ? AND account_uuid = ?", tenantUUID, accountUUID).First(&out).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}

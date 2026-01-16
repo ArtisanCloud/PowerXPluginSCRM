@@ -90,5 +90,25 @@ export const useSocialChannelAccountStore = defineStore('scrm.socialChannelAccou
         this.loading = false
       }
     },
+    async updateChannelAccountCapabilities(accountUuid: string, capabilities: Record<string, boolean>) {
+      this.loading = true
+      this.error = null
+      try {
+        const service = useSocialChannelGovernanceService()
+        const resp = await service.updateChannelAccountCapabilities(accountUuid, { capabilities })
+        const updated = (resp as any)?.data ?? null
+        if (updated) {
+          this.accounts = this.accounts.map((account) =>
+            account.account_uuid === accountUuid ? { ...account, ...updated } : account,
+          )
+        }
+        return updated
+      } catch (err: any) {
+        this.error = err?.message ?? 'Failed to update channel account capabilities'
+        throw err
+      } finally {
+        this.loading = false
+      }
+    },
   },
 })

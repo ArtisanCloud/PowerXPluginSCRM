@@ -16,13 +16,16 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 
 	var accountSvc *SocialService.ChannelAccountService
 	var memberSvc *SocialService.ChannelAccountMemberService
+	var capabilitySvc *SocialService.ChannelAccountCapabilityService
 	if deps.DB != nil {
 		repo := SocialRepo.NewAccountRepository(deps.DB)
 		accountSvc = SocialService.NewChannelAccountService(repo, nil)
 		memberSvc = SocialService.NewChannelAccountMemberService(repo)
+		capabilitySvc = SocialService.NewChannelAccountCapabilityService(repo)
 	}
 	accountHandler := NewAccountHandler(accountSvc)
 	membersHandler := NewChannelAccountMembersHandler(memberSvc)
+	capabilityHandler := NewChannelAccountCapabilityHandler(capabilitySvc)
 
 	group := rg.Group("/social", httpmw.EnsureTenant())
 	{
@@ -30,5 +33,6 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		group.POST("/channel-accounts", accountHandler.CreateAccount)
 		group.GET("/channel-accounts/:account_uuid", accountHandler.GetAccount)
 		group.POST("/channel-accounts/:account_uuid/channel-members", membersHandler.UpdateChannelAccountMembers)
+		group.PATCH("/channel-accounts/:account_uuid/capabilities", capabilityHandler.UpdateChannelAccountCapabilities)
 	}
 }

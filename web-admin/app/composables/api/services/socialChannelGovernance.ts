@@ -21,6 +21,10 @@ export interface ChannelAccountMembersUpdatePayload {
   member_user_uuids: string[];
 }
 
+export interface ChannelAccountCapabilitiesUpdatePayload {
+  capabilities: Record<string, boolean>;
+}
+
 export const useSocialChannelGovernanceService = () => {
   const apiClient = useApiClient();
   const baseUrl = "/admin/social/channel-accounts";
@@ -32,6 +36,15 @@ export const useSocialChannelGovernanceService = () => {
     ) => {
       return apiClient.post<ApiResponse<ChannelAccount>>(
         `${baseUrl}/${accountUuid}/channel-members`,
+        payload
+      );
+    },
+    updateChannelAccountCapabilities: (
+      accountUuid: string,
+      payload: ChannelAccountCapabilitiesUpdatePayload
+    ) => {
+      return apiClient.patch<ApiResponse<ChannelAccount>>(
+        `${baseUrl}/${accountUuid}/capabilities`,
         payload
       );
     },

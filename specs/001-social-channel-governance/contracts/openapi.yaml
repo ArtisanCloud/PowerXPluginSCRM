@@ -110,7 +110,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CapabilitySettings'
+              $ref: '#/components/schemas/ChannelAccountCapabilityUpdate'
       responses:
         '200':
           description: Updated
@@ -221,3 +221,10 @@ components:
       type: object
       additionalProperties:
         type: boolean
+    ChannelAccountCapabilityUpdate:
+      type: object
+      properties:
+        capabilities:
+          $ref: '#/components/schemas/CapabilitySettings'
+      required:
+        - capabilities

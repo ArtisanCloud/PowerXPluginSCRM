@@ -35,10 +35,10 @@
 **Goal**: Enable or disable supported capabilities per account.
 **Independent Test**: Toggle a capability and verify it persists and respects supported list.
 
-- [ ] T018 [US3] Implement capability update service in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/backend/internal/services/social_channel_governance/capability_service.go
-- [ ] T019 [US3] Implement capability handler in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/backend/internal/transport/http/social_channel_governance/capability_handler.go
-- [ ] T020 [US3] Add capability UI section in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/web-admin/app/pages/scrm/social_channel_governance/[topic].vue
-- [ ] T021 [US3] Add capability API client in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/web-admin/app/composables/api/services/socialChannelGovernance.ts
+- [X] T018 [US3] Implement capability update service in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/backend/internal/services/admin/social_channel_governance/channel_account_capability_service.go
+- [X] T019 [US3] Implement capability handler in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/backend/internal/transport/http/admin/social_channel_governance/channel_account_capability_handler.go
+- [X] T020 [US3] Add capability UI section in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/web-admin/app/pages/scrm/social_channel_governance/[topic].vue
+- [X] T021 [US3] Add capability API client in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/web-admin/app/composables/api/services/socialChannelGovernance.ts
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 - [ ] T022 Add audit event hooks in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/backend/internal/observability/social_channel_governance/

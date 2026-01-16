@@ -121,6 +121,61 @@
           </span>
         </div>
       </UCard>
+
+      <UCard>
+        <template #header>
+          <div class="flex items-center gap-2">
+            <UIcon name="i-heroicons-adjustments-horizontal" class="text-primary" />
+            <span class="font-medium">Channel Account Capabilities</span>
+          </div>
+        </template>
+        <div class="space-y-4">
+          <div class="space-y-2">
+            <label class="text-sm font-medium text-gray-700 dark:text-gray-200">Channel Account</label>
+            <USelectMenu
+              v-model="selectedCapabilityAccountId"
+              :options="accountOptions"
+              placeholder="Select a channel account"
+              class="w-full"
+            />
+          </div>
+          <div class="space-y-3">
+            <div
+              v-for="(row, idx) in capabilityRows"
+              :key="`capability-${idx}`"
+              class="flex flex-wrap items-center gap-3"
+            >
+              <UInput v-model="row.key" placeholder="Capability key" class="flex-1 min-w-[160px]" />
+              <div class="flex items-center gap-2">
+                <span class="text-sm text-gray-600 dark:text-gray-300">Enabled</span>
+                <USwitch v-model="row.enabled" />
+              </div>
+              <UButton
+                icon="i-heroicons-x-mark"
+                variant="ghost"
+                color="neutral"
+                @click="removeCapabilityRow(idx)"
+              />
+            </div>
+            <UButton variant="soft" icon="i-heroicons-plus" @click="addCapabilityRow">
+              Add Capability
+            </UButton>
+          </div>
+        </div>
+        <div class="mt-4 flex items-center gap-3">
+          <UButton
+            color="primary"
+            :loading="capabilityUpdateLoading"
+            :disabled="!selectedCapabilityAccountId"
+            @click="submitChannelAccountCapabilities"
+          >
+            Save Capabilities
+          </UButton>
+          <span v-if="capabilityUpdateMessage" class="text-sm text-gray-600 dark:text-gray-300">
+            {{ capabilityUpdateMessage }}
+          </span>
+        </div>
+      </UCard>
     </div>
 
     <div v-else class="space-y-6">
@@ -195,6 +250,10 @@ const ownerUserUuid = ref('')
 const memberUserUuidsInput = ref('')
 const memberUpdateLoading = ref(false)
 const memberUpdateMessage = ref('')
+const selectedCapabilityAccountId = ref<string | null>(null)
+const capabilityRows = ref<{ key: string; enabled: boolean }[]>([{ key: '', enabled: false }])
+const capabilityUpdateLoading = ref(false)
+const capabilityUpdateMessage = ref('')
 
 const accountColumns = computed(() => [
   { accessorKey: 'display_name', header: 'Account' },
@@ -252,6 +311,46 @@ const submitChannelAccountMemberUpdate = async () => {
     memberUpdateMessage.value = err?.message || 'Channel account update failed.'
   } finally {
     memberUpdateLoading.value = false
+  }
+}
+
+const addCapabilityRow = () => {
+  capabilityRows.value.push({ key: '', enabled: false })
+}
+
+const removeCapabilityRow = (idx: number) => {
+  capabilityRows.value.splice(idx, 1)
+  if (capabilityRows.value.length === 0) {
+    capabilityRows.value.push({ key: '', enabled: false })
+  }
+}
+
+const buildCapabilitiesPayload = () => {
+  const payload: Record<string, boolean> = {}
+  for (const row of capabilityRows.value) {
+    const key = row.key.trim()
+    if (!key) {
+      continue
+    }
+    payload[key] = Boolean(row.enabled)
+  }
+  return payload
+}
+
+const submitChannelAccountCapabilities = async () => {
+  if (!selectedCapabilityAccountId.value) {
+    return
+  }
+  capabilityUpdateMessage.value = ''
+  capabilityUpdateLoading.value = true
+  try {
+    const payload = buildCapabilitiesPayload()
+    await accountStore.updateChannelAccountCapabilities(selectedCapabilityAccountId.value, payload)
+    capabilityUpdateMessage.value = 'Channel account capabilities updated.'
+  } catch (err: any) {
+    capabilityUpdateMessage.value = err?.message || 'Channel account capability update failed.'
+  } finally {
+    capabilityUpdateLoading.value = false
   }
 }
 

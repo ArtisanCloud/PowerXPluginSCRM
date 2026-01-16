@@ -14,5 +14,6 @@ func RBACEntries(prefix string) map[string]authx.Permission {
 		"POST:" + base:       {Resource: "scrm.social_channel_accounts", Action: "write"},
 		"GET:" + base + "/*": {Resource: "scrm.social_channel_accounts", Action: "read"},
 		"POST:" + base + "/:account_uuid/channel-members": {Resource: "scrm.social_channel_accounts", Action: "write"},
+		"PATCH:" + base + "/:account_uuid/capabilities":   {Resource: "scrm.social_channel_accounts", Action: "write"},
 	}
 }
