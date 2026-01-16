@@ -11,9 +11,9 @@
           </p>
         </div>
         <div class="flex items-center gap-2">
-          <UButton icon="i-heroicons-arrow-path" variant="soft" @click="refreshAccounts" :loading="accountsLoading">
-            Refresh
-          </UButton>
+      <UButton icon="i-heroicons-arrow-path" variant="soft" @click="refreshChannelAccounts" :loading="accountsLoading">
+        Refresh
+      </UButton>
           <UButton icon="i-heroicons-link" color="primary" :disabled="true">
             Connect Account (Soon)
           </UButton>
@@ -26,17 +26,17 @@
         variant="soft"
         icon="i-heroicons-exclamation-triangle"
       >
-        <template #title>Account list unavailable</template>
+        <template #title>Channel account list unavailable</template>
         <template #description>{{ accountsError }}</template>
       </UAlert>
 
       <UCard>
         <template #header>
           <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <UIcon name="i-heroicons-rectangle-stack" class="text-primary" />
-              <span class="font-medium">Channel Accounts</span>
-            </div>
+          <div class="flex items-center gap-2">
+            <UIcon name="i-heroicons-rectangle-stack" class="text-primary" />
+            <span class="font-medium">Channel Accounts</span>
+          </div>
             <UBadge variant="soft" color="primary">{{ accounts.length }}</UBadge>
           </div>
         </template>
@@ -71,6 +71,54 @@
 
         <div v-if="!accountsLoading && accounts.length === 0" class="py-6 text-center text-sm text-gray-500 dark:text-gray-400">
           No channel accounts connected yet.
+        </div>
+      </UCard>
+
+      <UCard>
+        <template #header>
+          <div class="flex items-center gap-2">
+            <UIcon name="i-heroicons-user-group" class="text-primary" />
+            <span class="font-medium">Channel Account Members</span>
+          </div>
+        </template>
+        <div class="grid gap-4 md:grid-cols-2">
+          <div class="space-y-2">
+            <label class="text-sm font-medium text-gray-700 dark:text-gray-200">Channel Account</label>
+            <USelectMenu
+              v-model="selectedAccountId"
+              :options="accountOptions"
+              placeholder="Select a channel account"
+              class="w-full"
+            />
+          </div>
+          <div class="space-y-2">
+            <label class="text-sm font-medium text-gray-700 dark:text-gray-200">Channel Account Owner UUID</label>
+            <UInput v-model="ownerUserUuid" placeholder="Channel account owner UUID" />
+          </div>
+        </div>
+        <div class="mt-4 space-y-2">
+          <label class="text-sm font-medium text-gray-700 dark:text-gray-200">Channel Account Member UUIDs</label>
+          <UTextarea
+            v-model="memberUserUuidsInput"
+            placeholder="Comma or newline separated channel member UUIDs"
+            :rows="4"
+          />
+          <p class="text-xs text-gray-500 dark:text-gray-400">
+            Provide at least one channel member UUID. Duplicates and empty values are ignored.
+          </p>
+        </div>
+        <div class="mt-4 flex items-center gap-3">
+          <UButton
+            color="primary"
+            :loading="memberUpdateLoading"
+            :disabled="!selectedAccountId"
+            @click="submitChannelAccountMemberUpdate"
+          >
+            Save Changes
+          </UButton>
+          <span v-if="memberUpdateMessage" class="text-sm text-gray-600 dark:text-gray-300">
+            {{ memberUpdateMessage }}
+          </span>
         </div>
       </UCard>
     </div>
@@ -142,6 +190,11 @@ const isAccountTopic = computed(() => topicKey.value === 'account-permission')
 
 const accountStore = useSocialChannelAccountStore()
 const { accounts, loading: accountsLoading, error: accountsError } = storeToRefs(accountStore)
+const selectedAccountId = ref<string | null>(null)
+const ownerUserUuid = ref('')
+const memberUserUuidsInput = ref('')
+const memberUpdateLoading = ref(false)
+const memberUpdateMessage = ref('')
 
 const accountColumns = computed(() => [
   { accessorKey: 'display_name', header: 'Account' },
@@ -165,13 +218,46 @@ const statusMeta = (status: string | undefined) => {
   }
 }
 
-const refreshAccounts = async () => {
-  await accountStore.fetchAccounts()
+const refreshChannelAccounts = async () => {
+  await accountStore.fetchChannelAccounts()
+}
+
+const accountOptions = computed(() =>
+  accounts.value.map((account) => ({
+    label: account.display_name || account.account_id,
+    value: account.account_uuid,
+  })),
+)
+
+const parseMemberUUIDs = (raw: string) =>
+  raw
+    .split(/[,\n]/g)
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0)
+
+const submitChannelAccountMemberUpdate = async () => {
+  if (!selectedAccountId.value) {
+    return
+  }
+  memberUpdateMessage.value = ''
+  memberUpdateLoading.value = true
+  try {
+    const payload = {
+      owner_user_uuid: ownerUserUuid.value.trim() || undefined,
+      member_user_uuids: parseMemberUUIDs(memberUserUuidsInput.value),
+    }
+    await accountStore.updateChannelAccountMembers(selectedAccountId.value, payload)
+    memberUpdateMessage.value = 'Channel account members updated.'
+  } catch (err: any) {
+    memberUpdateMessage.value = err?.message || 'Channel account update failed.'
+  } finally {
+    memberUpdateLoading.value = false
+  }
 }
 
 onMounted(async () => {
   if (isAccountTopic.value) {
-    await refreshAccounts()
+    await refreshChannelAccounts()
   }
 })
 
@@ -179,7 +265,7 @@ watch(
   () => topicKey.value,
   async (value) => {
     if (value === 'account-permission') {
-      await refreshAccounts()
+      await refreshChannelAccounts()
     }
   },
 )

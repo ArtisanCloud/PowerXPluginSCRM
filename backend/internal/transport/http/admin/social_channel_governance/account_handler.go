@@ -15,10 +15,10 @@ import (
 )
 
 type AccountHandler struct {
-	svc *SocialService.AccountService
+	svc *SocialService.ChannelAccountService
 }
 
-func NewAccountHandler(svc *SocialService.AccountService) *AccountHandler {
+func NewAccountHandler(svc *SocialService.ChannelAccountService) *AccountHandler {
 	return &AccountHandler{svc: svc}
 }
 
@@ -46,7 +46,7 @@ func (h *AccountHandler) CreateAccount(c *gin.Context) {
 		return
 	}
 
-	account, err := h.svc.CreateAccount(c.Request.Context(), tenantUUID, SocialService.AccountCreateRequest{
+	account, err := h.svc.CreateAccount(c.Request.Context(), tenantUUID, SocialService.ChannelAccountCreateRequest{
 		Channel:       req.Channel,
 		AppType:       req.AppType,
 		AccountID:     req.AccountID,
@@ -55,7 +55,7 @@ func (h *AccountHandler) CreateAccount(c *gin.Context) {
 	})
 	if err != nil {
 		switch {
-		case errors.Is(err, SocialService.ErrCredentialExpired):
+		case errors.Is(err, SocialService.ErrChannelAccountCredentialExpired):
 			contracts.ResponseErrorWithDetails(c, http.StatusBadRequest, contracts.ErrCodeValidationFailed, "credentials expired", account)
 		case errors.Is(err, SocialRepo.ErrAccountExists):
 			contracts.ResponseError(c, http.StatusConflict, contracts.ErrCodeConflict, "account already exists")

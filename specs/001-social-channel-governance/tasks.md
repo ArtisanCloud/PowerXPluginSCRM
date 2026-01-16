@@ -14,9 +14,9 @@
 **Goal**: Allow admins to connect and list channel accounts with valid status and error reporting.
 **Independent Test**: Create an account and confirm it appears with Connected status or error.
 
-- [X] T007 [US1] Implement account service for create/list/get in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/backend/internal/services/admin/social_channel_governance/account_service.go
-- [X] T008 [US1] Enforce account uniqueness in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/backend/internal/services/admin/social_channel_governance/account_service.go
-- [X] T009 [US1] Map credential-expired errors to Expired status in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/backend/internal/services/admin/social_channel_governance/account_service.go
+- [X] T007 [US1] Implement account service for create/list/get in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/backend/internal/services/admin/social_channel_governance/channel_account_service.go
+- [X] T008 [US1] Enforce account uniqueness in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/backend/internal/services/admin/social_channel_governance/channel_account_service.go
+- [X] T009 [US1] Map credential-expired errors to Expired status in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/backend/internal/services/admin/social_channel_governance/channel_account_service.go
 - [X] T010 [US1] Implement REST handlers for list/create/get in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/backend/internal/transport/http/admin/social_channel_governance/account_handler.go
 - [X] T011 [US1] Wire routes in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/backend/internal/transport/http/admin/social_channel_governance/routes.go
 - [X] T012 [US1] Build account list UI shell in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/web-admin/app/pages/scrm/social_channel_governance/[topic].vue
@@ -26,10 +26,10 @@
 **Goal**: Assign owner and member scope to a connected account.
 **Independent Test**: Update owner/members and confirm changes display in the account detail.
 
-- [ ] T014 [US2] Implement member update service in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/backend/internal/services/social_channel_governance/members_service.go
-- [ ] T015 [US2] Implement member update handler in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/backend/internal/transport/http/social_channel_governance/members_handler.go
-- [ ] T016 [US2] Add member management UI in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/web-admin/app/pages/scrm/social_channel_governance/[topic].vue
-- [ ] T017 [US2] Add member update API client in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/web-admin/app/composables/api/services/socialChannelGovernance.ts
+- [X] T014 [US2] Implement member update service in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/backend/internal/services/admin/social_channel_governance/channel_account_members_service.go
+- [X] T015 [US2] Implement member update handler in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/backend/internal/transport/http/admin/social_channel_governance/channel_account_members_handler.go
+- [X] T016 [US2] Add member management UI in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/web-admin/app/pages/scrm/social_channel_governance/[topic].vue
+- [X] T017 [US2] Add member update API client in /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/web-admin/app/composables/api/services/socialChannelGovernance.ts
 
 ## Phase 5: User Story 3 (P3) - Configure Channel Capabilities
 **Goal**: Enable or disable supported capabilities per account.

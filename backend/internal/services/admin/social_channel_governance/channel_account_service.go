@@ -11,33 +11,33 @@ import (
 	"gorm.io/datatypes"
 )
 
-var ErrCredentialExpired = errors.New("credential expired")
+var ErrChannelAccountCredentialExpired = errors.New("channel account credential expired")
 
-type AccountCredentialValidator interface {
-	Validate(ctx context.Context, tenantUUID string, req AccountCreateRequest) error
+type ChannelAccountCredentialValidator interface {
+	Validate(ctx context.Context, tenantUUID string, req ChannelAccountCreateRequest) error
 }
 
-type noopAccountValidator struct{}
+type noopChannelAccountValidator struct{}
 
-func (noopAccountValidator) Validate(_ context.Context, _ string, _ AccountCreateRequest) error {
+func (noopChannelAccountValidator) Validate(_ context.Context, _ string, _ ChannelAccountCreateRequest) error {
 	return nil
 }
 
-// AccountService orchestrates channel account onboarding and lookup.
-type AccountService struct {
+// ChannelAccountService orchestrates channel account onboarding and lookup.
+type ChannelAccountService struct {
 	repo      *SocialRepo.AccountRepository
-	validator AccountCredentialValidator
+	validator ChannelAccountCredentialValidator
 }
 
-func NewAccountService(repo *SocialRepo.AccountRepository, validator AccountCredentialValidator) *AccountService {
+func NewChannelAccountService(repo *SocialRepo.AccountRepository, validator ChannelAccountCredentialValidator) *ChannelAccountService {
 	if validator == nil {
-		validator = noopAccountValidator{}
+		validator = noopChannelAccountValidator{}
 	}
-	return &AccountService{repo: repo, validator: validator}
+	return &ChannelAccountService{repo: repo, validator: validator}
 }
 
-// AccountCreateRequest captures required fields for onboarding.
-type AccountCreateRequest struct {
+// ChannelAccountCreateRequest captures required fields for onboarding.
+type ChannelAccountCreateRequest struct {
 	Channel       string
 	AppType       string
 	AccountID     string
@@ -45,7 +45,7 @@ type AccountCreateRequest struct {
 	OwnerUserUUID string
 }
 
-func (s *AccountService) CreateAccount(ctx context.Context, tenantUUID string, req AccountCreateRequest) (*model.ChannelAccount, error) {
+func (s *ChannelAccountService) CreateAccount(ctx context.Context, tenantUUID string, req ChannelAccountCreateRequest) (*model.ChannelAccount, error) {
 	if s == nil || s.repo == nil {
 		return nil, errors.New("account repository not configured")
 	}
@@ -80,9 +80,9 @@ func (s *AccountService) CreateAccount(ctx context.Context, tenantUUID string, r
 	var validationErr error
 	if s.validator != nil {
 		if err := s.validator.Validate(ctx, tenantUUID, req); err != nil {
-			if errors.Is(err, ErrCredentialExpired) {
+			if errors.Is(err, ErrChannelAccountCredentialExpired) {
 				status = model.ChannelAccountStatusExpired
-				validationErr = err
+				validationErr = ErrChannelAccountCredentialExpired
 			} else {
 				return nil, err
 			}
@@ -111,7 +111,7 @@ func (s *AccountService) CreateAccount(ctx context.Context, tenantUUID string, r
 	return created, nil
 }
 
-func (s *AccountService) ListAccounts(ctx context.Context, tenantUUID string) ([]*model.ChannelAccount, error) {
+func (s *ChannelAccountService) ListAccounts(ctx context.Context, tenantUUID string) ([]*model.ChannelAccount, error) {
 	if s == nil || s.repo == nil {
 		return nil, errors.New("account repository not configured")
 	}
@@ -122,7 +122,7 @@ func (s *AccountService) ListAccounts(ctx context.Context, tenantUUID string) ([
 	return s.repo.ListByTenant(ctx, tenantUUID)
 }
 
-func (s *AccountService) GetAccount(ctx context.Context, tenantUUID, accountUUID string) (*model.ChannelAccount, error) {
+func (s *ChannelAccountService) GetAccount(ctx context.Context, tenantUUID, accountUUID string) (*model.ChannelAccount, error) {
 	if s == nil || s.repo == nil {
 		return nil, errors.New("account repository not configured")
 	}

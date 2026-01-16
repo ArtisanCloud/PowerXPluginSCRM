@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
+import { useSocialChannelGovernanceService } from '~/composables/api/services/socialChannelGovernance'
 
-export interface SocialChannelAccount {
+export interface ChannelAccountSummary {
   account_uuid: string
   tenant_uuid: string
   channel_code: string
@@ -15,7 +16,7 @@ export interface SocialChannelAccount {
   updated_at?: string
 }
 
-export interface CreateAccountPayload {
+export interface ChannelAccountCreatePayload {
   channel: string
   app_type: string
   account_id: string
@@ -25,7 +26,7 @@ export interface CreateAccountPayload {
 
 export const useSocialChannelAccountStore = defineStore('scrm.socialChannelAccounts', {
   state: () => ({
-    accounts: [] as SocialChannelAccount[],
+    accounts: [] as ChannelAccountSummary[],
     loading: false,
     error: '' as string | null,
   }),
@@ -35,11 +36,11 @@ export const useSocialChannelAccountStore = defineStore('scrm.socialChannelAccou
       const base = config.public?.apiBaseUrl || '/api/v1'
       return `${base.replace(/\/$/, '')}/admin/social/channel-accounts`
     },
-    async fetchAccounts() {
+    async fetchChannelAccounts() {
       this.loading = true
       this.error = null
       try {
-        const resp = await $fetch<{ success: boolean; data: { items: SocialChannelAccount[] } }>(this.apiBase(), {
+        const resp = await $fetch<{ success: boolean; data: { items: ChannelAccountSummary[] } }>(this.apiBase(), {
           credentials: 'include',
         })
         this.accounts = resp?.data?.items ?? []
@@ -49,11 +50,11 @@ export const useSocialChannelAccountStore = defineStore('scrm.socialChannelAccou
         this.loading = false
       }
     },
-    async createAccount(payload: CreateAccountPayload) {
+    async createChannelAccount(payload: ChannelAccountCreatePayload) {
       this.loading = true
       this.error = null
       try {
-        const resp = await $fetch<{ success: boolean; data: SocialChannelAccount }>(this.apiBase(), {
+        const resp = await $fetch<{ success: boolean; data: ChannelAccountSummary }>(this.apiBase(), {
           method: 'POST',
           credentials: 'include',
           body: payload,
@@ -64,6 +65,26 @@ export const useSocialChannelAccountStore = defineStore('scrm.socialChannelAccou
         return resp?.data ?? null
       } catch (err: any) {
         this.error = err?.message ?? 'Failed to connect account'
+        throw err
+      } finally {
+        this.loading = false
+      }
+    },
+    async updateChannelAccountMembers(accountUuid: string, payload: { owner_user_uuid?: string; member_user_uuids: string[] }) {
+      this.loading = true
+      this.error = null
+      try {
+        const service = useSocialChannelGovernanceService()
+        const resp = await service.updateChannelAccountMembers(accountUuid, payload)
+        const updated = (resp as any)?.data ?? null
+        if (updated) {
+          this.accounts = this.accounts.map((account) =>
+            account.account_uuid === accountUuid ? { ...account, ...updated } : account,
+          )
+        }
+        return updated
+      } catch (err: any) {
+        this.error = err?.message ?? 'Failed to update members'
         throw err
       } finally {
         this.loading = false

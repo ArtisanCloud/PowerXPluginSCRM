@@ -5,7 +5,7 @@ info:
 servers:
   - url: /v1
 paths:
-  /social/channel-accounts:
+  /admin/social/channel-accounts:
     get:
       summary: List channel accounts
       responses:
@@ -35,7 +35,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ChannelAccount'
-  /social/channel-accounts/{account_uuid}:
+  /admin/social/channel-accounts/{account_uuid}:
     get:
       summary: Get channel account
       parameters:
@@ -71,9 +71,9 @@ paths:
       responses:
         '204':
           description: Deleted
-  /social/channel-accounts/{account_uuid}/members:
+  /admin/social/channel-accounts/{account_uuid}/channel-members:
     post:
-      summary: Update account members
+      summary: Update channel account members
       parameters:
         - $ref: '#/components/parameters/AccountUuid'
       requestBody:
@@ -89,7 +89,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ChannelAccount'
-  /social/channel-accounts/{account_uuid}/capabilities:
+  /admin/social/channel-accounts/{account_uuid}/capabilities:
     get:
       summary: Get account capabilities
       parameters:

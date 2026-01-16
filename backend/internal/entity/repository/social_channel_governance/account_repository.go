@@ -143,3 +143,40 @@ func (r *AccountRepository) ListByTenant(ctx context.Context, tenantUUID string)
 	}
 	return out, nil
 }
+
+func (r *AccountRepository) UpdateChannelAccountMembers(ctx context.Context, tenantUUID, accountUUID string, ownerUUID *string, memberUUIDs []string) (*model.ChannelAccount, error) {
+	if r == nil || r.DB == nil {
+		return nil, errors.New("repository database is not initialized")
+	}
+	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
+	accountUUID = strings.ToLower(strings.TrimSpace(accountUUID))
+	if tenantUUID == "" || accountUUID == "" {
+		return nil, repository.ErrTenantUuidRequired
+	}
+	now := time.Now().UTC()
+	updates := map[string]any{
+		"member_user_uuids": memberUUIDs,
+		"updated_at":        now,
+	}
+	if ownerUUID != nil {
+		updates["owner_user_uuid"] = strings.ToLower(strings.TrimSpace(*ownerUUID))
+	}
+
+	var out model.ChannelAccount
+	err := r.WithTenantTx(ctx, tenantUUID, func(tx *gorm.DB) error {
+		res := tx.Model(&model.ChannelAccount{}).
+			Where("tenant_uuid = ? AND account_uuid = ?", tenantUUID, accountUUID).
+			Updates(updates)
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return ErrAccountNotFound
+		}
+		return tx.Where("tenant_uuid = ? AND account_uuid = ?", tenantUUID, accountUUID).First(&out).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
