@@ -247,11 +247,6 @@ const scrmSections = [
         icon: "i-heroicons-globe-alt",
       },
       {
-        to: "/scrm/social_channel_governance/account-permission",
-        labelKey: "navigation.scrmSocialChannelAccountPermission",
-        icon: "i-heroicons-identification",
-      },
-      {
         to: "/scrm/social_channel_governance/unified-access",
         labelKey: "navigation.scrmSocialChannelUnifiedAccess",
         icon: "i-heroicons-link",

@@ -95,6 +95,9 @@ func MigratePluginModels(ctx context.Context, db *gorm.DB, includeIAM bool) erro
 	if err := safeAutoMigrate(ctx, db, tables); err != nil {
 		return err
 	}
+	if err := ensureSocialChannelAccountColumns(ctx, db); err != nil {
+		return err
+	}
 	if includeIAM {
 		if err := ensureIAMConstraints(ctx, db); err != nil {
 			return err
@@ -242,6 +245,34 @@ func isSQLiteSafeTable(tbl interface{}) bool {
 	default:
 		return false
 	}
+}
+
+func ensureSocialChannelAccountColumns(ctx context.Context, db *gorm.DB) error {
+	if db == nil {
+		return nil
+	}
+	tableName := models.S(models.TableSocialChannelAccounts)
+	if strings.EqualFold(db.Dialector.Name(), "postgres") {
+		query := fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN owner_user_uuid TYPE text USING owner_user_uuid::text`, tableName)
+		if err := db.WithContext(ctx).Exec(query).Error; err != nil {
+			return err
+		}
+	}
+	if !db.Migrator().HasColumn(&socialModel.ChannelAccount{}, "deleted_at") {
+		if err := db.Migrator().AddColumn(&socialModel.ChannelAccount{}, "DeletedAt"); err != nil {
+			return err
+		}
+	}
+	indexName := "uq_social_channel_accounts_identity"
+	dropStmt := fmt.Sprintf(`DROP INDEX IF EXISTS %s`, indexName)
+	if err := db.WithContext(ctx).Exec(dropStmt).Error; err != nil {
+		return err
+	}
+	createStmt := fmt.Sprintf(
+		`CREATE UNIQUE INDEX IF NOT EXISTS %s ON %s (tenant_uuid, channel_code, app_type, account_id) WHERE deleted_at IS NULL`,
+		indexName, tableName,
+	)
+	return db.WithContext(ctx).Exec(createStmt).Error
 }
 
 func ensureIAMConstraints(ctx context.Context, db *gorm.DB) error {

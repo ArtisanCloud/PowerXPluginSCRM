@@ -10,9 +10,13 @@ import (
 func RBACEntries(prefix string) map[string]authx.Permission {
 	base := strings.TrimRight(prefix, "/") + "/admin/social/channel-accounts"
 	return map[string]authx.Permission{
-		"GET:" + base:        {Resource: "scrm.social_channel_accounts", Action: "read"},
-		"POST:" + base:       {Resource: "scrm.social_channel_accounts", Action: "write"},
-		"GET:" + base + "/*": {Resource: "scrm.social_channel_accounts", Action: "read"},
+		"GET:" + base:                                     {Resource: "scrm.social_channel_accounts", Action: "read"},
+		"POST:" + base:                                    {Resource: "scrm.social_channel_accounts", Action: "write"},
+		"GET:" + base + "/deleted":                        {Resource: "scrm.social_channel_accounts", Action: "read"},
+		"GET:" + base + "/*":                              {Resource: "scrm.social_channel_accounts", Action: "read"},
+		"PUT:" + base + "/:account_uuid":                  {Resource: "scrm.social_channel_accounts", Action: "write"},
+		"DELETE:" + base + "/:account_uuid":               {Resource: "scrm.social_channel_accounts", Action: "write"},
+		"POST:" + base + "/:account_uuid/restore":         {Resource: "scrm.social_channel_accounts", Action: "write"},
 		"POST:" + base + "/:account_uuid/channel-members": {Resource: "scrm.social_channel_accounts", Action: "write"},
 		"PATCH:" + base + "/:account_uuid/capabilities":   {Resource: "scrm.social_channel_accounts", Action: "write"},
 	}

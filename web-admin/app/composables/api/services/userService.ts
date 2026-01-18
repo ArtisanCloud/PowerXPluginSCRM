@@ -57,14 +57,16 @@ type MemberListResponse = {
 };
 
 const toMemberWithProfile = (record: MemberRecord): MemberWithProfile => {
+  const memberId = (record as any).member_id ?? (record as any).id ?? 0;
+  const userId = (record as any).user_id ?? memberId ?? 0;
   const status =
     record.status === "disabled" || record.status === "locked" ? 0 : 1;
   return {
     Member: {
-      id: record.member_id,
-      uuid: `${record.member_id}`,
+      id: memberId,
+      uuid: `${memberId}`,
       tenant_uuid: record.tenant_uuid,
-      user_id: record.user_id,
+      user_id: userId,
       username: record.username,
       display_name: record.display_name || record.email || record.username,
       avatar_url: (record as any).avatar_url,
@@ -77,8 +79,8 @@ const toMemberWithProfile = (record: MemberRecord): MemberWithProfile => {
       updatedAt: (record as any).updated_at || record.created_at,
     },
     User: {
-      id: record.user_id,
-      uuid: `${record.user_id}`,
+      id: userId,
+      uuid: `${userId}`,
       createdAt: record.created_at,
       updatedAt: (record as any).updated_at || record.created_at,
       email: record.email,

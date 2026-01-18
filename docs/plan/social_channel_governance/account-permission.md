@@ -6,7 +6,7 @@
 
 ## 2. 范围
 - Channel = 平台生态（wechat/feishu/dingding）。
-- AppType = 平台内能力类型（wecom/mp/video/miniapp 或 app/bot）。
+- AppType = 平台内能力类型（wecom/mp/video/miniapp、app/bot、merchant/store）。
 - Account = 具体账号实例（某个企业微信企业/公众号/视频号/飞书应用）。
 
 ## 3. 关键流程

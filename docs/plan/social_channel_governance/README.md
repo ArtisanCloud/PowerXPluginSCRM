@@ -34,14 +34,20 @@
 - 企业微信账号与权限管理
 
 ### 5.1 渠道与应用模型（明确层级）
-- **Channel（平台生态）**：`wechat` / `feishu` / `dingding`。
+- **Channel（平台生态）**：`wechat` / `feishu` / `dingding` / `meituan` / `dianping`。
 - **AppType（平台内能力类型）**：  
   - wechat：`wecom`（企业微信）、`mp`（公众号）、`video`（视频号）、`miniapp`（小程序）。  
   - feishu：`app`（飞书应用）、`bot`（群机器人）。  
   - dingding：`app`（钉钉应用）、`bot`（群机器人）。
+  - meituan：`merchant`（商户）、`store`（门店）。
+  - dianping：`merchant`（商户）、`store`（门店）。
 - **Account（具体账号实例）**：某个公众号、视频号、企业微信企业、飞书应用实例等。
 
 > 结论：公众号/视频号不是 channel，而是 **wechat 生态下的 app 类型**。
+
+补充约定：
+- wecom：`app_id` = CorpID，`account_id` = AgentID，`app_secret` = Secret。
+- mp/miniapp：仅需 `app_id` + `app_secret`，`account_id` 自动使用 `app_id`。
 
 ### 5.2 能力矩阵（能力差异是常态）
 | AppType | 核心能力 | 线索/客户理解 |

@@ -8,6 +8,7 @@ export interface ChannelAccount {
   app_type: string;
   account_id: string;
   display_name: string;
+  credentials?: Record<string, string>;
   status: string;
   owner_user_uuid: string;
   member_user_uuids?: string[];
@@ -25,11 +26,77 @@ export interface ChannelAccountCapabilitiesUpdatePayload {
   capabilities: Record<string, boolean>;
 }
 
+export interface ChannelAccountCreatePayload {
+  channel: string;
+  app_type: string;
+  account_id: string;
+  display_name: string;
+  owner_user_uuid: string;
+  credentials?: Record<string, string>;
+}
+
+export interface ChannelAccountUpdatePayload {
+  display_name: string;
+  owner_user_uuid: string;
+  status: string;
+  credentials?: Record<string, string>;
+}
+
+export interface ChannelFieldSchema {
+  key: string;
+  label: string;
+  required?: boolean;
+  span?: number;
+  placeholder?: string;
+  hint?: string;
+  input_type?: string;
+  hidden?: boolean;
+  derived_from?: string;
+}
+
+export interface ChannelAppTypeSchema {
+  code: string;
+  label: string;
+  fields: ChannelFieldSchema[];
+}
+
+export interface ChannelSchema {
+  code: string;
+  label: string;
+  app_types: ChannelAppTypeSchema[];
+}
+
+export interface ChannelSchemaDocument {
+  version: number;
+  channels: ChannelSchema[];
+}
+
 export const useSocialChannelGovernanceService = () => {
   const apiClient = useApiClient();
   const baseUrl = "/admin/social/channel-accounts";
+  const schemaUrl = "/admin/social/channel-schema";
 
   return {
+    getChannelSchema: () => {
+      return apiClient.get<ApiResponse<ChannelSchemaDocument>>(schemaUrl);
+    },
+    listChannelAccounts: () => {
+      return apiClient.get<ApiResponse<{ items: ChannelAccount[] }>>(baseUrl);
+    },
+    createChannelAccount: (payload: ChannelAccountCreatePayload) => {
+      return apiClient.post<ApiResponse<ChannelAccount>>(baseUrl, payload);
+    },
+    updateChannelAccount: (accountUuid: string, payload: ChannelAccountUpdatePayload) => {
+      return apiClient.put<ApiResponse<ChannelAccount>>(
+        `${baseUrl}/${accountUuid}`,
+        payload
+      );
+    },
+    deleteChannelAccount: (accountUuid: string) => {
+      return apiClient.delete<ApiResponse<{ account_uuid: string }>>(
+        `${baseUrl}/${accountUuid}`
+      );
+    },
     updateChannelAccountMembers: (
       accountUuid: string,
       payload: ChannelAccountMembersUpdatePayload

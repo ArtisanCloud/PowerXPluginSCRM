@@ -19,6 +19,7 @@ func RegisterRoutes(admin *gin.RouterGroup, deps *app.Deps) {
 	tenantHandler := NewTenantHandler(srviam.NewTenantService(deps.DB, audit))
 	departmentHandler := NewDepartmentHandler(srviam.NewDepartmentService(deps.DB, audit))
 	memberHandler := NewMemberHandler(srviam.NewUserService(deps.DB, audit))
+	userDirectoryHandler := NewUserDirectoryHandler(srviam.NewUserService(deps.DB, audit))
 	roleHandler := NewRoleHandler(roleSvc)
 	rolePermissionsHandler := NewRolePermissionsHandler(roleSvc)
 	roleMembersHandler := NewRoleMembersHandler(roleSvc)
@@ -40,6 +41,7 @@ func RegisterRoutes(admin *gin.RouterGroup, deps *app.Deps) {
 	group.POST("/members", memberHandler.Create)
 	group.PATCH("/members/:id", memberHandler.Update)
 	group.POST("/members/import", memberHandler.BulkImport)
+	group.GET("/user-directory", userDirectoryHandler.List)
 
 	group.GET("/roles", roleHandler.List)
 	group.POST("/roles", roleHandler.Create)

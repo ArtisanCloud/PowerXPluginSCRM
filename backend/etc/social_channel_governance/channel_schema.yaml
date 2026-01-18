@@ -1,0 +1,275 @@
+version: 1
+channels:
+  - code: wechat
+    label: 微信生态
+    app_types:
+      - code: wecom
+        label: 企业微信
+        fields:
+          - key: account_id
+            label: AgentID
+            required: true
+            span: 1
+            placeholder: 企业微信内部应用 AgentID
+            hint: 企业微信内部应用 AgentID。
+          - key: app_secret
+            label: Secret
+            required: true
+            span: 1
+            placeholder: 企业微信应用 Secret
+            hint: AgentID 对应应用 Secret。
+          - key: app_id
+            label: CorpID
+            required: true
+            span: 2
+            placeholder: 企业微信 CorpID
+            hint: 企业微信 CorpID。
+          - key: token
+            label: Token（回调校验）
+            required: false
+            span: 2
+            placeholder: Webhook Token / 回调校验 Token
+          - key: expires_at
+            label: 授权过期时间
+            required: false
+            span: 2
+            input_type: datetime-local
+      - code: mp
+        label: 公众号
+        fields:
+          - key: account_id
+            label: 账号 ID
+            required: false
+            hidden: true
+            derived_from: app_id
+            hint: 公众号仅需 AppID 与 AppSecret，账号 ID 自动使用 AppID。
+          - key: app_id
+            label: AppID
+            required: true
+            placeholder: AppID
+          - key: app_secret
+            label: AppSecret
+            required: true
+            placeholder: AppSecret
+          - key: token
+            label: Token（回调校验）
+            required: false
+            placeholder: Webhook Token / 回调校验 Token
+          - key: expires_at
+            label: 授权过期时间
+            required: false
+            input_type: datetime-local
+      - code: miniapp
+        label: 小程序
+        fields:
+          - key: account_id
+            label: 账号 ID
+            required: false
+            hidden: true
+            derived_from: app_id
+            hint: 小程序仅需 AppID 与 AppSecret，账号 ID 自动使用 AppID。
+          - key: app_id
+            label: AppID
+            required: true
+            placeholder: AppID
+          - key: app_secret
+            label: AppSecret
+            required: true
+            placeholder: AppSecret
+          - key: token
+            label: Token（回调校验）
+            required: false
+            placeholder: Webhook Token / 回调校验 Token
+          - key: expires_at
+            label: 授权过期时间
+            required: false
+            input_type: datetime-local
+      - code: video
+        label: 视频号
+        fields:
+          - key: account_id
+            label: 账号 ID
+            required: false
+            hidden: true
+            derived_from: app_id
+            hint: 视频号仅需 AppID 与 AppSecret，账号 ID 自动使用 AppID。
+          - key: app_id
+            label: AppID
+            required: true
+            placeholder: AppID
+          - key: app_secret
+            label: AppSecret
+            required: true
+            placeholder: AppSecret
+          - key: token
+            label: Token（回调校验）
+            required: false
+            placeholder: Webhook Token / 回调校验 Token
+          - key: expires_at
+            label: 授权过期时间
+            required: false
+            input_type: datetime-local
+  - code: feishu
+    label: 飞书
+    app_types:
+      - code: app
+        label: 飞书应用
+        fields:
+          - key: account_id
+            label: 账号 ID
+            required: true
+            placeholder: 渠道侧账号唯一标识
+            hint: 飞书应用 App ID。
+          - key: app_id
+            label: App ID
+            required: true
+            placeholder: App ID
+          - key: app_secret
+            label: App Secret
+            required: true
+            placeholder: App Secret
+          - key: expires_at
+            label: 授权过期时间
+            required: false
+            input_type: datetime-local
+      - code: bot
+        label: 飞书机器人
+        fields:
+          - key: account_id
+            label: 账号 ID
+            required: true
+            placeholder: 飞书机器人 Webhook ID
+            hint: 飞书机器人 Webhook ID。
+          - key: token
+            label: 机器人 Token
+            required: true
+            placeholder: 机器人 Token
+          - key: expires_at
+            label: 授权过期时间
+            required: false
+            input_type: datetime-local
+  - code: dingding
+    label: 钉钉
+    app_types:
+      - code: app
+        label: 钉钉应用
+        fields:
+          - key: account_id
+            label: 账号 ID
+            required: true
+            placeholder: 渠道侧账号唯一标识
+            hint: 钉钉应用 AppKey 或 AppID。
+          - key: app_id
+            label: App ID
+            required: true
+            placeholder: App ID
+          - key: app_secret
+            label: App Secret
+            required: true
+            placeholder: App Secret
+          - key: expires_at
+            label: 授权过期时间
+            required: false
+            input_type: datetime-local
+      - code: bot
+        label: 钉钉机器人
+        fields:
+          - key: account_id
+            label: 账号 ID
+            required: true
+            placeholder: 钉钉机器人 Webhook ID
+            hint: 钉钉机器人 Webhook ID。
+          - key: token
+            label: 机器人 Token
+            required: true
+            placeholder: 机器人 Token
+          - key: expires_at
+            label: 授权过期时间
+            required: false
+            input_type: datetime-local
+  - code: meituan
+    label: 美团
+    app_types:
+      - code: merchant
+        label: 美团商户
+        fields:
+          - key: account_id
+            label: 商户 ID
+            required: true
+            placeholder: 美团商户 ID
+            hint: 美团商户 ID。
+          - key: app_id
+            label: App ID
+            required: true
+            placeholder: App ID
+          - key: app_secret
+            label: App Secret
+            required: true
+            placeholder: App Secret
+          - key: expires_at
+            label: 授权过期时间
+            required: false
+            input_type: datetime-local
+      - code: store
+        label: 美团门店
+        fields:
+          - key: account_id
+            label: 门店 ID
+            required: true
+            placeholder: 美团门店 ID
+            hint: 美团门店 ID。
+          - key: app_id
+            label: App ID
+            required: true
+            placeholder: App ID
+          - key: app_secret
+            label: App Secret
+            required: true
+            placeholder: App Secret
+          - key: expires_at
+            label: 授权过期时间
+            required: false
+            input_type: datetime-local
+  - code: dianping
+    label: 大众点评
+    app_types:
+      - code: merchant
+        label: 点评商户
+        fields:
+          - key: account_id
+            label: 商户 ID
+            required: true
+            placeholder: 点评商户 ID
+            hint: 点评商户 ID。
+          - key: app_id
+            label: App ID
+            required: true
+            placeholder: App ID
+          - key: app_secret
+            label: App Secret
+            required: true
+            placeholder: App Secret
+          - key: expires_at
+            label: 授权过期时间
+            required: false
+            input_type: datetime-local
+      - code: store
+        label: 点评门店
+        fields:
+          - key: account_id
+            label: 门店 ID
+            required: true
+            placeholder: 点评门店 ID
+            hint: 点评门店 ID。
+          - key: app_id
+            label: App ID
+            required: true
+            placeholder: App ID
+          - key: app_secret
+            label: App Secret
+            required: true
+            placeholder: App Secret
+          - key: expires_at
+            label: 授权过期时间
+            required: false
+            input_type: datetime-local

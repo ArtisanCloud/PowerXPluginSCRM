@@ -46,6 +46,17 @@ export interface MemberRecord {
   roles: string[];
 }
 
+export interface UserDirectoryRecord {
+  id: number;
+  email: string;
+  phone?: string;
+  display_name: string;
+  avatar_url?: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface RoleRecord {
   id: number;
   tenant_uuid: string;
@@ -127,6 +138,16 @@ export const useIAMService = () => {
       client<ApiResponse<{ items: MemberRecord[] }>>(
         `${base}/members?${buildQuery({
           tenant_uuid: params.tenantUuid,
+          status: params.status,
+          q: params.query,
+          page: params.page,
+          page_size: params.pageSize,
+        })}`,
+        { method: "GET" }
+      ),
+    listUserDirectory: (params: MemberListParams) =>
+      client<ApiResponse<{ items: UserDirectoryRecord[] }>>(
+        `${base}/user-directory?${buildQuery({
           status: params.status,
           q: params.query,
           page: params.page,

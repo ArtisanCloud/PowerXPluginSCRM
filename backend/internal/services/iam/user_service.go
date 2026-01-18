@@ -31,6 +31,22 @@ type UserFilter struct {
 	Query      string
 }
 
+type UserDirectoryFilter struct {
+	Status string
+	Query  string
+}
+
+type UserDirectoryView struct {
+	ID          uint64    `json:"id"`
+	Email       string    `json:"email"`
+	Phone       string    `json:"phone"`
+	DisplayName string    `json:"display_name"`
+	AvatarURL   string    `json:"avatar_url"`
+	Status      string    `json:"status"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
 type UserView struct {
 	ID           uint64     `json:"id"`
 	UserID       uint64     `json:"user_id"`
@@ -43,7 +59,7 @@ type UserView struct {
 	DepartmentID *uint64    `json:"department_id"`
 	LastLoginAt  *time.Time `json:"last_login_at,omitempty"`
 	CreatedAt    time.Time  `json:"created_at"`
-	Roles        []string   `json:"roles"`
+	Roles        []string   `json:"roles" gorm:"-"`
 }
 
 type UserBulkImportResult struct {
@@ -111,6 +127,28 @@ func (s *UserService) List(ctx context.Context, filter UserFilter) ([]UserView, 
 		}
 	}
 	return result, nil
+}
+
+func (s *UserService) ListDirectory(ctx context.Context, filter UserDirectoryFilter) ([]UserDirectoryView, error) {
+	if s == nil || s.db == nil {
+		return nil, errors.New("iam: user service unavailable")
+	}
+	query := s.db.WithContext(ctx).
+		Model(&iamm.User{}).
+		Select("id, email, phone, display_name, avatar_url, status, created_at, updated_at").
+		Where("deleted_at IS NULL")
+	if status := strings.TrimSpace(filter.Status); status != "" {
+		query = query.Where("status = ?", status)
+	}
+	if search := strings.TrimSpace(filter.Query); search != "" {
+		like := "%" + strings.ToLower(search) + "%"
+		query = query.Where("(lower(email) LIKE ? OR lower(display_name) LIKE ?)", like, like)
+	}
+	var out []UserDirectoryView
+	if err := query.Order("created_at DESC").Find(&out).Error; err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (s *UserService) userRolesMap(ctx context.Context, userIDs []uint64) (map[uint64][]string, error) {

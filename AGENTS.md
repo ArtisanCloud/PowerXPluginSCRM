@@ -27,4 +27,5 @@ Go 1.24 (backend), Node 20 + TypeScript 4 + Nuxt 4 (web-admin): Follow standard 
 - 001-social-channel-governance: Added Go 1.24 (backend), Node 20 + TypeScript 4 + Nuxt 4 (web-admin) + Gin + GORM (backend), Nuxt UI 3.3.x (frontend)
 
 <!-- MANUAL ADDITIONS START -->
+Always respond in Chinese-simplified
 <!-- MANUAL ADDITIONS END -->

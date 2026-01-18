@@ -48,6 +48,13 @@ type MemberListQuery struct {
 	PageSize   int    `form:"page_size"`
 }
 
+type UserDirectoryListQuery struct {
+	Status   string `form:"status"`
+	Query    string `form:"q"`
+	Page     int    `form:"page"`
+	PageSize int    `form:"page_size"`
+}
+
 type CreateMemberRequest struct {
 	TenantUUID   string   `json:"tenant_uuid" binding:"required"`
 	Email        string   `json:"email" binding:"required"`
