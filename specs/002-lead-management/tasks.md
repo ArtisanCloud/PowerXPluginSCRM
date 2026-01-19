@@ -17,8 +17,8 @@
 
 **Purpose**: Project initialization and basic structure
 
-- [ ] T001 [P] [US1] 创建后端目录骨架：`backend/internal/entity/models/lead_capture/`、`backend/internal/entity/repository/lead_capture/`、`backend/internal/services/admin/lead_capture/`、`backend/internal/transport/http/admin/lead_capture/`
-- [ ] T002 [P] [US1] 创建前端目录骨架：`web-admin/app/pages/scrm/lead_capture/`、`web-admin/app/stores/scrm/lead_capture/`、`web-admin/app/composables/api/services/leadCapture.ts`、`web-admin/app/types/lead_capture/`
+- [x] T001 [P] [US1] 创建后端目录骨架：`backend/internal/entity/models/lead_capture/`、`backend/internal/entity/repository/lead_capture/`、`backend/internal/services/admin/lead_capture/`、`backend/internal/transport/http/admin/lead_capture/`
+- [x] T002 [P] [US1] 创建前端目录骨架：`web-admin/app/pages/scrm/lead_capture/`、`web-admin/app/stores/scrm/lead_capture/`、`web-admin/app/composables/api/services/leadCapture.ts`、`web-admin/app/types/lead_capture/`
 
 ---
 
@@ -26,11 +26,11 @@
 
 **Purpose**: Core infrastructure that MUST be complete before ANY user story can be implemented
 
-- [ ] T003 [P] [US1] 在 `backend/internal/entity/models/model.go` 增加表名常量（lead_*）
-- [ ] T004 [US1] 在 `backend/cmd/database/migrate/migrate.go` 注册新模型 AutoMigrate
-- [ ] T005 [P] [US1] 建立 DTO 结构体骨架：`backend/internal/dto/lead_capture/`
-- [ ] T006 [P] [US1] 建立 HTTP 路由注册：`backend/internal/transport/http/admin/lead_capture/routes.go`
-- [ ] T007 [P] [US1] 建立 RBAC 映射：`backend/internal/transport/http/admin/lead_capture/rbac.go`
+- [x] T003 [P] [US1] 在 `backend/internal/entity/models/model.go` 增加表名常量（lead_*）
+- [x] T004 [US1] 在 `backend/cmd/database/migrate/migrate.go` 注册新模型 AutoMigrate
+- [x] T005 [P] [US1] 建立 DTO 结构体骨架：`backend/internal/dto/lead_capture/`
+- [x] T006 [P] [US1] 建立 HTTP 路由注册：`backend/internal/transport/http/admin/lead_capture/routes.go`
+- [x] T007 [P] [US1] 建立 RBAC 映射：`backend/internal/transport/http/admin/lead_capture/rbac.go`
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
@@ -44,20 +44,20 @@
 
 ### Implementation for User Story 1
 
-- [ ] T101 [P] [US1] 实现模型：`backend/internal/entity/models/lead_capture/lead.go`
-- [ ] T102 [P] [US1] 实现模型：`backend/internal/entity/models/lead_capture/lead_source.go`
-- [ ] T103 [P] [US1] 实现模型：`backend/internal/entity/models/lead_capture/lead_event.go`
-- [ ] T104 [P] [US1] 实现仓储：`backend/internal/entity/repository/lead_capture/lead_repository.go`
-- [ ] T105 [US1] 实现服务：`backend/internal/services/admin/lead_capture/lead_service.go`（创建/列表/详情）
-- [ ] T106 [US1] 实现 DTO：`backend/internal/dto/lead_capture/lead_request.go`、`lead_response.go`
-- [ ] T107 [US1] 实现 Handler：`backend/internal/transport/http/admin/lead_capture/lead_handler.go`
-- [ ] T108 [US1] 将路由挂载到 admin router 并补充 RBAC
-- [ ] T113 [US1] 校验规则落地（姓名/手机号/邮箱至少一项）：`backend/internal/services/admin/lead_capture/lead_service.go` + DTO 校验
-- [ ] T114 [US1] 创建默认状态 new：`backend/internal/services/admin/lead_capture/lead_service.go`
-- [ ] T109 [P] [US1] 前端 API Client：`web-admin/app/composables/api/services/leadCapture.ts`
-- [ ] T110 [P] [US1] 前端 Store：`web-admin/app/stores/scrm/lead_capture/lead_store.ts`
-- [ ] T111 [US1] 前端列表页：`web-admin/app/pages/scrm/lead_capture/index.vue`
-- [ ] T112 [US1] 前端详情页或抽屉：`web-admin/app/pages/scrm/lead_capture/[lead_id].vue`（若采用抽屉则在 index.vue 内实现）
+- [x] T101 [P] [US1] 实现模型：`backend/internal/entity/models/lead_capture/lead.go`
+- [x] T102 [P] [US1] 实现模型：`backend/internal/entity/models/lead_capture/lead_source.go`
+- [x] T103 [P] [US1] 实现模型：`backend/internal/entity/models/lead_capture/lead_event.go`
+- [x] T104 [P] [US1] 实现仓储：`backend/internal/entity/repository/lead_capture/lead_repository.go`
+- [x] T105 [US1] 实现服务：`backend/internal/services/admin/lead_capture/lead_service.go`（创建/列表/详情）
+- [x] T106 [US1] 实现 DTO：`backend/internal/dto/lead_capture/lead.go`、`lead_response.go`
+- [x] T107 [US1] 实现 Handler：`backend/internal/transport/http/admin/lead_capture/lead_handler.go`
+- [x] T108 [US1] 将路由挂载到 admin router 并补充 RBAC
+- [x] T113 [US1] 校验规则落地（姓名/手机号/邮箱至少一项）：`backend/internal/services/admin/lead_capture/lead_service.go` + DTO 校验
+- [x] T114 [US1] 创建默认状态 new：`backend/internal/services/admin/lead_capture/lead_service.go`
+- [x] T109 [P] [US1] 前端 API Client：`web-admin/app/composables/api/services/leadCapture.ts`
+- [x] T110 [P] [US1] 前端 Store：`web-admin/app/stores/scrm/lead_capture/lead_store.ts`
+- [x] T111 [US1] 前端列表页：`web-admin/app/pages/scrm/lead_capture/index.vue`
+- [x] T112 [US1] 前端详情页或抽屉：`web-admin/app/pages/scrm/lead_capture/[lead_id].vue`（若采用抽屉则在 index.vue 内实现）
 
 **Checkpoint**: US1 功能可独立完成并演示
 
