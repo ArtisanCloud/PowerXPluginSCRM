@@ -22,3 +22,21 @@ export interface LeadCreatePayload {
   source_account_uuid?: string;
   owner_user_uuid?: string;
 }
+
+export interface LeadAssignment {
+  assignment_uuid: string;
+  tenant_uuid: string;
+  lead_uuid: string;
+  owner_user_uuid: string;
+  reason?: string;
+  created_at: string;
+}
+
+export interface LeadStatusHistory {
+  history_uuid: string;
+  tenant_uuid: string;
+  lead_uuid: string;
+  from_status: string;
+  to_status: string;
+  changed_at: string;
+}

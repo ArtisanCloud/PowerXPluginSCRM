@@ -66,6 +66,8 @@ var businessTables = []interface{}{
 	&leadCaptureModel.Lead{},
 	&leadCaptureModel.LeadSource{},
 	&leadCaptureModel.LeadEvent{},
+	&leadCaptureModel.LeadAssignment{},
+	&leadCaptureModel.LeadStatusHistory{},
 }
 
 var iamTables = []interface{}{

@@ -24,5 +24,9 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		group.GET("", handler.List)
 		group.POST("", handler.Create)
 		group.GET("/:lead_id", handler.Get)
+		group.POST("/:lead_id/assign", handler.Assign)
+		group.POST("/:lead_id/status", handler.UpdateStatus)
+		group.GET("/:lead_id/assignments", handler.ListAssignments)
+		group.GET("/:lead_id/status-history", handler.ListStatusHistory)
 	}
 }

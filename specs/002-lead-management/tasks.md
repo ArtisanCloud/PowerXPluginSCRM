@@ -71,14 +71,14 @@
 
 ### Implementation for User Story 2
 
-- [ ] T201 [P] [US2] 实现模型：`backend/internal/entity/models/lead_capture/lead_assignment.go`
-- [ ] T202 [P] [US2] 实现模型：`backend/internal/entity/models/lead_capture/lead_status_history.go`
-- [ ] T203 [US2] 服务扩展：`backend/internal/services/admin/lead_capture/lead_service.go`（分配/状态流转）
-- [ ] T204 [US2] DTO 扩展：`backend/internal/dto/lead_capture/lead_assignment_request.go`、`lead_status_request.go`
-- [ ] T205 [US2] Handler 扩展：`backend/internal/transport/http/admin/lead_capture/lead_handler.go`（assign/status endpoints）
-- [ ] T206 [US2] 前端详情页增加“负责人选择 + 状态变更 + 历史记录”
-- [ ] T207 [US2] 负责人为租户 member 校验：`backend/internal/services/admin/lead_capture/lead_service.go`
-- [ ] T208 [US2] 状态机约束校验：`backend/internal/services/admin/lead_capture/lead_service.go`
+- [x] T201 [P] [US2] 实现模型：`backend/internal/entity/models/lead_capture/lead_assignment.go`
+- [x] T202 [P] [US2] 实现模型：`backend/internal/entity/models/lead_capture/lead_status_history.go`
+- [x] T203 [US2] 服务扩展：`backend/internal/services/admin/lead_capture/lead_service.go`（分配/状态流转）
+- [x] T204 [US2] DTO 扩展：`backend/internal/dto/lead_capture/lead_assignment_request.go`、`lead_status_request.go`
+- [x] T205 [US2] Handler 扩展：`backend/internal/transport/http/admin/lead_capture/lead_handler.go`（assign/status endpoints）
+- [x] T206 [US2] 前端详情页增加“负责人选择 + 状态变更 + 历史记录”
+- [x] T207 [US2] 负责人为租户 member 校验：`backend/internal/services/admin/lead_capture/lead_service.go`
+- [x] T208 [US2] 状态机约束校验：`backend/internal/services/admin/lead_capture/lead_service.go`
 
 **Checkpoint**: US1 与 US2 可独立验收
 
