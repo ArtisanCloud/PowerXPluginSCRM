@@ -32,12 +32,16 @@ const route = useRoute();
 
 const moduleMap: Record<string, { labelKey: string; planPath: string }> = {
   social_channel_governance: {
-    labelKey: "navigation.scrmSocialChannelGovernance",
+    labelKey: "navigation.scrmSocialChannelDashboard",
     planPath: "docs/plan/social_channel_governance/README.md",
   },
-  lead_capture_smart_assignment: {
-    labelKey: "navigation.scrmLeadCaptureSmartAssignment",
-    planPath: "docs/plan/lead_capture_smart_assignment/README.md",
+  lead_capture: {
+    labelKey: "navigation.scrmLeadList",
+    planPath: "docs/plan/lead_capture/README.md",
+  },
+  lead_capture_entry: {
+    labelKey: "navigation.scrmLeadEntry",
+    planPath: "docs/plan/lead_capture/intake/README.md",
   },
   community_customer_engagement: {
     labelKey: "navigation.scrmCommunityCustomerEngagement",
@@ -98,6 +102,21 @@ const moduleTitle = computed(() => {
   return moduleKey.value || t("navigation.scrm");
 });
 const planPath = computed(() => moduleConfig.value?.planPath || "docs/plan/README.md");
+
+onMounted(async () => {
+  if (moduleKey.value === "lead_capture_smart_assignment") {
+    await navigateTo("/scrm/lead_capture", { replace: true });
+  }
+});
+
+watch(
+  () => moduleKey.value,
+  async (value) => {
+    if (value === "lead_capture_smart_assignment") {
+      await navigateTo("/scrm/lead_capture", { replace: true });
+    }
+  }
+);
 
 useHead(() => ({
   title: moduleTitle.value,

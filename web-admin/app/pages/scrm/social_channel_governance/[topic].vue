@@ -442,7 +442,7 @@ const route = useRoute()
 
 const topicMap: Record<string, { labelKey: string; planPath: string }> = {
   'unified-access': {
-    labelKey: 'navigation.scrmSocialChannelUnifiedAccess',
+    labelKey: 'navigation.scrmSocialChannelAccess',
     planPath: 'docs/plan/social_channel_governance/unified-access.md',
   },
   'health-ops': {
@@ -461,7 +461,7 @@ const topicTitle = computed(() => {
   if (topicConfig.value?.labelKey) {
     return t(topicConfig.value.labelKey)
   }
-  return topicKey.value || t('navigation.scrmSocialChannelGovernance')
+  return topicKey.value || t('navigation.scrmSocialChannelDashboard')
 })
 const planPath = computed(() => topicConfig.value?.planPath || 'docs/plan/social_channel_governance/README.md')
 const isUnifiedAccessTopic = computed(() => topicKey.value === 'unified-access')
