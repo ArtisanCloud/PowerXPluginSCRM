@@ -80,4 +80,9 @@ const (
 	TableIAMAuditLogs                    = "iam_audit_logs"
 	TableSocialChannelAccounts           = "social_channel_accounts"
 	TableSocialChannelAuditEvents        = "social_channel_audit_events"
+	TableLeadCaptureLeads                = "lead_capture_leads"
+	TableLeadCaptureSources              = "lead_capture_sources"
+	TableLeadCaptureActivities           = "lead_capture_activities"
+	TableLeadCaptureAssignments          = "lead_capture_assignments"
+	TableLeadCaptureStatusHistory        = "lead_capture_status_history"
 )
