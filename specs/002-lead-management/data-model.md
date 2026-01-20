@@ -20,10 +20,10 @@
 - account_uuid (uuid)
 - utm_source/utm_medium/utm_campaign
 
-## LeadEvent
-- event_uuid (uuid, PK)
+## LeadActivity
+- activity_uuid (uuid, PK)
 - lead_uuid (uuid)
-- type (intake/merge/status_change)
+- activity_type (intake/merge/status_change)
 - payload (jsonb)
 - created_at
 
@@ -43,7 +43,7 @@
 
 ## Relationships
 - Lead 1:N LeadSource
-- Lead 1:N LeadEvent
+- Lead 1:N LeadActivity
 - Lead 1:N LeadAssignment
 - Lead 1:N LeadStatusHistory
 

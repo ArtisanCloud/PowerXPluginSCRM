@@ -89,7 +89,7 @@
 
 - **Lead**: 线索主体（身份信息、状态、负责人、来源信息）。
 - **LeadSource**: 线索来源（渠道、账号、活动、UTM 等）。
-- **LeadEvent**: 线索事件（采集、合并、状态变更）。
+- **LeadActivity**: 线索操作记录（采集、合并、状态变更）。
 - **LeadAssignment**: 负责人分配记录。
 - **LeadStatusHistory**: 状态变更历史。
 

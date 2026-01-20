@@ -5,21 +5,25 @@
 
 ## 子功能计划
 - 线索采集：`docs/plan/lead_capture/intake/README.md`
+- 批量导入：`docs/plan/lead_capture/batch_import/README.md`
 - 线索标准化：`docs/plan/lead_capture/normalization/README.md`
 - 去重与合并：`docs/plan/lead_capture/dedup/README.md`
 - 归因：`docs/plan/lead_capture/attribution/README.md`
 - 分配：`docs/plan/lead_capture/assignment/README.md`
 - 质量控制：`docs/plan/lead_capture/quality/README.md`
 - 生命周期：`docs/plan/lead_capture/lifecycle/README.md`
+- 第三方导入接口：`docs/plan/lead_capture/external_intake/README.md`
+- 企业微信线索拉取：`docs/plan/lead_capture/wecom_lead_sync/README.md`
 
 ## 推荐开发顺序
-1) 线索采集（intake）\n
-2) 标准化（normalization）\n
-3) 去重与合并（dedup）\n
-4) 归因（attribution）\n
-5) 分配（assignment）\n
-6) 生命周期（lifecycle）\n
-7) 质量控制（quality）
+1) 线索采集（intake）
+2) 批量导入（batch_import）
+3) 标准化（normalization）
+4) 去重与合并（dedup）
+5) 归因（attribution）
+6) 分配（assignment）
+7) 生命周期（lifecycle）
+8) 质量控制（quality）
 
 ## 依赖关系
 - social_channel_governance：渠道账号与应用配置

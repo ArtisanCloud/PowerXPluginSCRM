@@ -12,6 +12,9 @@ func RBACEntries(prefix string) map[string]authx.Permission {
 	return map[string]authx.Permission{
 		"GET:" + base:                              {Resource: "scrm.leads", Action: "read"},
 		"POST:" + base:                             {Resource: "scrm.leads", Action: "write"},
+		"POST:" + base + "/import":                 {Resource: "scrm.leads", Action: "write"},
+		"POST:" + base + "/import/preview":         {Resource: "scrm.leads", Action: "write"},
+		"POST:" + base + "/import/confirm":         {Resource: "scrm.leads", Action: "write"},
 		"GET:" + base + "/*":                       {Resource: "scrm.leads", Action: "read"},
 		"PUT:" + base + "/:lead_id":                {Resource: "scrm.leads", Action: "write"},
 		"DELETE:" + base + "/:lead_id":             {Resource: "scrm.leads", Action: "write"},

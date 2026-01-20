@@ -57,6 +57,26 @@ export interface LeadStatusHistoryRecord {
   changed_at: string;
 }
 
+export interface LeadImportError {
+  row: number;
+  reason: string;
+}
+
+export interface LeadImportResult {
+  total: number;
+  success: number;
+  failed: number;
+  errors?: LeadImportError[];
+}
+
+export interface LeadImportPreview {
+  headers: string[];
+  sample_rows: string[][];
+  suggested_mappings?: Record<string, number>;
+  required_fields: string[];
+  all_fields: string[];
+}
+
 export const useLeadCaptureService = () => {
   const apiClient = useApiClient();
   const baseUrl = "/admin/leads";
@@ -66,6 +86,22 @@ export const useLeadCaptureService = () => {
     getLead: (leadId: string) => apiClient.get<ApiResponse<LeadRecord>>(`${baseUrl}/${leadId}`),
     createLead: (payload: LeadCreatePayload) =>
       apiClient.post<ApiResponse<LeadRecord>>(baseUrl, payload),
+    importLeads: (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      return apiClient.post<ApiResponse<LeadImportResult>>(`${baseUrl}/import`, form);
+    },
+    previewImport: (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      return apiClient.post<ApiResponse<LeadImportPreview>>(`${baseUrl}/import/preview`, form);
+    },
+    confirmImport: (file: File, mapping: Record<string, number>) => {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("mapping", JSON.stringify(mapping));
+      return apiClient.post<ApiResponse<LeadImportResult>>(`${baseUrl}/import/confirm`, form);
+    },
     assignLead: (leadId: string, payload: LeadAssignPayload) =>
       apiClient.post<ApiResponse<LeadRecord>>(`${baseUrl}/${leadId}/assign`, payload),
     updateLeadStatus: (leadId: string, payload: LeadStatusUpdatePayload) =>

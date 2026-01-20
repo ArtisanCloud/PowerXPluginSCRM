@@ -46,7 +46,7 @@
 
 - [x] T101 [P] [US1] 实现模型：`backend/internal/entity/models/lead_capture/lead.go`
 - [x] T102 [P] [US1] 实现模型：`backend/internal/entity/models/lead_capture/lead_source.go`
-- [x] T103 [P] [US1] 实现模型：`backend/internal/entity/models/lead_capture/lead_event.go`
+- [x] T103 [P] [US1] 实现模型：`backend/internal/entity/models/lead_capture/lead_activity.go`
 - [x] T104 [P] [US1] 实现仓储：`backend/internal/entity/repository/lead_capture/lead_repository.go`
 - [x] T105 [US1] 实现服务：`backend/internal/services/admin/lead_capture/lead_service.go`（创建/列表/详情）
 - [x] T106 [US1] 实现 DTO：`backend/internal/dto/lead_capture/lead.go`、`lead_response.go`
@@ -58,6 +58,15 @@
 - [x] T110 [P] [US1] 前端 Store：`web-admin/app/stores/scrm/lead_capture/lead_store.ts`
 - [x] T111 [US1] 前端列表页：`web-admin/app/pages/scrm/lead_capture/index.vue`
 - [x] T112 [US1] 前端详情页或抽屉：`web-admin/app/pages/scrm/lead_capture/[lead_id].vue`（若采用抽屉则在 index.vue 内实现）
+
+### Batch Import Extension (within US1 scope)
+
+- [x] T115 [US1] 批量导入接口：`backend/internal/transport/http/admin/lead_capture/lead_handler.go`（导入入口）
+- [x] T116 [US1] 批量导入服务：`backend/internal/services/admin/lead_capture/lead_service.go`（解析/校验/去重）
+- [x] T117 [US1] 批量导入 UI：`web-admin/app/pages/scrm/lead_capture/index.vue`（导入弹窗）
+- [x] T118 [US1] 导入解析预览：`backend/internal/services/admin/lead_capture/lead_service.go`（解析首行/样例）
+- [x] T119 [US1] 字段映射与确认：`web-admin/app/pages/scrm/lead_capture/index.vue`（映射表单 + 确认步骤）
+- [x] T120 [US1] 映射后导入接口：`backend/internal/transport/http/admin/lead_capture/lead_handler.go`（确认导入）
 
 **Checkpoint**: US1 功能可独立完成并演示
 
@@ -92,9 +101,9 @@
 
 ### Implementation for User Story 3
 
-- [ ] T301 [US3] 服务扩展：`backend/internal/services/admin/lead_capture/lead_service.go`（创建时去重与合并）
-- [ ] T302 [US3] 事件记录：`backend/internal/observability/lead_capture/` 追加合并事件
-- [ ] T303 [US3] 前端列表/详情显示“已合并提示”与来源
+- [x] T301 [US3] 服务扩展：`backend/internal/services/admin/lead_capture/lead_service.go`（创建时去重与合并）
+- [x] T302 [US3] 事件记录：`backend/internal/services/admin/lead_capture/lead_service.go` 记录合并事件
+- [x] T303 [US3] 前端列表/详情显示“已合并提示”与来源（基于 has_merge）
 
 **Checkpoint**: 所有用户故事可独立工作
 
@@ -102,10 +111,10 @@
 
 ## Phase N: Polish & Cross-Cutting Concerns
 
-- [ ] T901 [P] 更新文档与示例：`docs/plan/lead_capture/*`
-- [ ] T902 校验 quickstart：`specs/002-lead-management/quickstart.md`
-- [ ] T903 [P] 增加线索创建/分配/状态变更的审计与事件记录：`backend/internal/observability/lead_capture/`
-- [ ] T904 性能基线验证（列表查询 p95 < 300ms）：`backend/internal/services/admin/lead_capture/` + 简单性能记录说明
+- [x] T901 [P] 更新文档与示例：`docs/plan/lead_capture/*`
+- [x] T902 校验 quickstart：`specs/002-lead-management/quickstart.md`
+- [x] T903 [P] 增加线索创建/分配/状态变更的审计与事件记录：`backend/internal/observability/lead_capture/`
+- [x] T904 性能基线验证（列表查询 p95 < 300ms）：`backend/internal/services/admin/lead_capture/` + 简单性能记录说明
 
 ---
 

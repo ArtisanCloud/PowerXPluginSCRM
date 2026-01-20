@@ -1,8 +1,10 @@
 package lead_capture
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
+	"path/filepath"
 	"strings"
 
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/contracts"
@@ -111,6 +113,148 @@ func (h *LeadHandler) Get(c *gin.Context) {
 		return
 	}
 	contracts.ResponseSuccess(c, item)
+}
+
+func (h *LeadHandler) Import(c *gin.Context) {
+	if h.svc == nil {
+		contracts.ResponseServiceUnavailable(c, "lead service unavailable", nil)
+		return
+	}
+	tenantUUID, ok := middleware.TenantUUIDFromContext(c)
+	if !ok || tenantUUID == "" {
+		contracts.ResponseUnauthorized(c, "tenant context missing")
+		return
+	}
+	file, err := c.FormFile("file")
+	if err != nil {
+		contracts.ResponseBadRequest(c, "file is required")
+		return
+	}
+	ext := strings.ToLower(filepath.Ext(file.Filename))
+	if ext != ".csv" {
+		contracts.ResponseBadRequest(c, "only .csv is supported")
+		return
+	}
+	opened, err := file.Open()
+	if err != nil {
+		contracts.ResponseInternalError(c, err)
+		return
+	}
+	defer opened.Close()
+	result, err := h.svc.ImportCSV(c.Request.Context(), tenantUUID, opened)
+	if err != nil {
+		contracts.ResponseInternalError(c, err)
+		return
+	}
+	resp := dto.LeadImportResult{
+		Total:   result.Total,
+		Success: result.Success,
+		Failed:  result.Failed,
+		Errors:  make([]dto.LeadImportError, 0, len(result.Errors)),
+	}
+	for _, item := range result.Errors {
+		resp.Errors = append(resp.Errors, dto.LeadImportError{
+			Row:    item.Row,
+			Reason: item.Reason,
+		})
+	}
+	contracts.ResponseSuccess(c, resp)
+}
+
+func (h *LeadHandler) ImportPreview(c *gin.Context) {
+	if h.svc == nil {
+		contracts.ResponseServiceUnavailable(c, "lead service unavailable", nil)
+		return
+	}
+	tenantUUID, ok := middleware.TenantUUIDFromContext(c)
+	if !ok || tenantUUID == "" {
+		contracts.ResponseUnauthorized(c, "tenant context missing")
+		return
+	}
+	file, err := c.FormFile("file")
+	if err != nil {
+		contracts.ResponseBadRequest(c, "file is required")
+		return
+	}
+	ext := strings.ToLower(filepath.Ext(file.Filename))
+	if ext != ".csv" {
+		contracts.ResponseBadRequest(c, "only .csv is supported")
+		return
+	}
+	opened, err := file.Open()
+	if err != nil {
+		contracts.ResponseInternalError(c, err)
+		return
+	}
+	defer opened.Close()
+	preview, err := h.svc.PreviewImportCSV(c.Request.Context(), tenantUUID, opened)
+	if err != nil {
+		contracts.ResponseInternalError(c, err)
+		return
+	}
+	contracts.ResponseSuccess(c, dto.LeadImportPreviewResponse{
+		Headers:           preview.Headers,
+		SampleRows:        preview.SampleRows,
+		SuggestedMappings: preview.SuggestedMappings,
+		RequiredFields:    preview.RequiredFields,
+		AllFields:         preview.AllFields,
+	})
+}
+
+func (h *LeadHandler) ImportConfirm(c *gin.Context) {
+	if h.svc == nil {
+		contracts.ResponseServiceUnavailable(c, "lead service unavailable", nil)
+		return
+	}
+	tenantUUID, ok := middleware.TenantUUIDFromContext(c)
+	if !ok || tenantUUID == "" {
+		contracts.ResponseUnauthorized(c, "tenant context missing")
+		return
+	}
+	file, err := c.FormFile("file")
+	if err != nil {
+		contracts.ResponseBadRequest(c, "file is required")
+		return
+	}
+	rawMapping := strings.TrimSpace(c.PostForm("mapping"))
+	if rawMapping == "" {
+		contracts.ResponseBadRequest(c, "mapping is required")
+		return
+	}
+	var mapping map[string]int
+	if err := json.Unmarshal([]byte(rawMapping), &mapping); err != nil {
+		contracts.ResponseBadRequest(c, "invalid mapping format")
+		return
+	}
+	ext := strings.ToLower(filepath.Ext(file.Filename))
+	if ext != ".csv" {
+		contracts.ResponseBadRequest(c, "only .csv is supported")
+		return
+	}
+	opened, err := file.Open()
+	if err != nil {
+		contracts.ResponseInternalError(c, err)
+		return
+	}
+	defer opened.Close()
+	result, err := h.svc.ImportCSVWithMapping(c.Request.Context(), tenantUUID, opened, mapping)
+	if err != nil {
+		contracts.ResponseInternalError(c, err)
+		return
+	}
+	resp := dto.LeadImportResult{
+		Total:   result.Total,
+		Success: result.Success,
+		Failed:  result.Failed,
+		Errors:  make([]dto.LeadImportError, 0, len(result.Errors)),
+	}
+	for _, item := range result.Errors {
+		resp.Errors = append(resp.Errors, dto.LeadImportError{
+			Row:    item.Row,
+			Reason: item.Reason,
+		})
+	}
+	contracts.ResponseSuccess(c, resp)
 }
 
 func (h *LeadHandler) Assign(c *gin.Context) {

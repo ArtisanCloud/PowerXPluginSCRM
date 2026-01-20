@@ -77,7 +77,7 @@ web-admin/
 ## Phase 1: Design & Contracts
 
 ### data-model.md
-- Lead / LeadSource / LeadEvent / LeadAssignment / LeadStatusHistory
+- Lead / LeadSource / LeadActivity / LeadAssignment / LeadStatusHistory
 - 字段、关系、唯一性规则、索引与状态流转
 
 ### contracts/

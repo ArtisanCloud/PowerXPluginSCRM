@@ -15,7 +15,7 @@
 ## 合并策略
 - 保留最早来源
 - 用新数据补全空字段
-- 记录合并事件（LeadEvent.type=merge）
+- 记录合并操作（LeadActivity.activity_type=merge）
 
 ## 数据模型（核心）
 - LeadDedupRule

@@ -25,9 +25,10 @@ type Lead struct {
 	OwnerUserUUID     string    `gorm:"column:owner_user_uuid;type:text;index:idx_lead_capture_leads_owner" json:"owner_user_uuid"`
 	SourceChannel     string    `gorm:"column:source_channel;type:varchar(64);index:idx_lead_capture_leads_source" json:"source_channel"`
 	SourceAppType     string    `gorm:"column:source_app_type;type:varchar(64)" json:"source_app_type"`
-	SourceAccountUUID string    `gorm:"column:source_account_uuid;type:uuid" json:"source_account_uuid"`
+	SourceAccountUUID *string   `gorm:"column:source_account_uuid;type:uuid" json:"source_account_uuid,omitempty"`
 	CreatedAt         time.Time `gorm:"column:created_at;type:timestamptz;autoCreateTime" json:"created_at"`
 	UpdatedAt         time.Time `gorm:"column:updated_at;type:timestamptz;autoUpdateTime" json:"updated_at"`
+	HasMerge          bool      `gorm:"-" json:"has_merge"`
 }
 
 func (Lead) TableName() string {

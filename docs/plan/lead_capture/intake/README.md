@@ -37,8 +37,8 @@
   - lead_uuid, type(phone/email/external_id), value
 - LeadSource
   - lead_uuid, channel_code, app_type, account_uuid, campaign_code, utm_source/medium/campaign
-- LeadEvent
-  - event_uuid, lead_uuid, type(intake), payload(jsonb), created_at
+- LeadActivity
+  - activity_uuid, lead_uuid, activity_type(intake), payload(jsonb), created_at
 - LeadForm
   - form_uuid, tenant_uuid, name, status, fields(jsonb), created_at
 
@@ -76,7 +76,7 @@
 - 简单表单提交（固定字段）
 
 ## 验收标准
-- 手动创建线索后生成 intake 事件
+- 手动创建线索后生成 intake 操作记录
 - 表单提交可生成线索并带来源信息
 - webhook 可保存线索并记录原始 payload
 - 导入可批量生成并报告失败条目
