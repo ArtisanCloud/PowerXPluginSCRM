@@ -1,0 +1,56 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Lead Management API",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/v1/admin/leads": {
+      "get": {
+        "summary": "List leads",
+        "responses": {
+          "200": {"description": "OK"}
+        }
+      },
+      "post": {
+        "summary": "Create lead",
+        "responses": {
+          "201": {"description": "Created"}
+        }
+      }
+    },
+    "/api/v1/admin/leads/{lead_id}": {
+      "get": {
+        "summary": "Get lead",
+        "parameters": [
+          {"name": "lead_id", "in": "path", "required": true, "schema": {"type": "string"}}
+        ],
+        "responses": {
+          "200": {"description": "OK"}
+        }
+      }
+    },
+    "/api/v1/admin/leads/{lead_id}/assign": {
+      "post": {
+        "summary": "Assign lead",
+        "parameters": [
+          {"name": "lead_id", "in": "path", "required": true, "schema": {"type": "string"}}
+        ],
+        "responses": {
+          "200": {"description": "OK"}
+        }
+      }
+    },
+    "/api/v1/admin/leads/{lead_id}/status": {
+      "post": {
+        "summary": "Update lead status",
+        "parameters": [
+          {"name": "lead_id", "in": "path", "required": true, "schema": {"type": "string"}}
+        ],
+        "responses": {
+          "200": {"description": "OK"}
+        }
+      }
+    }
+  }
+}

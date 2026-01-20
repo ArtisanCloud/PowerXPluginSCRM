@@ -13,6 +13,7 @@ import (
 	customerModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/customer"
 	iammodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/iam"
 	integrationModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/integration"
+	leadCaptureModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/lead_capture"
 	marketplaceModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/marketplace"
 	operationsModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/operations"
 	runtimeOpsModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/runtime_ops"
@@ -62,6 +63,11 @@ var businessTables = []interface{}{
 	&adminconsoleModel.JobRun{},
 	&socialModel.ChannelAccount{},
 	&socialModel.AuditEvent{},
+	&leadCaptureModel.Lead{},
+	&leadCaptureModel.LeadSource{},
+	&leadCaptureModel.LeadActivity{},
+	&leadCaptureModel.LeadAssignment{},
+	&leadCaptureModel.LeadStatusHistory{},
 }
 
 var iamTables = []interface{}{
@@ -85,6 +91,9 @@ func MigratePluginModels(ctx context.Context, db *gorm.DB, includeIAM bool) erro
 	tables := append([]interface{}{}, businessTables...)
 	if isSQLite(db) {
 		tables = filterSQLiteIncompatibleTables(tables)
+	}
+	if err := ensureLeadCaptureActivityTable(ctx, db); err != nil {
+		return err
 	}
 	if includeIAM {
 		tables = append(tables, iamTables...)
@@ -273,6 +282,37 @@ func ensureSocialChannelAccountColumns(ctx context.Context, db *gorm.DB) error {
 		indexName, tableName,
 	)
 	return db.WithContext(ctx).Exec(createStmt).Error
+}
+
+func ensureLeadCaptureActivityTable(ctx context.Context, db *gorm.DB) error {
+	if db == nil {
+		return nil
+	}
+	oldTable := "lead_capture_events"
+	newTable := models.TableLeadCaptureActivities
+	oldName := models.S(oldTable)
+	newName := models.S(newTable)
+	if !db.Migrator().HasTable(newName) && db.Migrator().HasTable(oldName) {
+		stmt := fmt.Sprintf(`ALTER TABLE %s RENAME TO %s`, oldName, newTable)
+		if err := db.WithContext(ctx).Exec(stmt).Error; err != nil {
+			return err
+		}
+	}
+	if db.Migrator().HasTable(newName) {
+		if db.Migrator().HasColumn(newName, "event_uuid") {
+			stmt := fmt.Sprintf(`ALTER TABLE %s RENAME COLUMN event_uuid TO activity_uuid`, newName)
+			if err := db.WithContext(ctx).Exec(stmt).Error; err != nil {
+				return err
+			}
+		}
+		if db.Migrator().HasColumn(newName, "event_type") {
+			stmt := fmt.Sprintf(`ALTER TABLE %s RENAME COLUMN event_type TO activity_type`, newName)
+			if err := db.WithContext(ctx).Exec(stmt).Error; err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func ensureIAMConstraints(ctx context.Context, db *gorm.DB) error {
