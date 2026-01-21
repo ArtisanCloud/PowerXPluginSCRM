@@ -71,6 +71,13 @@ export interface OrgSyncMappingConfirmResult {
   member_mappings: number;
 }
 
+export interface OrgSyncMainMemberView {
+  main_member_id: string;
+  main_member_name: string;
+  source_accounts: string[];
+  source_member_uuids: string[];
+}
+
 export const useOrgSyncService = () => {
   const apiClient = useApiClient();
   const baseUrl = "/admin/org-sync";
@@ -109,6 +116,13 @@ export const useOrgSyncService = () => {
       apiClient.post<ApiResponse<OrgSyncMappingConfirmResult>>(
         `${baseUrl}/mappings/confirm`,
         payload
+      ),
+    listMainOrgView: (q?: string) =>
+      apiClient.get<ApiResponse<{ items: OrgSyncMainMemberView[] }>>(
+        `${baseUrl}/main-org-view`,
+        {
+          params: { q },
+        }
       ),
   };
 };

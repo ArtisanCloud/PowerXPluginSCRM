@@ -55,9 +55,9 @@
 
 **Independent Test**: 查询接口返回主组织成员 + 来源身份聚合信息
 
-- [ ] T016 [US3] 实现主组织视图查询服务（backend/internal/services/admin/org_sync/main_view_service.go）
-- [ ] T017 [US3] 新增主组织视图 HTTP handler（需按 CRUD HTTP 响应封装）（backend/internal/transport/http/admin/org_sync/main_view_handler.go）
-- [ ] T018 [US3] 前端只读主组织视图页面（web-admin/app/pages/scrm/org_sync/main_view.vue）
+- [x] T016 [US3] 实现主组织视图查询服务（backend/internal/services/admin/org_sync/main_view_service.go）
+- [x] T017 [US3] 新增主组织视图 HTTP handler（需按 CRUD HTTP 响应封装）（backend/internal/transport/http/admin/org_sync/main_view_handler.go）
+- [x] T018 [US3] 前端只读主组织视图页面（web-admin/app/pages/scrm/org_sync/main_view.vue）
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 

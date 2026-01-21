@@ -25,6 +25,7 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 	}
 	handler := NewOrgSyncHandler(syncSvc, unitSvc, memberSvc)
 	var mappingHandler *MappingHandler
+	var mainViewHandler *MainViewHandler
 	if deps.DB != nil {
 		memberRepo := orgrepo.NewSourceMemberRepository(deps.DB)
 		memberMappingRepo := orgrepo.NewMemberMappingRepository(deps.DB)
@@ -33,9 +34,13 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		matchSvc := orgsvc.NewMatchService(deps.DB, memberRepo, memberMappingRepo)
 		mappingSvc := orgsvc.NewMappingService(unitRepo, memberRepo, unitMappingRepo, memberMappingRepo)
 		mappingHandler = NewMappingHandler(matchSvc, mappingSvc)
+		mainViewHandler = NewMainViewHandler(orgsvc.NewMainViewService(deps.DB, memberMappingRepo))
 	}
 	if mappingHandler == nil {
 		mappingHandler = NewMappingHandler(nil, nil)
+	}
+	if mainViewHandler == nil {
+		mainViewHandler = NewMainViewHandler(nil)
 	}
 	group := rg.Group("/org-sync", httpmw.EnsureTenant())
 	{
@@ -44,5 +49,6 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		group.GET("/source-members", handler.ListSourceMembers)
 		group.GET("/mappings/suggestions", mappingHandler.Suggestions)
 		group.POST("/mappings/confirm", mappingHandler.Confirm)
+		group.GET("/main-org-view", mainViewHandler.List)
 	}
 }
