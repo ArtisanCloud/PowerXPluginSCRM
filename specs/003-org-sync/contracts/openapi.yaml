@@ -1,0 +1,104 @@
+openapi: 3.0.3
+info:
+  title: Org Sync Mapping API
+  version: 0.1.0
+paths:
+  /api/v1/admin/org-sync/source-accounts/{source_account_uuid}/sync:
+    post:
+      summary: Trigger source org sync
+      parameters:
+        - in: path
+          name: source_account_uuid
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Sync triggered
+  /api/v1/admin/org-sync/source-units:
+    get:
+      summary: List source units
+      parameters:
+        - in: query
+          name: source_account_uuid
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of source units
+  /api/v1/admin/org-sync/source-members:
+    get:
+      summary: List source members
+      parameters:
+        - in: query
+          name: source_account_uuid
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+        - in: query
+          name: q
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of source members
+  /api/v1/admin/org-sync/mappings/suggestions:
+    get:
+      summary: Get mapping suggestions
+      parameters:
+        - in: query
+          name: source_account_uuid
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Suggested mappings
+  /api/v1/admin/org-sync/mappings/confirm:
+    post:
+      summary: Confirm mappings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                unit_mappings:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      source_unit_id:
+                        type: string
+                      main_unit_id:
+                        type: string
+                member_mappings:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      source_member_id:
+                        type: string
+                      main_member_id:
+                        type: string
+      responses:
+        "200":
+          description: Mappings confirmed
+  /api/v1/admin/org-sync/main-org-view:
+    get:
+      summary: Get main org view
+      parameters:
+        - in: query
+          name: q
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Main org view
