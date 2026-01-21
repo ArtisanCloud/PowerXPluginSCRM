@@ -43,11 +43,11 @@
 
 **Independent Test**: 能返回匹配建议并提交确认映射
 
-- [ ] T011 [US2] 实现自动匹配策略（手机号/邮箱优先，不覆盖，冲突标记待确认）（backend/internal/services/admin/org_sync/match_service.go）
-- [ ] T012 [US2] 实现映射确认服务与权限校验（仅组织管理员）（backend/internal/services/admin/org_sync/mapping_service.go）
-- [ ] T013 [US2] 新增映射建议/确认 HTTP handler（需按 CRUD HTTP 响应封装）（backend/internal/transport/http/admin/org_sync/mapping_handler.go）
-- [ ] T014 [US2] 增加 API client 方法（web-admin/app/composables/api/services/orgSync.ts）
-- [ ] T015 [US2] 管理台映射维护页面（只读列表+确认入口）（web-admin/app/pages/scrm/org_sync/index.vue）
+- [x] T011 [US2] 实现自动匹配策略（手机号/邮箱优先，不覆盖，冲突标记待确认）（backend/internal/services/admin/org_sync/match_service.go）
+- [x] T012 [US2] 实现映射确认服务与权限校验（仅组织管理员）（backend/internal/services/admin/org_sync/mapping_service.go）
+- [x] T013 [US2] 新增映射建议/确认 HTTP handler（需按 CRUD HTTP 响应封装）（backend/internal/transport/http/admin/org_sync/mapping_handler.go）
+- [x] T014 [US2] 增加 API client 方法（web-admin/app/composables/api/services/orgSync.ts）
+- [x] T015 [US2] 管理台映射维护页面（只读列表+确认入口）（web-admin/app/pages/scrm/org_sync/index.vue）
 
 ## Phase 5: User Story 3 - 主组织视图 (P3)
 
@@ -75,8 +75,8 @@
 
 ## Task Summary
 
-- Total tasks: 21
+- Total tasks: 23
 - US1 tasks: 5
 - US2 tasks: 5
 - US3 tasks: 3
-- Cross-cutting tasks: 3
+- Cross-cutting tasks: 5
