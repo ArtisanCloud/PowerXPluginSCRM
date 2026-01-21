@@ -15,6 +15,7 @@ import (
 	integrationModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/integration"
 	leadCaptureModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/lead_capture"
 	marketplaceModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/marketplace"
+	OrgSyncModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/org_sync"
 	operationsModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/operations"
 	runtimeOpsModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/runtime_ops"
 	securityModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/security"
@@ -63,6 +64,11 @@ var businessTables = []interface{}{
 	&adminconsoleModel.JobRun{},
 	&socialModel.ChannelAccount{},
 	&socialModel.AuditEvent{},
+	&OrgSyncModel.SourceAccount{},
+	&OrgSyncModel.SourceUnit{},
+	&OrgSyncModel.SourceMember{},
+	&OrgSyncModel.UnitMapping{},
+	&OrgSyncModel.MemberMapping{},
 	&leadCaptureModel.Lead{},
 	&leadCaptureModel.LeadSource{},
 	&leadCaptureModel.LeadActivity{},
