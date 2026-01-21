@@ -16,6 +16,9 @@ type SourceAccount struct {
 	ChannelAccountUUID *string        `gorm:"column:channel_account_uuid;type:uuid;index:idx_org_sync_source_accounts_channel" json:"channel_account_uuid,omitempty"`
 	DisplayName        string         `gorm:"column:display_name;type:text;not null" json:"display_name"`
 	Status             string         `gorm:"column:status;type:varchar(32);not null;default:'active';index:idx_org_sync_source_accounts_status" json:"status"`
+	LastSyncAt         *time.Time     `gorm:"column:last_sync_at;type:timestamptz" json:"last_sync_at,omitempty"`
+	LastSyncStatus     string         `gorm:"column:last_sync_status;type:varchar(32)" json:"last_sync_status,omitempty"`
+	LastSyncMessage    string         `gorm:"column:last_sync_message;type:text" json:"last_sync_message,omitempty"`
 	CreatedAt          time.Time      `gorm:"column:created_at;type:timestamptz;autoCreateTime" json:"created_at"`
 	UpdatedAt          time.Time      `gorm:"column:updated_at;type:timestamptz;autoUpdateTime" json:"updated_at"`
 	DeletedAt          gorm.DeletedAt `gorm:"column:deleted_at;type:timestamptz" json:"deleted_at,omitempty"`

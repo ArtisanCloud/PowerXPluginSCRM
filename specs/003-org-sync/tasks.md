@@ -31,11 +31,11 @@
 
 **Independent Test**: 触发同步后，可通过列表接口查询来源组织与成员
 
-- [ ] T006 [US1] 实现同步服务入口与状态记录（backend/internal/services/admin/org_sync/sync_service.go）
-- [ ] T007 [US1] 实现来源组织查询服务（backend/internal/services/admin/org_sync/source_unit_service.go）
-- [ ] T008 [US1] 实现来源成员查询服务（backend/internal/services/admin/org_sync/source_member_service.go）
-- [ ] T009 [US1] 新增 HTTP handler 与路由：同步、来源组织列表、来源成员列表（需按 CRUD HTTP 响应封装）（backend/internal/transport/http/admin/org_sync/*.go）
-- [ ] T010 [US1] 增加 API client 方法（web-admin/app/composables/api/services/orgSync.ts）
+- [x] T006 [US1] 实现同步服务入口与状态记录（backend/internal/services/admin/org_sync/sync_service.go）
+- [x] T007 [US1] 实现来源组织查询服务（backend/internal/services/admin/org_sync/source_unit_service.go）
+- [x] T008 [US1] 实现来源成员查询服务（backend/internal/services/admin/org_sync/source_member_service.go）
+- [x] T009 [US1] 新增 HTTP handler 与路由：同步、来源组织列表、来源成员列表（需按 CRUD HTTP 响应封装）（backend/internal/transport/http/admin/org_sync/*.go）
+- [x] T010 [US1] 增加 API client 方法（web-admin/app/composables/api/services/orgSync.ts）
 
 ## Phase 4: User Story 2 - 映射与确认 (P2)
 
