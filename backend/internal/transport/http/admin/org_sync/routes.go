@@ -24,10 +24,25 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		memberSvc = orgsvc.NewSourceMemberService(orgrepo.NewSourceMemberRepository(deps.DB))
 	}
 	handler := NewOrgSyncHandler(syncSvc, unitSvc, memberSvc)
+	var mappingHandler *MappingHandler
+	if deps.DB != nil {
+		memberRepo := orgrepo.NewSourceMemberRepository(deps.DB)
+		memberMappingRepo := orgrepo.NewMemberMappingRepository(deps.DB)
+		unitRepo := orgrepo.NewSourceUnitRepository(deps.DB)
+		unitMappingRepo := orgrepo.NewUnitMappingRepository(deps.DB)
+		matchSvc := orgsvc.NewMatchService(deps.DB, memberRepo, memberMappingRepo)
+		mappingSvc := orgsvc.NewMappingService(unitRepo, memberRepo, unitMappingRepo, memberMappingRepo)
+		mappingHandler = NewMappingHandler(matchSvc, mappingSvc)
+	}
+	if mappingHandler == nil {
+		mappingHandler = NewMappingHandler(nil, nil)
+	}
 	group := rg.Group("/org-sync", httpmw.EnsureTenant())
 	{
 		group.POST("/source-accounts/:source_account_uuid/sync", handler.TriggerSync)
 		group.GET("/source-units", handler.ListSourceUnits)
 		group.GET("/source-members", handler.ListSourceMembers)
+		group.GET("/mappings/suggestions", mappingHandler.Suggestions)
+		group.POST("/mappings/confirm", mappingHandler.Confirm)
 	}
 }
