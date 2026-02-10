@@ -128,17 +128,18 @@ func setupLicenseHandlerDeps(t *testing.T) (*app.Deps, *gorm.DB) {
 func TestLicenseHandler_Flow(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	deps, db := setupLicenseHandlerDeps(t)
+	tenantUUID := "00000000-0000-0000-0000-000000000001"
 
 	pricingRepo := mrepo.NewPricingRepository(db)
 	amount := 9.99
 	plan := &dbm.PricingPlan{
-		TenantUuid:  "1",
-		ListingID: "listing-1",
-		PlanCode:  "basic",
-		PlanType:  dbm.PricingPlanTypeSubscription,
-		Currency:  "USD",
-		Amount:    &amount,
-		Status:    "active",
+		TenantUuid: tenantUUID,
+		ListingID:  "listing-1",
+		PlanCode:   "basic",
+		PlanType:   dbm.PricingPlanTypeSubscription,
+		Currency:   "USD",
+		Amount:     &amount,
+		Status:     "active",
 	}
 	require.NoError(t, pricingRepo.CreatePlan(context.Background(), plan, nil))
 
@@ -152,7 +153,7 @@ func TestLicenseHandler_Flow(t *testing.T) {
 		"payment_intent_id": "pi_test",
 	}
 	buf, _ := json.Marshal(body)
-	req := httptest.NewRequest(http.MethodPost, "/marketplace/licenses?tenant_uuid=1", bytes.NewReader(buf))
+	req := httptest.NewRequest(http.MethodPost, "/marketplace/licenses?tenant_uuid="+tenantUUID, bytes.NewReader(buf))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
@@ -176,7 +177,7 @@ func TestLicenseHandler_Flow(t *testing.T) {
 		"renewal_token": renewalToken,
 	}
 	renewBuf, _ := json.Marshal(renewBody)
-	renewReq := httptest.NewRequest(http.MethodPost, "/marketplace/licenses/"+licenseID+"?tenant_uuid=1", bytes.NewReader(renewBuf))
+	renewReq := httptest.NewRequest(http.MethodPost, "/marketplace/licenses/"+licenseID+"?tenant_uuid="+tenantUUID, bytes.NewReader(renewBuf))
 	renewReq.Header.Set("Content-Type", "application/json")
 	renewRec := httptest.NewRecorder()
 	router.ServeHTTP(renewRec, renewReq)
@@ -185,14 +186,14 @@ func TestLicenseHandler_Flow(t *testing.T) {
 	// Extend offline
 	extendBody := map[string]any{"requested_hours": 6}
 	extendBuf, _ := json.Marshal(extendBody)
-	extendReq := httptest.NewRequest(http.MethodPost, "/marketplace/licenses/"+licenseID+"/offline-extend?tenant_uuid=1", bytes.NewReader(extendBuf))
+	extendReq := httptest.NewRequest(http.MethodPost, "/marketplace/licenses/"+licenseID+"/offline-extend?tenant_uuid="+tenantUUID, bytes.NewReader(extendBuf))
 	extendReq.Header.Set("Content-Type", "application/json")
 	extendRec := httptest.NewRecorder()
 	router.ServeHTTP(extendRec, extendReq)
 	require.Equal(t, http.StatusOK, extendRec.Code)
 
 	// Fetch license detail
-	getReq := httptest.NewRequest(http.MethodGet, "/marketplace/licenses/"+licenseID+"?tenant_uuid=1", nil)
+	getReq := httptest.NewRequest(http.MethodGet, "/marketplace/licenses/"+licenseID+"?tenant_uuid="+tenantUUID, nil)
 	getRec := httptest.NewRecorder()
 	router.ServeHTTP(getRec, getReq)
 	require.Equal(t, http.StatusOK, getRec.Code)

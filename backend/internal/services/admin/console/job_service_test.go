@@ -100,7 +100,7 @@ func setupJobService(t *testing.T) (*consolesvc.JobService, *gorm.DB, *stubLocke
 func TestJobService_ScheduleSafeOpPersistsRun(t *testing.T) {
 	svc, db, _ := setupJobService(t)
 	input := consolesvc.ScheduleSafeOpInput{
-		TenantUUID:      strPtr("tenant-1"),
+		TenantUuid:    strPtr("tenant-1"),
 		Environment:   "production",
 		JobType:       consolesvc.JobTypeWebhookReplay,
 		TriggerSource: consolesvc.TriggerSourceManual,
@@ -133,7 +133,7 @@ func TestJobService_RetryEligibility(t *testing.T) {
 	failed := &model.JobRun{
 		ID:            "run-failed",
 		PluginID:      app.PluginID,
-		TenantUUID:      strPtr("tenant-1"),
+		TenantUuid:    strPtr("tenant-1"),
 		Environment:   "staging",
 		JobType:       string(consolesvc.JobTypeWebhookReplay),
 		TriggerSource: string(consolesvc.TriggerSourceManual),
@@ -148,8 +148,8 @@ func TestJobService_RetryEligibility(t *testing.T) {
 	require.NoError(t, db.Create(failed).Error)
 
 	ret, err := svc.RetryRun(context.Background(), consolesvc.RetryRunInput{
-		RunID:    failed.ID,
-		TenantUUID: strPtr("tenant-1"),
+		RunID:      failed.ID,
+		TenantUuid: strPtr("tenant-1"),
 		Actor: consolesvc.Actor{
 			ID:             "user:2",
 			Name:           "Retry Ops",

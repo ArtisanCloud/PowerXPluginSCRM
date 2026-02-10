@@ -16,6 +16,7 @@ import (
 	leadCaptureModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/lead_capture"
 	marketplaceModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/marketplace"
 	operationsModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/operations"
+	OrgSyncModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/org_sync"
 	runtimeOpsModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/runtime_ops"
 	securityModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/security"
 	socialModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/social_channel_governance"
@@ -63,6 +64,14 @@ var businessTables = []interface{}{
 	&adminconsoleModel.JobRun{},
 	&socialModel.ChannelAccount{},
 	&socialModel.AuditEvent{},
+	&OrgSyncModel.SourceAccount{},
+	&OrgSyncModel.SourceUnit{},
+	&OrgSyncModel.SourceMember{},
+	&OrgSyncModel.SourceMemberUnit{},
+	&OrgSyncModel.SourceMemberProfile{},
+	&OrgSyncModel.UnitMapping{},
+	&OrgSyncModel.MemberMapping{},
+	&OrgSyncModel.SyncLog{},
 	&leadCaptureModel.Lead{},
 	&leadCaptureModel.LeadSource{},
 	&leadCaptureModel.LeadActivity{},
@@ -261,17 +270,6 @@ func ensureSocialChannelAccountColumns(ctx context.Context, db *gorm.DB) error {
 		return nil
 	}
 	tableName := models.S(models.TableSocialChannelAccounts)
-	if strings.EqualFold(db.Dialector.Name(), "postgres") {
-		query := fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN owner_user_uuid TYPE text USING owner_user_uuid::text`, tableName)
-		if err := db.WithContext(ctx).Exec(query).Error; err != nil {
-			return err
-		}
-	}
-	if !db.Migrator().HasColumn(&socialModel.ChannelAccount{}, "deleted_at") {
-		if err := db.Migrator().AddColumn(&socialModel.ChannelAccount{}, "DeletedAt"); err != nil {
-			return err
-		}
-	}
 	indexName := "uq_social_channel_accounts_identity"
 	dropStmt := fmt.Sprintf(`DROP INDEX IF EXISTS %s`, indexName)
 	if err := db.WithContext(ctx).Exec(dropStmt).Error; err != nil {

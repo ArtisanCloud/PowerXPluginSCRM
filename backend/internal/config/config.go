@@ -29,6 +29,9 @@ type Config struct {
 	// 数据库配置
 	Database *DatabaseConfig `yaml:"database" json:"database"`
 
+	// Cache 配置（宿主/standalone 统一入口）
+	Cache *CacheConfig `yaml:"cache" json:"cache"`
+
 	// 运行时配置
 	Runtime *RuntimeConfig `yaml:"runtime" json:"runtime"`
 
@@ -82,6 +85,7 @@ type Config struct {
 	DBDSN      string `yaml:"-" json:"db_dsn,omitempty"`
 	DBSchema   string `yaml:"-" json:"db_schema,omitempty"`
 	RunMigrate bool   `yaml:"-" json:"run_migrate,omitempty"`
+	ConfigDir string `yaml:"-" json:"-"`
 }
 
 // EventBridgeConfig 控制事件桥接（本地 emitter / TaskBus emitter / 双写）的行为。
@@ -117,11 +121,13 @@ type ServerConfig struct {
 	APIPrefix           string `yaml:"api_prefix"`            // API 前缀
 	WSPrefix            string `yaml:"ws_prefix"`             // API 前缀
 	SecretKey           string `yaml:"secret_key"`
+	CallbackBaseURL     string `yaml:"callback_base_url" json:"callback_base_url"` // 回调公网基址
 }
 
 // RuntimeConfig 运行时配置
 type RuntimeConfig struct {
-	RunMigrate bool `yaml:"run_migrate" json:"run_migrate"`
+	RunMigrate            bool `yaml:"run_migrate" json:"run_migrate"`
+	InternalRoutesEnabled bool `yaml:"internal_routes_enabled" json:"internal_routes_enabled"`
 }
 
 // RuntimeOpsDefaults 定义 runtime ops 所需的默认限值与窗口
@@ -179,9 +185,19 @@ type SlackConfig struct {
 
 // CacheConfig 缓存配置
 type CacheConfig struct {
-	Enabled  bool          `yaml:"enabled" json:"enabled"`
-	RedisURL string        `yaml:"redis_url" json:"redis_url"`
-	TTL      time.Duration `yaml:"ttl" json:"ttl"`
+	Driver       string        `yaml:"driver" json:"driver"`
+	Host         string        `yaml:"host" json:"host"`
+	Port         int           `yaml:"port" json:"port"`
+	Password     string        `yaml:"password" json:"password"`
+	DB           int           `yaml:"db" json:"db"`
+	RedisURL     string        `yaml:"redis_url" json:"redis_url"`
+	Prefix       string        `yaml:"prefix" json:"prefix"`
+	DefaultTTL   time.Duration `yaml:"default_ttl" json:"default_ttl"`
+	DialTimeout  time.Duration `yaml:"dial_timeout" json:"dial_timeout"`
+	ReadTimeout  time.Duration `yaml:"read_timeout" json:"read_timeout"`
+	WriteTimeout time.Duration `yaml:"write_timeout" json:"write_timeout"`
+	Enabled      bool          `yaml:"enabled" json:"enabled"`
+	TTL          time.Duration `yaml:"ttl" json:"ttl"`
 }
 
 // SecurityConfig 安全配置
@@ -342,6 +358,9 @@ func Load() (*Config, error) {
 	if err != nil {
 		logrus.WithError(err).Warn("Failed to load YAML config, using defaults only")
 	}
+	if configDir != "" {
+		cfg.ConfigDir = configDir
+	}
 
 	loadSecurityBaselineConfig(cfg)
 
@@ -450,7 +469,8 @@ func getDefaultConfig() *Config {
 			Schema: "px_plugin_base",
 		},
 		Runtime: &RuntimeConfig{
-			RunMigrate: false,
+			RunMigrate:            false,
+			InternalRoutesEnabled: false,
 		},
 		RuntimeOps: &RuntimeOpsDefaults{
 			HeartbeatSeconds:           15,
@@ -715,6 +735,45 @@ func (c *Config) AuditLogExportScript() string {
 	return baseline.AuditLog.ExportScript
 }
 
+// CacheRedisURL resolves redis url from host or standalone cache config.
+func (c *Config) CacheRedisURL() string {
+	if c == nil {
+		return ""
+	}
+	if c.Cache != nil {
+		driver := strings.ToLower(strings.TrimSpace(c.Cache.Driver))
+		if driver == "" {
+			driver = "redis"
+		}
+		if driver == "redis" {
+			if urlStr := strings.TrimSpace(c.Cache.RedisURL); urlStr != "" {
+				return urlStr
+			}
+			host := strings.TrimSpace(c.Cache.Host)
+			if host != "" {
+				port := c.Cache.Port
+				if port == 0 {
+					port = 6379
+				}
+				db := c.Cache.DB
+				if db < 0 {
+					db = 0
+				}
+				u := &url.URL{
+					Scheme: "redis",
+					Host:   fmt.Sprintf("%s:%d", host, port),
+					Path:   fmt.Sprintf("/%d", db),
+				}
+				if pwd := strings.TrimSpace(c.Cache.Password); pwd != "" {
+					u.User = url.UserPassword("", pwd)
+				}
+				return u.String()
+			}
+		}
+	}
+	return ""
+}
+
 func resolveConfigCandidates() []string {
 	var candidates []string
 
@@ -791,6 +850,56 @@ func loadEnvConfig(cfg *Config) {
 	}
 	if secret := resolveConfigValue(os.Getenv("POWERX_TOOLGRANT_SECRET")); secret != "" {
 		cfg.Security.ToolGrantSecret = secret
+	}
+
+	// Cache 配置
+	if cfg.Cache == nil {
+		cfg.Cache = &CacheConfig{}
+	}
+	if v := resolveConfigValue(os.Getenv("POWERX_CACHE_DRIVER")); v != "" {
+		cfg.Cache.Driver = v
+	}
+	if v := resolveConfigValue(os.Getenv("POWERX_CACHE_REDIS_URL")); v != "" {
+		cfg.Cache.RedisURL = v
+	}
+	if v := resolveConfigValue(os.Getenv("POWERX_CACHE_HOST")); v != "" {
+		cfg.Cache.Host = v
+	}
+	if v := resolveConfigValue(os.Getenv("POWERX_CACHE_PORT")); v != "" {
+		if port, err := strconv.Atoi(v); err == nil {
+			cfg.Cache.Port = port
+		}
+	}
+	if v := resolveConfigValue(os.Getenv("POWERX_CACHE_PASSWORD")); v != "" {
+		cfg.Cache.Password = v
+	}
+	if v := resolveConfigValue(os.Getenv("POWERX_CACHE_DB")); v != "" {
+		if db, err := strconv.Atoi(v); err == nil {
+			cfg.Cache.DB = db
+		}
+	}
+	if v := resolveConfigValue(os.Getenv("POWERX_CACHE_PREFIX")); v != "" {
+		cfg.Cache.Prefix = v
+	}
+	if v := resolveConfigValue(os.Getenv("POWERX_CACHE_DEFAULT_TTL")); v != "" {
+		if ttl, err := time.ParseDuration(v); err == nil {
+			cfg.Cache.DefaultTTL = ttl
+		}
+	}
+	if v := resolveConfigValue(os.Getenv("POWERX_CACHE_DIAL_TIMEOUT")); v != "" {
+		if ttl, err := time.ParseDuration(v); err == nil {
+			cfg.Cache.DialTimeout = ttl
+		}
+	}
+	if v := resolveConfigValue(os.Getenv("POWERX_CACHE_READ_TIMEOUT")); v != "" {
+		if ttl, err := time.ParseDuration(v); err == nil {
+			cfg.Cache.ReadTimeout = ttl
+		}
+	}
+	if v := resolveConfigValue(os.Getenv("POWERX_CACHE_WRITE_TIMEOUT")); v != "" {
+		if ttl, err := time.ParseDuration(v); err == nil {
+			cfg.Cache.WriteTimeout = ttl
+		}
 	}
 
 	// 运行时配置
@@ -919,6 +1028,9 @@ func loadEnvConfig(cfg *Config) {
 	if mockModules := resolveConfigValue(os.Getenv("PX_USE_MOCK")); mockModules != "" {
 		cfg.Gateway.UseMock = splitCSV(mockModules)
 	}
+	if internalRoutes := resolveConfigValue(os.Getenv("POWERX_INTERNAL_ROUTES")); internalRoutes != "" {
+		cfg.Runtime.InternalRoutesEnabled = (internalRoutes == "1" || strings.EqualFold(internalRoutes, "true"))
+	}
 	if refreshToken := resolveConfigValue(os.Getenv("PX_TOOL_REFRESH_TOKEN")); refreshToken != "" {
 		cfg.Gateway.RefreshToken = refreshToken
 	}
@@ -992,14 +1104,14 @@ func normalizeConfig(cfg *Config) {
 			tenantUUID := strings.TrimSpace(cfg.Gateway.TenantUUID)
 
 			hasAny := baseURL != "" || toolToken != "" || tenantUUID != ""
-			incomplete := baseURL == "" || toolToken == "" || tenantUUID == ""
+			incomplete := baseURL == "" || toolToken == ""
 
 			if hasAny && incomplete {
 				logrus.WithFields(logrus.Fields{
 					"gateway.base_url":    baseURL,
 					"gateway.tool_token":  toolToken != "",
 					"gateway.tenant_uuid": tenantUUID,
-				}).Warn("Gateway config is incomplete; gateway disabled in dev mode (set gateway.base_url/tool_token/tenant_uuid to enable)")
+				}).Warn("Gateway config is incomplete; gateway disabled in dev mode (set gateway.base_url/tool_token to enable)")
 
 				cfg.Gateway.BaseURL = ""
 				cfg.Gateway.ToolToken = ""
@@ -1011,6 +1123,12 @@ func normalizeConfig(cfg *Config) {
 		cfg.Logging.Level = strings.ToLower(resolveConfigValue(cfg.Logging.Level))
 		cfg.Logging.Format = strings.ToLower(resolveConfigValue(cfg.Logging.Format))
 		cfg.Logging.Output = strings.ToLower(resolveConfigValue(cfg.Logging.Output))
+	}
+	if cfg.Cache != nil {
+		cfg.Cache.Driver = strings.ToLower(resolveConfigValue(cfg.Cache.Driver))
+		cfg.Cache.Host = resolveConfigValue(cfg.Cache.Host)
+		cfg.Cache.RedisURL = resolveConfigValue(cfg.Cache.RedisURL)
+		cfg.Cache.Prefix = resolveConfigValue(cfg.Cache.Prefix)
 	}
 	if cfg.GRPCUpstream != nil {
 		cfg.GRPCUpstream.Address = resolveConfigValue(cfg.GRPCUpstream.Address)
@@ -1362,12 +1480,13 @@ func (c *Config) Validate() error {
 			strings.TrimSpace(c.Gateway.TenantUUID) != ""
 		if hasGatewayFields {
 			if strings.TrimSpace(c.Gateway.BaseURL) == "" ||
-				strings.TrimSpace(c.Gateway.ToolToken) == "" ||
-				strings.TrimSpace(c.Gateway.TenantUUID) == "" {
-				return NewConfigError("gateway config requires base_url, tool_token and tenant_uuid when enabled")
+				strings.TrimSpace(c.Gateway.ToolToken) == "" {
+				return NewConfigError("gateway config requires base_url and tool_token when enabled")
 			}
-			if _, err := uuid.Parse(strings.TrimSpace(c.Gateway.TenantUUID)); err != nil {
-				return NewConfigError("gateway.tenant_uuid must be a valid UUID string")
+			if tenant := strings.TrimSpace(c.Gateway.TenantUUID); tenant != "" {
+				if _, err := uuid.Parse(tenant); err != nil {
+					return NewConfigError("gateway.tenant_uuid must be a valid UUID string")
+				}
 			}
 		}
 	}

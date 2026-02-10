@@ -21,7 +21,7 @@ func NewChannelAccountMembersHandler(svc *SocialService.ChannelAccountMemberServ
 }
 
 type channelAccountMemberUpdateRequest struct {
-	OwnerUserUUID   *string  `json:"owner_user_uuid"`
+	OwnerMemberUUID *string  `json:"owner_member_uuid"`
 	MemberUserUUIDs []string `json:"member_user_uuids" binding:"required"`
 }
 
@@ -47,7 +47,7 @@ func (h *ChannelAccountMembersHandler) UpdateChannelAccountMembers(c *gin.Contex
 	}
 
 	account, err := h.svc.UpdateChannelAccountMembers(c.Request.Context(), tenantUUID, accountUUID, SocialService.ChannelAccountMemberUpdateRequest{
-		OwnerUserUUID:   req.OwnerUserUUID,
+		OwnerMemberUUID: req.OwnerMemberUUID,
 		MemberUserUUIDs: req.MemberUserUUIDs,
 	})
 	if err != nil {

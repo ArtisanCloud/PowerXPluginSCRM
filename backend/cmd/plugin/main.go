@@ -10,6 +10,7 @@ import (
 	"time"
 
 	fwbootstrap "github.com/ArtisanCloud/PowerXPlugin/framework/backend/go/bootstrap"
+	fwwsbus "github.com/ArtisanCloud/PowerXPlugin/framework/backend/go/runtime/wsbus"
 	"github.com/ArtisanCloud/PowerXPlugin/framework/backend/go/manifest"
 	fwrouter "github.com/ArtisanCloud/PowerXPlugin/framework/backend/go/router"
 	runtimecap "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/cmd/plugin/runtime"
@@ -25,6 +26,7 @@ import (
 	marketplacejobs "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/jobs/marketplace"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/logger"
 	manifestx "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/manifestx"
+	authx "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/middleware"
 	adminmetrics "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/admin_console"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/auth"
 	capmetrics "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/capability"
@@ -40,13 +42,27 @@ import (
 	recommendation "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/services/recommendation"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/shared/app"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/shared/utils"
+	localwsbus "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/transport/websocket/bus"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
-	fweventbridge "github.com/ArtisanCloud/PowerXPlugin/framework/eventbridge"
+	fweventbridge "github.com/ArtisanCloud/PowerXPlugin/framework/backend/go/eventbridge"
 )
 
 type bridgeRecorder struct{}
+
+type localWSBusHub struct{}
+
+func (localWSBusHub) Publish(ctx context.Context, topic string, payload any, opts fwwsbus.PublishOptions) error {
+	tenantUUID := strings.TrimSpace(opts.TenantUUID)
+	if tenantUUID == "" {
+		if tid, ok := authx.TenantUUIDFromContext(ctx); ok {
+			tenantUUID = strings.TrimSpace(tid)
+		}
+	}
+	localwsbus.DefaultHub.Publish(tenantUUID, strings.TrimSpace(topic), payload, strings.TrimSpace(opts.TraceID))
+	return nil
+}
 
 func (bridgeRecorder) RecordEmit(pluginID, tenantUUID, topic, result string) {
 	ebmetrics.RecordEmit(pluginID, tenantUUID, topic, result)
@@ -214,6 +230,8 @@ func main() {
 		bridgeEmitter = security.NewPermissionedEmitter(bridgeEmitter, perms, eventLogger)
 	}
 
+	wsHub := localWSBusHub{}
+
 	deps := &app.Deps{
 		DB:                  queryDB,
 		Ctx:                 rootCtx,
@@ -229,6 +247,7 @@ func main() {
 		OperationsMetrics:   opsmetrics.NewMetrics(),
 		AdminConsoleMetrics: adminmetrics.NewMetrics(),
 		EventEmitter:        bridgeEmitter,
+		WSBusHub:            wsHub,
 		IAMMode:             iamResolver.Mode(),
 		IAMModeSource:       iamResolver.Source(),
 		AuthProxy:           authClient,

@@ -20,5 +20,7 @@ func RBACEntries(prefix string) map[string]authx.Permission {
 		"POST:" + base + "/quota/overrides":      {Resource: "runtime.ops", Action: "manage"},
 		"GET:" + base + "/metrics":               {Resource: "runtime.ops", Action: "observe"},
 		"POST:" + base + "/event-bridge/emit":    {Resource: "runtime.ops", Action: "invoke"},
+		"POST:" + base + "/internal/ws-bus/publish":  {Resource: "runtime.ops", Action: "invoke"},
+		"POST:" + base + "/internal/ws-bus/register": {Resource: "runtime.ops", Action: "invoke"},
 	}
 }

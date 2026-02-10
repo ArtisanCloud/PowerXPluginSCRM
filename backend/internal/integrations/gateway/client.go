@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -117,10 +118,10 @@ func NewClient(cfg *config.Config, log *logrus.Entry) *Client {
 	gcfg := cfg.Gateway
 	baseURL := strings.TrimSpace(gcfg.BaseURL)
 	toolToken := strings.TrimSpace(gcfg.ToolToken)
-	tenantUUID := strings.TrimSpace(gcfg.TenantUUID)
+	tenantUUID := effectiveGatewayTenant(gcfg)
 
 	if baseURL == "" || toolToken == "" || tenantUUID == "" {
-		c.offlineReason = "PX_GATEWAY_BASE_URL/PX_TOOL_TOKEN/PX_TENANT_UUID 未配置，请执行 `px-plugin login`"
+		c.offlineReason = "PX_GATEWAY_BASE_URL/PX_TOOL_TOKEN 未配置，或 PX_TOOL_TOKEN 缺少 tid，请执行 `px-plugin login`"
 		return c
 	}
 
@@ -204,9 +205,9 @@ func (c *Client) ListPlatformCapabilities(ctx context.Context, opts ListPlatform
 	if token == "" {
 		return nil, fmt.Errorf("PX_TOOL_TOKEN 未配置")
 	}
-	tenant := strings.TrimSpace(gcfg.TenantUUID)
+	tenant := effectiveGatewayTenant(gcfg)
 	if tenant == "" {
-		return nil, fmt.Errorf("PX_TENANT_UUID 未配置")
+		return nil, fmt.Errorf("PX_TOOL_TOKEN 缺少 tid，无法确定租户")
 	}
 
 	timeout := gcfg.Timeout
@@ -243,7 +244,7 @@ func (c *Client) ListPlatformCapabilities(ctx context.Context, opts ListPlatform
 	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("X-Tenant-UUID", tenant)
+	req.Header.Set("X-PowerX-Tenant", tenant)
 	req.Header.Set("X-Request-ID", uuid.NewString())
 
 	client := &http.Client{Timeout: timeout}
@@ -408,9 +409,9 @@ func ValidateConfig(cfg *config.Config) error {
 	}
 	base := strings.TrimSpace(cfg.Gateway.BaseURL)
 	token := strings.TrimSpace(cfg.Gateway.ToolToken)
-	tenant := strings.TrimSpace(cfg.Gateway.TenantUUID)
+	tenant := effectiveGatewayTenant(cfg.Gateway)
 	if base == "" || token == "" || tenant == "" {
-		return errors.New("PX_GATEWAY_BASE_URL/PX_TOOL_TOKEN/PX_TENANT_UUID 未配置")
+		return errors.New("PX_GATEWAY_BASE_URL/PX_TOOL_TOKEN 未配置，或 PX_TOOL_TOKEN 缺少 tid")
 	}
 	return nil
 }
@@ -443,10 +444,10 @@ func (c *Client) reconnectTransport() error {
 	gcfg := c.cfg.Gateway
 	baseURL := strings.TrimSpace(gcfg.BaseURL)
 	toolToken := strings.TrimSpace(gcfg.ToolToken)
-	tenantUUID := strings.TrimSpace(gcfg.TenantUUID)
+	tenantUUID := effectiveGatewayTenant(gcfg)
 
 	if baseURL == "" || toolToken == "" || tenantUUID == "" {
-		return fmt.Errorf("PX_GATEWAY_BASE_URL/PX_TOOL_TOKEN/PX_TENANT_UUID 未配置")
+		return fmt.Errorf("PX_GATEWAY_BASE_URL/PX_TOOL_TOKEN 未配置，或 PX_TOOL_TOKEN 缺少 tid")
 	}
 
 	timeout := gcfg.Timeout
@@ -477,4 +478,35 @@ type platformCapabilityResponse struct {
 	Data    struct {
 		Items []PlatformCapabilityRecord `json:"items"`
 	} `json:"data"`
+}
+
+func effectiveGatewayTenant(gcfg *config.GatewayConfig) string {
+	if gcfg == nil {
+		return ""
+	}
+	if tokenTenant := tenantUUIDFromJWT(strings.TrimSpace(gcfg.ToolToken)); tokenTenant != "" {
+		return tokenTenant
+	}
+	return strings.TrimSpace(gcfg.TenantUUID)
+}
+
+func tenantUUIDFromJWT(token string) string {
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return ""
+	}
+	parts := strings.Split(token, ".")
+	if len(parts) < 2 {
+		return ""
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return ""
+	}
+	var claims map[string]any
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return ""
+	}
+	tid, _ := claims["tid"].(string)
+	return strings.TrimSpace(tid)
 }

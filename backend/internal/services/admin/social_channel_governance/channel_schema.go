@@ -25,6 +25,7 @@ type ChannelFieldSchema struct {
 	InputType   string `yaml:"input_type,omitempty" json:"input_type,omitempty"`
 	Hidden      bool   `yaml:"hidden,omitempty" json:"hidden,omitempty"`
 	DerivedFrom string `yaml:"derived_from,omitempty" json:"derived_from,omitempty"`
+	DefaultValue string `yaml:"default_value,omitempty" json:"default_value,omitempty"`
 }
 
 type ChannelAppTypeSchema struct {

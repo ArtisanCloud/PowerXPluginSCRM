@@ -10,7 +10,8 @@ export interface ChannelAccount {
   display_name: string;
   credentials?: Record<string, string>;
   status: string;
-  owner_user_uuid: string;
+  org_sync_default?: boolean;
+  owner_member_uuid: string;
   member_user_uuids?: string[];
   capabilities?: Record<string, boolean>;
   created_at?: string;
@@ -18,7 +19,7 @@ export interface ChannelAccount {
 }
 
 export interface ChannelAccountMembersUpdatePayload {
-  owner_user_uuid?: string;
+  owner_member_uuid?: string;
   member_user_uuids: string[];
 }
 
@@ -31,13 +32,14 @@ export interface ChannelAccountCreatePayload {
   app_type: string;
   account_id: string;
   display_name: string;
-  owner_user_uuid: string;
+  owner_member_uuid: string;
   credentials?: Record<string, string>;
 }
 
 export interface ChannelAccountUpdatePayload {
+  account_id?: string;
   display_name: string;
-  owner_user_uuid: string;
+  owner_member_uuid: string;
   status: string;
   credentials?: Record<string, string>;
 }
@@ -52,6 +54,7 @@ export interface ChannelFieldSchema {
   input_type?: string;
   hidden?: boolean;
   derived_from?: string;
+  default_value?: string;
 }
 
 export interface ChannelAppTypeSchema {
@@ -90,6 +93,21 @@ export const useSocialChannelGovernanceService = () => {
       return apiClient.put<ApiResponse<ChannelAccount>>(
         `${baseUrl}/${accountUuid}`,
         payload
+      );
+    },
+    testChannelAccountConnection: (accountUuid: string) => {
+      return apiClient.post<ApiResponse<{ ip_list: string[] }>>(
+        `${baseUrl}/${accountUuid}/test-connection`,
+        {}
+      );
+    },
+    testChannelAccountContactSecret: (
+      accountUuid: string,
+      payload?: { http_debug?: boolean; mode?: string }
+    ) => {
+      return apiClient.post<ApiResponse<{ members_total: number; units_total: number }>>(
+        `${baseUrl}/${accountUuid}/test-contact-secret`,
+        payload ?? {}
       );
     },
     deleteChannelAccount: (accountUuid: string) => {

@@ -5,6 +5,7 @@ Auto-generated from all feature plans. Last updated: 2026-01-15
 ## Active Technologies
 - Go 1.24（后端），Node 20 + TypeScript 4 + Nuxt 4（前端） + Gin + GORM（后端），Nuxt UI 3.3.x（前端） (001-lead-management)
 - PostgreSQL（插件 schema） (001-lead-management)
+- Go 1.24（backend）, Node 20 + TypeScript 4 + Nuxt 4（web-admin） + Gin, GORM, Nuxt UI 3.3.x (001-org-sync)
 
 - Go 1.24 (backend), Node 20 + TypeScript 4 + Nuxt 4 (web-admin) + Gin + GORM (backend), Nuxt UI 3.3.x (frontend) (001-social-channel-governance)
 
@@ -25,6 +26,7 @@ npm test && npm run lint
 Go 1.24 (backend), Node 20 + TypeScript 4 + Nuxt 4 (web-admin): Follow standard conventions
 
 ## Recent Changes
+- 001-org-sync: Added Go 1.24（backend）, Node 20 + TypeScript 4 + Nuxt 4（web-admin） + Gin, GORM, Nuxt UI 3.3.x
 - 001-lead-management: Added Go 1.24（后端），Node 20 + TypeScript 4 + Nuxt 4（前端） + Gin + GORM（后端），Nuxt UI 3.3.x（前端）
 
 - 001-social-channel-governance: Added Go 1.24 (backend), Node 20 + TypeScript 4 + Nuxt 4 (web-admin) + Gin + GORM (backend), Nuxt UI 3.3.x (frontend)
