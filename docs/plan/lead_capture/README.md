@@ -16,6 +16,13 @@
 - 企业微信线索拉取：`docs/plan/lead_capture/wecom_lead_sync/README.md`
 - 企业微信对话桥接（员工/App/Bot）：`docs/plan/lead_capture/wecom_conversation_bridge/README.md`
 
+
+## 上游场景映射（已合并）
+为避免规划入口分叉，线索相关规划已统一并入本目录，实施入口固定为 `lead_capture`。
+
+- 线索分配与接待策略（PowerXDocs 对应场景）
+- 社交线索捕获与去重（PowerXDocs 对应场景）
+
 ## 推荐开发顺序
 1) 线索采集（intake）
 2) 批量导入（batch_import）

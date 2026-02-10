@@ -14,7 +14,7 @@
 | 合规、安全与风控 | `docs/plan/compliance_security_risk_control` | 2 |
 | 内容分发与互动自动化 | `docs/plan/content_engagement_automation` | 2 |
 | 客户成功与运营协作闭环 | `docs/plan/customer_service_collaboration_loop` | 2 |
-| 线索获取与智能分配 | `docs/plan/lead_capture_smart_assignment` | 2 |
+| 线索获取与智能分配 | `docs/plan/lead_capture` | 2 |
 | 移动前线作业能力 | `docs/plan/mobile_frontline_capabilities` | 4 |
 | 平台生态与可扩展性 | `docs/plan/platform_ecosystem_extensibility` | 4 |
 | 智能标签与客户分群 | `docs/plan/smart_tagging_customer_segmentation` | 4 |
