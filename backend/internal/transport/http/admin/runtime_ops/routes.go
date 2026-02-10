@@ -25,7 +25,10 @@ func RegisterRoutes(router *gin.RouterGroup, deps *app.Deps) {
 
 	router.GET("/metrics", MetricsHandler)
 
-	if deps != nil && deps.Config != nil && deps.Config.Server.DevMode {
+	router.POST("/internal/ws-bus/publish", WSBusPublishHandler(deps))
+	router.POST("/internal/ws-bus/register", WSBusRegisterHandler(deps))
+
+	if deps != nil && deps.Config != nil && deps.Config.Runtime != nil && deps.Config.Runtime.InternalRoutesEnabled {
 		router.POST("/event-bridge/emit", EventBridgeEmitHandler(deps))
 	}
 }

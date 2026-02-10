@@ -3,6 +3,7 @@ package iam
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/contracts"
 	authmw "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/middleware"
@@ -24,10 +25,20 @@ func (h *MemberHandler) List(c *gin.Context) {
 		contracts.ResponseBadRequest(c, "invalid query: "+err.Error())
 		return
 	}
+	var orgSyncBound *bool
+	switch strings.ToLower(strings.TrimSpace(query.OrgSyncBound)) {
+	case "1", "true", "yes", "y", "on":
+		value := true
+		orgSyncBound = &value
+	case "0", "false", "no", "n", "off":
+		value := false
+		orgSyncBound = &value
+	}
 	items, err := h.service.List(c.Request.Context(), srviam.UserFilter{
-		TenantUUID: query.TenantUUID,
-		Status:     query.Status,
-		Query:      query.Query,
+		TenantUUID:   query.TenantUUID,
+		Status:       query.Status,
+		Query:        query.Query,
+		OrgSyncBound: orgSyncBound,
 	})
 	if err != nil {
 		contracts.ResponseInternalError(c, err)

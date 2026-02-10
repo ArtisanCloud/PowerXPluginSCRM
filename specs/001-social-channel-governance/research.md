@@ -11,8 +11,8 @@
 - **Alternatives considered**: Owner-only; department-wide access (rejected due to over-broad access).
 
 ## Decision 3: Status Model
-- **Decision**: Use `Pending`, `Connected`, `Expired`, `Disabled` statuses.
-- **Rationale**: Separates onboarding, valid, credential-expired, and manually-disabled states.
+- **Decision**: Use `Pending`, `Connected`, `Disabled` statuses.
+- **Rationale**: 简化为有效/无效两类状态，避免“过期”与“禁用”语义混淆。
 - **Alternatives considered**: Two-state (Connected/Disconnected) model (rejected; too coarse).
 
 ## Decision 4: Capability Defaults

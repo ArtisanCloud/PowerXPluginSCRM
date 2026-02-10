@@ -11,7 +11,6 @@ import (
 const (
 	ChannelAccountStatusPending   = "pending"
 	ChannelAccountStatusConnected = "connected"
-	ChannelAccountStatusExpired   = "expired"
 	ChannelAccountStatusDisabled  = "disabled"
 )
 
@@ -24,7 +23,8 @@ type ChannelAccount struct {
 	AccountID       string            `gorm:"column:account_id;type:text;not null;uniqueIndex:uq_social_channel_accounts_identity,priority:4" json:"account_id"`
 	DisplayName     string            `gorm:"column:display_name;type:text;not null" json:"display_name"`
 	Status          string            `gorm:"column:status;type:varchar(32);not null;default:'pending';index:idx_social_channel_accounts_status" json:"status"`
-	OwnerUserUUID   string            `gorm:"column:owner_user_uuid;type:text;not null;index:idx_social_channel_accounts_owner" json:"owner_user_uuid"`
+	OrgSyncDefault  bool              `gorm:"column:org_sync_default;type:boolean;not null;default:false;index:idx_social_channel_accounts_org_sync_default" json:"org_sync_default"`
+	OwnerMemberUUID string            `gorm:"column:owner_member_uuid;type:text;not null;index:idx_social_channel_accounts_owner" json:"owner_member_uuid"`
 	MemberUserUUIDs []string          `gorm:"column:member_user_uuids;type:jsonb;serializer:json" json:"member_user_uuids,omitempty"`
 	Capabilities    datatypes.JSONMap `gorm:"column:capabilities;type:jsonb;default:'{}'::jsonb" json:"capabilities"`
 	Credentials     datatypes.JSONMap `gorm:"column:credentials;type:jsonb;default:'{}'::jsonb" json:"credentials,omitempty"`

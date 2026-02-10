@@ -165,7 +165,7 @@ components:
           format: date-time
         status:
           type: string
-          enum: [pending, connected, expired, disabled]
+          enum: [pending, connected, disabled]
         owner_user_uuid:
           type: string
           format: uuid
@@ -229,7 +229,7 @@ components:
           type: string
         status:
           type: string
-          enum: [pending, connected, expired, disabled]
+          enum: [pending, connected, disabled]
         owner_user_uuid:
           type: string
           format: uuid

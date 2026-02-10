@@ -26,7 +26,7 @@ Connected account instance with governance metadata.
 - `app_type` (string, required)
 - `account_id` (string, required)
 - `display_name` (string, required)
-- `status` (string, required): `pending` | `connected` | `expired` | `disabled`
+- `status` (string, required): `pending` | `connected` | `disabled`
 - `owner_user_uuid` (uuid, required)
 - `member_user_uuids` (uuid[], optional)
 - `capabilities` (map<string,bool>, required; default all false)

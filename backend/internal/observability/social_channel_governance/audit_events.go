@@ -83,7 +83,7 @@ func EmitChannelAccountMembersChanged(ctx context.Context, tenantUUID, accountUU
 		"member_user_uuids": members,
 	}
 	if ownerUUID != nil {
-		metadata["owner_user_uuid"] = *ownerUUID
+		metadata["owner_member_uuid"] = *ownerUUID
 	}
 	EmitAuditEvent(ctx, AuditEvent{
 		EventType:     AuditEventMembersChanged,
