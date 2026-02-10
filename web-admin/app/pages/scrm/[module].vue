@@ -103,21 +103,6 @@ const moduleTitle = computed(() => {
 });
 const planPath = computed(() => moduleConfig.value?.planPath || "docs/plan/README.md");
 
-onMounted(async () => {
-  if (moduleKey.value === "lead_capture_smart_assignment") {
-    await navigateTo("/scrm/lead_capture", { replace: true });
-  }
-});
-
-watch(
-  () => moduleKey.value,
-  async (value) => {
-    if (value === "lead_capture_smart_assignment") {
-      await navigateTo("/scrm/lead_capture", { replace: true });
-    }
-  }
-);
-
 useHead(() => ({
   title: moduleTitle.value,
 }));
