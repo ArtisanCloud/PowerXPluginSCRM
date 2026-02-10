@@ -35,7 +35,7 @@ func (r *AccountRepository) Create(ctx context.Context, account *model.ChannelAc
 	account.AppType = strings.ToLower(strings.TrimSpace(account.AppType))
 	account.AccountID = strings.TrimSpace(account.AccountID)
 	account.DisplayName = strings.TrimSpace(account.DisplayName)
-	account.OwnerUserUUID = strings.TrimSpace(account.OwnerUserUUID)
+	account.OwnerMemberUUID = strings.TrimSpace(account.OwnerMemberUUID)
 
 	if account.TenantUuid == "" {
 		return nil, repository.ErrTenantUuidRequired
@@ -46,8 +46,8 @@ func (r *AccountRepository) Create(ctx context.Context, account *model.ChannelAc
 	if account.DisplayName == "" {
 		return nil, errors.New("display_name is required")
 	}
-	if account.OwnerUserUUID == "" {
-		return nil, errors.New("owner_user_uuid is required")
+	if account.OwnerMemberUUID == "" {
+		return nil, errors.New("owner_member_uuid is required")
 	}
 	if account.Status == "" {
 		account.Status = model.ChannelAccountStatusPending
@@ -106,6 +106,31 @@ func (r *AccountRepository) FindByIdentity(ctx context.Context, tenantUUID, chan
 	return &out, nil
 }
 
+func (r *AccountRepository) FindByWeComIdentity(ctx context.Context, tenantUUID, corpID, agentID string) (*model.ChannelAccount, error) {
+	if r == nil || r.DB == nil {
+		return nil, errors.New("repository database is not initialized")
+	}
+	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
+	corpID = strings.TrimSpace(corpID)
+	agentID = strings.TrimSpace(agentID)
+	if tenantUUID == "" || corpID == "" || agentID == "" {
+		return nil, ErrAccountNotFound
+	}
+
+	var out model.ChannelAccount
+	err := r.DB.WithContext(ctx).
+		Where("tenant_uuid = ? AND channel_code = ? AND app_type = ? AND account_id = ? AND credentials->>'app_id' = ?",
+			tenantUUID, "wechat", "wecom", agentID, corpID).
+		First(&out).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrAccountNotFound
+		}
+		return nil, err
+	}
+	return &out, nil
+}
+
 func (r *AccountRepository) GetByAccountUUID(ctx context.Context, tenantUUID, accountUUID string) (*model.ChannelAccount, error) {
 	if r == nil || r.DB == nil {
 		return nil, errors.New("repository database is not initialized")
@@ -119,6 +144,27 @@ func (r *AccountRepository) GetByAccountUUID(ctx context.Context, tenantUUID, ac
 	var out model.ChannelAccount
 	err := r.DB.WithContext(ctx).
 		Where("tenant_uuid = ? AND account_uuid = ?", tenantUUID, accountUUID).
+		First(&out).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrAccountNotFound
+		}
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (r *AccountRepository) FindByUUID(ctx context.Context, accountUUID string) (*model.ChannelAccount, error) {
+	if r == nil || r.DB == nil {
+		return nil, errors.New("repository database is not initialized")
+	}
+	accountUUID = strings.ToLower(strings.TrimSpace(accountUUID))
+	if accountUUID == "" {
+		return nil, ErrAccountNotFound
+	}
+	var out model.ChannelAccount
+	err := r.DB.WithContext(ctx).
+		Where("account_uuid = ?", accountUUID).
 		First(&out).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -183,7 +229,7 @@ func (r *AccountRepository) UpdateChannelAccountMembers(ctx context.Context, ten
 		"updated_at":        now,
 	}
 	if ownerUUID != nil {
-		updates["owner_user_uuid"] = strings.TrimSpace(*ownerUUID)
+		updates["owner_member_uuid"] = strings.TrimSpace(*ownerUUID)
 	}
 
 	var out model.ChannelAccount
@@ -191,6 +237,53 @@ func (r *AccountRepository) UpdateChannelAccountMembers(ctx context.Context, ten
 		res := tx.Model(&model.ChannelAccount{}).
 			Where("tenant_uuid = ? AND account_uuid = ?", tenantUUID, accountUUID).
 			Updates(updates)
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return ErrAccountNotFound
+		}
+		return tx.Where("tenant_uuid = ? AND account_uuid = ?", tenantUUID, accountUUID).First(&out).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (r *AccountRepository) SetOrgSyncDefault(ctx context.Context, tenantUUID, accountUUID string) (*model.ChannelAccount, error) {
+	if r == nil || r.DB == nil {
+		return nil, errors.New("repository database is not initialized")
+	}
+	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
+	accountUUID = strings.ToLower(strings.TrimSpace(accountUUID))
+	if tenantUUID == "" || accountUUID == "" {
+		return nil, repository.ErrTenantUuidRequired
+	}
+	var out model.ChannelAccount
+	now := time.Now().UTC()
+	err := r.WithTenantTx(ctx, tenantUUID, func(tx *gorm.DB) error {
+		if err := tx.Where("tenant_uuid = ? AND account_uuid = ?", tenantUUID, accountUUID).First(&out).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrAccountNotFound
+			}
+			return err
+		}
+		reset := tx.Model(&model.ChannelAccount{}).
+			Where("tenant_uuid = ? AND channel_code = ? AND app_type = ? AND org_sync_default = TRUE", tenantUUID, out.ChannelCode, out.AppType).
+			Updates(map[string]any{
+				"org_sync_default": false,
+				"updated_at":       now,
+			})
+		if reset.Error != nil {
+			return reset.Error
+		}
+		res := tx.Model(&model.ChannelAccount{}).
+			Where("tenant_uuid = ? AND account_uuid = ?", tenantUUID, accountUUID).
+			Updates(map[string]any{
+				"org_sync_default": true,
+				"updated_at":       now,
+			})
 		if res.Error != nil {
 			return res.Error
 		}
@@ -237,7 +330,7 @@ func (r *AccountRepository) UpdateChannelAccountCapabilities(ctx context.Context
 	return &out, nil
 }
 
-func (r *AccountRepository) UpdateAccount(ctx context.Context, tenantUUID, accountUUID, displayName, ownerUserUUID, status string) (*model.ChannelAccount, error) {
+func (r *AccountRepository) UpdateAccount(ctx context.Context, tenantUUID, accountUUID, displayName, ownerUserUUID, status, accountID string) (*model.ChannelAccount, error) {
 	if r == nil || r.DB == nil {
 		return nil, errors.New("repository database is not initialized")
 	}
@@ -250,14 +343,17 @@ func (r *AccountRepository) UpdateAccount(ctx context.Context, tenantUUID, accou
 		return nil, repository.ErrTenantUuidRequired
 	}
 	if displayName == "" || ownerUserUUID == "" || status == "" {
-		return nil, errors.New("display_name, owner_user_uuid, and status are required")
+		return nil, errors.New("display_name, owner_member_uuid, and status are required")
 	}
 	now := time.Now().UTC()
 	updates := map[string]any{
-		"display_name":    displayName,
-		"owner_user_uuid": ownerUserUUID,
-		"status":          status,
-		"updated_at":      now,
+		"display_name":      displayName,
+		"owner_member_uuid": ownerUserUUID,
+		"status":            status,
+		"updated_at":        now,
+	}
+	if strings.TrimSpace(accountID) != "" {
+		updates["account_id"] = strings.TrimSpace(accountID)
 	}
 
 	var out model.ChannelAccount

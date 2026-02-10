@@ -13,7 +13,7 @@ import (
 )
 
 type ChannelAccountMemberUpdateRequest struct {
-	OwnerUserUUID   *string
+	OwnerMemberUUID *string
 	MemberUserUUIDs []string
 }
 
@@ -34,31 +34,31 @@ func (s *ChannelAccountMemberService) UpdateChannelAccountMembers(ctx context.Co
 	if tenantUUID == "" || accountUUID == "" {
 		return nil, repository.ErrTenantUuidRequired
 	}
-	if req.OwnerUserUUID != nil {
-		clean := strings.ToLower(strings.TrimSpace(*req.OwnerUserUUID))
+	if req.OwnerMemberUUID != nil {
+		clean := strings.ToLower(strings.TrimSpace(*req.OwnerMemberUUID))
 		if clean == "" {
-			return nil, errors.New("owner_user_uuid is required")
+			return nil, errors.New("owner_member_uuid is required")
 		}
-		req.OwnerUserUUID = &clean
+		req.OwnerMemberUUID = &clean
 	}
 	cleaned := normalizeUUIDList(req.MemberUserUUIDs)
 	if len(cleaned) == 0 {
 		return nil, errors.New("member_user_uuids is required")
 	}
-	account, err := s.repo.UpdateChannelAccountMembers(ctx, tenantUUID, accountUUID, req.OwnerUserUUID, cleaned)
+	account, err := s.repo.UpdateChannelAccountMembers(ctx, tenantUUID, accountUUID, req.OwnerMemberUUID, cleaned)
 	if err != nil {
 		return nil, err
 	}
 	actor := ""
-	if req.OwnerUserUUID != nil {
-		actor = *req.OwnerUserUUID
+	if req.OwnerMemberUUID != nil {
+		actor = *req.OwnerMemberUUID
 	}
 	SocialObs.EmitChannelAccountMembersChanged(
 		ctx,
 		tenantUUID,
 		accountUUID,
 		SocialObs.ResolveActorUserUUID(ctx, actor),
-		req.OwnerUserUUID,
+		req.OwnerMemberUUID,
 		cleaned,
 	)
 	return account, nil

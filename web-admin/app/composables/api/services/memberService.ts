@@ -7,6 +7,7 @@ export interface MemberQuery {
   tenant_uuid?: string;
   keyword?: string;
   status?: string;
+  org_sync_bound?: boolean;
   page?: number;
   page_size?: number;
 }
@@ -42,6 +43,7 @@ export function useMemberService() {
       tenantUuid,
       query: query.keyword,
       status: query.status,
+      orgSyncBound: query.org_sync_bound,
       page: query.page,
       pageSize: query.page_size,
     });
@@ -53,6 +55,8 @@ export function useMemberService() {
 
   return {
     listAll: async (tenantUuid?: string) => fetchMembers({ tenant_uuid: tenantUuid }),
+    listBound: async (tenantUuid?: string) =>
+      fetchMembers({ tenant_uuid: tenantUuid, org_sync_bound: true }),
     getMemberList: fetchMembers,
     createMember: async (payload: Record<string, any>) => {
       const tenantUuid = resolveTenantUuid(payload.tenant_uuid);

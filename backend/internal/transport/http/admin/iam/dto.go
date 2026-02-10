@@ -41,11 +41,12 @@ type UpdateDepartmentRequest struct {
 }
 
 type MemberListQuery struct {
-	TenantUUID string `form:"tenant_uuid" binding:"required"`
-	Status     string `form:"status"`
-	Query      string `form:"q"`
-	Page       int    `form:"page"`
-	PageSize   int    `form:"page_size"`
+	TenantUUID   string `form:"tenant_uuid" binding:"required"`
+	Status       string `form:"status"`
+	Query        string `form:"q"`
+	OrgSyncBound string `form:"org_sync_bound"`
+	Page         int    `form:"page"`
+	PageSize     int    `form:"page_size"`
 }
 
 type UserDirectoryListQuery struct {

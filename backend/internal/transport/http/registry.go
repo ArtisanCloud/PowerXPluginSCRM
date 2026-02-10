@@ -23,6 +23,7 @@ import (
 	integrationapi "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/transport/http/integration"
 	publicassets "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/transport/http/public/assets"
 	publicmarketplace "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/transport/http/public/marketplace"
+	webhooksapi "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/transport/http/webhooks"
 	tenantmarketplace "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/transport/http/tenant/marketplace"
 	"github.com/gin-gonic/gin"
 )
@@ -49,6 +50,7 @@ func (r *Registry) RegisterAPIRoutes(gApi *gin.RouterGroup) {
 	agentapi.RegisterAPIRoutes(gApi, r.deps)
 	templates.RegisterAPIRoutes(gApi, r.deps)
 	integrationapi.RegisterAPIRoutes(gApi, r.deps)
+	webhooksapi.RegisterRoutes(gApi, r.deps)
 	r.RegisterMarketplaceRoutes(gApi)
 	if isDevEnvironment(r.deps) {
 		r.registerDevAssetsRoute()

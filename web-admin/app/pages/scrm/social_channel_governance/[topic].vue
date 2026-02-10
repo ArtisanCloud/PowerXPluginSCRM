@@ -67,10 +67,16 @@
               {{ statusMeta(row.original.status).label }}
             </UBadge>
           </template>
-          <template #owner_user_uuid-cell="{ row }">
+          <template #owner_member_uuid-cell="{ row }">
             <span class="text-sm text-gray-700 dark:text-gray-200">
-              {{ ownerUserLabel(row.original.owner_user_uuid) || 'Unassigned' }}
+              {{ ownerUserLabel(row.original.owner_member_uuid) || '未分配' }}
             </span>
+          </template>
+          <template #org_sync_default-cell="{ row }">
+            <UBadge v-if="row.original.org_sync_default" size="xs" color="success" variant="soft">
+              默认
+            </UBadge>
+            <span v-else class="text-xs text-gray-500 dark:text-gray-400">—</span>
           </template>
           <template #actions-cell="{ row }">
             <div class="flex flex-wrap gap-2">
@@ -161,7 +167,7 @@
               </UFormField>
               <UFormField label="负责人" required>
                 <USelectMenu
-                  v-model="accountForm.owner_user_uuid"
+                  v-model="accountForm.owner_member_uuid"
                   v-model:search="ownerUserSearch"
                   :items="ownerUserOptionsMerged"
                   value-key="value"
@@ -185,15 +191,63 @@
                 :required="field.required"
                 :class="fieldSpanClass(field)"
               >
-                <UInput
-                  v-model="accountForm[field.key]"
-                  :placeholder="field.placeholder || field.label"
-                  :type="fieldInputType(field)"
-                  :disabled="isEditingAccount && field.key === 'account_id'"
-                />
+                <div class="flex items-center gap-2">
+                  <UCheckbox
+                    v-if="field.input_type === 'switch'"
+                    v-model="accountForm[field.key]"
+                    class="flex-1"
+                  />
+                  <UInput
+                    v-else
+                    v-model="accountForm[field.key]"
+                    :placeholder="field.placeholder || field.label"
+                    :type="fieldInputType(field)"
+                    :disabled="isEditingAccount && field.key === 'account_id' && field.derived_from"
+                    :class="['flex-1', isPasswordField(field) ? 'password-mask' : '']"
+                    autocomplete="off"
+                  />
+                  <UButton
+                    v-if="isWeComForm && field.key === 'app_secret'"
+                    size="xs"
+                    color="neutral"
+                    variant="soft"
+                    :loading="accountModalTestingAppSecret"
+                    @click="testAppSecretConnection"
+                    type="button"
+                  >
+                    测试
+                  </UButton>
+                </div>
                 <p v-if="field.hint" class="mt-2 text-xs text-gray-500 dark:text-slate-200">
                   {{ field.hint }}
                 </p>
+              </UFormField>
+              <UFormField v-if="isWeComForm" label="回调地址（可复制）" class="md:col-span-2">
+                <div class="flex items-center gap-2">
+                  <UInput
+                    :model-value="callbackUrlPreview"
+                    disabled
+                    placeholder="保存后生成回调地址"
+                    class="flex-1"
+                  />
+                  <UButton
+                    size="xs"
+                    color="neutral"
+                    variant="soft"
+                    :disabled="!callbackUrlPreview"
+                    @click="copyCallbackUrl"
+                    type="button"
+                  >
+                    复制
+                  </UButton>
+                </div>
+              </UFormField>
+              <UFormField v-if="isWeComForm" label="授权过期时间" class="md:col-span-2">
+                <UInput
+                  v-model="accountForm.expires_at"
+                  type="datetime-local"
+                  placeholder="yyyy/mm/dd --:--"
+                />
               </UFormField>
               <UFormField v-if="isEditingAccount" label="状态" required class="md:col-span-2">
                 <USelectMenu
@@ -207,6 +261,16 @@
                   :ui="{ content: 'z-[200]' }"
                 />
               </UFormField>
+              <UFormField v-if="isEditingAccount" label="默认组织来源" class="md:col-span-2">
+                <UCheckbox
+                  v-model="accountForm.org_sync_default"
+                  label="设为默认组织来源账号"
+                  :disabled="accountForm.org_sync_default && editingAccountIsDefault"
+                />
+                <p class="mt-2 text-xs text-gray-500 dark:text-slate-200">
+                  默认组织来源仅允许一个账号；如需切换，请在另一账号中勾选。
+                </p>
+              </UFormField>
             </div>
             <p v-if="accountModalMessage" class="text-sm text-gray-600 dark:text-slate-200">
               {{ accountModalMessage }}
@@ -215,7 +279,7 @@
         </template>
         <template #footer>
           <div class="flex w-full flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
-            <UButton color="neutral" variant="subtle" @click="closeAccountModal">
+            <UButton color="neutral" variant="subtle" @click="closeAccountModal" type="button">
               取消
             </UButton>
             <UButton color="primary" :loading="accountModalSaving" @click="submitAccountModal">
@@ -433,11 +497,12 @@ import {
 } from '~/stores/scrm/social_channel_governance/account_store'
 import type { ChannelSchemaDocument, ChannelFieldSchema } from '~/composables/api/services/socialChannelGovernance'
 import { useSocialChannelGovernanceService } from '~/composables/api/services/socialChannelGovernance'
+import { useOrgSyncService } from '~/composables/api/services/orgSync'
 import { useUserStore } from '~/stores/user'
-import { useUserService } from '~/composables/api/services/userService'
-import { useIAMService, type UserDirectoryRecord } from '~/composables/api/services/iamService'
+import { useIAMService, type MemberRecord } from '~/composables/api/services/iamService'
 
 const { t } = useI18n()
+const toast = useToast()
 const route = useRoute()
 
 const topicMap: Record<string, { labelKey: string; planPath: string }> = {
@@ -474,8 +539,10 @@ const topicDescription = computed(() => {
 
 const accountStore = useSocialChannelAccountStore()
 const { accounts, loading: accountsLoading, error: accountsError } = storeToRefs(accountStore)
+const editingAccount = computed(() =>
+  accounts.value.find((account) => account.account_uuid === editingAccountUuid.value),
+)
 const userStore = useUserStore()
-const userService = useUserService()
 const iamService = useIAMService()
 const channelSchema = ref<ChannelSchemaDocument | null>(null)
 const channelSchemaLoading = ref(false)
@@ -484,10 +551,12 @@ const accountModalOpen = ref(false)
 const accountModalMode = ref<'create' | 'edit'>('create')
 const accountModalSaving = ref(false)
 const accountModalMessage = ref('')
+const accountModalTestingAppSecret = ref(false)
 const editingAccountUuid = ref<string | null>(null)
 const deleteDialogOpen = ref(false)
 const deleteDialogLoading = ref(false)
 const deleteTarget = ref<ChannelAccountSummary | null>(null)
+const settingDefaultAccountId = ref('')
 const suppressCredentialReset = ref(false)
 const selectedAccountId = ref<string | null>(null)
 const ownerUserUuid = ref('')
@@ -508,7 +577,6 @@ const ownerUserTenantUuid = computed(
 )
 const ownerUserDisabled = computed(() => ownerUserLoading.value)
 const ownerUserOptionCache = ref(new Map<string, string>())
-const ownerUserMap = ref(new Map<string, UserDirectoryRecord>())
 let ownerUserSearchTimer: ReturnType<typeof setTimeout> | null = null
 
 const accountForm = reactive({
@@ -516,11 +584,18 @@ const accountForm = reactive({
   app_type: '',
   account_id: '',
   display_name: '',
-  owner_user_uuid: '',
+  owner_member_uuid: '',
   status: 'connected',
+  agent_id: '',
+  secret: '',
+  corp_id: '',
+  callback_base_url: '',
   app_id: '',
   app_secret: '',
   token: '',
+  aes_key: '',
+  http_debug: false,
+  org_sync_default: false,
   expires_at: '',
 })
 
@@ -535,10 +610,14 @@ const fallbackSchema: ChannelSchemaDocument = {
           code: 'wecom',
           label: '企业微信',
           fields: [
-            { key: 'account_id', label: 'AgentID', required: true, span: 1, placeholder: '企业微信内部应用 AgentID', hint: '企业微信内部应用 AgentID。' },
-            { key: 'app_secret', label: 'Secret', required: true, span: 1, placeholder: '企业微信应用 Secret', hint: 'AgentID 对应应用 Secret。' },
-            { key: 'app_id', label: 'CorpID', required: true, span: 2, placeholder: '企业微信 CorpID', hint: '企业微信 CorpID。' },
-            { key: 'token', label: 'Token（回调校验）', required: false, span: 2, placeholder: 'Webhook Token / 回调校验 Token' },
+            { key: 'agent_id', label: '应用 AgentID', required: true, span: 1, placeholder: '企业微信应用 AgentID', hint: '企业微信应用 AgentID（应用管理里查看）。请将应用配置到人事助手。' },
+            { key: 'corp_id', label: '企业 ID（CorpID）', required: true, span: 1, placeholder: '企业微信企业 ID', hint: '企业微信企业 ID（CorpID）。' },
+            { key: 'callback_base_url', label: '回调域名', required: false, span: 2, placeholder: 'https://debug-scrm.artisan-cloud.com', hint: '留空则使用服务端配置 callback_base_url。' },
+            { key: 'app_secret', label: '应用 Secret', required: false, span: 1, placeholder: '应用 Secret', hint: '应用 Secret（应用管理里查看）。请将该应用配置到人事助手，用于读取部门/成员信息。', input_type: 'password' },
+            { key: 'token', label: 'Token（回调校验）', required: false, span: 2, placeholder: 'Webhook Token / 回调校验 Token', input_type: 'password' },
+            { key: 'aes_key', label: 'EncodingAESKey', required: false, span: 2, placeholder: 'EncodingAESKey', hint: '回调消息加解密密钥（企业微信后台生成）。', input_type: 'password' },
+            { key: 'http_debug', label: 'HTTP 调试', required: false, span: 1, default_value: 'false', hint: '开启后输出请求日志（仅调试用）。', input_type: 'switch' },
+            { key: 'account_id', label: '账号 ID', required: false, hidden: true, derived_from: 'agent_id', hint: '账号 ID 自动使用应用 AgentID。' },
             { key: 'expires_at', label: '授权过期时间', required: false, span: 2, input_type: 'datetime-local' },
           ],
         },
@@ -548,8 +627,8 @@ const fallbackSchema: ChannelSchemaDocument = {
           fields: [
             { key: 'account_id', label: '账号 ID', required: false, hidden: true, derived_from: 'app_id', hint: '公众号仅需 AppID 与 AppSecret，账号 ID 自动使用 AppID。' },
             { key: 'app_id', label: 'AppID', required: true, placeholder: 'AppID' },
-            { key: 'app_secret', label: 'AppSecret', required: true, placeholder: 'AppSecret' },
-            { key: 'token', label: 'Token（回调校验）', required: false, placeholder: 'Webhook Token / 回调校验 Token' },
+            { key: 'app_secret', label: 'AppSecret', required: false, placeholder: 'AppSecret', hint: '留空会导致同步/测试失败。', input_type: 'password' },
+            { key: 'token', label: 'Token（回调校验）', required: false, placeholder: 'Webhook Token / 回调校验 Token', input_type: 'password' },
             { key: 'expires_at', label: '授权过期时间', required: false, input_type: 'datetime-local' },
           ],
         },
@@ -559,8 +638,8 @@ const fallbackSchema: ChannelSchemaDocument = {
           fields: [
             { key: 'account_id', label: '账号 ID', required: false, hidden: true, derived_from: 'app_id', hint: '小程序仅需 AppID 与 AppSecret，账号 ID 自动使用 AppID。' },
             { key: 'app_id', label: 'AppID', required: true, placeholder: 'AppID' },
-            { key: 'app_secret', label: 'AppSecret', required: true, placeholder: 'AppSecret' },
-            { key: 'token', label: 'Token（回调校验）', required: false, placeholder: 'Webhook Token / 回调校验 Token' },
+            { key: 'app_secret', label: 'AppSecret', required: false, placeholder: 'AppSecret', hint: '留空会导致同步/测试失败。', input_type: 'password' },
+            { key: 'token', label: 'Token（回调校验）', required: false, placeholder: 'Webhook Token / 回调校验 Token', input_type: 'password' },
             { key: 'expires_at', label: '授权过期时间', required: false, input_type: 'datetime-local' },
           ],
         },
@@ -570,8 +649,8 @@ const fallbackSchema: ChannelSchemaDocument = {
           fields: [
             { key: 'account_id', label: '账号 ID', required: false, hidden: true, derived_from: 'app_id', hint: '视频号仅需 AppID 与 AppSecret，账号 ID 自动使用 AppID。' },
             { key: 'app_id', label: 'AppID', required: true, placeholder: 'AppID' },
-            { key: 'app_secret', label: 'AppSecret', required: true, placeholder: 'AppSecret' },
-            { key: 'token', label: 'Token（回调校验）', required: false, placeholder: 'Webhook Token / 回调校验 Token' },
+            { key: 'app_secret', label: 'AppSecret', required: false, placeholder: 'AppSecret', hint: '留空会导致同步/测试失败。', input_type: 'password' },
+            { key: 'token', label: 'Token（回调校验）', required: false, placeholder: 'Webhook Token / 回调校验 Token', input_type: 'password' },
             { key: 'expires_at', label: '授权过期时间', required: false, input_type: 'datetime-local' },
           ],
         },
@@ -587,7 +666,7 @@ const fallbackSchema: ChannelSchemaDocument = {
           fields: [
             { key: 'account_id', label: '账号 ID', required: true, placeholder: '渠道侧账号唯一标识', hint: '飞书应用 App ID。' },
             { key: 'app_id', label: 'App ID', required: true, placeholder: 'App ID' },
-            { key: 'app_secret', label: 'App Secret', required: true, placeholder: 'App Secret' },
+            { key: 'app_secret', label: 'App Secret', required: true, placeholder: 'App Secret', input_type: 'password' },
             { key: 'expires_at', label: '授权过期时间', required: false, input_type: 'datetime-local' },
           ],
         },
@@ -596,7 +675,7 @@ const fallbackSchema: ChannelSchemaDocument = {
           label: '飞书机器人',
           fields: [
             { key: 'account_id', label: '账号 ID', required: true, placeholder: '飞书机器人 Webhook ID', hint: '飞书机器人 Webhook ID。' },
-            { key: 'token', label: '机器人 Token', required: true, placeholder: '机器人 Token' },
+            { key: 'token', label: '机器人 Token', required: true, placeholder: '机器人 Token', input_type: 'password' },
             { key: 'expires_at', label: '授权过期时间', required: false, input_type: 'datetime-local' },
           ],
         },
@@ -612,7 +691,7 @@ const fallbackSchema: ChannelSchemaDocument = {
           fields: [
             { key: 'account_id', label: '账号 ID', required: true, placeholder: '渠道侧账号唯一标识', hint: '钉钉应用 AppKey 或 AppID。' },
             { key: 'app_id', label: 'App ID', required: true, placeholder: 'App ID' },
-            { key: 'app_secret', label: 'App Secret', required: true, placeholder: 'App Secret' },
+            { key: 'app_secret', label: 'App Secret', required: true, placeholder: 'App Secret', input_type: 'password' },
             { key: 'expires_at', label: '授权过期时间', required: false, input_type: 'datetime-local' },
           ],
         },
@@ -621,7 +700,7 @@ const fallbackSchema: ChannelSchemaDocument = {
           label: '钉钉机器人',
           fields: [
             { key: 'account_id', label: '账号 ID', required: true, placeholder: '钉钉机器人 Webhook ID', hint: '钉钉机器人 Webhook ID。' },
-            { key: 'token', label: '机器人 Token', required: true, placeholder: '机器人 Token' },
+            { key: 'token', label: '机器人 Token', required: true, placeholder: '机器人 Token', input_type: 'password' },
             { key: 'expires_at', label: '授权过期时间', required: false, input_type: 'datetime-local' },
           ],
         },
@@ -637,7 +716,7 @@ const fallbackSchema: ChannelSchemaDocument = {
           fields: [
             { key: 'account_id', label: '商户 ID', required: true, placeholder: '美团商户 ID', hint: '美团商户 ID。' },
             { key: 'app_id', label: 'App ID', required: true, placeholder: 'App ID' },
-            { key: 'app_secret', label: 'App Secret', required: true, placeholder: 'App Secret' },
+            { key: 'app_secret', label: 'App Secret', required: true, placeholder: 'App Secret', input_type: 'password' },
             { key: 'expires_at', label: '授权过期时间', required: false, input_type: 'datetime-local' },
           ],
         },
@@ -647,7 +726,7 @@ const fallbackSchema: ChannelSchemaDocument = {
           fields: [
             { key: 'account_id', label: '门店 ID', required: true, placeholder: '美团门店 ID', hint: '美团门店 ID。' },
             { key: 'app_id', label: 'App ID', required: true, placeholder: 'App ID' },
-            { key: 'app_secret', label: 'App Secret', required: true, placeholder: 'App Secret' },
+            { key: 'app_secret', label: 'App Secret', required: true, placeholder: 'App Secret', input_type: 'password' },
             { key: 'expires_at', label: '授权过期时间', required: false, input_type: 'datetime-local' },
           ],
         },
@@ -663,7 +742,7 @@ const fallbackSchema: ChannelSchemaDocument = {
           fields: [
             { key: 'account_id', label: '商户 ID', required: true, placeholder: '点评商户 ID', hint: '点评商户 ID。' },
             { key: 'app_id', label: 'App ID', required: true, placeholder: 'App ID' },
-            { key: 'app_secret', label: 'App Secret', required: true, placeholder: 'App Secret' },
+            { key: 'app_secret', label: 'App Secret', required: true, placeholder: 'App Secret', input_type: 'password' },
             { key: 'expires_at', label: '授权过期时间', required: false, input_type: 'datetime-local' },
           ],
         },
@@ -673,7 +752,7 @@ const fallbackSchema: ChannelSchemaDocument = {
           fields: [
             { key: 'account_id', label: '门店 ID', required: true, placeholder: '点评门店 ID', hint: '点评门店 ID。' },
             { key: 'app_id', label: 'App ID', required: true, placeholder: 'App ID' },
-            { key: 'app_secret', label: 'App Secret', required: true, placeholder: 'App Secret' },
+            { key: 'app_secret', label: 'App Secret', required: true, placeholder: 'App Secret', input_type: 'password' },
             { key: 'expires_at', label: '授权过期时间', required: false, input_type: 'datetime-local' },
           ],
         },
@@ -705,14 +784,75 @@ const appTypeOptions = computed(() =>
 const currentAppSchema = computed(() =>
   currentChannelSchema.value?.app_types.find((appType) => appType.code === accountForm.app_type) ?? null,
 )
+const isWeComForm = computed(
+  () => accountForm.channel === 'wechat' && accountForm.app_type === 'wecom',
+)
+const callbackUrlPreview = computed(() => {
+  if (!isWeComForm.value) {
+    return ''
+  }
+  const base = (accountForm.callback_base_url || '').trim()
+  const accountUuid = editingAccountUuid.value || ''
+  if (!base || !accountUuid) {
+    return ''
+  }
+  const apiPrefix = '/api/v1'
+  return `${base.replace(/\/$/, '')}${apiPrefix}/webhooks/wechat/wecom/${accountUuid}`
+})
 
 const fieldConfig = (key: string): ChannelFieldSchema | null =>
   currentAppSchema.value?.fields.find((field) => field.key === key) ?? null
 
-const credentialFields = computed(() => currentAppSchema.value?.fields.filter((field) => !field.hidden) ?? [])
+const credentialFields = computed(() => {
+  const fields = currentAppSchema.value?.fields.filter((field) => !field.hidden) ?? []
+  const filtered = isWeComForm.value
+    ? fields
+        .filter((field) => field.key !== 'secret' && field.key !== 'expires_at')
+        .map((field) =>
+          field.key === 'app_secret'
+            ? {
+                ...field,
+                hint: '应用 Secret（应用管理里查看）。请将该应用配置到人事助手，用于读取部门/成员信息。',
+              }
+            : field,
+        )
+    : fields
+  if (isWeComForm.value && !filtered.some((field) => field.key === 'http_debug')) {
+    const debugField: ChannelFieldSchema = {
+      key: 'http_debug',
+      label: 'HTTP 调试',
+      required: false,
+      span: 1,
+      default_value: 'false',
+      hint: '开启后输出请求日志（仅调试用）。',
+      input_type: 'switch',
+    }
+    const appSecretIndex = filtered.findIndex((field) => field.key === 'app_secret')
+    if (appSecretIndex >= 0) {
+      filtered.splice(appSecretIndex + 1, 0, debugField)
+    } else {
+      filtered.push(debugField)
+    }
+  }
+  return filtered
+})
 const fieldSpanClass = (field: ChannelFieldSchema) =>
   field.span === 2 ? 'md:col-span-2' : 'md:col-span-1'
-const fieldInputType = (field: ChannelFieldSchema) => field.input_type || 'text'
+const isPasswordField = (field: ChannelFieldSchema) => field.input_type === 'password'
+const fieldInputType = (field: ChannelFieldSchema) => (isPasswordField(field) ? 'text' : field.input_type || 'text')
+const maskedCredentialValue = '****************'
+
+const applyFieldDefaults = () => {
+  for (const field of currentAppSchema.value?.fields ?? []) {
+    if (!field.default_value) {
+      continue
+    }
+    const currentValue = (accountForm as any)[field.key]
+    if (currentValue === '' || currentValue === undefined || currentValue === null) {
+      ;(accountForm as any)[field.key] = field.default_value
+    }
+  }
+}
 
 const buildCredentialsPayload = () => {
   const fields = currentAppSchema.value?.fields ?? []
@@ -720,9 +860,15 @@ const buildCredentialsPayload = () => {
   for (const field of fields) {
     const raw = (accountForm as any)[field.key]
     const value = typeof raw === 'string' ? raw.trim() : raw ?? ''
+    if (field.input_type === 'password' && value === maskedCredentialValue) {
+      continue
+    }
     if (value !== '') {
       payload[field.key] = String(value)
     }
+  }
+  if (isWeComForm.value) {
+    payload.http_debug = accountForm.http_debug ? 'true' : 'false'
   }
   for (const field of fields) {
     if (field.derived_from && !payload[field.key]) {
@@ -752,7 +898,6 @@ const setDefaultChannelApp = () => {
 const statusOptions = [
   { label: '待确认', value: 'pending' },
   { label: '已连接', value: 'connected' },
-  { label: '已过期', value: 'expired' },
   { label: '已停用', value: 'disabled' },
 ]
 
@@ -762,13 +907,15 @@ const accountModalDescription = computed(() =>
   isEditingAccount.value ? '修改渠道账号信息与状态。' : '创建新的渠道账号。',
 )
 const accountModalActionLabel = computed(() => (isEditingAccount.value ? '保存' : '创建'))
+const editingAccountIsDefault = computed(() => Boolean(editingAccount.value?.org_sync_default))
 
 const accountColumns = computed(() => [
   { accessorKey: 'display_name', header: '渠道账号' },
   { accessorKey: 'channel_code', header: '渠道' },
   { accessorKey: 'app_type', header: '应用类型' },
   { accessorKey: 'status', header: '状态' },
-  { accessorKey: 'owner_user_uuid', header: '负责人' },
+  { accessorKey: 'owner_member_uuid', header: '负责人' },
+  { accessorKey: 'org_sync_default', header: '默认' },
   { accessorKey: 'actions', header: '操作' },
 ] satisfies any)
 
@@ -777,8 +924,6 @@ const statusMeta = (status: string | undefined) => {
   switch (normalized) {
     case 'connected':
       return { label: '已连接', color: 'success' }
-    case 'expired':
-      return { label: '已过期', color: 'warning' }
     case 'disabled':
       return { label: '已停用', color: 'neutral' }
     default:
@@ -788,6 +933,30 @@ const statusMeta = (status: string | undefined) => {
 
 const refreshChannelAccounts = async () => {
   await accountStore.fetchChannelAccounts()
+}
+
+const setOrgSyncDefault = async (account: ChannelAccountSummary) => {
+  if (!account?.account_uuid) {
+    return
+  }
+  settingDefaultAccountId.value = account.account_uuid
+  try {
+    const service = useOrgSyncService()
+    await service.setDefaultSourceAccount(account.account_uuid)
+    await refreshChannelAccounts()
+    toast.add({
+      title: '默认组织来源已更新',
+      color: 'success',
+    })
+  } catch (err: any) {
+    toast.add({
+      title: '设置默认来源失败',
+      description: err?.message || '请稍后重试',
+      color: 'error',
+    })
+  } finally {
+    settingDefaultAccountId.value = ''
+  }
 }
 
 const ownerUserLabelMap = computed(() => {
@@ -805,93 +974,20 @@ const ownerUserLabelMap = computed(() => {
 
 const ownerUserLabel = (value?: string | null) => {
   if (!value || value === 'undefined') return ''
-  return ownerUserLabelMap.value.get(value) || value
+  const label = ownerUserLabelMap.value.get(value)
+  if (label) return label
+  if (String(value).includes('-')) return ''
+  return value
 }
 
-const resolveMemberIdFromResponse = (payload: any) => {
-  if (!payload) return ''
-  return (
-    payload.member_id ||
-    payload.id ||
-    payload?.Member?.member_id ||
-    payload?.Member?.id ||
-    payload?.data?.member_id ||
-    payload?.data?.id ||
-    ''
-  ).toString()
-}
-
-const ensureMemberForUser = async (userId: string) => {
-  const tenantUuid = ownerUserTenantUuid.value
-  if (!tenantUuid || !userId) {
-    return ''
-  }
-  const user = ownerUserMap.value.get(userId)
-  if (!user?.email) {
-    return userId
-  }
-  const membersResp = await userService.getUsers({
-    tenant_uuid: tenantUuid,
-    q: user.email,
-    page: 1,
-    page_size: 50,
-  })
-  const items = membersResp?.data?.items ?? []
-  const matched = items.find((item: any) => {
-    const memberUserId = item?.Member?.user_id ?? item?.user_id ?? ''
-    const userId = item?.User?.id ?? item?.user_id ?? ''
-    return String(memberUserId) === String(user.id) || String(userId) === String(user.id)
-  })
-  if (matched) {
-    const memberId = matched?.Member?.id ?? matched?.member_id ?? ''
-    if (memberId) {
-      return String(memberId)
-    }
-  }
-  const username = user.email.split('@')[0] || user.display_name || user.email
-  try {
-    const created = await userService.createSystemUser({
-      tenant_uuid: tenantUuid,
-      email: user.email,
-      display_name: user.display_name || user.email,
-      username,
-      phone: user.phone,
-      status: 'active',
-    })
-    const createdMemberId = resolveMemberIdFromResponse(created)
-    if (createdMemberId) {
-      return createdMemberId
-    }
-  } catch {
-    // Member might already exist; fall back to refresh.
-  }
-  const refresh = await userService.getUsers({
-    tenant_uuid: tenantUuid,
-    q: user.email,
-    page: 1,
-    page_size: 50,
-  })
-  const refreshedItems = refresh?.data?.items ?? []
-  const refreshed = refreshedItems.find((item: any) => {
-    const memberUserId = item?.Member?.user_id ?? item?.user_id ?? ''
-    const userId = item?.User?.id ?? item?.user_id ?? ''
-    return String(memberUserId) === String(user.id) || String(userId) === String(user.id)
-  })
-  if (refreshed) {
-    const memberId = refreshed?.Member?.id ?? refreshed?.member_id ?? ''
-    if (memberId) {
-      return String(memberId)
-    }
-  }
-  return ''
-}
+const ensureMemberForUser = async (memberId: string) => memberId
 
 const ownerUserOptionsMerged = computed(() => {
   const map = new Map<string, { label: string; value: string }>()
   for (const option of ownerUserOptions.value) {
     map.set(option.value, option)
   }
-  const selectedValues = [accountForm.owner_user_uuid, ownerUserUuid.value].filter(Boolean) as string[]
+  const selectedValues = [accountForm.owner_member_uuid, ownerUserUuid.value].filter(Boolean) as string[]
   for (const value of selectedValues) {
     if (!map.has(value)) {
       const label = ownerUserOptionCache.value.get(value) || value
@@ -905,16 +1001,21 @@ const loadOwnerUsers = async (query = '') => {
   ownerUserLoading.value = true
   ownerUserError.value = ''
   try {
-    const resp = await iamService.listUserDirectory({
+    const tenantUuid = ownerUserTenantUuid.value
+    if (!tenantUuid) {
+      ownerUserError.value = '当前租户未就绪，无法加载负责人。'
+      return
+    }
+    const resp = await iamService.listMembers({
+      tenantUuid,
       query: query || undefined,
       page: 1,
       pageSize: 20,
     })
     const items = resp?.data?.items ?? []
-    ownerUserMap.value = new Map(items.map((user: UserDirectoryRecord) => [String(user.id), user]))
-    ownerUserOptions.value = items.map((user: UserDirectoryRecord) => ({
-      label: user.display_name || user.email || `${user.id}`,
-      value: String(user.id),
+    ownerUserOptions.value = items.map((user: MemberRecord) => ({
+      label: user.display_name || user.email || user.username || `${user.member_id ?? user.id}`,
+      value: String(user.member_id ?? user.id),
     }))
     for (const option of ownerUserOptions.value) {
       ownerUserOptionCache.value.set(option.value, option.label)
@@ -987,7 +1088,7 @@ const submitChannelAccountMemberUpdate = async () => {
       }
     }
     const payload = {
-      owner_user_uuid: ownerUserUuid.value.trim() || undefined,
+      owner_member_uuid: ownerUserUuid.value.trim() || undefined,
       member_user_uuids: parseMemberUUIDs(memberUserUuidsInput.value),
     }
     await accountStore.updateChannelAccountMembers(selectedAccountId.value, payload)
@@ -1044,8 +1145,10 @@ const resetAccountForm = () => {
   accountForm.app_type = ''
   accountForm.account_id = ''
   accountForm.display_name = ''
-  accountForm.owner_user_uuid = ''
+  accountForm.owner_member_uuid = ''
   accountForm.status = 'connected'
+  accountForm.org_sync_default = false
+  accountForm.http_debug = false
   const allFields = channelSchema.value?.channels.flatMap((channel) =>
     channel.app_types.flatMap((appType) => appType.fields.map((field) => field.key)),
   )
@@ -1055,6 +1158,7 @@ const resetAccountForm = () => {
   accountModalMessage.value = ''
   editingAccountUuid.value = null
   setDefaultChannelApp()
+  applyFieldDefaults()
 }
 
 const openCreateAccountModal = () => {
@@ -1071,18 +1175,29 @@ const openEditAccountModal = (account: ChannelAccountSummary) => {
   accountForm.app_type = account.app_type || ''
   accountForm.account_id = account.account_id || ''
   accountForm.display_name = account.display_name || ''
-  accountForm.owner_user_uuid = account.owner_user_uuid === 'undefined' ? '' : account.owner_user_uuid || ''
+  accountForm.owner_member_uuid = account.owner_member_uuid === 'undefined' ? '' : account.owner_member_uuid || ''
   ownerUserSearch.value = ''
   accountForm.status = account.status || 'connected'
+  accountForm.org_sync_default = Boolean(account.org_sync_default)
   const credentials = account.credentials ?? {}
   for (const field of currentAppSchema.value?.fields ?? []) {
+    if (field.input_type === 'password') {
+      const hasValue = credentials[field.key] !== undefined && credentials[field.key] !== null && credentials[field.key] !== ''
+      ;(accountForm as any)[field.key] = hasValue ? maskedCredentialValue : ''
+      continue
+    }
     const value = credentials[field.key]
     ;(accountForm as any)[field.key] = value ?? ''
+  }
+  if (isWeComForm.value) {
+    const rawDebug = String(credentials.http_debug ?? '').toLowerCase().trim()
+    accountForm.http_debug = rawDebug === 'true' || rawDebug === '1' || rawDebug === 'yes'
   }
   accountModalMessage.value = ''
   editingAccountUuid.value = account.account_uuid
   accountModalOpen.value = true
   nextTick(() => {
+    applyFieldDefaults()
     suppressCredentialReset.value = false
   })
 }
@@ -1101,7 +1216,7 @@ const validateAccountForm = () => {
   if (!accountForm.display_name) {
     return '请填写展示名称。'
   }
-  if (!accountForm.owner_user_uuid || accountForm.owner_user_uuid === 'undefined') {
+  if (!accountForm.owner_member_uuid || accountForm.owner_member_uuid === 'undefined') {
     return '请选择负责人。'
   }
   const payload = buildCredentialsPayload()
@@ -1122,22 +1237,22 @@ const submitAccountModal = async () => {
       accountModalMessage.value = '当前租户未就绪，无法保存负责人信息。'
       return
     }
-    if (!accountForm.owner_user_uuid && ownerUserSearch.value.trim()) {
+    if (!accountForm.owner_member_uuid && ownerUserSearch.value.trim()) {
       const normalized = ownerUserSearch.value.trim().toLowerCase()
       const match = ownerUserOptionsMerged.value.find((option) => option.label.toLowerCase() === normalized)
       if (match) {
-        accountForm.owner_user_uuid = match.value
+        accountForm.owner_member_uuid = match.value
       }
     }
-    if (accountForm.owner_user_uuid === 'undefined') {
-      accountForm.owner_user_uuid = ''
+    if (accountForm.owner_member_uuid === 'undefined') {
+      accountForm.owner_member_uuid = ''
     }
-    if (accountForm.owner_user_uuid) {
-      const memberId = await ensureMemberForUser(accountForm.owner_user_uuid)
+    if (accountForm.owner_member_uuid) {
+      const memberId = await ensureMemberForUser(accountForm.owner_member_uuid)
       if (memberId) {
-        const label = ownerUserOptionCache.value.get(accountForm.owner_user_uuid) || accountForm.owner_user_uuid
+        const label = ownerUserOptionCache.value.get(accountForm.owner_member_uuid) || accountForm.owner_member_uuid
         ownerUserOptionCache.value.set(memberId, label)
-        accountForm.owner_user_uuid = memberId
+        accountForm.owner_member_uuid = memberId
       }
     }
     const credentials = buildCredentialsPayload()
@@ -1152,11 +1267,17 @@ const submitAccountModal = async () => {
     }
     if (isEditingAccount.value && editingAccountUuid.value) {
       await accountStore.updateChannelAccount(editingAccountUuid.value, {
+        account_id: accountForm.account_id,
         display_name: accountForm.display_name,
-        owner_user_uuid: accountForm.owner_user_uuid,
+        owner_member_uuid: accountForm.owner_member_uuid,
         status: accountForm.status,
         credentials,
       })
+      if (accountForm.org_sync_default && !editingAccountIsDefault.value) {
+        await setOrgSyncDefault({
+          account_uuid: editingAccountUuid.value,
+        } as ChannelAccountSummary)
+      }
       accountModalMessage.value = '渠道账号已更新。'
     } else {
       await accountStore.createChannelAccount({
@@ -1164,16 +1285,85 @@ const submitAccountModal = async () => {
         app_type: accountForm.app_type,
         account_id: accountForm.account_id,
         display_name: accountForm.display_name,
-        owner_user_uuid: accountForm.owner_user_uuid,
+        owner_member_uuid: accountForm.owner_member_uuid,
         credentials,
       })
       accountModalMessage.value = '渠道账号已连接。'
     }
     accountModalOpen.value = false
   } catch (err: any) {
-    accountModalMessage.value = err?.message || '渠道账号操作失败。'
+    const message =
+      err?.data?.error?.message ||
+      err?.response?._data?.error?.message ||
+      err?.message ||
+      '渠道账号操作失败。'
+    accountModalMessage.value = ''
+    toast.add({
+      title: '保存失败',
+      description: message,
+      color: 'red',
+    })
   } finally {
     accountModalSaving.value = false
+  }
+}
+
+const testAppSecretConnection = async () => {
+  if (!isEditingAccount.value || !editingAccountUuid.value) {
+    toast.add({
+      title: '请先保存账号',
+      description: '测试连接需要已保存的账号信息。',
+      color: 'warning',
+    })
+    return
+  }
+  accountModalTestingAppSecret.value = true
+  try {
+    const service = useSocialChannelGovernanceService()
+    const resp = await service.testChannelAccountContactSecret(editingAccountUuid.value, {
+      http_debug: Boolean(accountForm.http_debug),
+      mode: 'quick',
+    })
+    const membersTotal = (resp as any)?.data?.members_total ?? 0
+    const unitsTotal = (resp as any)?.data?.units_total ?? 0
+    toast.add({
+      title: '测试成功',
+      description: `部门接口可访问，部门数：${unitsTotal}`,
+      color: 'success',
+      duration: 5000,
+    })
+  } catch (err: any) {
+    const message =
+      err?.data?.error?.message ||
+      err?.response?._data?.error?.message ||
+      err?.message ||
+      '测试失败。'
+    toast.add({
+      title: '测试失败',
+      description: message,
+      color: 'red',
+    })
+  } finally {
+    accountModalTestingAppSecret.value = false
+  }
+}
+
+const copyCallbackUrl = async () => {
+  if (!callbackUrlPreview.value) {
+    return
+  }
+  try {
+    await navigator.clipboard.writeText(callbackUrlPreview.value)
+    toast.add({
+      title: '已复制回调地址',
+      color: 'success',
+    })
+  } catch {
+    toast.add({
+      title: '复制失败',
+      description: '请手动复制回调地址。',
+      color: 'red',
+    })
   }
 }
 
@@ -1201,7 +1391,7 @@ const confirmDeleteAccount = async () => {
 const openConfigModal = (account: ChannelAccountSummary) => {
   selectedAccountId.value = account.account_uuid
   selectedCapabilityAccountId.value = account.account_uuid
-  ownerUserUuid.value = account.owner_user_uuid || ''
+  ownerUserUuid.value = account.owner_member_uuid || ''
   ownerUserSearch.value = ''
   memberUserUuidsInput.value = (account.member_user_uuids || []).join(', ')
   const capabilityEntries = Object.entries(account.capabilities || {})
@@ -1250,7 +1440,7 @@ watch(
 )
 
 watch(
-  () => accountForm.owner_user_uuid,
+  () => accountForm.owner_member_uuid,
   (value) => {
     if (!value) return
     const found = ownerUserOptions.value.find((option) => option.value === value)
@@ -1305,3 +1495,9 @@ useHead(() => ({
   title: topicTitle.value,
 }))
 </script>
+
+<style scoped>
+.password-mask {
+  -webkit-text-security: disc;
+}
+</style>

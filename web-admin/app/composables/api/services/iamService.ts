@@ -140,6 +140,7 @@ export const useIAMService = () => {
           tenant_uuid: params.tenantUuid,
           status: params.status,
           q: params.query,
+          org_sync_bound: params.orgSyncBound,
           page: params.page,
           page_size: params.pageSize,
         })}`,
@@ -223,6 +224,7 @@ export interface MemberListParams {
   tenantUuid: string;
   status?: string;
   query?: string;
+  orgSyncBound?: boolean;
   page?: number;
   pageSize?: number;
 }

@@ -3,16 +3,19 @@ package social_channel_governance
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net"
 	"strings"
 
+	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/config"
 	model "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/social_channel_governance"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository"
 	SocialRepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/social_channel_governance"
 	SocialObs "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/social_channel_governance"
+	orgdriver "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/services/admin/org_sync/driver"
+	orgsync "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/services/admin/org_sync"
 	"gorm.io/datatypes"
 )
-
-var ErrChannelAccountCredentialExpired = errors.New("channel account credential expired")
 
 type ChannelAccountCredentialValidator interface {
 	Validate(ctx context.Context, tenantUUID string, req ChannelAccountCreateRequest) error
@@ -26,16 +29,18 @@ func (noopChannelAccountValidator) Validate(_ context.Context, _ string, _ Chann
 
 // ChannelAccountService orchestrates channel account onboarding and lookup.
 type ChannelAccountService struct {
-	repo         *SocialRepo.AccountRepository
-	validator    ChannelAccountCredentialValidator
-	schemaLoader *ChannelSchemaLoader
+	repo          *SocialRepo.AccountRepository
+	validator     ChannelAccountCredentialValidator
+	schemaLoader  *ChannelSchemaLoader
+	accountStatus *orgsync.AccountStatusService
+	cfg           *config.Config
 }
 
-func NewChannelAccountService(repo *SocialRepo.AccountRepository, validator ChannelAccountCredentialValidator, schemaLoader *ChannelSchemaLoader) *ChannelAccountService {
+func NewChannelAccountService(repo *SocialRepo.AccountRepository, validator ChannelAccountCredentialValidator, schemaLoader *ChannelSchemaLoader, accountStatus *orgsync.AccountStatusService, cfg *config.Config) *ChannelAccountService {
 	if validator == nil {
 		validator = noopChannelAccountValidator{}
 	}
-	return &ChannelAccountService{repo: repo, validator: validator, schemaLoader: schemaLoader}
+	return &ChannelAccountService{repo: repo, validator: validator, schemaLoader: schemaLoader, accountStatus: accountStatus, cfg: cfg}
 }
 
 // ChannelAccountCreateRequest captures required fields for onboarding.
@@ -44,15 +49,18 @@ type ChannelAccountCreateRequest struct {
 	AppType       string
 	AccountID     string
 	DisplayName   string
-	OwnerUserUUID string
+	OwnerMemberUUID string
 	Credentials   map[string]string
+	CallbackBaseURL string
 }
 
 type ChannelAccountUpdateRequest struct {
+	AccountID     string
 	DisplayName   string
-	OwnerUserUUID string
+	OwnerMemberUUID string
 	Status        string
 	Credentials   map[string]string
+	CallbackBaseURL string
 }
 
 func (s *ChannelAccountService) CreateAccount(ctx context.Context, tenantUUID string, req ChannelAccountCreateRequest) (*model.ChannelAccount, error) {
@@ -67,7 +75,7 @@ func (s *ChannelAccountService) CreateAccount(ctx context.Context, tenantUUID st
 	appType := strings.ToLower(strings.TrimSpace(req.AppType))
 	accountID := strings.TrimSpace(req.AccountID)
 	displayName := strings.TrimSpace(req.DisplayName)
-	ownerUUID := strings.TrimSpace(req.OwnerUserUUID)
+	ownerUUID := strings.TrimSpace(req.OwnerMemberUUID)
 	credentials := sanitizeCredentials(req.Credentials)
 	schema := s.loadSchema(ctx)
 	accountID = normalizeAccountID(schema, channel, appType, accountID, credentials)
@@ -79,10 +87,19 @@ func (s *ChannelAccountService) CreateAccount(ctx context.Context, tenantUUID st
 		return nil, errors.New("display_name is required")
 	}
 	if ownerUUID == "" || strings.EqualFold(ownerUUID, "undefined") {
-		return nil, errors.New("owner_user_uuid is required")
+		return nil, errors.New("owner_member_uuid is required")
+	}
+	if !isNumericID(ownerUUID) {
+		return nil, errors.New("owner_member_uuid must be a member_id")
 	}
 	if err := validateChannelCredentials(schema, channel, appType, credentials); err != nil {
 		return nil, err
+	}
+
+	if isWeComAccount(channel, appType) {
+		if err := s.ensureWeComUnique(ctx, tenantUUID, "", credentials, accountID); err != nil {
+			return nil, err
+		}
 	}
 
 	existing, err := s.repo.FindByIdentity(ctx, tenantUUID, channel, appType, accountID)
@@ -94,15 +111,9 @@ func (s *ChannelAccountService) CreateAccount(ctx context.Context, tenantUUID st
 	}
 
 	status := model.ChannelAccountStatusConnected
-	var validationErr error
 	if s.validator != nil {
 		if err := s.validator.Validate(ctx, tenantUUID, req); err != nil {
-			if errors.Is(err, ErrChannelAccountCredentialExpired) {
-				status = model.ChannelAccountStatusExpired
-				validationErr = ErrChannelAccountCredentialExpired
-			} else {
-				return nil, err
-			}
+			return nil, err
 		}
 	}
 
@@ -113,7 +124,7 @@ func (s *ChannelAccountService) CreateAccount(ctx context.Context, tenantUUID st
 		AccountID:       accountID,
 		DisplayName:     displayName,
 		Status:          status,
-		OwnerUserUUID:   ownerUUID,
+		OwnerMemberUUID:   ownerUUID,
 		MemberUserUUIDs: []string{},
 		Capabilities:    datatypes.JSONMap{},
 		Credentials:     credentialsToJSON(credentials),
@@ -123,16 +134,17 @@ func (s *ChannelAccountService) CreateAccount(ctx context.Context, tenantUUID st
 	if err != nil {
 		return nil, err
 	}
+	created, err = s.ensureOAuthCallback(ctx, created, req.CallbackBaseURL)
+	if err != nil {
+		return nil, err
+	}
 	SocialObs.EmitChannelAccountCreated(
 		ctx,
 		tenantUUID,
 		created.AccountUUID,
-		SocialObs.ResolveActorUserUUID(ctx, created.OwnerUserUUID),
+		SocialObs.ResolveActorUserUUID(ctx, created.OwnerMemberUUID),
 		created.Status,
 	)
-	if validationErr != nil {
-		return created, validationErr
-	}
 	return created, nil
 }
 
@@ -180,13 +192,17 @@ func (s *ChannelAccountService) UpdateAccount(ctx context.Context, tenantUUID, a
 		return nil, repository.ErrTenantUuidRequired
 	}
 	displayName := strings.TrimSpace(req.DisplayName)
-	ownerUserUUID := strings.ToLower(strings.TrimSpace(req.OwnerUserUUID))
+	accountID := strings.TrimSpace(req.AccountID)
+	ownerUserUUID := strings.ToLower(strings.TrimSpace(req.OwnerMemberUUID))
 	status := strings.ToLower(strings.TrimSpace(req.Status))
 	if displayName == "" || ownerUserUUID == "" || status == "" {
-		return nil, errors.New("display_name, owner_user_uuid, and status are required")
+		return nil, errors.New("display_name, owner_member_uuid, and status are required")
 	}
 	if strings.EqualFold(ownerUserUUID, "undefined") {
-		return nil, errors.New("owner_user_uuid is required")
+		return nil, errors.New("owner_member_uuid is required")
+	}
+	if !isNumericID(ownerUserUUID) {
+		return nil, errors.New("owner_member_uuid must be a member_id")
 	}
 	if !isChannelAccountStatus(status) {
 		return nil, errors.New("invalid status")
@@ -195,24 +211,57 @@ func (s *ChannelAccountService) UpdateAccount(ctx context.Context, tenantUUID, a
 	if err != nil {
 		return nil, err
 	}
+	if accountID == "" {
+		accountID = current.AccountID
+	}
+	if accountID != current.AccountID {
+		existing, err := s.repo.FindByIdentity(ctx, tenantUUID, current.ChannelCode, current.AppType, accountID)
+		if err != nil && !errors.Is(err, SocialRepo.ErrAccountNotFound) {
+			return nil, err
+		}
+		if existing != nil && existing.AccountUUID != current.AccountUUID {
+			return nil, SocialRepo.ErrAccountExists
+		}
+		if isWeComAccount(current.ChannelCode, current.AppType) {
+			if err := s.ensureWeComUnique(ctx, tenantUUID, current.AccountUUID, mergeCredentials(current.Credentials, nil), accountID); err != nil {
+				return nil, err
+			}
+		}
+	}
 	credentials := sanitizeCredentials(req.Credentials)
 	if len(credentials) > 0 {
 		schema := s.loadSchema(ctx)
 		merged := mergeCredentials(current.Credentials, credentials)
-		merged = ensureAccountID(schema, current.ChannelCode, current.AppType, current.AccountID, merged)
+		merged = ensureAccountID(schema, current.ChannelCode, current.AppType, accountID, merged)
 		if err := validateChannelCredentials(schema, current.ChannelCode, current.AppType, merged); err != nil {
 			return nil, err
 		}
+		if isWeComAccount(current.ChannelCode, current.AppType) {
+			if err := s.ensureWeComUnique(ctx, tenantUUID, current.AccountUUID, merged, accountID); err != nil {
+				return nil, err
+			}
+		}
 	}
 
-	updated, err := s.repo.UpdateAccount(ctx, tenantUUID, accountUUID, displayName, ownerUserUUID, status)
+	statusChanged := status != "" && status != current.Status
+	updated, err := s.repo.UpdateAccount(ctx, tenantUUID, accountUUID, displayName, ownerUserUUID, status, accountID)
 	if err != nil {
 		return nil, err
 	}
 	if len(credentials) > 0 {
 		merged := mergeCredentials(current.Credentials, credentials)
-		merged = ensureAccountID(s.loadSchema(ctx), current.ChannelCode, current.AppType, current.AccountID, merged)
-		return s.repo.UpdateAccountCredentials(ctx, tenantUUID, accountUUID, credentialsToJSON(merged))
+		merged = ensureAccountID(s.loadSchema(ctx), current.ChannelCode, current.AppType, accountID, merged)
+		updated, err = s.repo.UpdateAccountCredentials(ctx, tenantUUID, accountUUID, credentialsToJSON(merged))
+		if err != nil {
+			return nil, err
+		}
+	}
+	if statusChanged || len(credentials) > 0 || status == model.ChannelAccountStatusDisabled || accountID != current.AccountID {
+		orgdriver.InvalidateCache(current.ChannelCode, current.AppType, current.AccountUUID)
+	}
+	updated, err = s.ensureOAuthCallback(ctx, updated, req.CallbackBaseURL)
+	if err != nil {
+		return nil, err
 	}
 	return updated, nil
 }
@@ -226,7 +275,17 @@ func (s *ChannelAccountService) DeleteAccount(ctx context.Context, tenantUUID, a
 	if tenantUUID == "" || accountUUID == "" {
 		return repository.ErrTenantUuidRequired
 	}
-	return s.repo.DeleteAccount(ctx, tenantUUID, accountUUID)
+	current, _ := s.repo.GetByAccountUUID(ctx, tenantUUID, accountUUID)
+	if err := s.repo.DeleteAccount(ctx, tenantUUID, accountUUID); err != nil {
+		return err
+	}
+	if current != nil {
+		orgdriver.InvalidateCache(current.ChannelCode, current.AppType, current.AccountUUID)
+	}
+	if s.accountStatus != nil {
+		_, _, _ = s.accountStatus.MarkMappingsDisabled(ctx, tenantUUID, accountUUID)
+	}
+	return nil
 }
 
 func (s *ChannelAccountService) RestoreAccount(ctx context.Context, tenantUUID, accountUUID string) (*model.ChannelAccount, error) {
@@ -245,7 +304,6 @@ func isChannelAccountStatus(status string) bool {
 	switch status {
 	case model.ChannelAccountStatusPending,
 		model.ChannelAccountStatusConnected,
-		model.ChannelAccountStatusExpired,
 		model.ChannelAccountStatusDisabled:
 		return true
 	default:
@@ -284,6 +342,11 @@ func validateChannelCredentials(schema *ChannelSchemaDocument, channel, appType 
 func normalizeAccountID(schema *ChannelSchemaDocument, channel, appType, accountID string, credentials map[string]string) string {
 	if accountID != "" {
 		return accountID
+	}
+	if isWeComAccount(channel, appType) {
+		if val := strings.TrimSpace(credentials["agent_id"]); val != "" {
+			return val
+		}
 	}
 	if schema == nil {
 		return accountID
@@ -326,6 +389,11 @@ func ensureAccountID(schema *ChannelSchemaDocument, channel, appType, accountID 
 	if accountID != "" {
 		out["account_id"] = accountID
 	}
+	if isWeComAccount(channel, appType) {
+		if out["account_id"] == "" {
+			out["account_id"] = strings.TrimSpace(out["agent_id"])
+		}
+	}
 	if schema == nil {
 		return out
 	}
@@ -359,4 +427,130 @@ func mergeCredentials(current datatypes.JSONMap, incoming map[string]string) map
 		merged[key] = value
 	}
 	return merged
+}
+
+func (s *ChannelAccountService) ensureOAuthCallback(ctx context.Context, account *model.ChannelAccount, baseURL string) (*model.ChannelAccount, error) {
+	if account == nil || s == nil || s.repo == nil {
+		return account, nil
+	}
+	if !isWeComAccount(account.ChannelCode, account.AppType) {
+		return account, nil
+	}
+	credentials := mergeCredentials(account.Credentials, nil)
+	callbackBase := resolveCallbackBaseURL(baseURL, s.cfg, credentials)
+	callback := buildOAuthCallback(callbackBase, resolveAPIPrefix(s.cfg), account.ChannelCode, account.AppType, account.AccountUUID)
+	if callback == "" {
+		return account, nil
+	}
+	currentCallback := strings.TrimSpace(credentials["oauth_callback"])
+	if currentCallback == callback {
+		return account, nil
+	}
+	credentials["oauth_callback"] = callback
+	updated, err := s.repo.UpdateAccountCredentials(ctx, account.TenantUuid, account.AccountUUID, credentialsToJSON(credentials))
+	if err != nil {
+		return account, err
+	}
+	orgdriver.InvalidateCache(account.ChannelCode, account.AppType, account.AccountUUID)
+	return updated, nil
+}
+
+func isWeComAccount(channel, appType string) bool {
+	return strings.EqualFold(strings.TrimSpace(channel), "wechat") && strings.EqualFold(strings.TrimSpace(appType), "wecom")
+}
+
+func resolveAPIPrefix(cfg *config.Config) string {
+	if cfg == nil || cfg.Server == nil {
+		return "/api/v1"
+	}
+	prefix := strings.TrimSpace(cfg.Server.APIPrefix)
+	if prefix == "" {
+		return "/api/v1"
+	}
+	if !strings.HasPrefix(prefix, "/") {
+		prefix = "/" + prefix
+	}
+	return strings.TrimRight(prefix, "/")
+}
+
+func resolveCallbackBaseURL(requestBaseURL string, cfg *config.Config, credentials map[string]string) string {
+	if val := strings.TrimSpace(credentials["callback_base_url"]); val != "" {
+		if strings.HasPrefix(val, "http://") || strings.HasPrefix(val, "https://") {
+			return strings.TrimRight(val, "/")
+		}
+		return "https://" + strings.TrimRight(val, "/")
+	}
+	if cfg == nil || cfg.Server == nil {
+		return strings.TrimRight(strings.TrimSpace(requestBaseURL), "/")
+	}
+	if base := strings.TrimSpace(cfg.Server.CallbackBaseURL); base != "" {
+		if strings.HasPrefix(base, "http://") || strings.HasPrefix(base, "https://") {
+			return strings.TrimRight(base, "/")
+		}
+		return "https://" + strings.TrimRight(base, "/")
+	}
+	addr := strings.TrimSpace(cfg.Server.BindAddr)
+	if addr == "" {
+		return strings.TrimRight(strings.TrimSpace(requestBaseURL), "/")
+	}
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		host = addr
+	}
+	if host == "" || host == "0.0.0.0" || host == "::" {
+		host = "localhost"
+	}
+	if strings.HasPrefix(host, "http://") || strings.HasPrefix(host, "https://") {
+		return strings.TrimRight(host, "/")
+	}
+	if port != "" {
+		return fmt.Sprintf("http://%s:%s", host, port)
+	}
+	return "http://" + strings.TrimRight(host, "/")
+}
+
+func buildOAuthCallback(baseURL, apiPrefix, channel, appType, accountUUID string) string {
+	base := strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	if base == "" || channel == "" || appType == "" || accountUUID == "" {
+		return ""
+	}
+	prefix := strings.TrimRight(strings.TrimSpace(apiPrefix), "/")
+	if prefix == "" {
+		prefix = "/api/v1"
+	}
+	return fmt.Sprintf("%s%s/webhooks/%s/%s/%s", base, prefix, strings.ToLower(channel), strings.ToLower(appType), accountUUID)
+}
+
+func (s *ChannelAccountService) ensureWeComUnique(ctx context.Context, tenantUUID, currentAccountUUID string, credentials map[string]string, accountID string) error {
+	if s == nil || s.repo == nil {
+		return nil
+	}
+	corpID := strings.TrimSpace(credentials["corp_id"])
+	agentID := strings.TrimSpace(accountID)
+	if agentID == "" {
+		agentID = strings.TrimSpace(credentials["agent_id"])
+	}
+	if corpID == "" || agentID == "" {
+		return nil
+	}
+	existing, err := s.repo.FindByWeComIdentity(ctx, tenantUUID, corpID, agentID)
+	if err != nil && !errors.Is(err, SocialRepo.ErrAccountNotFound) {
+		return err
+	}
+	if existing != nil && existing.AccountUUID != currentAccountUUID {
+		return SocialRepo.ErrAccountExists
+	}
+	return nil
+}
+
+func isNumericID(value string) bool {
+	if strings.TrimSpace(value) == "" {
+		return false
+	}
+	for _, r := range value {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }

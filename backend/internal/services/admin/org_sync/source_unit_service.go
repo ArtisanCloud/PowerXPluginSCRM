@@ -19,14 +19,18 @@ func NewSourceUnitService(repo *orgrepo.SourceUnitRepository) *SourceUnitService
 	return &SourceUnitService{repo: repo}
 }
 
-func (s *SourceUnitService) List(ctx context.Context, tenantUUID, sourceAccountUUID string, status *string) ([]*model.SourceUnit, error) {
+func (s *SourceUnitService) List(ctx context.Context, tenantUUID, sourceAccountUUID, channelAccountUUID string, status *string) ([]*model.SourceUnit, error) {
 	if s == nil || s.repo == nil {
 		return nil, errors.New("source unit repository not configured")
 	}
 	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
 	sourceAccountUUID = strings.ToLower(strings.TrimSpace(sourceAccountUUID))
-	if tenantUUID == "" || sourceAccountUUID == "" {
+	channelAccountUUID = strings.ToLower(strings.TrimSpace(channelAccountUUID))
+	if tenantUUID == "" || (sourceAccountUUID == "" && channelAccountUUID == "") {
 		return nil, repository.ErrTenantUuidRequired
+	}
+	if channelAccountUUID != "" {
+		return s.repo.ListByChannelAccount(ctx, tenantUUID, channelAccountUUID, status)
 	}
 	return s.repo.ListByAccount(ctx, tenantUUID, sourceAccountUUID, status)
 }

@@ -84,6 +84,27 @@ frontend:
             path: /intro
             route: intro
             order: 1
+          - id: plugins.com.powerx.plugin.scrm.org_sync
+            title: 组织映射管理
+            title_i18n:
+              namespace: menus
+              key: menu.com.powerx.plugin.scrm.org_sync.title
+              default: 组织映射管理
+            icon: i-heroicons-squares-2x2
+            path: /scrm/org_sync
+            route: scrm/org_sync
+            order: 5
+            children:
+              - id: plugins.com.powerx.plugin.scrm.org_sync.main_view
+                title: 主组织视图
+                title_i18n:
+                  namespace: menus
+                  key: menu.com.powerx.plugin.scrm.org_sync.main_view
+                  default: 主组织视图
+                icon: i-heroicons-users
+                path: /scrm/org_sync/main_view
+                route: scrm/org_sync/main_view
+                order: 1
           - id: plugins.com.powerx.plugin.scrm.templates
             title: 模版
             title_i18n:

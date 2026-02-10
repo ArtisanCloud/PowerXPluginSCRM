@@ -14,7 +14,8 @@ export interface ChannelAccountSummary {
   display_name: string
   credentials?: Record<string, string>
   status: string
-  owner_user_uuid: string
+  org_sync_default?: boolean
+  owner_member_uuid: string
   member_user_uuids?: string[]
   capabilities?: Record<string, boolean>
   created_at?: string
@@ -93,7 +94,7 @@ export const useSocialChannelAccountStore = defineStore('scrm.socialChannelAccou
         this.loading = false
       }
     },
-    async updateChannelAccountMembers(accountUuid: string, payload: { owner_user_uuid?: string; member_user_uuids: string[] }) {
+    async updateChannelAccountMembers(accountUuid: string, payload: { owner_member_uuid?: string; member_user_uuids: string[] }) {
       this.loading = true
       this.error = null
       try {

@@ -40,10 +40,10 @@ func (s *ChannelAccountCapabilityService) UpdateChannelAccountCapabilities(ctx c
 	if account == nil {
 		return nil, SocialRepo.ErrAccountNotFound
 	}
-	if account.OwnerUserUUID == "" {
+	if account.OwnerMemberUUID == "" {
 		for _, enabled := range capabilities {
 			if enabled {
-				return nil, errors.New("owner_user_uuid is required before enabling capabilities")
+				return nil, errors.New("owner_member_uuid is required before enabling capabilities")
 			}
 		}
 	}

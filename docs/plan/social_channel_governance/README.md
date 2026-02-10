@@ -32,6 +32,7 @@
 ## 5. 关键能力与规划要点
 - 多渠道统一接入
 - 企业微信账号与权限管理
+- 多账号组织架构同步与默认来源切换（按渠道隔离）
 
 ### 5.1 渠道与应用模型（明确层级）
 - **Channel（平台生态）**：`wechat` / `feishu` / `dingding` / `meituan` / `dianping`。
@@ -46,7 +47,7 @@
 > 结论：公众号/视频号不是 channel，而是 **wechat 生态下的 app 类型**。
 
 补充约定：
-- wecom：`app_id` = CorpID，`account_id` = AgentID，`app_secret` = Secret。
+- wecom：企业 ID（CorpID） + 应用 AgentID + 通讯录管理 Secret，`account_id` 自动使用 AgentID。
 - mp/miniapp：仅需 `app_id` + `app_secret`，`account_id` 自动使用 `app_id`。
 
 ### 5.2 能力矩阵（能力差异是常态）
@@ -71,6 +72,16 @@
 - wecom：线索可直接落入 CRM 线索池。
 - mp/video：粉丝关注、私信互动、评论互动 → 统一转为线索事件。
 - feishu/dingding：若无客户体系，仅记录触达事件，不强制转线索。
+
+### 5.5 组织同步策略（企业微信政策约束）
+- 通讯录同步 Secret 仅能同步 ID（`userid + department_id`）。
+- 成员详情需自建应用 + OAuth2 授权补全。
+- 多账号按 `channel_account_uuid` 分区，默认来源账号可切换。
+
+### 5.6 员工绑定与分配规则
+- 未绑定渠道账号的成员，不参与线索/客户分配候选。
+- 首次进入 SCRM 时提供绑定引导（可延后）。
+- 个人资料页提供多渠道账号绑定入口。
 
 ## 6. 依赖与集成
 - 统一身份/权限与审计日志能力。

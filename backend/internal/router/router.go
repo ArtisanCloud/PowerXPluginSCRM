@@ -15,6 +15,7 @@ import (
 	middleware2 "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/transport/http/middleware"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/transport/http/mini-app"
 	publicauth "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/transport/http/public"
+	wstransport "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/transport/websocket"
 
 	"github.com/gin-gonic/gin"
 )
@@ -134,6 +135,7 @@ func (r *Router) setupRoutes() {
 	r.inferRBACFromRoutes(rbacCfg, prefix)
 
 	mcptransport.RegisterRoutes(r.engine, prefix)
+	wstransport.RegisterWSRoutes(r.engine, middleware2.JWTAuth(jwtCfg), r.cfg)
 
 	// 如需调试：打印已注册路由
 	// apiRegistry.PrintRegisteredRoutes()
