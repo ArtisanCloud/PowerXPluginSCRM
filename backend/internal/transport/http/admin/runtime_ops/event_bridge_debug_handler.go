@@ -8,7 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/shared/app"
-	"github.com/ArtisanCloud/PowerXPlugin/framework/event"
+	"github.com/ArtisanCloud/PowerXPlugin/framework/backend/go/event"
 )
 
 type eventBridgeEmitRequest struct {

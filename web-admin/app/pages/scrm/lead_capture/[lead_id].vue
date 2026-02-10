@@ -440,7 +440,7 @@ const submitAssignForm = async () => {
 };
 
 const loadMembers = async (tenantUUID?: string) => {
-  members.value = await memberService.listAll(tenantUUID);
+  members.value = await memberService.listBound(tenantUUID);
 };
 
 onMounted(async () => {

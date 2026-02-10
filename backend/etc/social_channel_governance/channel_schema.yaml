@@ -6,29 +6,57 @@ channels:
       - code: wecom
         label: 企业微信
         fields:
-          - key: account_id
-            label: AgentID
+          - key: agent_id
+            label: 应用 AgentID
             required: true
             span: 1
-            placeholder: 企业微信内部应用 AgentID
-            hint: 企业微信内部应用 AgentID。
+            placeholder: 企业微信应用 AgentID
+            hint: 企业微信应用 AgentID（应用管理里查看）。
+          - key: corp_id
+            label: 企业 ID（CorpID）
+            required: true
+            span: 1
+            placeholder: 企业微信企业 ID
+            hint: 企业微信企业 ID（CorpID）。
+          - key: secret
+            label: 通讯录管理 Secret
+            required: false
+            span: 1
+            placeholder: 通讯录管理 Secret
+            hint: 通讯录管理 Secret（管理工具-通讯录同步）。留空会导致同步/测试失败。
+            input_type: password
           - key: app_secret
-            label: Secret
-            required: true
+            label: 应用 Secret
+            required: false
             span: 1
-            placeholder: 企业微信应用 Secret
-            hint: AgentID 对应应用 Secret。
-          - key: app_id
-            label: CorpID
-            required: true
-            span: 2
-            placeholder: 企业微信 CorpID
-            hint: 企业微信 CorpID。
+            placeholder: 应用 Secret
+            hint: 应用 Secret（应用管理里查看）。用于非通讯录场景。
+            input_type: password
           - key: token
             label: Token（回调校验）
             required: false
             span: 2
             placeholder: Webhook Token / 回调校验 Token
+            input_type: password
+          - key: aes_key
+            label: EncodingAESKey
+            required: false
+            span: 2
+            placeholder: EncodingAESKey
+            hint: 回调消息加解密密钥（企业微信后台生成）
+            input_type: password
+          - key: account_id
+            label: 账号 ID
+            required: false
+            hidden: true
+            derived_from: agent_id
+            hint: 账号 ID 自动使用应用 AgentID。
+          - key: callback_base_url
+            label: 回调域名
+            required: false
+            span: 2
+            placeholder: https://debug-scrm.artisan-cloud.com
+            hint: 留空则使用服务端配置 callback_base_url。
           - key: expires_at
             label: 授权过期时间
             required: false
@@ -49,12 +77,15 @@ channels:
             placeholder: AppID
           - key: app_secret
             label: AppSecret
-            required: true
+            required: false
             placeholder: AppSecret
+            hint: 留空会导致同步/测试失败。
+            input_type: password
           - key: token
             label: Token（回调校验）
             required: false
             placeholder: Webhook Token / 回调校验 Token
+            input_type: password
           - key: expires_at
             label: 授权过期时间
             required: false
@@ -74,12 +105,15 @@ channels:
             placeholder: AppID
           - key: app_secret
             label: AppSecret
-            required: true
+            required: false
             placeholder: AppSecret
+            hint: 留空会导致同步/测试失败。
+            input_type: password
           - key: token
             label: Token（回调校验）
             required: false
             placeholder: Webhook Token / 回调校验 Token
+            input_type: password
           - key: expires_at
             label: 授权过期时间
             required: false
@@ -99,12 +133,15 @@ channels:
             placeholder: AppID
           - key: app_secret
             label: AppSecret
-            required: true
+            required: false
             placeholder: AppSecret
+            hint: 留空会导致同步/测试失败。
+            input_type: password
           - key: token
             label: Token（回调校验）
             required: false
             placeholder: Webhook Token / 回调校验 Token
+            input_type: password
           - key: expires_at
             label: 授权过期时间
             required: false
@@ -128,6 +165,7 @@ channels:
             label: App Secret
             required: true
             placeholder: App Secret
+            input_type: password
           - key: expires_at
             label: 授权过期时间
             required: false
@@ -144,6 +182,7 @@ channels:
             label: 机器人 Token
             required: true
             placeholder: 机器人 Token
+            input_type: password
           - key: expires_at
             label: 授权过期时间
             required: false
@@ -167,6 +206,7 @@ channels:
             label: App Secret
             required: true
             placeholder: App Secret
+            input_type: password
           - key: expires_at
             label: 授权过期时间
             required: false
@@ -183,6 +223,7 @@ channels:
             label: 机器人 Token
             required: true
             placeholder: 机器人 Token
+            input_type: password
           - key: expires_at
             label: 授权过期时间
             required: false
@@ -206,6 +247,7 @@ channels:
             label: App Secret
             required: true
             placeholder: App Secret
+            input_type: password
           - key: expires_at
             label: 授权过期时间
             required: false
@@ -226,6 +268,7 @@ channels:
             label: App Secret
             required: true
             placeholder: App Secret
+            input_type: password
           - key: expires_at
             label: 授权过期时间
             required: false
@@ -249,6 +292,7 @@ channels:
             label: App Secret
             required: true
             placeholder: App Secret
+            input_type: password
           - key: expires_at
             label: 授权过期时间
             required: false
@@ -269,6 +313,7 @@ channels:
             label: App Secret
             required: true
             placeholder: App Secret
+            input_type: password
           - key: expires_at
             label: 授权过期时间
             required: false

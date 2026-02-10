@@ -37,6 +37,8 @@ web-admin/.stylelintcache
 # Backend (Go)
 backend/bin/
 backend/.cache/
+backend/.gocache/
+backend/.gomodcache
 backend/logs/
 backend/tmp/
 backend/coverage.out

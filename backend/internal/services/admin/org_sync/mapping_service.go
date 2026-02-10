@@ -9,6 +9,7 @@ import (
 	model "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/org_sync"
 	repository "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository"
 	orgrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/org_sync"
+	orgobs "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/org_sync"
 	"gorm.io/gorm"
 )
 
@@ -69,7 +70,7 @@ func (s *MappingService) ConfirmMappings(ctx context.Context, tenantUUID string,
 	}
 	result := &ConfirmMappingsResult{}
 	now := time.Now().UTC()
-	err := s.unitMappingRepo.WithTenantTx(ctx, tenantUUID, func(tx *gorm.DB) error {
+	if err := s.unitMappingRepo.WithTenantTx(ctx, tenantUUID, func(tx *gorm.DB) error {
 		for _, mapping := range req.UnitMappings {
 			sourceUnitUUID := strings.TrimSpace(mapping.SourceUnitUUID)
 			mainUnitID := strings.TrimSpace(mapping.MainUnitID)
@@ -159,10 +160,10 @@ func (s *MappingService) ConfirmMappings(ctx context.Context, tenantUUID string,
 			result.MemberMappings++
 		}
 		return nil
-	})
-	if err != nil {
+	}); err != nil {
 		return nil, err
 	}
+	orgobs.EmitMappingsConfirmed(ctx, tenantUUID, orgobs.ResolveActorUserUUID(ctx, req.ConfirmedBy), result.UnitMappings, result.MemberMappings)
 	return result, nil
 }
 

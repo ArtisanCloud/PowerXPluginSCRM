@@ -5,6 +5,7 @@ const (
 	SourceAccountStatusDisabled = "disabled"
 
 	SyncStatusQueued  = "queued"
+	SyncStatusRunning = "running"
 	SyncStatusSuccess = "success"
 	SyncStatusFailed  = "failed"
 
@@ -12,4 +13,7 @@ const (
 	MappingStatusConfirmed = "confirmed"
 	MappingStatusConflict  = "conflict"
 	MappingStatusDisabled  = "disabled"
+
+	ProfileStatusLimited = "limited"
+	ProfileStatusFull    = "full"
 )

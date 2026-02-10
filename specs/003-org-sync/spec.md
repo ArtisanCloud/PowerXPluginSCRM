@@ -75,6 +75,10 @@
 
 ## Requirements *(mandatory)*
 
+### Out of Scope
+
+- 渠道侧组织回写/双向同步（作为独立 feature 另行设计）
+
 ### Functional Requirements
 
 - **FR-001**: 系统必须支持按租户 + 渠道账号触发组织同步，并记录同步状态。
@@ -90,6 +94,13 @@
 - **FR-011**: 映射确认仅允许组织管理员执行。
 - **FR-012**: 宿主模式下仅提供只读主组织视图与映射管理入口。
 - **FR-013**: 渠道账号删除后映射需保留并标记失效以便审计追溯。
+- **FR-014**: 渠道组织同步必须通过“驱动层”适配不同 SDK，接口统一为部门/成员拉取。
+- **FR-015**: 企业微信“通讯录同步 Secret”模式下仅允许同步成员/部门 ID，不得依赖成员详情接口。
+- **FR-016**: 成员敏感信息补全必须通过 OAuth2 授权流程完成（自建应用模式）。
+- **FR-017**: 多账号组织数据必须按 `channel_account_uuid` 分区存储与展示。
+- **FR-018**: 系统应支持为每个渠道设置默认组织来源账号，并允许管理员切换。
+- **FR-019**: 未绑定渠道账号的成员不得参与线索/客户分配候选。
+- **FR-020**: 系统必须提供员工绑定引导与个人绑定入口（支持多渠道）。
 
 ### Key Entities *(include if feature involves data)*
 
@@ -108,3 +119,37 @@
 - **SC-002**: 至少 80% 的来源成员可通过自动匹配得到建议结果。
 - **SC-003**: 所有映射确认操作可追溯且与租户隔离一致。
 - **SC-004**: 线索分配仅引用主组织成员且不出现来源成员直接绑定。
+
+## Technical Approach *(added)*
+
+### Channel Driver Layer
+- 统一接口 `OrgSyncDriver`：
+  - `FetchDepartments(account)` → `SourceUnitDTO[]`
+  - `FetchMembers(account)` → `SourceMemberDTO[]`
+- `DriverRegistry` 以 `channel + app_type` 注册驱动
+- 统一错误分类与字段映射策略（auth/perm/rate_limit/invalid）
+
+### WeCom (PowerWechat SDK)
+- 使用 PowerWechat Go SDK
+- **通讯录同步模式**：
+  - `department/simplelist` → 部门 ID
+  - `user/list_id` → 成员 ID
+  - 仅同步 ID 与部门关系
+- **自建应用模式**：
+  - `department/list` / `user/list` / `user/get` → 成员详情
+  - 敏感字段需 OAuth2 授权补全
+- 关键字段：`CorpID`（企业级） + `AgentID`/`Secret`（应用级），`user_id` → `external_member_id`
+
+### 员工绑定与分配规则
+- 首次进入 SCRM 时若未绑定渠道账号，弹出引导提示（允许稍后）。
+- 绑定完成后才能参与线索/客户分配。
+- 绑定入口支持企业微信/钉钉/飞书多渠道账号。
+
+### Sync Execution
+- `TriggerSync` 读取渠道账号配置 → 选择 driver → 拉取数据 → Upsert 来源层
+- 统计新增/更新/冲突/待确认 → 写入 `sync_log` 与 `source_account.last_sync_*`
+
+### Multi-Channel Extensibility
+- 钉钉（DingTalk SDK）
+- 飞书（Lark SDK）
+- 其他渠道按驱动接口扩展

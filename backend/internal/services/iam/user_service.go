@@ -11,6 +11,7 @@ import (
 
 	basemodels "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models"
 	iamm "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/iam"
+	orgmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/org_sync"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -26,9 +27,10 @@ func NewUserService(db *gorm.DB, audit *AuditService) *UserService {
 }
 
 type UserFilter struct {
-	TenantUUID string
-	Status     string
-	Query      string
+	TenantUUID   string
+	Status       string
+	Query        string
+	OrgSyncBound *bool
 }
 
 type UserDirectoryFilter struct {
@@ -91,6 +93,17 @@ func (s *UserService) List(ctx context.Context, filter UserFilter) ([]UserView, 
 		Where("u.tenant_uuid = ?", tenantUUID)
 	if status := strings.TrimSpace(filter.Status); status != "" {
 		query = query.Where("u.status = ?", status)
+	}
+	if filter.OrgSyncBound != nil && *filter.OrgSyncBound {
+		query = query.Joins(
+			"JOIN "+orgmodel.MemberMapping{}.TableName()+" mm ON mm.main_member_id = CAST(u.id AS TEXT) AND mm.mapping_status = ?",
+			orgmodel.MappingStatusConfirmed,
+		).
+			Joins(
+				"JOIN "+orgmodel.SourceMember{}.TableName()+" sm ON sm.source_member_uuid = mm.source_member_uuid AND sm.profile_status = ? AND sm.status = ?",
+				orgmodel.ProfileStatusFull,
+				"active",
+			)
 	}
 	if search := strings.TrimSpace(filter.Query); search != "" {
 		like := "%" + strings.ToLower(search) + "%"

@@ -18,7 +18,7 @@ As an operator, I want to connect a new channel account (e.g., WeChat enterprise
 **Acceptance Scenarios**:
 
 1. **Given** no account exists for a channel, **When** the operator submits a new account connection with required credentials, **Then** the account appears in the channel list with status “Connected”.
-2. **Given** a credential is invalid or expired, **When** the operator attempts to connect the account, **Then** the system rejects the connection and shows a clear reason.
+2. **Given** a credential is invalid, **When** the operator attempts to connect the account, **Then** the system rejects the connection and shows a clear reason.
 
 ---
 
@@ -69,7 +69,7 @@ As an operator, I want to enable or disable channel capabilities (content, messa
 - **FR-004**: The system MUST allow enabling or disabling capabilities based on the supported capability matrix per app type.
 - **FR-004a**: The system MUST default all capabilities to disabled until manually enabled.
 - **FR-005**: The system MUST surface connection status and error reasons in the account list.
-- **FR-005a**: The system MUST support status values: Pending, Connected, Expired, Disabled.
+- **FR-005a**: The system MUST support status values: Pending, Connected, Disabled.
 - **FR-006**: The system MUST record changes to account ownership and capability settings for audit review.
 - **FR-006a**: The system MUST audit account creation, authorization changes, member changes, and capability toggle changes.
 
@@ -92,7 +92,7 @@ As an operator, I want to enable or disable channel capabilities (content, messa
 
 - Q: 同一租户下“账号唯一性”如何定义？ → A: 以 `tenant_uuid + channel + app_type + account_id` 作为唯一性。
 - Q: 账号可见范围如何配置？ → A: 负责人 + 指定成员（可多选成员）。
-- Q: 连接状态如何定义？ → A: Pending / Connected / Expired / Disabled。
+- Q: 连接状态如何定义？ → A: Pending / Connected / Disabled。
 - Q: 能力默认开关策略是什么？ → A: 默认关闭，需手动启用。
 - Q: 审计范围包含哪些变更？ → A: 账号创建、授权变更、成员变更、能力开关变更。
 

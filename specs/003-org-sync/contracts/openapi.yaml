@@ -15,12 +15,28 @@ paths:
       responses:
         "200":
           description: Sync triggered
+  /api/v1/admin/org-sync/source-accounts/default/{account_uuid}:
+    post:
+      summary: Set default org source account for channel/app_type
+      parameters:
+        - in: path
+          name: account_uuid
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Default source account updated
   /api/v1/admin/org-sync/source-units:
     get:
       summary: List source units
       parameters:
         - in: query
           name: source_account_uuid
+          schema:
+            type: string
+        - in: query
+          name: channel_account_uuid
           schema:
             type: string
         - in: query
@@ -39,6 +55,10 @@ paths:
           schema:
             type: string
         - in: query
+          name: channel_account_uuid
+          schema:
+            type: string
+        - in: query
           name: status
           schema:
             type: string
@@ -49,12 +69,35 @@ paths:
       responses:
         "200":
           description: List of source members
+  /api/v1/admin/org-sync/sync-logs:
+    get:
+      summary: List org sync logs
+      parameters:
+        - in: query
+          name: source_account_uuid
+          schema:
+            type: string
+        - in: query
+          name: channel_account_uuid
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of sync logs
   /api/v1/admin/org-sync/mappings/suggestions:
     get:
       summary: Get mapping suggestions
       parameters:
         - in: query
           name: source_account_uuid
+          schema:
+            type: string
+        - in: query
+          name: channel_account_uuid
           schema:
             type: string
       responses:

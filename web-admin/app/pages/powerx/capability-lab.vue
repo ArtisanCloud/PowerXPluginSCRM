@@ -37,7 +37,7 @@
           </p>
           <ol class="list-decimal space-y-1 pl-5">
             <li>启动 PowerX Core（或设置 `NUXT_PUBLIC_POWERX_CORE_BASE` / `POWERX_CORE_ENDPOINT` 指向可访问的 Core）。</li>
-            <li>在 Skeleton/插件项目执行 `px-plugin login` 获取 Dev Gateway 的 Token，并写入后端 `.env.local`（`PX_GATEWAY_BASE_URL` / `PX_TOOL_TOKEN` / `PX_TENANT_UUID`）。</li>
+            <li>在 Skeleton/插件项目执行 `px-plugin login` 获取 Dev Gateway 的 Token，并写入后端 `.env.local`（`PX_GATEWAY_BASE_URL` / `PX_TOOL_TOKEN`）。</li>
             <li>重启插件后端后再刷新本页面。</li>
           </ol>
         </div>

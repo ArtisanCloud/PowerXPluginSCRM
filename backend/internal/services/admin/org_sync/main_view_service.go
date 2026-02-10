@@ -9,6 +9,7 @@ import (
 	orgmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/org_sync"
 	repository "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository"
 	orgrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/org_sync"
+	orgobs "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/org_sync"
 	"gorm.io/gorm"
 )
 
@@ -84,6 +85,7 @@ func (s *MainViewService) List(ctx context.Context, tenantUUID, query string) ([
 	for _, item := range viewMap {
 		out = append(out, *item)
 	}
+	orgobs.EmitMainViewQueried(ctx, tenantUUID, orgobs.ResolveActorUserUUID(ctx, ""), keyword, len(out))
 	return out, nil
 }
 

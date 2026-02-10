@@ -44,16 +44,23 @@ func NewMatchService(db *gorm.DB, sourceMemberRepo *orgrepo.SourceMemberReposito
 	return &MatchService{db: db, sourceMemberRepo: sourceMemberRepo, memberMappingRepo: memberMappingRepo}
 }
 
-func (s *MatchService) SuggestMappings(ctx context.Context, tenantUUID, sourceAccountUUID string) (*MappingSuggestions, error) {
+func (s *MatchService) SuggestMappings(ctx context.Context, tenantUUID, sourceAccountUUID, channelAccountUUID string) (*MappingSuggestions, error) {
 	if s == nil || s.sourceMemberRepo == nil || s.memberMappingRepo == nil {
 		return nil, errors.New("match service dependencies not configured")
 	}
 	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
 	sourceAccountUUID = strings.ToLower(strings.TrimSpace(sourceAccountUUID))
-	if tenantUUID == "" || sourceAccountUUID == "" {
+	channelAccountUUID = strings.ToLower(strings.TrimSpace(channelAccountUUID))
+	if tenantUUID == "" || (sourceAccountUUID == "" && channelAccountUUID == "") {
 		return nil, repository.ErrTenantUuidRequired
 	}
-	sourceMembers, err := s.sourceMemberRepo.ListByAccount(ctx, tenantUUID, sourceAccountUUID, nil, nil)
+	var sourceMembers []*model.SourceMember
+	var err error
+	if channelAccountUUID != "" {
+		sourceMembers, err = s.sourceMemberRepo.ListByChannelAccount(ctx, tenantUUID, channelAccountUUID, nil, nil)
+	} else {
+		sourceMembers, err = s.sourceMemberRepo.ListByAccount(ctx, tenantUUID, sourceAccountUUID, nil, nil)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -130,6 +137,9 @@ type mainMemberMatch struct {
 
 func (s *MatchService) matchMainMember(ctx context.Context, tenantUUID string, member *model.SourceMember) (*mainMemberMatch, string, error) {
 	if s == nil || s.memberMappingRepo == nil || s.memberMappingRepo.DB == nil || member == nil {
+		return nil, "", nil
+	}
+	if strings.EqualFold(strings.TrimSpace(member.ProfileStatus), model.ProfileStatusLimited) {
 		return nil, "", nil
 	}
 	db := s.memberMappingRepo.DB.WithContext(ctx)

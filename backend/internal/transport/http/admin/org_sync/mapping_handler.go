@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/contracts"
-	authmw "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/middleware"
 	repository "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository"
 	orgrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/org_sync"
+	authmw "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/middleware"
 	orgsvc "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/services/admin/org_sync"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/transport/http/middleware"
 	"github.com/gin-gonic/gin"
@@ -45,8 +45,9 @@ func (h *MappingHandler) Suggestions(c *gin.Context) {
 		return
 	}
 	sourceAccountUUID := strings.TrimSpace(c.Query("source_account_uuid"))
-	if sourceAccountUUID == "" {
-		contracts.ResponseBadRequest(c, "source_account_uuid is required")
+	channelAccountUUID := strings.TrimSpace(c.Query("channel_account_uuid"))
+	if sourceAccountUUID == "" && channelAccountUUID == "" {
+		contracts.ResponseBadRequest(c, "source_account_uuid or channel_account_uuid is required")
 		return
 	}
 	tenantUUID, ok := middleware.TenantUUIDFromContext(c)
@@ -54,7 +55,7 @@ func (h *MappingHandler) Suggestions(c *gin.Context) {
 		contracts.ResponseUnauthorized(c, "tenant context missing")
 		return
 	}
-	suggestions, err := h.matchSvc.SuggestMappings(c.Request.Context(), tenantUUID, sourceAccountUUID)
+	suggestions, err := h.matchSvc.SuggestMappings(c.Request.Context(), tenantUUID, sourceAccountUUID, channelAccountUUID)
 	if err != nil {
 		switch {
 		case errors.Is(err, repository.ErrTenantUuidRequired):
