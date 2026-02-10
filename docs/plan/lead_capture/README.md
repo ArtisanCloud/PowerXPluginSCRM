@@ -14,6 +14,7 @@
 - 生命周期：`docs/plan/lead_capture/lifecycle/README.md`
 - 第三方导入接口：`docs/plan/lead_capture/external_intake/README.md`
 - 企业微信线索拉取：`docs/plan/lead_capture/wecom_lead_sync/README.md`
+- 企业微信对话桥接（员工/App/Bot）：`docs/plan/lead_capture/wecom_conversation_bridge/README.md`
 
 ## 推荐开发顺序
 1) 线索采集（intake）
@@ -24,6 +25,8 @@
 6) 分配（assignment）
 7) 生命周期（lifecycle）
 8) 质量控制（quality）
+9) 企业微信线索拉取（wecom_lead_sync）
+10) 企业微信对话桥接（wecom_conversation_bridge）
 
 ## 依赖关系
 - social_channel_governance：渠道账号与应用配置
