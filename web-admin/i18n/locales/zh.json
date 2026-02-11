@@ -75,6 +75,8 @@
     "scrmSocialChannelAttributionTracking": "来源归因",
     "scrmLeadList": "线索管理",
     "scrmLeadEntry": "线索跟踪",
+    "scrmWecomSync": "企微线索同步",
+    "scrmConversationBinding": "会话绑定",
     "scrmOrgSync": "组织团队管理",
     "scrmOrgSyncMainView": "组织总览",
     "scrmLeadCaptureSmartAssignment": "线索获取与智能分配",
