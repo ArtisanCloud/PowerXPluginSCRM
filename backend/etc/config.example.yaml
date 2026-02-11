@@ -219,6 +219,27 @@ operations:
     timezone: "UTC"
     daily_cron: "0 5 * * *"
 
+# WeCom 线索拉取与会话桥接（004-wecom-lead-managment）
+# 说明：
+# 1) 渠道账号、授权凭证、回调密钥等账号级参数统一来自数据库（渠道账号表），
+#    不在 config/.env 中按账号写死；
+# 2) 此处仅保留流程级默认值（批量大小、重试、请求体上限等）。
+lead_capture:
+  wecom_sync:
+    enabled: true
+    cron: "*/10 * * * *"
+    batch_size: 200
+    timeout: "30s"
+    max_retries: 3
+    retry_backoff_seconds: [30, 120, 300]
+    # 提示：若后续需要环境级全局开关，可仅保留“全局默认值”，
+    #      账号级参数仍以数据库为准。
+  conversation_webhook:
+    enabled: true
+    verify_signature: true
+    idempotency_ttl_hours: 72
+    max_body_bytes: 1048576
+
 # 如需切换到 Postgres，可以将 driver 设置为 postgres 并提供 dsn，例如：
 # database:
 #   driver: "postgres"

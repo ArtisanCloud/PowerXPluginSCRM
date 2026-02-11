@@ -284,6 +284,16 @@ const scrmSections = [
         icon: "i-heroicons-inbox-arrow-down",
       },
       {
+        to: "/scrm/lead_capture?tab=wecom-sync",
+        labelKey: "navigation.scrmWecomSync",
+        icon: "i-heroicons-arrow-path",
+      },
+      {
+        to: "/scrm/lead_capture?tab=conversation-binding",
+        labelKey: "navigation.scrmConversationBinding",
+        icon: "i-heroicons-chat-bubble-left-ellipsis",
+      },
+      {
         to: "/scrm/org_sync",
         labelKey: "navigation.scrmOrgSync",
         icon: "i-heroicons-squares-2x2",
