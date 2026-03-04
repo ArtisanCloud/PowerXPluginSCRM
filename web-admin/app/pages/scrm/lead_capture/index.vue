@@ -95,6 +95,71 @@
 
     <UCard>
       <template #header>
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="flex items-center gap-2">
+            <UIcon name="i-heroicons-arrow-path-rounded-square" class="text-primary" />
+            <span class="font-medium">企微同步任务</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <UButton size="xs" variant="soft" :loading="syncLoading" @click="refreshSyncTasks">
+              刷新任务
+            </UButton>
+            <UButton size="xs" color="primary" :loading="syncSubmitting" @click="triggerWeComSync">
+              触发同步
+            </UButton>
+          </div>
+        </div>
+      </template>
+      <div class="space-y-3">
+        <div class="grid grid-cols-1 gap-3 lg:grid-cols-3">
+          <UFormField label="账号 UUID（可选）">
+            <UInput v-model="syncAccountUUID" placeholder="不填走默认账号" />
+          </UFormField>
+          <UFormField label="状态筛选">
+            <USelectMenu
+              v-model="syncStatusFilter"
+              :items="syncStatusOptions"
+              value-key="value"
+              label-key="label"
+              class="w-full"
+              :portal="false"
+              :ui="{ content: 'z-[200]' }"
+            />
+          </UFormField>
+          <div class="flex items-end text-xs text-gray-500 dark:text-gray-400">
+            最近一次解析来源：{{ syncLastResolveSource || "未触发" }}
+          </div>
+        </div>
+
+        <UAlert
+          v-if="syncTaskError"
+          color="warning"
+          variant="soft"
+          icon="i-heroicons-exclamation-triangle"
+          :description="syncTaskError"
+        />
+
+        <UTable :columns="syncTaskColumns" :data="syncTasks" :loading="syncLoading">
+          <template #status-cell="{ row }">
+            <UBadge :color="syncStatusMeta(row.original.status).color" variant="soft">
+              {{ syncStatusMeta(row.original.status).label }}
+            </UBadge>
+          </template>
+          <template #stats-cell="{ row }">
+            <div class="text-xs text-gray-500 dark:text-gray-400">
+              总数 {{ row.original.stats_total || 0 }} / 新增 {{ row.original.stats_created || 0 }} /
+              更新 {{ row.original.stats_updated || 0 }} / 合并 {{ row.original.stats_merged || 0 }}
+            </div>
+          </template>
+          <template #error-cell="{ row }">
+            <span class="text-xs text-amber-500">{{ row.original.error_message || "-" }}</span>
+          </template>
+        </UTable>
+      </div>
+    </UCard>
+
+    <UCard>
+      <template #header>
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2">
             <UIcon name="i-heroicons-rectangle-stack" class="text-primary" />
@@ -403,7 +468,10 @@ import { useRouter } from "#imports";
 import type { LeadCreatePayload } from "~/types/lead_capture/lead";
 import { useLeadCaptureStore } from "~/stores/scrm/lead_capture/lead_store";
 import ToastAlert from "~/components/ToastAlert.vue";
-import { useLeadCaptureService } from "~/composables/api/services/leadCapture";
+import {
+  useLeadCaptureService,
+  type WeComSyncTaskRecord,
+} from "~/composables/api/services/leadCapture";
 
 definePageMeta({
   layout: "default",
@@ -411,6 +479,7 @@ definePageMeta({
 
 const store = useLeadCaptureStore();
 const router = useRouter();
+const leadCaptureService = useLeadCaptureService();
 
 const searchText = ref("");
 const statusFilter = ref<string>("");
@@ -426,6 +495,13 @@ const importFile = ref<File | null>(null);
 const importFileName = ref("");
 const importResult = ref<any | null>(null);
 const importStep = ref(1);
+const syncLoading = ref(false);
+const syncSubmitting = ref(false);
+const syncTaskError = ref("");
+const syncAccountUUID = ref("");
+const syncStatusFilter = ref<string>("");
+const syncTasks = ref<WeComSyncTaskRecord[]>([]);
+const syncLastResolveSource = ref("");
 const previewHeaders = ref<string[]>([]);
 const previewRows = ref<string[][]>([]);
 const mappingForm = reactive<Record<string, number>>({});
@@ -510,6 +586,23 @@ const pageSizeOptions = [
   { label: "50/页", value: 50 },
 ];
 
+const syncStatusOptions = [
+  { label: "全部状态", value: "" },
+  { label: "排队中", value: "queued" },
+  { label: "执行中", value: "running" },
+  { label: "成功", value: "success" },
+  { label: "失败", value: "failed" },
+];
+
+const syncTaskColumns = [
+  { accessorKey: "task_uuid", header: "任务 UUID" },
+  { accessorKey: "channel_account_uuid", header: "账号 UUID" },
+  { accessorKey: "task_provider", header: "Provider" },
+  { accessorKey: "status", header: "状态" },
+  { accessorKey: "stats", header: "统计" },
+  { accessorKey: "error", header: "错误" },
+] satisfies any;
+
 const channelOptions = computed(() => {
   const entries = new Set<string>();
   store.leads.forEach((lead) => {
@@ -589,6 +682,59 @@ const statusMeta = (status?: string) => {
 
 const refreshLeads = async () => {
   await store.fetchLeads();
+};
+
+const syncStatusMeta = (status?: string) => {
+  switch (status) {
+    case "running":
+      return { label: "执行中", color: "warning" };
+    case "success":
+      return { label: "成功", color: "success" };
+    case "failed":
+      return { label: "失败", color: "error" };
+    case "queued":
+    default:
+      return { label: "排队中", color: "info" };
+  }
+};
+
+const refreshSyncTasks = async () => {
+  syncLoading.value = true;
+  syncTaskError.value = "";
+  try {
+    const resp = await leadCaptureService.listWeComSyncTasks({
+      channel_account_uuid: syncAccountUUID.value.trim() || undefined,
+      status: (syncStatusFilter.value || undefined) as any,
+      limit: 20,
+    });
+    syncTasks.value = ((resp as any)?.data?.items || []) as WeComSyncTaskRecord[];
+  } catch (err: any) {
+    syncTaskError.value = err?.message || "同步任务加载失败";
+  } finally {
+    syncLoading.value = false;
+  }
+};
+
+const triggerWeComSync = async () => {
+  syncSubmitting.value = true;
+  try {
+    const payload: Record<string, string> = {};
+    if (syncAccountUUID.value.trim()) {
+      payload.channel_account_uuid = syncAccountUUID.value.trim();
+    }
+    payload.trace_id = `lead-sync-${Date.now()}`;
+    const resp = await leadCaptureService.triggerWeComSync(payload);
+    const task = (resp as any)?.data as WeComSyncTaskRecord | undefined;
+    if (task?.account_resolve_source) {
+      syncLastResolveSource.value = task.account_resolve_source;
+    }
+    showToast("已触发企微同步任务", "success");
+    await refreshSyncTasks();
+  } catch (err: any) {
+    showToast(err?.message || "触发同步失败", "error");
+  } finally {
+    syncSubmitting.value = false;
+  }
 };
 
 const openDetail = (leadId: string) => {
@@ -862,5 +1008,6 @@ watch([currentPage, pageSize], () => {
 
 onMounted(async () => {
   await refreshLeads();
+  await refreshSyncTasks();
 });
 </script>

@@ -10,6 +10,7 @@ import (
 	socialmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/social_channel_governance"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository"
 	socialrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/social_channel_governance"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -61,6 +62,9 @@ func (r *LeadSyncTaskRepository) CreateTask(ctx context.Context, task *model.Lea
 	if task.TriggerType == "" {
 		task.TriggerType = "manual"
 	}
+	if strings.TrimSpace(task.TaskUUID) == "" {
+		task.TaskUUID = uuid.NewString()
+	}
 	if err := r.WithTenantTx(ctx, task.TenantUUID, func(tx *gorm.DB) error {
 		return tx.Create(task).Error
 	}); err != nil {
@@ -98,11 +102,16 @@ func (r *LeadSyncTaskRepository) UpdateStatus(ctx context.Context, tenantUUID, t
 }
 
 func (r *LeadSyncTaskRepository) ListByAccount(ctx context.Context, tenantUUID, channelAccountUUID string, limit int) ([]*model.LeadSyncTask, error) {
+	return r.ListByFilter(ctx, tenantUUID, channelAccountUUID, "", limit)
+}
+
+func (r *LeadSyncTaskRepository) ListByFilter(ctx context.Context, tenantUUID, channelAccountUUID, status string, limit int) ([]*model.LeadSyncTask, error) {
 	if r == nil || r.DB == nil {
 		return nil, errors.New("repository database is not initialized")
 	}
 	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
 	channelAccountUUID = strings.ToLower(strings.TrimSpace(channelAccountUUID))
+	status = strings.ToLower(strings.TrimSpace(status))
 	if tenantUUID == "" {
 		return nil, ErrLeadSyncTaskNotFound
 	}
@@ -112,6 +121,9 @@ func (r *LeadSyncTaskRepository) ListByAccount(ctx context.Context, tenantUUID, 
 	query := r.DB.WithContext(ctx).Where("tenant_uuid = ?", tenantUUID)
 	if channelAccountUUID != "" {
 		query = query.Where("channel_account_uuid = ?", channelAccountUUID)
+	}
+	if status != "" {
+		query = query.Where("status = ?", status)
 	}
 	var out []*model.LeadSyncTask
 	if err := query.Order("created_at DESC").Limit(limit).Find(&out).Error; err != nil {

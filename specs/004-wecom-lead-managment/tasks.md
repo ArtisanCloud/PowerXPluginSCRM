@@ -51,21 +51,21 @@
 
 ### Tests for User Story 1
 
-- [ ] T015 [P] [US1] 新增合同测试：触发同步接口（含未传账号走默认账号 + provider 字段）`POST /api/v1/admin/leads/wecom/sync` 到 `backend/tests/contract/lead_capture_wecom_sync_contract_test.go`
-- [ ] T016 [P] [US1] 新增合同测试：同步任务列表接口 `GET /api/v1/admin/leads/wecom/sync-tasks` 到 `backend/tests/contract/lead_capture_wecom_sync_tasks_contract_test.go`
-- [ ] T017 [P] [US1] 新增服务单测：同步失败重试、状态流转与 provider fallback 到 `backend/internal/services/admin/lead_capture/wecom_sync_service_test.go`
-- [ ] T018 [US1] 新增集成测试：租户隔离下同步入池与统计校验到 `backend/tests/integration/lead_capture_wecom_sync_integration_test.go`
+- [x] T015 [P] [US1] 新增合同测试：触发同步接口（含未传账号走默认账号 + provider 字段）`POST /api/v1/admin/leads/wecom/sync` 到 `backend/tests/contract/lead_capture_wecom_sync_contract_test.go`
+- [x] T016 [P] [US1] 新增合同测试：同步任务列表接口 `GET /api/v1/admin/leads/wecom/sync-tasks` 到 `backend/tests/contract/lead_capture_wecom_sync_tasks_contract_test.go`
+- [x] T017 [P] [US1] 新增服务单测：同步失败重试、状态流转与 provider fallback 到 `backend/internal/services/admin/lead_capture/wecom_sync_service_test.go`
+- [x] T018 [US1] 新增集成测试：租户隔离下同步入池与统计校验到 `backend/tests/integration/lead_capture_wecom_sync_integration_test.go`
 
 ### Implementation for User Story 1
 
-- [ ] T019 [P] [US1] 实现 DTO 与请求校验（sync/sync-tasks，支持 `channel_account_uuid` 可选）到 `backend/internal/dto/lead_capture/wecom_sync.go`
-- [ ] T020 [US1] 实现 admin handler：手动触发同步（回填实际执行账号与解析来源）到 `backend/internal/transport/http/admin/lead_capture/wecom_sync_handler.go`
-- [ ] T021 [US1] 实现 admin handler：查询任务列表（统一任务 envelope 兼容）到 `backend/internal/transport/http/admin/lead_capture/wecom_sync_tasks_handler.go`
-- [ ] T022 [US1] 注册路由与 RBAC 到 `backend/internal/transport/http/admin/lead_capture/routes.go`
-- [ ] T023 [US1] 实现同步任务服务主流程（账号解析→任务提交/执行→拉取→标准化→去重→活动记录）到 `backend/internal/services/admin/lead_capture/wecom_sync_service.go`
-- [ ] T024 [US1] 对接 wecom 拉取适配器（最小字段）到 `backend/internal/services/admin/lead_capture/wecom_lead_adapter.go`
-- [ ] T025 [US1] 前端新增“触发同步 + 状态列表”API 到 `web-admin/app/composables/api/services/leadCapture.ts`
-- [ ] T026 [US1] 前端线索页新增“企微同步任务”面板（含默认账号展示与切换）到 `web-admin/app/pages/scrm/lead_capture/index.vue`
+- [x] T019 [P] [US1] 实现 DTO 与请求校验（sync/sync-tasks，支持 `channel_account_uuid` 可选）到 `backend/internal/dto/lead_capture/wecom_sync.go`
+- [x] T020 [US1] 实现 admin handler：手动触发同步（回填实际执行账号与解析来源）到 `backend/internal/transport/http/admin/lead_capture/wecom_sync_handler.go`
+- [x] T021 [US1] 实现 admin handler：查询任务列表（统一任务 envelope 兼容）到 `backend/internal/transport/http/admin/lead_capture/wecom_sync_tasks_handler.go`
+- [x] T022 [US1] 注册路由与 RBAC 到 `backend/internal/transport/http/admin/lead_capture/routes.go`
+- [x] T023 [US1] 实现同步任务服务主流程（账号解析→任务提交/执行→拉取→标准化→去重→活动记录）到 `backend/internal/services/admin/lead_capture/wecom_sync_service.go`
+- [x] T024 [US1] 对接 wecom 拉取适配器（最小字段）到 `backend/internal/services/admin/lead_capture/wecom_lead_adapter.go`
+- [x] T025 [US1] 前端新增“触发同步 + 状态列表”API 到 `web-admin/app/composables/api/services/leadCapture.ts`
+- [x] T026 [US1] 前端线索页新增“企微同步任务”面板（含默认账号展示与切换）到 `web-admin/app/pages/scrm/lead_capture/index.vue`
 
 **Checkpoint**: US1 完成后，可独立演示“企微线索入池”
 

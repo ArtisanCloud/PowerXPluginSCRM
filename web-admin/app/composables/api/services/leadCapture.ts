@@ -77,6 +77,31 @@ export interface LeadImportPreview {
   all_fields: string[];
 }
 
+export interface WeComSyncTriggerPayload {
+  channel_account_uuid?: string;
+  trace_id?: string;
+}
+
+export interface WeComSyncTaskRecord {
+  task_uuid: string;
+  channel_account_uuid: string;
+  account_resolve_source: "explicit" | "default";
+  task_provider: "framework" | "local_fallback";
+  external_task_id?: string | null;
+  status: "queued" | "running" | "success" | "failed";
+  stats_total: number;
+  stats_created: number;
+  stats_updated: number;
+  stats_merged: number;
+  error_message?: string;
+  started_at?: string;
+  finished_at?: string;
+}
+
+export interface WeComSyncTaskListResponse {
+  items: WeComSyncTaskRecord[];
+}
+
 export const useLeadCaptureService = () => {
   const apiClient = useApiClient();
   const baseUrl = "/admin/leads";
@@ -114,5 +139,15 @@ export const useLeadCaptureService = () => {
       apiClient.get<ApiResponse<{ items: LeadStatusHistoryRecord[] }>>(
         `${baseUrl}/${leadId}/status-history`
       ),
+    triggerWeComSync: (payload: WeComSyncTriggerPayload) =>
+      apiClient.post<ApiResponse<WeComSyncTaskRecord>>(`${baseUrl}/wecom/sync`, payload),
+    listWeComSyncTasks: (params?: {
+      channel_account_uuid?: string;
+      status?: "queued" | "running" | "success" | "failed";
+      limit?: number;
+    }) =>
+      apiClient.get<ApiResponse<WeComSyncTaskListResponse>>(`${baseUrl}/wecom/sync-tasks`, {
+        params,
+      }),
   };
 };

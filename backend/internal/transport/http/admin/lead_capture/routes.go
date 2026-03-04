@@ -25,8 +25,8 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		conversationSvc *leadsvc.ConversationService
 	)
 	if deps.DB != nil {
-		leadRepo := leadrepo.NewLeadRepository(deps.DB)
-		leadSvc = leadsvc.NewLeadService(leadRepo)
+		leadRepository := leadrepo.NewLeadRepository(deps.DB)
+		leadSvc = leadsvc.NewLeadService(leadRepository)
 
 		metrics := deps.LeadCaptureMetrics
 		if metrics == nil {
@@ -34,7 +34,8 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		}
 		taskRepo := leadrepo.NewLeadSyncTaskRepository(deps.DB)
 		providerAdapter := leadsvc.NewDefaultSyncTaskProviderAdapter(deps.Config, deps.EventEmitter)
-		wecomSyncSvc = leadsvc.NewWeComSyncService(taskRepo, metrics, providerAdapter)
+		wecomSyncSvc = leadsvc.NewWeComSyncService(taskRepo, metrics, providerAdapter).
+			WithLeadIngestion(leadRepository, leadsvc.NewDefaultWeComLeadAdapter())
 
 		eventRepo := leadrepo.NewConversationEventRepository(deps.DB)
 		bindingRepo := leadrepo.NewLeadConversationBindingRepository(deps.DB)
