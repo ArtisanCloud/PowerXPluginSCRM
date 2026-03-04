@@ -223,9 +223,6 @@ func (p *PowerXServiceClient) Outgoing(ctx context.Context) context.Context {
 		md.Set("authorization", "Bearer "+bearer)
 	}
 
-	if p.tenantUUID != "" {
-		md.Set("x-powerx-tenant-uuid", p.tenantUUID)
-	}
 	return metadata.NewOutgoingContext(ctx, md)
 }
 

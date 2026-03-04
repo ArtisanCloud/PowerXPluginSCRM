@@ -144,8 +144,9 @@
 
 ### Sync Pipeline
 - 渠道账号维度调度同步任务（tenant + channel_account_uuid）。
+- 统一任务中心为主任务源；插件内任务表仅作为业务投影（便于线索域查询与审计）。
 - 同步账号解析顺序固定为：显式 `channel_account_uuid` > 渠道默认账号（tenant + channel + app_type）。
-- 调度执行采用 provider 抽象：优先 framework 统一任务 provider，local 仅作为 fallback。
+- 调度执行采用 provider 抽象：优先 framework 统一任务 provider（通过 EventBridge/TaskBus HostProvider 提交 `powerx.lead.sync.requested.v1`），local 仅作为 fallback。
 - 同步流程分为：拉取、标准化、去重合并、活动写入、结果汇总。
 - 失败任务支持重试窗口与可观测告警。
 

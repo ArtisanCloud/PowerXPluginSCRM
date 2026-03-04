@@ -111,25 +111,34 @@ func (s *CatalogService) listPlatformCatalogViaAdminAPI(ctx context.Context) ([]
 	if s.cfg == nil || s.cfg.Gateway == nil {
 		return nil, errors.New("gateway config missing")
 	}
-	base := strings.TrimRight(strings.TrimSpace(s.cfg.Gateway.BaseURL), "/")
+	base := strings.TrimSpace(s.cfg.Gateway.BaseURL)
 	if base == "" {
 		return nil, errors.New("PX_GATEWAY_BASE_URL 未配置")
 	}
+	base = strings.TrimRight(base, "/")
+	apiPrefix := normalizeGatewayAPIPrefix(s.cfg.Gateway.APIPrefix)
 	token := strings.TrimSpace(s.cfg.Gateway.ToolToken)
-	tenant := strings.TrimSpace(s.cfg.Gateway.TenantUUID)
+	apiKey := strings.TrimSpace(s.cfg.Gateway.APIKey)
+	authScheme := strings.ToLower(strings.TrimSpace(s.cfg.Gateway.AuthScheme))
+	if authScheme == "" {
+		if apiKey != "" && token == "" {
+			authScheme = "apikey"
+		} else {
+			authScheme = "bearer"
+		}
+	}
 	client := &http.Client{Timeout: 10 * time.Second}
-	url := fmt.Sprintf("%s/admin/platform-capabilities?page=1&page_size=200", base)
+	url := fmt.Sprintf("%s%s/admin/platform-capabilities?page=1&page_size=200", base, apiPrefix)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Accept", "application/json")
-	if token != "" {
+	if authScheme == "apikey" && apiKey != "" {
+		req.Header.Set("Authorization", "ApiKey "+apiKey)
+	} else if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
-	}
-	if tenant != "" {
-		req.Header.Set("X-Tenant-UUID", tenant)
 	}
 	req.Header.Set("X-Request-ID", fmt.Sprintf("cap-catalog-%d", time.Now().UnixNano()))
 
@@ -151,6 +160,21 @@ func (s *CatalogService) listPlatformCatalogViaAdminAPI(ctx context.Context) ([]
 		return nil, errors.New("platform capability catalog returned empty data")
 	}
 	return s.fromPlatformRecords(records), nil
+}
+
+func normalizeGatewayAPIPrefix(raw string) string {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return "/api/v1"
+	}
+	if !strings.HasPrefix(value, "/") {
+		value = "/" + value
+	}
+	value = "/" + strings.Trim(strings.TrimSpace(value), "/")
+	if value == "/" {
+		return "/api/v1"
+	}
+	return value
 }
 
 func (s *CatalogService) fromPlatformRecords(records []gateway.PlatformCapabilityRecord) []capabilities.CatalogEntry {

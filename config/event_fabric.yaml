@@ -1,0 +1,17 @@
+topics:
+  - topic: org_sync.progress
+    description: 组织同步进度实时事件
+    acl:
+      - actions: [publish, subscribe]
+  - topic: powerx.org_sync.progress.v1
+    description: 组织同步进度实时事件（v1）
+    acl:
+      - actions: [publish, subscribe]
+  - topic: powerx.lead.sync.requested.v1
+    description: 线索同步任务提交事件
+    acl:
+      - actions: [publish]
+  - topic: powerx.lead.conversation.updated.v1
+    description: 线索会话实时更新事件
+    acl:
+      - actions: [publish, subscribe]

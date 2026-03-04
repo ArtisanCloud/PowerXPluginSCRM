@@ -8,6 +8,8 @@ import (
 	orgmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/org_sync"
 )
 
+const TopicOrgSyncProgress = "org_sync.progress"
+
 type SyncProgressEvent struct {
 	TenantUUID        string `json:"tenant_uuid"`
 	SourceAccountUUID string `json:"source_account_uuid"`
@@ -54,7 +56,7 @@ func (s *SyncService) publishProgress(ctx context.Context, tenantUUID, sourceAcc
 		DurationMs:        durationMs,
 		UpdatedAt:         time.Now().UTC().Format(time.RFC3339Nano),
 	}
-	result := s.publisher.Publish(ctx, fwwsbus.TopicOrgSyncProgress, payload, fwwsbus.PublishOptions{TenantUUID: tenantUUID})
+	result := s.publisher.Publish(ctx, TopicOrgSyncProgress, payload, fwwsbus.PublishOptions{TenantUUID: tenantUUID})
 	if !result.OK {
 		return
 	}

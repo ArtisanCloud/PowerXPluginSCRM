@@ -31,6 +31,7 @@
 - `status=failed` 时必须落错误信息。
 - 未显式传 `channel_account_uuid` 时，必须按 `tenant + channel + app_type` 解析默认账号并记录 `account_resolve_source=default`。
 - 状态字段需与 framework 统一任务状态机兼容，允许将 `task_uuid` 映射到 `external_task_id`。
+- `task_provider=framework` 时，调度请求通过 EventBridge/TaskBus HostProvider 以 `powerx.lead.sync.requested.v1` 投递到统一任务链路。
 
 ## 2. LeadSourceEvent
 

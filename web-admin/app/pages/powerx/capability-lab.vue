@@ -37,7 +37,7 @@
           </p>
           <ol class="list-decimal space-y-1 pl-5">
             <li>启动 PowerX Core（或设置 `NUXT_PUBLIC_POWERX_CORE_BASE` / `POWERX_CORE_ENDPOINT` 指向可访问的 Core）。</li>
-            <li>在 Skeleton/插件项目执行 `px-plugin login` 获取 Dev Gateway 的 Token，并写入后端 `.env.local`（`PX_GATEWAY_BASE_URL` / `PX_TOOL_TOKEN`）。</li>
+            <li>在 Skeleton/插件项目执行 `px-plugin login` 获取 Dev Gateway 凭证，并写入后端 `.env.local`（`PX_GATEWAY_BASE_URL` / `PX_GATEWAY_API_PREFIX` / `PX_TOOL_TOKEN`，建议补充 `PX_GATEWAY_TIMEOUT=60s`）。</li>
             <li>重启插件后端后再刷新本页面。</li>
           </ol>
         </div>
@@ -166,22 +166,13 @@
               </span>
             </label>
 
-            <div class="grid gap-4 md:grid-cols-2">
-              <label class="flex flex-col gap-1 text-sm font-medium text-gray-700 dark:text-gray-200">
-                <span>自定义 Tenant UUID</span>
-                <UInput
-                  v-model="form.tenantUuid"
-                  placeholder="可选：覆盖 X-Tenant-UUID"
-                />
-              </label>
-              <label class="flex flex-col gap-1 text-sm font-medium text-gray-700 dark:text-gray-200">
-                <span>Mock 模块</span>
-                <UInput
-                  v-model="form.mockModule"
-                  placeholder="例如 media / event"
-                />
-              </label>
-            </div>
+            <label class="flex flex-col gap-1 text-sm font-medium text-gray-700 dark:text-gray-200">
+              <span>Mock 模块</span>
+              <UInput
+                v-model="form.mockModule"
+                placeholder="例如 media / event"
+              />
+            </label>
 
             <div class="grid gap-4 md:grid-cols-2">
               <label class="flex flex-col gap-1 text-sm font-medium text-gray-700 dark:text-gray-200">
@@ -500,7 +491,6 @@ const form = reactive({
   action: 'List',
   preferredProtocol: 'rest',
   payloadText: DEFAULT_PAYLOAD_TEXT,
-  tenantUuid: '00000000-0000-0000-0000-000000000001',
   mockModule: '',
   requestId: generateRequestId(),
   apiBase: defaultApiBase
@@ -949,9 +939,6 @@ const requestPreview = computed(() => {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json'
   }
-  if (form.tenantUuid) {
-    headers['X-Tenant-UUID'] = form.tenantUuid.trim()
-  }
   if (form.mockModule) {
     headers['X-PX-Use-Mock'] = form.mockModule.trim()
   }
@@ -996,9 +983,6 @@ async function handleInvoke() {
     return
   }
   const headers: Record<string, string> = {}
-  if (form.tenantUuid?.trim()) {
-    headers['X-Tenant-UUID'] = form.tenantUuid.trim()
-  }
   if (form.mockModule?.trim()) {
     headers['X-PX-Use-Mock'] = form.mockModule.trim()
   }
