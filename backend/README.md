@@ -15,7 +15,7 @@
    curl http://localhost:8078/api/v1/ping
    ```
 
-4. 模板 CRUD 示例（Tenant 默认为 1，可通过 `X-Tenant-UUID` 覆盖）：
+4. 模板 CRUD 示例：
 
    ```bash
    # 创建

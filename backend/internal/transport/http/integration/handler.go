@@ -196,9 +196,6 @@ func collectCapabilityHeaders(c *gin.Context) map[string]string {
 			headers[name] = value
 		}
 	}
-	if tenant := strings.TrimSpace(c.GetHeader("X-Tenant-UUID")); tenant != "" {
-		headers["X-Tenant-UUID"] = tenant
-	}
 	if len(headers) == 0 {
 		return nil
 	}

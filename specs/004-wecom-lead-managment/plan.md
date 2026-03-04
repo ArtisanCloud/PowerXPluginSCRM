@@ -90,7 +90,7 @@ web-admin/
 - 同步账号解析：显式 `channel_account_uuid` > 渠道默认账号（tenant + channel + app_type）；
 - 幂等键口径：`tenant + channel_account_uuid + external_event_id`；
 - topic 仅发布 `powerx.lead.conversation.updated.v1`。
-- 统一任务管理（framework）优先，local cron 仅作 fallback。
+- 统一任务管理（framework）优先，framework 提交通过 EventBridge/TaskBus HostProvider 发出 `powerx.lead.sync.requested.v1`，local cron 仅作 fallback。
 
 ## Phase 1: Design & Contracts Output
 
@@ -103,7 +103,7 @@ web-admin/
 1. **Lead Sync Pipeline**
    - 增加 wecom lead sync 任务入口（手动触发 + 定时调度）；
    - 在服务层统一账号解析（显式优先，默认兜底），并回写解析来源；
-   - 调度入口封装成 provider adapter（framework task / local fallback）。
+   - 调度入口封装成 provider adapter（framework task / local fallback），framework 路径复用 EventBridge + TaskBus HostProvider。
    - 复用标准化/去重/活动记录链路；
    - 输出同步任务状态与指标。
 
@@ -113,6 +113,7 @@ web-admin/
    - 未命中关联时写入待绑定池。
 
 3. **Realtime Projection**
+   - 插件任务表仅存业务投影字段（source/account/progress），主状态以统一任务中心为准；
    - 构建 lead 会话摘要投影；
    - 发布 `powerx.lead.conversation.updated.v1`；
    - 前端 lead 页面订阅并按 `lead_uuid` 增量更新。

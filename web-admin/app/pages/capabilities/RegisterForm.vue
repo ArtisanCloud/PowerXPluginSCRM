@@ -617,10 +617,7 @@
                         </div>
                       </div>
                     </div>
-                    <UFormField class="lg:col-span-6" :label="$t('capabilities.form.debug.tenantUuid')">
-                      <UInput v-model="debugForm.tenantUuid" placeholder="00000000-0000-0000-0000-000000000001" />
-                    </UFormField>
-                    <UFormField class="lg:col-span-6" :label="$t('capabilities.form.debug.mockModule')">
+                    <UFormField class="lg:col-span-12" :label="$t('capabilities.form.debug.mockModule')">
                       <UInput v-model="debugForm.mockModule" placeholder="media / workflow" />
                     </UFormField>
                     <UFormField class="lg:col-span-12" :label="$t('capabilities.form.debug.requestId')">
@@ -1859,9 +1856,6 @@ const debugRequestPreview = computed(() => {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
-  if (debugForm.tenantUuid.trim()) {
-    headers["X-Tenant-UUID"] = debugForm.tenantUuid.trim();
-  }
   if (debugForm.mockModule.trim()) {
     headers["X-PX-Use-Mock"] = debugForm.mockModule.trim();
   }
@@ -3421,7 +3415,6 @@ function openDebugPanelFromCatalog(row: CatalogRow) {
   debugForm.action = deriveActionFromCapability(row.capability_id);
   debugForm.apiBase = defaultDebugApiBase;
   debugForm.mockModule = "";
-  debugForm.tenantUuid = debugDefaults.tenantUuid;
   debugForm.requestId = generateDebugRequestId();
   debugForm.targetMode = "local";
   debugPayloadTouched.value = false;
@@ -3437,7 +3430,6 @@ function openDebugPanelForDraft() {
   debugForm.action = form.action || deriveActionFromCapability(capabilityId.value || "");
   debugForm.apiBase = defaultDebugApiBase;
   debugForm.mockModule = "";
-  debugForm.tenantUuid = debugDefaults.tenantUuid;
   debugForm.requestId = generateDebugRequestId();
   debugForm.targetMode = "local";
   debugPayloadTouched.value = false;
@@ -3462,9 +3454,6 @@ async function handleDebugInvoke() {
     return;
   }
   const headers: Record<string, string> = {};
-  if (debugForm.tenantUuid.trim()) {
-    headers["X-Tenant-UUID"] = debugForm.tenantUuid.trim();
-  }
   if (debugForm.mockModule.trim()) {
     headers["X-PX-Use-Mock"] = debugForm.mockModule.trim();
   }

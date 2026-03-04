@@ -29,16 +29,16 @@
 
 **⚠️ CRITICAL**: 完成前不得进入任一用户故事实现
 
-- [ ] T005 新增会话领域模型与表常量（ConversationEvent/Binding/Pending/Projection）到 `backend/internal/entity/models/lead_capture/`
-- [ ] T006 新增对应迁移与索引（含幂等唯一键）到 `backend/internal/entity/models/model.go`
-- [ ] T007 [P] 新增会话仓储接口与实现到 `backend/internal/entity/repository/lead_capture/`
-- [ ] T008 [P] 新增线索同步任务实体与仓储扩展（含默认渠道账号解析接口）到 `backend/internal/entity/repository/lead_capture/`
-- [ ] T009 新增会话桥接服务骨架（验签、幂等、标准化、绑定）到 `backend/internal/services/admin/lead_capture/conversation_service.go`
-- [ ] T010 新增线索同步任务服务骨架（手动触发/定时入口/账号解析/状态更新 + framework/local_fallback provider 适配）到 `backend/internal/services/admin/lead_capture/wecom_sync_service.go`
-- [ ] T011 [P] 新增运行观测指标与审计事件结构到 `backend/internal/observability/lead_capture/`
-- [ ] T012 [P] 新增 WebSocket topic 常量与发布封装（仅新 topic）到 `backend/internal/services/admin/lead_capture/conversation_realtime.go`
-- [ ] T013 装配 DI 依赖（repository/service/metrics）到 `backend/internal/shared/app/deps.go`
-- [ ] T014 装配路由注册入口（admin + webhooks）到 `backend/internal/transport/http/registry.go`
+- [x] T005 新增会话领域模型与表常量（ConversationEvent/Binding/Pending/Projection）到 `backend/internal/entity/models/lead_capture/`
+- [x] T006 新增对应迁移与索引（含幂等唯一键）到 `backend/internal/entity/models/model.go`
+- [x] T007 [P] 新增会话仓储接口与实现到 `backend/internal/entity/repository/lead_capture/`
+- [x] T008 [P] 新增线索同步任务实体与仓储扩展（含默认渠道账号解析接口，任务表仅业务投影）到 `backend/internal/entity/repository/lead_capture/`
+- [x] T009 新增会话桥接服务骨架（验签、幂等、标准化、绑定）到 `backend/internal/services/admin/lead_capture/conversation_service.go`
+- [x] T010 新增线索同步任务服务骨架（手动触发/定时入口/账号解析/状态更新 + framework/local_fallback provider 适配）到 `backend/internal/services/admin/lead_capture/wecom_sync_service.go`
+- [x] T011 [P] 新增运行观测指标与审计事件结构到 `backend/internal/observability/lead_capture/`
+- [x] T012 [P] 新增 WebSocket topic 常量与发布封装（仅新 topic）到 `backend/internal/services/admin/lead_capture/conversation_realtime.go`
+- [x] T013 装配 DI 依赖（repository/service/metrics）到 `backend/internal/shared/app/deps.go`
+- [x] T014 装配路由注册入口（admin + webhooks）到 `backend/internal/transport/http/registry.go`
 
 **Checkpoint**: 基础能力就绪，可并行进入各用户故事
 
@@ -128,8 +128,8 @@
 - [ ] T047 [P] 补充计划与模块文档回写到 `docs/plan/lead_capture/README.md`
 - [ ] T048 回归关键路径（US1~US3）并记录结果到 `specs/004-wecom-lead-managment/research.md`
 - [ ] T049 性能与幂等观测指标检查（p95 延迟/重复落库率/任务 provider 维度）到 `backend/internal/observability/lead_capture/`
-- [ ] T050 新增 framework 统一任务 provider 适配层（含 local fallback）到 `backend/internal/services/admin/lead_capture/task_provider_adapter.go`
-- [ ] T051 [P] 新增集成测试：framework/local_fallback provider 切换一致性到 `backend/tests/integration/lead_capture_task_provider_integration_test.go`
+- [x] T050 新增 framework 统一任务 provider 适配层（含 local fallback；framework 路径通过 EventBridge/TaskBus HostProvider 真正提交 `powerx.lead.sync.requested.v1`）到 `backend/internal/services/admin/lead_capture/task_provider_adapter.go`
+- [x] T051 [P] 新增集成测试：framework/local_fallback provider 切换一致性到 `backend/tests/integration/lead_capture_task_provider_integration_test.go`
 
 ---
 

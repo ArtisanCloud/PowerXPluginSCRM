@@ -10,9 +10,9 @@ import (
 	"time"
 
 	fwbootstrap "github.com/ArtisanCloud/PowerXPlugin/framework/backend/go/bootstrap"
-	fwwsbus "github.com/ArtisanCloud/PowerXPlugin/framework/backend/go/runtime/wsbus"
 	"github.com/ArtisanCloud/PowerXPlugin/framework/backend/go/manifest"
 	fwrouter "github.com/ArtisanCloud/PowerXPlugin/framework/backend/go/router"
+	fwwsbus "github.com/ArtisanCloud/PowerXPlugin/framework/backend/go/runtime/wsbus"
 	runtimecap "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/cmd/plugin/runtime"
 	pluginbootstrap "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/bootstrap"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/capabilities"
@@ -31,6 +31,7 @@ import (
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/auth"
 	capmetrics "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/capability"
 	ebmetrics "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/event_bridge"
+	leadmetrics "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/lead_capture"
 	opsmetrics "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/operations"
 	pluginrouter "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/router"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/security"
@@ -214,6 +215,7 @@ func main() {
 			bridgeEmitter = fweventbridge.NewLocalEmitter(1024)
 		} else {
 			factory.WithMetrics(bridgeRecorder{})
+			factory.WithTaskBusProvider(fweventbridge.NewTaskBusEmitterAdapter(resolveTaskBusProvider(cfg, eventLogger)))
 			bridgeEmitter, err = factory.NewEmitter()
 			if err != nil {
 				eventLogger.WithError(err).Warn("Failed to initialize event bridge emitter; falling back to local emitter")
@@ -246,6 +248,7 @@ func main() {
 		LicenseCache:        licenseCache,
 		OperationsMetrics:   opsmetrics.NewMetrics(),
 		AdminConsoleMetrics: adminmetrics.NewMetrics(),
+		LeadCaptureMetrics:  leadmetrics.NewMetrics(),
 		EventEmitter:        bridgeEmitter,
 		WSBusHub:            wsHub,
 		IAMMode:             iamResolver.Mode(),

@@ -21,6 +21,21 @@ ls -la specs/004-wecom-lead-managment/contracts/
 - 后端运行在本地（示例：`127.0.0.1:8092`）
 - 已有管理员 token：`$USER_TOKEN`
 
+## 1.1 Runtime 驱动模式（建议）
+
+- standalone 本地调试：
+  - `POWERX_PROXY=0`
+  - `PX_GATEWAY_AUTH_SCHEME=bearer`
+  - `POWERX_RUNTIME_WSBUS_DRIVER=local`
+  - `POWERX_RUNTIME_TASKBUS_DRIVER=local`
+  - `POWERX_RUNTIME_EVENT_TOPIC_DRIVER=local`
+- 宿主/代理联调：
+  - `POWERX_PROXY=1`
+  - `PX_GATEWAY_AUTH_SCHEME=bearer`（或 `apikey`）
+  - `POWERX_RUNTIME_WSBUS_DRIVER=host`
+  - `POWERX_RUNTIME_TASKBUS_DRIVER=host`
+  - `POWERX_RUNTIME_EVENT_TOPIC_DRIVER=host`
+
 ## 2. 触发企业微信线索同步
 
 ```bash
@@ -49,6 +64,8 @@ curl -X POST "http://127.0.0.1:8092/api/v1/admin/leads/wecom/sync" \
 
 预期：接口返回实际执行的 `channel_account_uuid`、`account_resolve_source=default`，并包含 `task_provider`（framework 或 local_fallback）。
 
+说明：当 `task_provider=framework` 时，任务会通过 EventBridge/TaskBus HostProvider 发布 `powerx.lead.sync.requested.v1`；插件内 `LeadSyncTask` 仅记录业务投影。
+
 ## 3. 查询同步任务状态
 
 ```bash
@@ -58,7 +75,7 @@ curl -G "http://127.0.0.1:8092/api/v1/admin/leads/wecom/sync-tasks" \
   --data-urlencode "limit=5"
 ```
 
-预期：可见 `success` 或 `failed` 与统计字段。
+预期：可见 `success` 或 `failed` 与统计字段；若存在 `external_task_id`，以统一任务中心状态为主，插件列表用于业务投影展示。
 
 ## 4. 模拟会话 webhook 入站
 
@@ -109,7 +126,7 @@ curl -X POST "http://127.0.0.1:8092/api/v1/admin/leads/<lead_uuid>/conversations
 ## 7. WebSocket 实时验证
 
 ```bash
-wscat -c "ws://127.0.0.1:8092/api/v1/ws?authorization=Bearer $USER_TOKEN"
+wscat -c "ws://127.0.0.1:8092/api/ws?authorization=Bearer $USER_TOKEN"
 ```
 
 在会话页或线索页订阅 topic：

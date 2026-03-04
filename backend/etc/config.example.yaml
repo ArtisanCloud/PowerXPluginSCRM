@@ -32,13 +32,19 @@ grpc_upstream:
 gateway:
   # Skeleton 开发通常通过 px-plugin login 写入 .env.local 中的 PX_GATEWAY_BASE_URL / PX_TOOL_TOKEN / PX_TOOL_REFRESH_TOKEN。
   # 若留空则默认关闭 Gateway 调用，`PX_USE_MOCK` 可指定 media,eventfabric 等模块名称以启用内存 Mock。
-  # 注意：只要 base_url/tool_token 任一不为空，就会触发 Gateway 配置校验（必须同时提供 base_url + tool_token）。
-  # tenant_uuid 可选（优先从 PX_TOOL_TOKEN.tid 推导），因此默认将 base_url 留空，避免在未登录/未配置 Token 时阻塞本地启动。
+  # 凭证分流：
+  # - auth_scheme=bearer（Host/宿主模式）使用 tool_token
+  # - auth_scheme=apikey（Standalone+Proxy）使用 api_key
+  # base_url 不带 API 前缀，统一通过 api_prefix 显式配置（默认 /api/v1）。
+  # tenant_uuid 仅用于 Bearer 本地兼容场景，proxy 场景由宿主按凭证解析租户。
   base_url: ""
+  api_prefix: "/api/v1"
+  auth_scheme: "bearer" # bearer | apikey
   tool_token: ""
+  api_key: ""
   refresh_token: ""
   tenant_uuid: ""
-  timeout: "10s"
+  timeout: "60s"
   user_agent: "powerx-plugin-skeleton/dev"
   use_mock: []
 
@@ -74,6 +80,12 @@ cache:
 
 runtime:
   run_migrate: false
+  drivers:
+    # auto: POWERX_PROXY=1 -> host；否则 local
+    wsbus: auto      # auto | local | host
+    taskbus: auto    # auto | local | host
+    event_topic: auto # auto | local | host
+    cache: auto      # auto | memory | redis | noop
 
 runtime_ops:
   heartbeat_seconds: 15

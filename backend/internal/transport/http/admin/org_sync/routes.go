@@ -34,14 +34,17 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 			nil,
 		)
 		if deps != nil && deps.Config != nil && deps.Config.Gateway != nil && strings.TrimSpace(os.Getenv("POWERX_PROXY")) == "1" {
-			baseURL := strings.TrimSpace(deps.Config.Gateway.BaseURL)
-			if strings.HasSuffix(baseURL, "/api/v1") {
-				baseURL = strings.TrimSuffix(baseURL, "/api/v1")
+			hostTenantUUID := strings.TrimSpace(deps.Config.Gateway.TenantUUID)
+			if strings.TrimSpace(os.Getenv("POWERX_PROXY")) == "1" {
+				hostTenantUUID = ""
 			}
 			if hostClient, err := fwwsbus.NewHostClient(fwwsbus.HostClientConfig{
-				BaseURL:    baseURL,
+				BaseURL:    strings.TrimSpace(deps.Config.Gateway.BaseURL),
+				APIPrefix:  strings.TrimSpace(deps.Config.Gateway.APIPrefix),
+				AuthScheme: strings.TrimSpace(deps.Config.Gateway.AuthScheme),
 				Token:      strings.TrimSpace(deps.Config.Gateway.ToolToken),
-				TenantUUID: strings.TrimSpace(deps.Config.Gateway.TenantUUID),
+				APIKey:     strings.TrimSpace(deps.Config.Gateway.APIKey),
+				TenantUUID: hostTenantUUID,
 				UserAgent:  strings.TrimSpace(deps.Config.Gateway.UserAgent),
 				Timeout:    deps.Config.Gateway.Timeout,
 			}); err == nil {

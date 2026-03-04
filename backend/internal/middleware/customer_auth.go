@@ -15,8 +15,8 @@ import (
 )
 
 // CustomerAuth enforces customer authentication for /mini-app routes.
-// 注意：当客户端未显式携带 X-Tenant-UUID 时，会从 customer token 校验结果中注入 tenant_uuid，
-// 以便后续 EnsureTenant() 能正确识别租户上下文（适用于 standalone 与宿主网关两种模式）。
+// 租户优先从上下文或 query 解析；认证成功后会把解析出的 tenant_uuid 注入上下文，
+// 以便后续 EnsureTenant() 正确识别租户。
 func CustomerAuth(authenticator customersvc.Authenticator, audit *customerobs.AuditLogger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if c.Request.Method == http.MethodOptions {
@@ -26,13 +26,6 @@ func CustomerAuth(authenticator customersvc.Authenticator, audit *customerobs.Au
 
 		requestTenantUUID, _ := TenantUUIDFromContext(c.Request.Context())
 		requestTenantUUID = strings.ToLower(strings.TrimSpace(requestTenantUUID))
-		if requestTenantUUID == "" {
-			if raw := strings.TrimSpace(c.GetHeader("X-Tenant-UUID")); raw != "" {
-				if _, err := uuid.Parse(raw); err == nil {
-					requestTenantUUID = strings.ToLower(raw)
-				}
-			}
-		}
 		if requestTenantUUID == "" {
 			if raw := strings.TrimSpace(c.Query("tenant_uuid")); raw != "" {
 				if _, err := uuid.Parse(raw); err == nil {

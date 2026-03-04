@@ -1,6 +1,6 @@
 // 统一创建 $fetch 实例（单例）+ 便捷方法
 
-import { resolveApiBase, getAuthToken, getTenantUuid } from "./_base";
+import { resolveApiBase, getAuthToken } from "./_base";
 import { useRouter, useToast } from "#imports";
 import { useHostCtxStore } from "~/stores/hostCtx";
 import { PLUGIN_ID } from "~/utils/powerx-bridge";
@@ -250,13 +250,6 @@ export function useApiClient() {
           ctxJwt: headers.get("X-PowerX-CTX-JWT") ? "yes" : "no",
         },
       });
-    }
-
-    if (!headers.has("X-Tenant-UUID")) {
-      const tenant = (next as any).tenantUuid || getTenantUuid();
-      if (tenant) {
-        headers.set("X-Tenant-UUID", String(tenant));
-      }
     }
 
     return next;

@@ -14,18 +14,7 @@ func RegisterWSRoutes(r *gin.Engine, authMiddleware gin.HandlerFunc, cfg *config
 		return
 	}
 
-	apiPrefix := "/api/v1"
-	if cfg != nil && cfg.Server != nil {
-		if p := strings.TrimSpace(cfg.Server.APIPrefix); p != "" {
-			apiPrefix = p
-		}
-	}
-	if !strings.HasPrefix(apiPrefix, "/") {
-		apiPrefix = "/" + apiPrefix
-	}
-	apiPrefix = strings.TrimRight(apiPrefix, "/")
-
-	wsPath := path.Join(apiPrefix, "ws")
+	wsPath := path.Join("/api", "ws")
 
 	prefix := wsPath
 	if cfg != nil && cfg.Server != nil {
