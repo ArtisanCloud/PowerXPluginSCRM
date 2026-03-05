@@ -136,3 +136,47 @@ wscat -c "ws://127.0.0.1:8092/api/ws?authorization=Bearer $USER_TOKEN"
 ```
 
 预期：会话关联变更后收到 `event`。
+
+## 8. framework / local_fallback 切换验证
+
+### 8.1 local_fallback（standalone）
+
+```bash
+export POWERX_PROXY=0
+export POWERX_RUNTIME_TASKBUS_DRIVER=local
+```
+
+触发同步后检查：
+
+- `/admin/leads/wecom/sync` 响应 `task_provider=local_fallback`
+- `/admin/leads/wecom/sync-tasks` 中同任务 provider 为 `local_fallback`
+
+### 8.2 framework（host）
+
+```bash
+export POWERX_PROXY=1
+export POWERX_RUNTIME_TASKBUS_DRIVER=host
+export PX_GATEWAY_BASE_URL="http://<host-gateway>"
+export PX_GATEWAY_API_PREFIX="/api/v1"
+export PX_GATEWAY_AUTH_SCHEME="bearer" # 或 apikey
+export PX_TOOL_TOKEN="<tool-token>"    # bearer 模式
+```
+
+触发同步后检查：
+
+- `/admin/leads/wecom/sync` 返回 `task_provider=framework`
+- 可在宿主事件链路观察 `powerx.lead.sync.requested.v1`
+
+## 9. 运维排障最小闭环
+
+1. 网关前缀与鉴权口径：
+   - `PX_GATEWAY_BASE_URL` 不带前缀
+   - `PX_GATEWAY_API_PREFIX` 显式配置（通常 `/api/v1`）
+   - `bearer -> PX_TOOL_TOKEN`，`apikey -> PX_GATEWAY_API_KEY`
+2. 任务/Topic 对齐：
+   - `plugin.yaml.events.topics[]` 与 `config/event_fabric.yaml` 同名
+3. 观测指标检查：
+   - `powerx_lead_capture_sync_task_total{provider,status}`
+   - `powerx_lead_capture_conversation_event_total{provider,result}`
+   - `powerx_lead_capture_conversation_duplicate_rate{provider}`
+   - `powerx_lead_capture_conversation_latency_p95_ms{provider}`

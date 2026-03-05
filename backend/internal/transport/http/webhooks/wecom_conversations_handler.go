@@ -1,41 +1,49 @@
 package webhooks
 
 import (
-	"net/http"
+	"errors"
 	"strings"
 	"time"
 
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/contracts"
+	socialrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/social_channel_governance"
 	leadsvc "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/services/admin/lead_capture"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type WeComConversationWebhookHandler struct {
-	svc *leadsvc.ConversationService
+	svc         *leadsvc.ConversationService
+	accountRepo *socialrepo.AccountRepository
 }
 
-func NewWeComConversationWebhookHandler(svc *leadsvc.ConversationService) *WeComConversationWebhookHandler {
-	return &WeComConversationWebhookHandler{svc: svc}
+func NewWeComConversationWebhookHandler(svc *leadsvc.ConversationService, accountRepo *socialrepo.AccountRepository) *WeComConversationWebhookHandler {
+	return &WeComConversationWebhookHandler{svc: svc, accountRepo: accountRepo}
 }
 
 type WeComConversationWebhookRequest struct {
-	TenantUUID         string                 `json:"tenant_uuid"`
-	ChannelAccountUUID string                 `json:"channel_account_uuid"`
-	ExternalEventID    string                 `json:"external_event_id"`
-	ConversationID     string                 `json:"conversation_id"`
-	ActorType          string                 `json:"actor_type"`
-	ActorID            string                 `json:"actor_id"`
-	Direction          string                 `json:"direction"`
-	MessageType        string                 `json:"message_type"`
-	ContentText        string                 `json:"content_text"`
-	OccurredAt         string                 `json:"occurred_at"`
-	RawPayload         map[string]any         `json:"raw_payload"`
-	Metadata           map[string]interface{} `json:"metadata"`
+	ChannelAccountUUID string         `json:"channel_account_uuid" binding:"required,uuid4"`
+	ExternalEventID    string         `json:"external_event_id" binding:"required"`
+	ConversationID     string         `json:"conversation_id" binding:"required"`
+	ActorType          string         `json:"actor_type" binding:"required,oneof=staff app bot customer system"`
+	ActorID            string         `json:"actor_id" binding:"required"`
+	Direction          string         `json:"direction" binding:"omitempty,oneof=inbound outbound"`
+	MessageType        string         `json:"message_type" binding:"required,oneof=text image file other"`
+	ContentText        string         `json:"content_text"`
+	OccurredAt         string         `json:"occurred_at" binding:"required"`
+	RawPayload         map[string]any `json:"raw_payload"`
 }
 
 func (h *WeComConversationWebhookHandler) Ingest(c *gin.Context) {
-	if h == nil || h.svc == nil {
+	if h == nil || h.svc == nil || h.accountRepo == nil {
 		contracts.ResponseServiceUnavailable(c, "conversation service unavailable", nil)
+		return
+	}
+	signature := strings.TrimSpace(c.GetHeader("X-WeCom-Signature"))
+	timestamp := strings.TrimSpace(c.GetHeader("X-WeCom-Timestamp"))
+	nonce := strings.TrimSpace(c.GetHeader("X-WeCom-Nonce"))
+	if signature == "" || timestamp == "" || nonce == "" {
+		contracts.ResponseBadRequest(c, "invalid signature headers")
 		return
 	}
 	var req WeComConversationWebhookRequest
@@ -43,7 +51,16 @@ func (h *WeComConversationWebhookHandler) Ingest(c *gin.Context) {
 		contracts.ResponseBadRequest(c, "invalid body: "+err.Error())
 		return
 	}
-	tenantUUID := strings.TrimSpace(req.TenantUUID)
+	account, err := h.accountRepo.FindByUUID(c.Request.Context(), strings.TrimSpace(req.ChannelAccountUUID))
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) || strings.Contains(strings.ToLower(err.Error()), "not found") {
+			contracts.ResponseBadRequest(c, "channel account not found")
+			return
+		}
+		contracts.ResponseInternalError(c, err)
+		return
+	}
+	tenantUUID := strings.TrimSpace(account.TenantUuid)
 	occurredAt := time.Now().UTC()
 	if raw := strings.TrimSpace(req.OccurredAt); raw != "" {
 		if parsed, err := time.Parse(time.RFC3339, raw); err == nil {
@@ -67,5 +84,5 @@ func (h *WeComConversationWebhookHandler) Ingest(c *gin.Context) {
 		contracts.ResponseBadRequest(c, err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"ok": true, "event_uuid": eventUUID, "created": created})
+	contracts.ResponseSuccess(c, gin.H{"ok": true, "event_uuid": eventUUID, "created": created})
 }

@@ -191,6 +191,9 @@ func (r *ConversationEventRepository) CreateIdempotent(ctx context.Context, even
 	if event.TenantUUID == "" || event.ChannelAccountUUID == "" || event.IdempotencyKey == "" {
 		return nil, false, repository.ErrTenantUuidRequired
 	}
+	if strings.TrimSpace(event.EventUUID) == "" {
+		event.EventUUID = uuid.NewString()
+	}
 	created := true
 	err := r.WithTenantTx(ctx, event.TenantUUID, func(tx *gorm.DB) error {
 		res := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(event)
@@ -199,7 +202,12 @@ func (r *ConversationEventRepository) CreateIdempotent(ctx context.Context, even
 		}
 		if res.RowsAffected == 0 {
 			created = false
-			return tx.Where("tenant_uuid = ? AND idempotency_key = ?", event.TenantUUID, event.IdempotencyKey).First(event).Error
+			var existed model.ConversationEvent
+			if err := tx.Where("tenant_uuid = ? AND idempotency_key = ?", event.TenantUUID, event.IdempotencyKey).First(&existed).Error; err != nil {
+				return err
+			}
+			*event = existed
+			return nil
 		}
 		return nil
 	})
@@ -256,6 +264,9 @@ func (r *LeadConversationBindingRepository) UpsertActive(ctx context.Context, bi
 	if binding.BindSource == "" {
 		binding.BindSource = "auto"
 	}
+	if strings.TrimSpace(binding.BindingUUID) == "" {
+		binding.BindingUUID = uuid.NewString()
+	}
 	if err := r.WithTenantTx(ctx, binding.TenantUUID, func(tx *gorm.DB) error {
 		return tx.Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "tenant_uuid"}, {Name: "conversation_id"}, {Name: "status"}},
@@ -287,6 +298,25 @@ func (r *LeadConversationBindingRepository) ListByLead(ctx context.Context, tena
 	return out, nil
 }
 
+func (r *LeadConversationBindingRepository) FindActiveByConversation(ctx context.Context, tenantUUID, conversationID string) (*model.LeadConversationBinding, error) {
+	if r == nil || r.DB == nil {
+		return nil, errors.New("repository database is not initialized")
+	}
+	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
+	conversationID = strings.TrimSpace(conversationID)
+	if tenantUUID == "" || conversationID == "" {
+		return nil, gorm.ErrRecordNotFound
+	}
+	var out model.LeadConversationBinding
+	err := r.DB.WithContext(ctx).
+		Where("tenant_uuid = ? AND conversation_id = ? AND status = ?", tenantUUID, conversationID, "active").
+		First(&out).Error
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 type LeadConversationPendingRepository struct {
 	*repository.BaseRepository[model.LeadConversationPending]
 }
@@ -309,6 +339,9 @@ func (r *LeadConversationPendingRepository) Create(ctx context.Context, pending 
 	}
 	if pending.Reason == "" {
 		pending.Reason = "no_match"
+	}
+	if strings.TrimSpace(pending.PendingUUID) == "" {
+		pending.PendingUUID = uuid.NewString()
 	}
 	if err := r.WithTenantTx(ctx, pending.TenantUUID, func(tx *gorm.DB) error {
 		return tx.Clauses(clause.OnConflict{DoNothing: true}).Create(pending).Error
@@ -334,6 +367,9 @@ func (r *LeadRealtimeProjectionRepository) Upsert(ctx context.Context, projectio
 	if projection.TenantUUID == "" || projection.LeadUUID == "" || strings.TrimSpace(projection.ConversationID) == "" {
 		return nil, repository.ErrTenantUuidRequired
 	}
+	if strings.TrimSpace(projection.ProjectionUUID) == "" {
+		projection.ProjectionUUID = uuid.NewString()
+	}
 	if err := r.WithTenantTx(ctx, projection.TenantUUID, func(tx *gorm.DB) error {
 		return tx.Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "tenant_uuid"}, {Name: "lead_uuid"}, {Name: "conversation_id"}},
@@ -343,4 +379,28 @@ func (r *LeadRealtimeProjectionRepository) Upsert(ctx context.Context, projectio
 		return nil, err
 	}
 	return projection, nil
+}
+
+func (r *LeadRealtimeProjectionRepository) ListByLead(ctx context.Context, tenantUUID, leadUUID string, limit int) ([]*model.LeadRealtimeProjection, error) {
+	if r == nil || r.DB == nil {
+		return nil, errors.New("repository database is not initialized")
+	}
+	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
+	leadUUID = strings.ToLower(strings.TrimSpace(leadUUID))
+	if tenantUUID == "" || leadUUID == "" {
+		return []*model.LeadRealtimeProjection{}, nil
+	}
+	if limit <= 0 {
+		limit = 50
+	}
+	var out []*model.LeadRealtimeProjection
+	err := r.DB.WithContext(ctx).
+		Where("tenant_uuid = ? AND lead_uuid = ?", tenantUUID, leadUUID).
+		Order("latest_at DESC").
+		Limit(limit).
+		Find(&out).Error
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }

@@ -5,8 +5,8 @@ import (
 	"strings"
 
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/contracts"
-	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/middleware"
 	leadsvc "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/services/admin/lead_capture"
+	httpmw "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/transport/http/middleware"
 	"github.com/gin-gonic/gin"
 )
 
@@ -28,7 +28,7 @@ func (h *ConversationHandler) ListLeadConversations(c *gin.Context) {
 		contracts.ResponseServiceUnavailable(c, "conversation service unavailable", nil)
 		return
 	}
-	tenantUUID, ok := middleware.TenantUUIDFromContext(c)
+	tenantUUID, ok := httpmw.TenantUUIDFromContext(c)
 	if !ok || tenantUUID == "" {
 		contracts.ResponseUnauthorized(c, "tenant context missing")
 		return
@@ -51,7 +51,7 @@ func (h *ConversationHandler) ListConversationEvents(c *gin.Context) {
 		contracts.ResponseServiceUnavailable(c, "conversation service unavailable", nil)
 		return
 	}
-	tenantUUID, ok := middleware.TenantUUIDFromContext(c)
+	tenantUUID, ok := httpmw.TenantUUIDFromContext(c)
 	if !ok || tenantUUID == "" {
 		contracts.ResponseUnauthorized(c, "tenant context missing")
 		return
@@ -80,7 +80,7 @@ func (h *ConversationHandler) BindConversation(c *gin.Context) {
 		contracts.ResponseServiceUnavailable(c, "conversation service unavailable", nil)
 		return
 	}
-	tenantUUID, ok := middleware.TenantUUIDFromContext(c)
+	tenantUUID, ok := httpmw.TenantUUIDFromContext(c)
 	if !ok || tenantUUID == "" {
 		contracts.ResponseUnauthorized(c, "tenant context missing")
 		return

@@ -67,7 +67,8 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 			}
 		}
 		realtime := leadsvc.NewConversationRealtimePublisher(publisher, metrics)
-		conversationSvc = leadsvc.NewConversationService(eventRepo, bindingRepo, pendingRepo, projectionRepo, realtime, metrics)
+		conversationSvc = leadsvc.NewConversationService(eventRepo, bindingRepo, pendingRepo, projectionRepo, realtime, metrics).
+			WithLeadRepository(leadRepository)
 	}
 
 	handler := NewLeadHandler(leadSvc)

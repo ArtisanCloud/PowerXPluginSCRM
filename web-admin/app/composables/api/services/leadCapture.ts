@@ -82,6 +82,30 @@ export interface LeadSourceEventRecord {
   updated_at: string;
 }
 
+export interface LeadConversationSummary {
+  conversation_id: string;
+  latest_message?: string;
+  latest_actor_type?: string;
+  latest_at?: string;
+  unread_count?: number;
+}
+
+export interface LeadConversationEvent {
+  event_uuid: string;
+  external_event_id: string;
+  actor_type: string;
+  actor_id: string;
+  direction: string;
+  message_type: string;
+  content_text?: string;
+  occurred_at: string;
+}
+
+export interface BindConversationPayload {
+  conversation_id: string;
+  channel_account_uuid: string;
+}
+
 export interface LeadImportError {
   row: number;
   reason: string;
@@ -172,6 +196,17 @@ export const useLeadCaptureService = () => {
       apiClient.get<ApiResponse<{ items: LeadSourceEventRecord[] }>>(
         `${baseUrl}/${leadId}/sources`
       ),
+    listLeadConversations: (leadId: string) =>
+      apiClient.get<ApiResponse<{ lead_id: string; conversations: LeadConversationSummary[] }>>(
+        `${baseUrl}/${leadId}/conversations`
+      ),
+    listConversationEvents: (conversationId: string, limit = 50) =>
+      apiClient.get<ApiResponse<{ conversation_id: string; events: LeadConversationEvent[] }>>(
+        `/admin/conversations/${conversationId}/events`,
+        { params: { limit } }
+      ),
+    bindConversation: (leadId: string, payload: BindConversationPayload) =>
+      apiClient.post<ApiResponse<{ ok: boolean }>>(`${baseUrl}/${leadId}/conversations/bind`, payload),
     triggerWeComSync: (payload: WeComSyncTriggerPayload) =>
       apiClient.post<ApiResponse<WeComSyncTaskRecord>>(`${baseUrl}/wecom/sync`, payload),
     listWeComSyncTasks: (params?: {
