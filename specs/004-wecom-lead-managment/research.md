@@ -32,3 +32,27 @@
 - **Rationale**: 该链路属于业务入口，必须可追踪、可恢复。
 - **Alternatives considered**:
   - 仅日志打印：无法形成稳定运维闭环。
+
+## Phase 6 回归记录（2026-03-05）
+
+### 回归范围
+- US1：企微线索入池（触发/任务状态/provider 切换）
+- US2：去重归并与分配绑定前置校验
+- US3：会话 webhook、自动/手动绑定、realtime topic
+
+### 执行命令
+
+```bash
+GOCACHE=../tmp/gocache GOMODCACHE=../tmp/gomodcache \
+go test ./internal/services/admin/lead_capture ./tests/contract ./tests/integration -count=1
+```
+
+### 结果
+- `internal/services/admin/lead_capture`: PASS
+- `tests/contract`: PASS
+- `tests/integration`: PASS
+
+### 关键观察
+- 重复 webhook（同 `external_event_id`）命中幂等，不重复写入事件。
+- 会话桥接链路可在绑定后写入投影并发布 `powerx.lead.conversation.updated.v1`。
+- 同步任务与会话事件指标均带 provider 维度，可区分 `framework/local_fallback`。

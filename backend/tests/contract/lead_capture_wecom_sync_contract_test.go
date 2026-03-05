@@ -136,6 +136,63 @@ func createContractTestSchema(db *gorm.DB) error {
 			created_at DATETIME,
 			updated_at DATETIME
 		);`,
+		`CREATE TABLE IF NOT EXISTS lead_capture_conversation_events (
+			event_uuid TEXT PRIMARY KEY,
+			tenant_uuid TEXT NOT NULL,
+			channel TEXT NOT NULL,
+			app_type TEXT NOT NULL,
+			channel_account_uuid TEXT NOT NULL,
+			external_event_id TEXT NOT NULL,
+			idempotency_key TEXT NOT NULL UNIQUE,
+			conversation_id TEXT NOT NULL,
+			actor_type TEXT NOT NULL,
+			actor_id TEXT NOT NULL,
+			direction TEXT NOT NULL,
+			message_type TEXT NOT NULL,
+			content_text TEXT,
+			raw_payload TEXT,
+			occurred_at DATETIME NOT NULL,
+			created_at DATETIME
+		);`,
+		`CREATE TABLE IF NOT EXISTS lead_capture_conversation_bindings (
+			binding_uuid TEXT PRIMARY KEY,
+			tenant_uuid TEXT NOT NULL,
+			lead_uuid TEXT NOT NULL,
+			conversation_id TEXT NOT NULL,
+			channel_account_uuid TEXT NOT NULL,
+			bind_source TEXT NOT NULL,
+			status TEXT NOT NULL,
+			created_by TEXT,
+			created_at DATETIME,
+			updated_at DATETIME
+		);`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS uq_lead_capture_conv_bindings_active
+			ON lead_capture_conversation_bindings (tenant_uuid, conversation_id, status);`,
+		`CREATE TABLE IF NOT EXISTS lead_capture_conversation_pending (
+			pending_uuid TEXT PRIMARY KEY,
+			tenant_uuid TEXT NOT NULL,
+			event_uuid TEXT NOT NULL UNIQUE,
+			channel_account_uuid TEXT NOT NULL,
+			conversation_id TEXT NOT NULL,
+			reason TEXT NOT NULL,
+			status TEXT NOT NULL,
+			created_at DATETIME,
+			resolved_at DATETIME
+		);`,
+		`CREATE TABLE IF NOT EXISTS lead_capture_realtime_projection (
+			projection_uuid TEXT PRIMARY KEY,
+			tenant_uuid TEXT NOT NULL,
+			lead_uuid TEXT NOT NULL,
+			conversation_id TEXT NOT NULL,
+			latest_message TEXT,
+			latest_actor_type TEXT,
+			latest_at DATETIME,
+			unread_count INTEGER NOT NULL DEFAULT 0,
+			updated_at DATETIME,
+			created_at DATETIME
+		);`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS uq_lead_capture_realtime_projection
+			ON lead_capture_realtime_projection (tenant_uuid, lead_uuid, conversation_id);`,
 	}
 	for _, stmt := range stmts {
 		if err := db.Exec(stmt).Error; err != nil {

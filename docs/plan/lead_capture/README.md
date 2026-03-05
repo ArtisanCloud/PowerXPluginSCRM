@@ -47,3 +47,38 @@
 - 前端 Admin 规范（`rulesets/frontend_admin.yaml` + Nuxt 细分规则）
 
 参考 `.specify/memory/manifest.yaml` 与 `.specify/memory/constitution.md`。
+
+## 004-wecom-lead-managment 回写（2026-03-05）
+
+### 后端模块
+- 线索同步（US1）：
+  - `backend/internal/services/admin/lead_capture/wecom_sync_service.go`
+  - `backend/internal/services/admin/lead_capture/wecom_lead_adapter.go`
+  - `backend/internal/transport/http/admin/lead_capture/wecom_sync_handler.go`
+  - `backend/internal/transport/http/admin/lead_capture/wecom_sync_tasks_handler.go`
+- 去重与分配（US2）：
+  - `backend/internal/services/admin/lead_capture/normalization_service.go`
+  - `backend/internal/services/admin/lead_capture/dedup_service.go`
+  - `backend/internal/services/admin/lead_capture/assignment_service.go`
+  - `backend/internal/entity/repository/lead_capture/source_event_repository.go`
+- 会话桥接（US3）：
+  - `backend/internal/services/admin/lead_capture/conversation_service.go`
+  - `backend/internal/transport/http/webhooks/wecom_conversations_handler.go`
+  - `backend/internal/transport/http/admin/lead_capture/conversation_handler.go`
+  - `backend/internal/services/admin/lead_capture/conversation_realtime.go`
+
+### 前端模块
+- 同步任务面板（US1）：
+  - `web-admin/app/pages/scrm/lead_capture/index.vue`
+- 详情页来源追溯与会话桥接（US2/US3）：
+  - `web-admin/app/pages/scrm/lead_capture/[lead_id].vue`
+  - `web-admin/app/composables/api/services/leadCapture.ts`
+
+### 观测与测试
+- 观测：
+  - `backend/internal/observability/lead_capture/metrics.go`
+  - `backend/internal/observability/lead_capture/README.md`
+- 测试覆盖：
+  - `backend/tests/contract/*lead*`
+  - `backend/tests/integration/*lead*`
+  - `backend/internal/services/admin/lead_capture/*_test.go`

@@ -206,6 +206,95 @@
       </div>
     </UCard>
 
+    <UCard>
+      <template #header>
+        <div class="flex items-center justify-between gap-3">
+          <div class="flex items-center gap-2">
+            <UIcon name="i-heroicons-chat-bubble-left-right" class="text-primary" />
+            <span class="font-medium">会话桥接</span>
+          </div>
+          <UButton size="xs" variant="soft" :loading="conversationLoading" @click="refreshConversations">
+            刷新会话
+          </UButton>
+        </div>
+      </template>
+      <div class="space-y-4">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <UFormField label="会话 ID">
+            <UInput v-model="bindConversationForm.conversation_id" placeholder="conv-001" />
+          </UFormField>
+          <UFormField label="渠道账号 UUID">
+            <UInput v-model="bindConversationForm.channel_account_uuid" placeholder="渠道账号 UUID" />
+          </UFormField>
+          <div class="flex items-end">
+            <UButton
+              color="primary"
+              variant="soft"
+              :disabled="!leadId"
+              :loading="conversationBinding"
+              @click="submitBindConversation"
+            >
+              手动绑定
+            </UButton>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <div class="text-sm font-medium text-gray-900 dark:text-white mb-3">会话摘要</div>
+            <div v-if="leadConversations.length" class="space-y-3">
+              <div
+                v-for="item in leadConversations"
+                :key="item.conversation_id"
+                class="rounded-lg border border-gray-200 dark:border-gray-700 p-3"
+              >
+                <div class="flex items-center justify-between gap-3">
+                  <div class="text-sm text-gray-900 dark:text-white">{{ item.conversation_id }}</div>
+                  <UButton
+                    size="xs"
+                    variant="soft"
+                    :loading="conversationEventsLoading && selectedConversationId === item.conversation_id"
+                    @click="selectConversation(item.conversation_id)"
+                  >
+                    查看事件
+                  </UButton>
+                </div>
+                <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  {{ item.latest_message || "暂无消息" }}
+                </div>
+                <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  未读 {{ item.unread_count || 0 }} · {{ item.latest_at || "-" }}
+                </div>
+              </div>
+            </div>
+            <div v-else class="text-sm text-gray-500">暂无会话摘要。</div>
+          </div>
+
+          <div>
+            <div class="text-sm font-medium text-gray-900 dark:text-white mb-3">会话事件</div>
+            <div v-if="conversationEvents.length" class="space-y-3">
+              <div
+                v-for="evt in conversationEvents"
+                :key="evt.event_uuid"
+                class="rounded-lg border border-gray-200 dark:border-gray-700 p-3"
+              >
+                <div class="text-sm text-gray-900 dark:text-white">
+                  {{ evt.actor_type }} · {{ evt.message_type }}
+                </div>
+                <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  {{ evt.content_text || "（空内容）" }}
+                </div>
+                <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  {{ evt.occurred_at }}
+                </div>
+              </div>
+            </div>
+            <div v-else class="text-sm text-gray-500">请选择会话后查看事件。</div>
+          </div>
+        </div>
+      </div>
+    </UCard>
+
 
     <UCard>
       <template #header>
@@ -319,11 +408,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import { useRoute, useRouter } from "#imports";
 import { useLeadCaptureStore } from "~/stores/scrm/lead_capture/lead_store";
 import { useMemberService } from "~/composables/api/services/memberService";
 import type { Member } from "~/composables/api/services/memberService";
+import { useLeadCaptureService, type LeadConversationEvent, type LeadConversationSummary } from "~/composables/api/services/leadCapture";
+import { useWsBusClient } from "~/composables/useWsBusClient";
 import ToastAlert from "~/components/ToastAlert.vue";
 
 definePageMeta({
@@ -334,6 +425,8 @@ const route = useRoute();
 const router = useRouter();
 const store = useLeadCaptureStore();
 const memberService = useMemberService();
+const leadCaptureService = useLeadCaptureService();
+const wsBus = useWsBusClient();
 
 const leadId = computed(() => String(route.params.lead_id || ""));
 const lead = computed(() => store.leadDetail);
@@ -350,6 +443,17 @@ const members = ref<Member[]>([]);
 const selectedOwner = ref<string>("");
 const memberSearch = ref("");
 const assignModalOpen = ref(false);
+const conversationLoading = ref(false);
+const conversationBinding = ref(false);
+const conversationEventsLoading = ref(false);
+const selectedConversationId = ref("");
+const leadConversations = ref<LeadConversationSummary[]>([]);
+const conversationEvents = ref<LeadConversationEvent[]>([]);
+const bindConversationForm = reactive({
+  conversation_id: "",
+  channel_account_uuid: "",
+});
+let wsUnsubscribe: (() => void) | null = null;
 const assignForm = reactive<{
   owner_user_uuid: any;
   reason: string;
@@ -437,8 +541,62 @@ const refreshLead = async () => {
     store.fetchStatusHistory(leadId.value),
     store.fetchSourceEvents(leadId.value),
     store.fetchActivities(leadId.value),
+    refreshConversations(),
   ]);
   selectedOwner.value = lead.value?.owner_user_uuid || "";
+};
+
+const refreshConversations = async () => {
+  if (!leadId.value) return;
+  conversationLoading.value = true;
+  try {
+    const resp = await leadCaptureService.listLeadConversations(leadId.value);
+    leadConversations.value = ((resp as any)?.data?.conversations || []) as LeadConversationSummary[];
+    if (!bindConversationForm.channel_account_uuid && lead.value?.source_account_uuid) {
+      bindConversationForm.channel_account_uuid = lead.value.source_account_uuid;
+    }
+  } catch (err: any) {
+    showToast(err?.message || "会话摘要加载失败", "error");
+  } finally {
+    conversationLoading.value = false;
+  }
+};
+
+const selectConversation = async (conversationId: string) => {
+  selectedConversationId.value = conversationId;
+  conversationEventsLoading.value = true;
+  try {
+    const resp = await leadCaptureService.listConversationEvents(conversationId, 20);
+    conversationEvents.value = ((resp as any)?.data?.events || []) as LeadConversationEvent[];
+  } catch (err: any) {
+    showToast(err?.message || "会话事件加载失败", "error");
+  } finally {
+    conversationEventsLoading.value = false;
+  }
+};
+
+const submitBindConversation = async () => {
+  if (!leadId.value) return;
+  const conversationId = bindConversationForm.conversation_id.trim();
+  const accountUUID = bindConversationForm.channel_account_uuid.trim();
+  if (!conversationId || !accountUUID) {
+    showToast("请填写会话 ID 与渠道账号 UUID", "warning");
+    return;
+  }
+  conversationBinding.value = true;
+  try {
+    await leadCaptureService.bindConversation(leadId.value, {
+      conversation_id: conversationId,
+      channel_account_uuid: accountUUID,
+    });
+    showToast("会话绑定成功", "success");
+    await refreshConversations();
+    await selectConversation(conversationId);
+  } catch (err: any) {
+    showToast(err?.message || "会话绑定失败", "error");
+  } finally {
+    conversationBinding.value = false;
+  }
 };
 
 const backToList = () => {
@@ -495,6 +653,20 @@ const loadMembers = async (tenantUUID?: string) => {
 onMounted(async () => {
   await loadMembers();
   await refreshLead();
+  wsUnsubscribe = wsBus.client.subscribe("powerx.lead.conversation.updated.v1", async (payload: any) => {
+    if (!payload || payload.lead_uuid !== leadId.value) return;
+    await refreshConversations();
+    if (selectedConversationId.value && payload.conversation_id === selectedConversationId.value) {
+      await selectConversation(selectedConversationId.value);
+    }
+  });
+});
+
+onBeforeUnmount(() => {
+  if (wsUnsubscribe) {
+    wsUnsubscribe();
+    wsUnsubscribe = null;
+  }
 });
 
 const showToast = (message: string, color: ToastColor = "primary", title = "") => {

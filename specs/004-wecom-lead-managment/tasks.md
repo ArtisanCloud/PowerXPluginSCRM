@@ -101,20 +101,20 @@
 
 ### Tests for User Story 3
 
-- [ ] T035 [P] [US3] 新增合同测试：会话 webhook 入站接口到 `backend/tests/contract/lead_conversation_webhook_contract_test.go`
-- [ ] T036 [P] [US3] 新增合同测试：线索会话查询与手动绑定接口到 `backend/tests/contract/lead_conversation_admin_contract_test.go`
-- [ ] T037 [P] [US3] 新增服务单测：幂等键与重复回调处理到 `backend/internal/services/admin/lead_capture/conversation_service_test.go`
-- [ ] T038 [US3] 新增集成测试：会话绑定与 topic 推送链路到 `backend/tests/integration/lead_conversation_ws_integration_test.go`
+- [x] T035 [P] [US3] 新增合同测试：会话 webhook 入站接口到 `backend/tests/contract/lead_conversation_webhook_contract_test.go`
+- [x] T036 [P] [US3] 新增合同测试：线索会话查询与手动绑定接口到 `backend/tests/contract/lead_conversation_admin_contract_test.go`
+- [x] T037 [P] [US3] 新增服务单测：幂等键与重复回调处理到 `backend/internal/services/admin/lead_capture/conversation_service_test.go`
+- [x] T038 [US3] 新增集成测试：会话绑定与 topic 推送链路到 `backend/tests/integration/lead_conversation_ws_integration_test.go`
 
 ### Implementation for User Story 3
 
-- [ ] T039 [US3] 实现 webhook handler（验签、幂等、标准化）到 `backend/internal/transport/http/webhooks/wecom_conversations_handler.go`
-- [ ] T040 [US3] 实现会话服务（自动关联优先级 + 待绑定池）到 `backend/internal/services/admin/lead_capture/conversation_service.go`
-- [ ] T041 [US3] 实现会话查询/手动绑定 admin handler 到 `backend/internal/transport/http/admin/lead_capture/conversation_handler.go`
-- [ ] T042 [US3] 注册 webhook/admin 路由与 RBAC 到 `backend/internal/transport/http/webhooks/routes.go`
-- [ ] T043 [US3] 实现实时投影与 topic 发布 `powerx.lead.conversation.updated.v1` 到 `backend/internal/services/admin/lead_capture/conversation_realtime.go`
-- [ ] T044 [US3] 前端 API：会话摘要/事件/绑定接口到 `web-admin/app/composables/api/services/leadCapture.ts`
-- [ ] T045 [US3] 前端线索详情页接入会话面板与 WS 订阅到 `web-admin/app/pages/scrm/lead_capture/[lead_id].vue`
+- [x] T039 [US3] 实现 webhook handler（验签、幂等、标准化）到 `backend/internal/transport/http/webhooks/wecom_conversations_handler.go`
+- [x] T040 [US3] 实现会话服务（自动关联优先级 + 待绑定池）到 `backend/internal/services/admin/lead_capture/conversation_service.go`
+- [x] T041 [US3] 实现会话查询/手动绑定 admin handler 到 `backend/internal/transport/http/admin/lead_capture/conversation_handler.go`
+- [x] T042 [US3] 注册 webhook/admin 路由与 RBAC 到 `backend/internal/transport/http/webhooks/routes.go`
+- [x] T043 [US3] 实现实时投影与 topic 发布 `powerx.lead.conversation.updated.v1` 到 `backend/internal/services/admin/lead_capture/conversation_realtime.go`
+- [x] T044 [US3] 前端 API：会话摘要/事件/绑定接口到 `web-admin/app/composables/api/services/leadCapture.ts`
+- [x] T045 [US3] 前端线索详情页接入会话面板与 WS 订阅到 `web-admin/app/pages/scrm/lead_capture/[lead_id].vue`
 
 **Checkpoint**: 三个用户故事均可独立运行并验收
 
@@ -124,10 +124,10 @@
 
 **Purpose**: 跨故事收敛、稳定性与文档完善
 
-- [ ] T046 [P] 补充联调与运维说明（含 framework/local_fallback 切换验证）到 `specs/004-wecom-lead-managment/quickstart.md`
-- [ ] T047 [P] 补充计划与模块文档回写到 `docs/plan/lead_capture/README.md`
-- [ ] T048 回归关键路径（US1~US3）并记录结果到 `specs/004-wecom-lead-managment/research.md`
-- [ ] T049 性能与幂等观测指标检查（p95 延迟/重复落库率/任务 provider 维度）到 `backend/internal/observability/lead_capture/`
+- [x] T046 [P] 补充联调与运维说明（含 framework/local_fallback 切换验证）到 `specs/004-wecom-lead-managment/quickstart.md`
+- [x] T047 [P] 补充计划与模块文档回写到 `docs/plan/lead_capture/README.md`
+- [x] T048 回归关键路径（US1~US3）并记录结果到 `specs/004-wecom-lead-managment/research.md`
+- [x] T049 性能与幂等观测指标检查（p95 延迟/重复落库率/任务 provider 维度）到 `backend/internal/observability/lead_capture/`
 - [x] T050 新增 framework 统一任务 provider 适配层（含 local fallback；framework 路径通过 EventBridge/TaskBus HostProvider 真正提交 `powerx.lead.sync.requested.v1`）到 `backend/internal/services/admin/lead_capture/task_provider_adapter.go`
 - [x] T051 [P] 新增集成测试：framework/local_fallback provider 切换一致性到 `backend/tests/integration/lead_capture_task_provider_integration_test.go`
 

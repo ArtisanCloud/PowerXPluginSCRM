@@ -32,8 +32,8 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		leadrepo.NewLeadRealtimeProjectionRepository(deps.DB),
 		nil,
 		metrics,
-	)
-	conversationHandler := NewWeComConversationWebhookHandler(conversationSvc)
+	).WithLeadRepository(leadrepo.NewLeadRepository(deps.DB))
+	conversationHandler := NewWeComConversationWebhookHandler(conversationSvc, repo)
 
 	group := rg.Group("/webhooks")
 	{
