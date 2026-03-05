@@ -35,7 +35,8 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		taskRepo := leadrepo.NewLeadSyncTaskRepository(deps.DB)
 		providerAdapter := leadsvc.NewDefaultSyncTaskProviderAdapter(deps.Config, deps.EventEmitter)
 		wecomSyncSvc = leadsvc.NewWeComSyncService(taskRepo, metrics, providerAdapter).
-			WithLeadIngestion(leadRepository, leadsvc.NewDefaultWeComLeadAdapter())
+			WithLeadIngestion(leadRepository, leadsvc.NewDefaultWeComLeadAdapter()).
+			WithLeadService(leadSvc)
 
 		eventRepo := leadrepo.NewConversationEventRepository(deps.DB)
 		bindingRepo := leadrepo.NewLeadConversationBindingRepository(deps.DB)
@@ -84,6 +85,8 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		group.POST("/:lead_id/status", handler.UpdateStatus)
 		group.GET("/:lead_id/assignments", handler.ListAssignments)
 		group.GET("/:lead_id/status-history", handler.ListStatusHistory)
+		group.GET("/:lead_id/activities", handler.ListActivities)
+		group.GET("/:lead_id/sources", handler.ListSourceEvents)
 
 		group.POST("/wecom/sync", wecomSyncHandler.TriggerSync)
 		group.GET("/wecom/sync-tasks", wecomSyncHandler.ListSyncTasks)

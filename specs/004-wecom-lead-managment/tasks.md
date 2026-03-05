@@ -78,17 +78,17 @@
 
 ### Tests for User Story 2
 
-- [ ] T027 [P] [US2] 新增服务单测：手机号/邮箱优先去重策略到 `backend/internal/services/admin/lead_capture/merge_policy_test.go`
-- [ ] T028 [P] [US2] 新增服务单测：未绑定成员分配拦截到 `backend/internal/services/admin/lead_capture/assignment_guard_test.go`
-- [ ] T029 [US2] 新增集成测试：重复企微线索合并与活动记录到 `backend/tests/integration/lead_capture_dedup_merge_integration_test.go`
+- [x] T027 [P] [US2] 新增服务单测：手机号/邮箱优先去重策略到 `backend/internal/services/admin/lead_capture/merge_policy_test.go`
+- [x] T028 [P] [US2] 新增服务单测：未绑定成员分配拦截到 `backend/internal/services/admin/lead_capture/assignment_guard_test.go`
+- [x] T029 [US2] 新增集成测试：重复企微线索合并与活动记录到 `backend/tests/integration/lead_capture_dedup_merge_integration_test.go`
 
 ### Implementation for User Story 2
 
-- [ ] T030 [US2] 扩展标准化流程复用入口（wecom source metadata）到 `backend/internal/services/admin/lead_capture/normalization_service.go`
-- [ ] T031 [US2] 扩展去重合并服务写入来源追溯到 `backend/internal/services/admin/lead_capture/dedup_service.go`
-- [ ] T032 [US2] 新增 LeadSourceEvent 写入实现到 `backend/internal/entity/repository/lead_capture/source_event_repository.go`
-- [ ] T033 [US2] 在分配服务增加绑定前置校验到 `backend/internal/services/admin/lead_capture/assignment_service.go`
-- [ ] T034 [US2] 前端详情页展示来源追溯与合并活动到 `web-admin/app/pages/scrm/lead_capture/[lead_id].vue`
+- [x] T030 [US2] 扩展标准化流程复用入口（wecom source metadata）到 `backend/internal/services/admin/lead_capture/normalization_service.go`
+- [x] T031 [US2] 扩展去重合并服务写入来源追溯到 `backend/internal/services/admin/lead_capture/dedup_service.go`
+- [x] T032 [US2] 新增 LeadSourceEvent 写入实现到 `backend/internal/entity/repository/lead_capture/source_event_repository.go`
+- [x] T033 [US2] 在分配服务增加绑定前置校验到 `backend/internal/services/admin/lead_capture/assignment_service.go`
+- [x] T034 [US2] 前端详情页展示来源追溯与合并活动到 `web-admin/app/pages/scrm/lead_capture/[lead_id].vue`
 
 **Checkpoint**: US1 + US2 完成后，线索质量与分配前置可独立验证
 

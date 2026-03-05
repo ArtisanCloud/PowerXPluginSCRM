@@ -1,7 +1,9 @@
 import { defineStore } from "pinia";
 import {
+  type LeadActivityRecord,
   type LeadAssignPayload,
   type LeadCreatePayload,
+  type LeadSourceEventRecord,
   type LeadStatusUpdatePayload,
   useLeadCaptureService,
 } from "~/composables/api/services/leadCapture";
@@ -16,6 +18,8 @@ export const useLeadCaptureStore = defineStore("scrm.leadCapture", {
     detailLoading: false,
     assignments: [] as LeadAssignment[],
     statusHistory: [] as LeadStatusHistory[],
+    activities: [] as LeadActivityRecord[],
+    sourceEvents: [] as LeadSourceEventRecord[],
   }),
   actions: {
     async fetchLeads() {
@@ -67,6 +71,28 @@ export const useLeadCaptureStore = defineStore("scrm.leadCapture", {
       } catch (err: any) {
         this.error = err?.message ?? "Failed to load status history";
         this.statusHistory = [];
+      }
+    },
+    async fetchActivities(leadId: string) {
+      this.error = null;
+      try {
+        const service = useLeadCaptureService();
+        const resp = await service.listActivities(leadId);
+        this.activities = (resp as any)?.data?.items ?? [];
+      } catch (err: any) {
+        this.error = err?.message ?? "Failed to load activities";
+        this.activities = [];
+      }
+    },
+    async fetchSourceEvents(leadId: string) {
+      this.error = null;
+      try {
+        const service = useLeadCaptureService();
+        const resp = await service.listSourceEvents(leadId);
+        this.sourceEvents = (resp as any)?.data?.items ?? [];
+      } catch (err: any) {
+        this.error = err?.message ?? "Failed to load source events";
+        this.sourceEvents = [];
       }
     },
     async createLead(payload: LeadCreatePayload) {
@@ -133,6 +159,8 @@ export const useLeadCaptureStore = defineStore("scrm.leadCapture", {
       this.leadDetail = null;
       this.assignments = [];
       this.statusHistory = [];
+      this.activities = [];
+      this.sourceEvents = [];
     },
   },
 });

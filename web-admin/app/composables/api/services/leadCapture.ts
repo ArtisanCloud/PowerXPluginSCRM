@@ -57,6 +57,31 @@ export interface LeadStatusHistoryRecord {
   changed_at: string;
 }
 
+export interface LeadActivityRecord {
+  activity_uuid: string;
+  lead_uuid: string;
+  tenant_uuid: string;
+  activity_type: string;
+  payload?: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LeadSourceEventRecord {
+  source_uuid: string;
+  lead_uuid: string;
+  tenant_uuid: string;
+  channel_code?: string;
+  app_type?: string;
+  account_uuid?: string;
+  campaign_code?: string;
+  utm_source?: string;
+  utm_medium?: string;
+  utm_campaign?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface LeadImportError {
   row: number;
   reason: string;
@@ -138,6 +163,14 @@ export const useLeadCaptureService = () => {
     listStatusHistory: (leadId: string) =>
       apiClient.get<ApiResponse<{ items: LeadStatusHistoryRecord[] }>>(
         `${baseUrl}/${leadId}/status-history`
+      ),
+    listActivities: (leadId: string) =>
+      apiClient.get<ApiResponse<{ items: LeadActivityRecord[] }>>(
+        `${baseUrl}/${leadId}/activities`
+      ),
+    listSourceEvents: (leadId: string) =>
+      apiClient.get<ApiResponse<{ items: LeadSourceEventRecord[] }>>(
+        `${baseUrl}/${leadId}/sources`
       ),
     triggerWeComSync: (payload: WeComSyncTriggerPayload) =>
       apiClient.post<ApiResponse<WeComSyncTaskRecord>>(`${baseUrl}/wecom/sync`, payload),

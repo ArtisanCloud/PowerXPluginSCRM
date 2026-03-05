@@ -17,6 +17,7 @@ import (
 type WeComSyncService struct {
 	taskRepo        *leadrepo.LeadSyncTaskRepository
 	leadRepo        *leadrepo.LeadRepository
+	leadService     *LeadService
 	metrics         *leadobs.Metrics
 	providerAdapter SyncTaskProviderAdapter
 	leadAdapter     WeComLeadAdapter
@@ -42,6 +43,14 @@ func (s *WeComSyncService) WithLeadIngestion(leadRepo *leadrepo.LeadRepository, 
 	}
 	s.leadRepo = leadRepo
 	s.leadAdapter = adapter
+	return s
+}
+
+func (s *WeComSyncService) WithLeadService(leadService *LeadService) *WeComSyncService {
+	if s == nil {
+		return s
+	}
+	s.leadService = leadService
 	return s
 }
 
@@ -209,6 +218,46 @@ func (s *WeComSyncService) runLocalSyncIngestion(ctx context.Context, req Trigge
 		return SyncIngestStats{}, err
 	}
 	stats := SyncIngestStats{Total: len(items)}
+	if s.leadService != nil {
+		for _, raw := range items {
+			item := normalizeWeComLeadRecord(raw)
+			if item.DisplayName == "" && item.Phone == "" && item.Email == "" {
+				continue
+			}
+			existsBefore := false
+			if strings.TrimSpace(item.Phone) != "" {
+				if existing, e := s.leadRepo.FindFirstByPhone(ctx, req.TenantUUID, item.Phone); e == nil && existing != nil {
+					existsBefore = true
+				}
+			}
+			if !existsBefore && strings.TrimSpace(item.Email) != "" {
+				if existing, e := s.leadRepo.FindFirstByEmail(ctx, req.TenantUUID, item.Email); e == nil && existing != nil {
+					existsBefore = true
+				}
+			}
+			created, createErr := s.leadService.Create(ctx, req.TenantUUID, LeadCreateRequest{
+				DisplayName:       item.DisplayName,
+				Phone:             item.Phone,
+				Email:             item.Email,
+				SourceChannel:     req.Channel,
+				SourceAppType:     req.AppType,
+				SourceAccountUUID: channelAccountUUID,
+			})
+			if createErr != nil {
+				return SyncIngestStats{}, createErr
+			}
+			if existsBefore {
+				stats.Updated++
+				if created != nil && created.HasMerge {
+					stats.Merged++
+				}
+			} else {
+				stats.Created++
+			}
+		}
+		return stats, nil
+	}
+
 	err = s.leadRepo.WithTenantTx(ctx, req.TenantUUID, func(tx *gorm.DB) error {
 		for _, raw := range items {
 			item := normalizeWeComLeadRecord(raw)
