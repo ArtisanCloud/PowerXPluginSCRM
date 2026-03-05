@@ -162,6 +162,48 @@
       <div v-else class="py-6 text-center text-sm text-gray-500">
         暂无可用数据。
       </div>
+
+      <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <div class="text-sm font-medium text-gray-900 dark:text-white mb-3">来源追溯</div>
+          <div v-if="sourceEvents.length" class="space-y-3">
+            <div
+              v-for="item in sourceEvents"
+              :key="item.source_uuid"
+              class="rounded-lg border border-gray-200 dark:border-gray-700 p-3"
+            >
+              <div class="text-sm text-gray-900 dark:text-white">
+                {{ item.channel_code || "-" }} / {{ item.app_type || "-" }}
+              </div>
+              <div class="text-xs text-gray-500 dark:text-gray-400">
+                账号：{{ item.account_uuid || "-" }}
+              </div>
+              <div class="text-xs text-gray-500 dark:text-gray-400">
+                {{ item.created_at }}
+              </div>
+            </div>
+          </div>
+          <div v-else class="text-sm text-gray-500">暂无来源追溯记录。</div>
+        </div>
+
+        <div>
+          <div class="text-sm font-medium text-gray-900 dark:text-white mb-3">合并活动</div>
+          <div v-if="mergeActivities.length" class="space-y-3">
+            <div
+              v-for="item in mergeActivities"
+              :key="item.activity_uuid"
+              class="rounded-lg border border-gray-200 dark:border-gray-700 p-3"
+            >
+              <div class="text-sm text-gray-900 dark:text-white">命中规则：{{ item.payload?.match_on || "-" }}</div>
+              <div class="text-xs text-gray-500 dark:text-gray-400">
+                合并字段：{{ (item.payload?.merged_fields || []).join?.('、') || "-" }}
+              </div>
+              <div class="text-xs text-gray-500 dark:text-gray-400">{{ item.created_at }}</div>
+            </div>
+          </div>
+          <div v-else class="text-sm text-gray-500">暂无合并活动。</div>
+        </div>
+      </div>
     </UCard>
 
 
@@ -297,6 +339,11 @@ const leadId = computed(() => String(route.params.lead_id || ""));
 const lead = computed(() => store.leadDetail);
 const assignments = computed(() => store.assignments);
 const statusHistory = computed(() => store.statusHistory);
+const sourceEvents = computed(() => store.sourceEvents);
+const activities = computed(() => store.activities);
+const mergeActivities = computed(() =>
+  activities.value.filter((item) => item.activity_type === "merge")
+);
 const latestAssignmentReason = computed(() => assignments.value[0]?.reason || "");
 
 const members = ref<Member[]>([]);
@@ -388,6 +435,8 @@ const refreshLead = async () => {
   await Promise.all([
     store.fetchAssignments(leadId.value),
     store.fetchStatusHistory(leadId.value),
+    store.fetchSourceEvents(leadId.value),
+    store.fetchActivities(leadId.value),
   ]);
   selectedOwner.value = lead.value?.owner_user_uuid || "";
 };

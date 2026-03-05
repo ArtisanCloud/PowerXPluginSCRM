@@ -22,6 +22,8 @@ func RBACEntries(prefix string) map[string]authx.Permission {
 		"POST:" + base + "/:lead_id/status":             {Resource: "scrm.leads", Action: "write"},
 		"GET:" + base + "/:lead_id/assignments":         {Resource: "scrm.leads", Action: "read"},
 		"GET:" + base + "/:lead_id/status-history":      {Resource: "scrm.leads", Action: "read"},
+		"GET:" + base + "/:lead_id/activities":          {Resource: "scrm.leads", Action: "read"},
+		"GET:" + base + "/:lead_id/sources":             {Resource: "scrm.leads", Action: "read"},
 		"POST:" + base + "/wecom/sync":                  {Resource: "scrm.leads", Action: "write"},
 		"GET:" + base + "/wecom/sync-tasks":             {Resource: "scrm.leads", Action: "read"},
 		"GET:" + base + "/:lead_id/conversations":       {Resource: "scrm.leads", Action: "read"},
