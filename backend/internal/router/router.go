@@ -281,7 +281,7 @@ func splitAudiences(raw string) []string {
 
 // —— 从配置构造 RBAC 配置 —— //
 func (r *Router) buildRBAC() *middleware.RBACConfig {
-	delegate := shouldDelegateToPowerX()
+	delegate := shouldDelegateToPowerX(r.cfg)
 	issuer := strings.TrimSpace(os.Getenv("POWERX_SECURITY_JWT_ISSUER"))
 	aud := strings.TrimSpace(os.Getenv("POWERX_SECURITY_JWT_AUDIENCE"))
 	if aud == "" {
@@ -301,13 +301,14 @@ func (r *Router) buildRBAC() *middleware.RBACConfig {
 	}
 }
 
-func shouldDelegateToPowerX() bool {
-	v := strings.ToLower(strings.TrimSpace(os.Getenv("POWERX_RBAC_DELEGATE")))
-	switch v {
-	case "1", "true", "yes", "on":
-		return true
-	case "0", "false", "no", "off":
-		return false
+func shouldDelegateToPowerX(cfg *config.Config) bool {
+	if cfg != nil && cfg.Context != nil {
+		switch strings.ToLower(strings.TrimSpace(cfg.Context.IAMMode)) {
+		case "delegated":
+			return true
+		case "local":
+			return false
+		}
 	}
 	return os.Getenv("POWERX_PROXY") == "1"
 }

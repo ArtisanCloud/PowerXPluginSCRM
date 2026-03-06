@@ -103,7 +103,7 @@ func (a *DefaultSyncTaskProviderAdapter) frameworkAvailable() bool {
 	if authScheme == "apikey" || authScheme == "api_key" || authScheme == "api-key" {
 		return baseURL != "" && apiKey != ""
 	}
-	if authScheme == "" && apiKey != "" && toolToken == "" {
+	if authScheme == "" && apiKey != "" {
 		return baseURL != "" && apiKey != ""
 	}
 	return baseURL != "" && toolToken != ""

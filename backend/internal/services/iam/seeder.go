@@ -213,8 +213,13 @@ func SeedLocalAdmin(ctx context.Context, db *gorm.DB, cfg *config.Config, mode I
 }
 
 func delegatedModeOverride() (string, bool) {
-	if truthy(os.Getenv("POWERX_RBAC_DELEGATE")) {
-		return "POWERX_RBAC_DELEGATE", true
+	if mode := strings.ToLower(strings.TrimSpace(resolveConfigValue(os.Getenv("IAM_MODE"), os.Getenv("IAMMode")))); mode != "" {
+		switch mode {
+		case "delegated":
+			return "IAMMode", true
+		case "local":
+			return "", false
+		}
 	}
 	if strings.TrimSpace(os.Getenv("POWERX_PROXY")) == "1" {
 		return "POWERX_PROXY", true
@@ -274,13 +279,13 @@ func (o SeedOptions) Validate() error {
 	return nil
 }
 
-func truthy(value string) bool {
-	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "1", "true", "yes", "on":
-		return true
-	default:
-		return false
+func resolveConfigValue(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
 	}
+	return ""
 }
 
 func ensureDefaultDepartment(tx *gorm.DB, tenantUUID string) (*uint64, error) {
