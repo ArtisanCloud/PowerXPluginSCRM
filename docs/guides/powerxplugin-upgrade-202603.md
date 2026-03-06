@@ -2,6 +2,24 @@
 
 本文记录 `com.powerx.plugin.scrm` 按 PowerXPlugin 最新规范完成的迁移对齐点。
 
+## 0. IAM 与运行位置（统一语义）
+
+- 仅使用两个变量：
+- `IAMMode`（`delegated` / `local`）
+- `POWERX_PROXY`（`1` 宿主代理 / `0` 独立运行）
+- 推荐默认：
+- 宿主安装默认：`IAMMode=delegated` + `POWERX_PROXY=1`
+- 本地开发默认：`IAMMode=local` + `POWERX_PROXY=0`
+
+四态矩阵（用于排障）：
+
+| IAMMode | POWERX_PROXY | IAM 语义 | 运行位置 |
+| --- | --- | --- | --- |
+| delegated | 1 | 宿主委派 | 宿主代理 |
+| delegated | 0 | 宿主委派 | 独立运行 |
+| local | 1 | 插件本地 IAM | 宿主代理 |
+| local | 0 | 插件本地 IAM | 独立运行 |
+
 ## 1. 网关前缀
 
 - `PX_GATEWAY_BASE_URL`：保持不带 API 前缀（例如 `http://127.0.0.1:8077`）。
@@ -49,6 +67,7 @@
 - 调试头保留：
 - `X-PX-Use-Mock`
 - `X-Request-ID`
+- 能否访问 CoreX 能力以网关配置+凭证为准（`PX_GATEWAY_BASE_URL`、`PX_GATEWAY_AUTH_SCHEME`、`PX_TOOL_TOKEN/PX_GATEWAY_API_KEY`），不以 `POWERX_PROXY` 作为功能开关。
 
 ## 8. 环境变量建议（Skeleton）
 

@@ -19,6 +19,7 @@ runtime:
   env:
     POWERX_BIND_ADDR: ${POWERX_BIND_ADDR:-:8086}
     POWERX_PROXY: "1"
+    IAMMode: "delegated"
     POWERX_PLUGIN_ID: "com.powerx.plugin.scrm"
     POWERX_SECURITY_JWT_ISSUER: "powerx-auth"
     POWERX_SECURITY_JWT_AUDIENCE: "plugin:com.powerx.plugin.scrm"
@@ -46,6 +47,7 @@ frontend:
         NODE_ENV: production
         NITRO_HOST: 127.0.0.1
         POWERX_PROXY: "1"
+        IAMMode: "delegated"
       health:
         http: /healthz
         interval: 5s

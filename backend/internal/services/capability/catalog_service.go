@@ -121,7 +121,7 @@ func (s *CatalogService) listPlatformCatalogViaAdminAPI(ctx context.Context) ([]
 	apiKey := strings.TrimSpace(s.cfg.Gateway.APIKey)
 	authScheme := strings.ToLower(strings.TrimSpace(s.cfg.Gateway.AuthScheme))
 	if authScheme == "" {
-		if apiKey != "" && token == "" {
+		if apiKey != "" {
 			authScheme = "apikey"
 		} else {
 			authScheme = "bearer"

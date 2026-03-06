@@ -2,8 +2,8 @@
 # 将本文件复制为 backend/etc/config.yaml 即可覆盖默认配置。
 #
 # Auth / IAM / 运行模式环境变量速查（未在 YAML 中硬编码，以免泄露敏感信息）：
+#   IAMMode                    - IAM 语义：delegated | local（推荐显式配置）
 #   POWERX_PROXY                - 设为 1 时表示运行在宿主 iframe/代理下（Delegated 模式）
-#   POWERX_RBAC_DELEGATE        - true/1/on 时强制委托宿主 IAM（即使 POWERX_PROXY=0），只读本地数据
 #   POWERX_CORE_ENDPOINT        - Delegated 模式访问宿主 Core API 的基址（默认 http://localhost:8077）
 #   POWERX_AUTH_TOKEN           - 插件向宿主 Core 鉴权用的服务 Token
 #   POWERX_AUTH_OPTIONAL        - 调试专用，true 时允许未携带 Token 的请求（仅限本地）
@@ -33,8 +33,9 @@ gateway:
   # Skeleton 开发通常通过 px-plugin login 写入 .env.local 中的 PX_GATEWAY_BASE_URL / PX_TOOL_TOKEN / PX_TOOL_REFRESH_TOKEN。
   # 若留空则默认关闭 Gateway 调用，`PX_USE_MOCK` 可指定 media,eventfabric 等模块名称以启用内存 Mock。
   # 凭证分流：
-  # - auth_scheme=bearer（Host/宿主模式）使用 tool_token
-  # - auth_scheme=apikey（Standalone+Proxy）使用 api_key
+  # - auth_scheme=bearer 使用 tool_token
+  # - auth_scheme=apikey 使用 api_key
+  # - auth_scheme 留空时，若 api_key 非空则优先 apikey，否则 bearer
   # base_url 不带 API 前缀，统一通过 api_prefix 显式配置（默认 /api/v1）。
   # tenant_uuid 仅用于 Bearer 本地兼容场景，proxy 场景由宿主按凭证解析租户。
   base_url: ""

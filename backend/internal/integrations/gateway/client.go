@@ -489,7 +489,7 @@ func resolveGatewayAuthScheme(gcfg *config.GatewayConfig) string {
 	case "bearer":
 		return "bearer"
 	}
-	if strings.TrimSpace(gcfg.APIKey) != "" && strings.TrimSpace(gcfg.ToolToken) == "" {
+	if strings.TrimSpace(gcfg.APIKey) != "" {
 		return "apikey"
 	}
 	return "bearer"
