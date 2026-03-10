@@ -27,7 +27,7 @@ func (h *AdminHandler) GetManifest(c *gin.Context) {
 	log := logger.HandlerLogger("admin").WithContext(c.Request.Context())
 
 	manifest := &contracts.PluginManifest{
-		ID:          "com.powerx.plugins.base",
+		ID:          "com.powerx.plugins.scrm",
 		Name:        "Base Template Plugin",
 		Version:     "0.1.0",
 		Description: "A starter plugin that showcases template management capabilities for PowerX",
@@ -48,41 +48,41 @@ func (h *AdminHandler) GetManifest(c *gin.Context) {
 			Routes: map[string]string{
 				"/admin/*": "index.html",
 			},
-			PublicPath: "/_p/com.powerx.plugins.base/admin/",
+			PublicPath: "/_p/com.powerx.plugins.scrm/admin/",
 		},
 
 		Menus: []contracts.MenuConfig{
 			{
 				ID:    "base",
-				Title: "menu.base.template",
+				Title: "menu.com.powerx.plugins.scrm.template",
 				Icon:  "i-heroicons-clipboard-document-check",
 				Path:  "/plugins/base",
 				Order: 20,
 				Children: []contracts.MenuConfig{
 					{
-						ID:    "base.intro",
-						Title: "menu.base.intro",
+						ID:    "com.powerx.plugins.scrm.intro",
+						Title: "menu.com.powerx.plugins.scrm.intro",
 						Icon:  "i-heroicons-information-circle",
 						Path:  "/intro",
 						Order: 1,
 					},
 					{
-						ID:    "base.templates",
-						Title: "menu.base.templates.title",
+						ID:    "com.powerx.plugins.scrm.templates",
+						Title: "menu.com.powerx.plugins.scrm.templates.title",
 						Icon:  "i-heroicons-clipboard-document-list",
 						Path:  "/templates",
 						Order: 2,
 						Children: []contracts.MenuConfig{
 							{
-								ID:    "base.templates.develop",
-								Title: "menu.base.templates.develop",
+								ID:    "com.powerx.plugins.scrm.templates.develop",
+								Title: "menu.com.powerx.plugins.scrm.templates.develop",
 								Icon:  "i-heroicons-document-text",
 								Path:  "/templates/develop",
 								Order: 1,
 							},
 							{
-								ID:    "base.templates.crud",
-								Title: "menu.base.templates.crud",
+								ID:    "com.powerx.plugins.scrm.templates.crud",
+								Title: "menu.com.powerx.plugins.scrm.templates.crud",
 								Icon:  "i-heroicons-wrench",
 								Path:  "/templates/crud",
 								Order: 2,
@@ -90,13 +90,13 @@ func (h *AdminHandler) GetManifest(c *gin.Context) {
 						},
 					},
 				},
-				RequiredPermissions: []string{"base:template:read"},
+				RequiredPermissions: []string{"com.powerx.plugins.scrm:template:read"},
 			},
 		},
 
 		Permissions: []contracts.PermissionConfig{
 			{
-				Resource:    "base:template",
+				Resource:    "com.powerx.plugins.scrm:template",
 				Actions:     []string{"read", "create", "update", "delete"},
 				Description: "Template management permissions",
 			},
@@ -105,29 +105,29 @@ func (h *AdminHandler) GetManifest(c *gin.Context) {
 		Agents: []contracts.AgentConfig{
 			{
 				ID:           "base.assistant",
-				PluginID:     "com.powerx.plugins.base",
+				PluginID:     "com.powerx.plugins.scrm",
 				Name:         "Base 助理",
 				Description:  "智能的 Base 模板助手，可以帮助创建与查询模板内容",
 				Model:        "gpt-4",
 				Instructions: "你是一个专业的 Base 模板助手。你可以帮助用户创建、查询和管理模板信息。请始终以友好、专业的方式回应用户的请求。",
 				DefaultTools: []string{
-					"base.template.create",
-					"base.template.query",
+					"com.powerx.plugins.scrm.template.create",
+					"com.powerx.plugins.scrm.template.query",
 				},
-				RequiredPermissions: []string{"base:template:read"},
+				RequiredPermissions: []string{"com.powerx.plugins.scrm:template:read"},
 			},
 		},
 
 		Tools: []contracts.ToolConfig{
 			{
-				ID:           "base.template.create",
-				PluginID:     "com.powerx.plugins.base",
+				ID:           "com.powerx.plugins.scrm.template.create",
+				PluginID:     "com.powerx.plugins.scrm",
 				Name:         "创建模板",
 				Description:  "创建一个新的模板记录",
 				Transport:    "http",
 				Endpoint:     "/api/v1/templates",
 				Method:       "POST",
-				RBACResource: "base:template",
+				RBACResource: "template",
 				InputSchema: &contracts.JSONSchema{
 					Type: "object",
 					Properties: map[string]*contracts.JSONSchemaProperty{
@@ -170,14 +170,14 @@ func (h *AdminHandler) GetManifest(c *gin.Context) {
 				Timeout: 30,
 			},
 			{
-				ID:           "base.template.query",
-				PluginID:     "com.powerx.plugins.base",
+				ID:           "com.powerx.plugins.scrm.template.query",
+				PluginID:     "com.powerx.plugins.scrm",
 				Name:         "查询模板",
 				Description:  "查询模板列表",
 				Transport:    "http",
 				Endpoint:     "/api/v1/templates",
 				Method:       "GET",
-				RBACResource: "base:template",
+				RBACResource: "template",
 				InputSchema: &contracts.JSONSchema{
 					Type: "object",
 					Properties: map[string]*contracts.JSONSchemaProperty{
@@ -272,7 +272,7 @@ func (h *AdminHandler) GetRBACInfo(c *gin.Context) {
 	rbacInfo := &contracts.RBACInfo{
 		Resources: []contracts.Resource{
 			{
-				Name:        "base:template",
+				Name:        "com.powerx.plugins.scrm:template",
 				Description: "Base 模板管理",
 				Actions: []contracts.Action{
 					{Name: "read", Description: "查看模板"},
@@ -287,31 +287,31 @@ func (h *AdminHandler) GetRBACInfo(c *gin.Context) {
 				Name:        "base_master",
 				Description: "Base Master 角色",
 				Permissions: []string{
-					"base:template:*",
+					"com.powerx.plugins.scrm:template:*",
 				},
 			},
 			{
 				Name:        "template_editor",
 				Description: "模板编辑角色",
 				Permissions: []string{
-					"base:template:read",
-					"base:template:create",
-					"base:template:update",
+					"com.powerx.plugins.scrm:template:read",
+					"com.powerx.plugins.scrm:template:create",
+					"com.powerx.plugins.scrm:template:update",
 				},
 			},
 			{
 				Name:        "template_viewer",
 				Description: "模板查看角色",
 				Permissions: []string{
-					"base:template:read",
+					"com.powerx.plugins.scrm:template:read",
 				},
 			},
 		},
 		Permissions: []contracts.Permission{
-			{Resource: "base:template", Action: "read"},
-			{Resource: "base:template", Action: "create"},
-			{Resource: "base:template", Action: "update"},
-			{Resource: "base:template", Action: "delete"},
+			{Resource: "com.powerx.plugins.scrm:template", Action: "read"},
+			{Resource: "com.powerx.plugins.scrm:template", Action: "create"},
+			{Resource: "com.powerx.plugins.scrm:template", Action: "update"},
+			{Resource: "com.powerx.plugins.scrm:template", Action: "delete"},
 		},
 	}
 

@@ -84,10 +84,20 @@ pack: dist ## 使用 px-plugin pack 生成 .pxp 元数据包
 .PHONY: local-install
 local-install: dist local-install-run ## 调用 /admin/plugins/install/local 安装 dist 目录
 
+.PHONY: skeleton-reinstall
+skeleton-reinstall: dist ## 对齐手册兼容入口：强制重装当前 dist 版本
+	@$(MAKE) --no-print-directory local-install-run \
+		LOCAL_INSTALL_SRC="$(abspath $(DIST_DIR))" \
+		API_BASE="$(API_BASE)" \
+		TOKEN="$(TOKEN)" \
+		ENABLE=true \
+		FORCE=true
+
 .PHONY: local-install-run
 local-install-run:
 	@if [ -z "$(API_BASE)" ]; then \
-		echo "❌ 需要提供 API_BASE=https://dev-api.powerx.local/api/v1"; \
+		echo "❌ 需要提供 API_BASE（当前值为空）"; \
+		echo "   示例: make skeleton-reinstall API_BASE=http://127.0.0.1:8077/api/v1 TOKEN=\$$ADMIN_BEARER_TOKEN"; \
 		exit 1; \
 	fi
 	@if [ -z "$(TOKEN)" ]; then \
@@ -108,7 +118,13 @@ local-install-run:
 			-H "Content-Type: application/json" \
 			-d "$$PAYLOAD"); \
 		if command -v jq >/dev/null 2>&1; then \
-			echo "$$RESPONSE" | jq; \
+			CLEAN_RESPONSE=$$(printf '%s' "$$RESPONSE" | tr -d '\000-\010\013\014\016-\037'); \
+			if printf '%s' "$$CLEAN_RESPONSE" | jq . >/dev/null 2>&1; then \
+				printf '%s' "$$CLEAN_RESPONSE" | jq; \
+			else \
+				echo "⚠️ install/local 返回内容不是合法 JSON，输出原始响应："; \
+				printf '%s\n' "$$RESPONSE"; \
+			fi; \
 		else \
 			echo "$$RESPONSE"; \
 		fi

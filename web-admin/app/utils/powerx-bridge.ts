@@ -1,4 +1,4 @@
-export const PLUGIN_ID = "com.powerx.plugin.scrm";
+export const PLUGIN_ID = "com.powerx.plugins.scrm";
 export const PLUGIN_ADMIN_PREFIX = `/_p/${PLUGIN_ID}/admin`;
 const PLUGIN_SLUG = PLUGIN_ID.split(".").pop() || PLUGIN_ID;
 const LEGACY_EMBEDDED_PREFIX = `${PLUGIN_ADMIN_PREFIX}/plugins/${PLUGIN_SLUG}`;
@@ -29,14 +29,13 @@ export const normalizePath = (value: string): string => {
 };
 
 // 需要把语言段插入到插件管理路径内部
-const EMBEDDED_PREFIXES = [
-  PLUGIN_ADMIN_PREFIX,
-  LEGACY_EMBEDDED_PREFIX,
-].map((prefix) => normalizePath(prefix));
+const EMBEDDED_PREFIXES = [PLUGIN_ADMIN_PREFIX, LEGACY_EMBEDDED_PREFIX].map(
+  (prefix) => normalizePath(prefix),
+);
 
 const maybeBuildEmbeddedLocalePath = (
   localePrefix: string,
-  normalizedPath: string
+  normalizedPath: string,
 ): string | null => {
   if (!localePrefix) {
     return null;
@@ -70,7 +69,7 @@ const maybeBuildEmbeddedLocalePath = (
 
 export const joinLocaleWithPath = (
   localePrefix: string,
-  path: string
+  path: string,
 ): string => {
   const normalized = normalizePath(path || "/");
   if (!localePrefix) {
@@ -81,7 +80,10 @@ export const joinLocaleWithPath = (
     return localePrefix || "/";
   }
 
-  const embeddedLocalePath = maybeBuildEmbeddedLocalePath(localePrefix, normalized);
+  const embeddedLocalePath = maybeBuildEmbeddedLocalePath(
+    localePrefix,
+    normalized,
+  );
   if (embeddedLocalePath) {
     return embeddedLocalePath;
   }
@@ -136,7 +138,7 @@ const buildExtractedRoute = (
   rawPath: string,
   internal: string,
   context: RouteContext,
-  legacy: boolean
+  legacy: boolean,
 ): ExtractedPluginRoute => ({
   localePrefix,
   rawPath,
@@ -146,7 +148,7 @@ const buildExtractedRoute = (
 });
 
 export const extractInternalRoute = (
-  fullPath: string
+  fullPath: string,
 ): ExtractedPluginRoute | null => {
   const { localePrefix, pathWithoutLocale } = stripLocalePrefix(fullPath);
   const normalizedWithoutLocale = normalizePath(pathWithoutLocale);
@@ -158,18 +160,20 @@ export const extractInternalRoute = (
       normalizedWithoutLocale,
       internal,
       "embedded",
-      false
+      false,
     );
   }
 
   if (normalizedWithoutLocale.startsWith(LEGACY_EMBEDDED_PREFIX)) {
-    const internal = normalizedWithoutLocale.slice(LEGACY_EMBEDDED_PREFIX.length);
+    const internal = normalizedWithoutLocale.slice(
+      LEGACY_EMBEDDED_PREFIX.length,
+    );
     return buildExtractedRoute(
       localePrefix,
       normalizedWithoutLocale,
       internal,
       "embedded",
-      true
+      true,
     );
   }
 
@@ -180,7 +184,7 @@ export const extractInternalRoute = (
       normalizedWithoutLocale,
       internal,
       "local",
-      true
+      true,
     );
   }
 
@@ -192,9 +196,7 @@ export const isPluginAdminPath = (fullPath: string) => {
   return Boolean(extracted && extracted.context === "embedded");
 };
 
-export const resolveCanonicalInternalPath = (
-  internalPath: string
-): string => {
+export const resolveCanonicalInternalPath = (internalPath: string): string => {
   const normalized = normalizePath(internalPath);
   const aliasTarget = resolveInternalAlias(normalized);
   if (!aliasTarget) {
@@ -245,7 +247,7 @@ export interface NavigationTarget {
 }
 
 export const buildNavigationTarget = (
-  fullPath: string
+  fullPath: string,
 ): NavigationTarget | null => {
   const extracted = extractInternalRoute(fullPath);
   if (!extracted) {
@@ -269,7 +271,7 @@ export const buildNavigationTarget = (
 
   const finalPath = joinLocaleWithPath(
     extracted.localePrefix,
-    pathWithinLocale
+    pathWithinLocale,
   );
   const normalizedFinalPath = normalizePath(finalPath);
 

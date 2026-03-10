@@ -314,12 +314,26 @@ type MeContext struct {
 	IsRoot            bool            `json:"is_root"`
 	CurrentTenantUUID string          `json:"current_tenant_uuid"`
 	CurrentMemberID   *uint64         `json:"current_member_id,omitempty"`
+	Tenant            *MeTenantBrief  `json:"tenant,omitempty"`
 	User              *MeUserBrief    `json:"user,omitempty"`
 	Members           []MeMemberBrief `json:"members"`
+	Roles             []string        `json:"roles"`
+	Permissions       []string        `json:"permissions"`
+	Capabilities      MeCapabilities  `json:"capabilities"`
+	PolicyVersion     string          `json:"policy_version,omitempty"`
+	PluginID          string          `json:"plugin_id,omitempty"`
+}
+
+type MeTenantBrief struct {
+	UUID     string  `json:"uuid"`
+	Key      string  `json:"key"`
+	Name     string  `json:"name"`
+	LegacyID *uint64 `json:"legacy_id,omitempty"`
 }
 
 type MeUserBrief struct {
 	ID          uint64 `json:"id"`
+	Username    string `json:"username"`
 	Email       string `json:"email"`
 	Phone       string `json:"phone"`
 	DisplayName string `json:"display_name"`
@@ -334,4 +348,14 @@ type MeMemberBrief struct {
 	TenantName string `json:"tenant_name"`
 	MemberID   uint64 `json:"member_id"`
 	IsAdmin    bool   `json:"is_admin"`
+}
+
+type MeCapabilities struct {
+	Templates *TemplateCapabilities `json:"templates,omitempty"`
+}
+
+type TemplateCapabilities struct {
+	CanCreate bool `json:"can_create"`
+	CanUpdate bool `json:"can_update"`
+	CanDelete bool `json:"can_delete"`
 }

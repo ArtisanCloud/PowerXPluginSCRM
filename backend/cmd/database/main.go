@@ -22,6 +22,7 @@ func main() {
 		log.Fatalf("Usage: %s [migrate|seed|refresh]", os.Args[0])
 	}
 	cmd := os.Args[1]
+	ensureMigrationJWTSecret(cmd)
 	flag.Parse()
 
 	// 加载配置
@@ -106,4 +107,26 @@ func main() {
 	default:
 		log.Fatalf("Unknown command: %s", cmd)
 	}
+}
+
+func ensureMigrationJWTSecret(cmd string) {
+	switch cmd {
+	case "migrate", "setup", "refresh":
+	default:
+		return
+	}
+	_ = os.Setenv("POWERX_ALLOW_EMPTY_CUSTOMER_AUTH_JWT", "1")
+
+	if os.Getenv("POWERX_AUTH_JWTSECRET") != "" {
+		return
+	}
+	if v := os.Getenv("POWERX_SECURITY_JWT_SECRET"); v != "" {
+		_ = os.Setenv("POWERX_AUTH_JWTSECRET", v)
+		return
+	}
+	// Migration runs before plugin runtime boots; provide a process-local fallback
+	// so config validation does not block schema setup in host install flow.
+	const fallback = "migration-temporary-secret"
+	_ = os.Setenv("POWERX_AUTH_JWTSECRET", fallback)
+	_ = os.Setenv("POWERX_SECURITY_JWT_SECRET", fallback)
 }

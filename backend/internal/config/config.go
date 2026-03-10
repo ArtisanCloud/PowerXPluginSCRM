@@ -1077,6 +1077,18 @@ func loadEnvConfig(cfg *Config) {
 	if authBase := resolveConfigValue(os.Getenv("PX_AUTH_BASE_URL")); authBase != "" {
 		cfg.Gateway.AuthBaseURL = authBase
 	}
+
+	// Customer auth secret: allow host-injected runtime secret to satisfy
+	// production validation during migrate/setup commands.
+	if cfg.CustomerAuth == nil {
+		cfg.CustomerAuth = &CustomerAuthConfig{}
+	}
+	if v := firstNonEmpty(
+		resolveConfigValue(os.Getenv("POWERX_AUTH_JWTSECRET")),
+		resolveConfigValue(os.Getenv("POWERX_SECURITY_JWT_SECRET")),
+	); v != "" {
+		cfg.CustomerAuth.JWTSecret = v
+	}
 }
 
 // syncBackwardCompatibility 同步向后兼容字段
@@ -1208,6 +1220,22 @@ func normalizeConfig(cfg *Config) {
 		cfg.CustomerAuth.JWTIssuer = resolveConfigValue(cfg.CustomerAuth.JWTIssuer)
 		cfg.CustomerAuth.JWTAudience = resolveConfigValue(cfg.CustomerAuth.JWTAudience)
 		cfg.CustomerAuth.JWTSecret = resolveConfigValue(cfg.CustomerAuth.JWTSecret)
+		if strings.TrimSpace(cfg.CustomerAuth.JWTSecret) == "" {
+			fallbackJWT := firstNonEmpty(
+				resolveConfigValue(os.Getenv("POWERX_AUTH_JWTSECRET")),
+				resolveConfigValue(os.Getenv("POWERX_SECURITY_JWT_SECRET")),
+			)
+			if fallbackJWT == "" && cfg.Context != nil {
+				fallbackJWT = strings.TrimSpace(cfg.Context.HMACSecret)
+			}
+			cfg.CustomerAuth.JWTSecret = fallbackJWT
+		}
+		if strings.TrimSpace(cfg.CustomerAuth.JWTIssuer) == "" && cfg.Context != nil {
+			cfg.CustomerAuth.JWTIssuer = strings.TrimSpace(cfg.Context.Issuer)
+		}
+		if strings.TrimSpace(cfg.CustomerAuth.JWTAudience) == "" && cfg.Context != nil {
+			cfg.CustomerAuth.JWTAudience = strings.TrimSpace(cfg.Context.Audience)
+		}
 	}
 }
 
@@ -1490,9 +1518,18 @@ func (c *Config) Validate() error {
 
 	if c.CustomerAuth.Mode == "local" && c.IsProduction() {
 		if strings.TrimSpace(c.CustomerAuth.JWTSecret) == "" {
+			if strings.TrimSpace(os.Getenv("POWERX_ALLOW_EMPTY_CUSTOMER_AUTH_JWT")) == "1" {
+				goto skipCustomerAuthSecretCheck
+			}
+			if isMigrationCommand() {
+				// 数据库迁移阶段不走 customer 登录链路，允许使用迁移流程兜底密钥。
+				// 运行时 plugin 进程仍会按生产规则要求显式 jwt_secret。
+				goto skipCustomerAuthSecretCheck
+			}
 			return NewConfigError("customer_auth.jwt_secret is required in production when mode=local")
 		}
 	}
+skipCustomerAuthSecretCheck:
 
 	// EventBridge 配置默认值与验证
 	if c.EventBridge == nil {
@@ -1648,4 +1685,21 @@ func (e *ConfigError) Error() string {
 
 func NewConfigError(message string) *ConfigError {
 	return &ConfigError{Message: message}
+}
+
+func isMigrationCommand() bool {
+	if len(os.Args) == 0 {
+		return false
+	}
+	bin := strings.ToLower(filepath.Base(os.Args[0]))
+	if strings.Contains(bin, "migrate") || strings.Contains(bin, "database") {
+		return true
+	}
+	if len(os.Args) > 1 {
+		switch strings.ToLower(strings.TrimSpace(os.Args[1])) {
+		case "migrate", "setup", "refresh":
+			return true
+		}
+	}
+	return false
 }

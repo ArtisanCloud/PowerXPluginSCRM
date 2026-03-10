@@ -978,7 +978,7 @@
                   <UInput v-model="mcpInvokeForm.toolScope" placeholder="agent.template.compose" />
                 </UFormField>
                 <UFormField :label="$t('capabilities.mcp.fields.capabilityId')">
-                  <UInput v-model="mcpInvokeForm.capabilityId" placeholder="com.powerx.plugins.base.template.compose" />
+                  <UInput v-model="mcpInvokeForm.capabilityId" placeholder="com.powerx.plugins.scrm.template.compose" />
                 </UFormField>
                 <UFormField :label="$t('capabilities.mcp.fields.intent')">
                   <UInput v-model="mcpInvokeForm.intent" placeholder="template.compose" />
@@ -1546,7 +1546,7 @@ const mcpInvokeSamples: Record<
     payload: JsonMap;
   }
 > = {
-  "com.powerx.plugins.base.template.compose": {
+  "com.powerx.plugins.scrm.template.compose": {
     toolScope: "agent.template.compose",
     payload: {
       draft: {
@@ -1564,7 +1564,7 @@ const mcpInvokeSamples: Record<
       },
     },
   },
-  "com.powerx.plugins.base.template.audit": {
+  "com.powerx.plugins.scrm.template.audit": {
     toolScope: "agent.template.audit",
     payload: {
       filters: {
@@ -1581,7 +1581,7 @@ const mcpInvokeSamples: Record<
       },
     },
   },
-  "com.powerx.plugins.base.template.quality_distribute": {
+  "com.powerx.plugins.scrm.template.quality_distribute": {
     toolScope: "agent.template.quality_distribute",
     payload: {
       scan_filter: {
@@ -3213,7 +3213,7 @@ function buildLocalGrpcTemplate() {
 
 function buildLocalWorkflowTemplate() {
   const capability =
-    debugForm.capabilityId?.trim() || capabilityId.value || "com.powerx.plugins.base.template.compose";
+    debugForm.capabilityId?.trim() || capabilityId.value || "com.powerx.plugins.scrm.template.compose";
   const intent = capability;
   const sessionPlaceholder = "<session-id>";
   const toolScope = deriveToolScopeFromCapability(capability);

@@ -1,4 +1,4 @@
-# com.powerx.plugin.scrm Development Guidelines
+# com.powerx.plugins.scrm Development Guidelines
 
 Auto-generated from all feature plans. Last updated: 2026-01-15
 

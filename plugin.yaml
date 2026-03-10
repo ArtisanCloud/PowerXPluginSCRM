@@ -1,9 +1,7 @@
-# plugin.yaml 是 PowerX 插件管理器读取的 Manifest，声明插件固定的元信息与能力。
-# 生成后请根据实际情况补充描述、数据使用、权限等信息。
-id: com.powerx.plugin.scrm
-name: Powerx Plugin Scrm Plugin
+id: com.powerx.plugins.scrm
+name: PowerX SCRM Plugin
 version: 0.1.0
-description: "Powerx Plugin Scrm Plugin 插件描述"
+description: "PowerX SCRM 插件描述"
 corex_version: ">=0.1.0"
 security_baseline_version: "2025.10"
 
@@ -20,9 +18,9 @@ runtime:
     POWERX_BIND_ADDR: ${POWERX_BIND_ADDR:-:8086}
     POWERX_PROXY: "1"
     IAMMode: "delegated"
-    POWERX_PLUGIN_ID: "com.powerx.plugin.scrm"
+    POWERX_PLUGIN_ID: "com.powerx.plugins.scrm"
     POWERX_SECURITY_JWT_ISSUER: "powerx-auth"
-    POWERX_SECURITY_JWT_AUDIENCE: "plugin:com.powerx.plugin.scrm"
+    POWERX_SECURITY_JWT_AUDIENCE: "plugin:com.powerx.plugins.scrm"
     POWERX_SECURITY_JWT_SECRET: "${POWERX_AUTH_JWTSECRET}"
   health:
     http: /healthz
@@ -36,6 +34,13 @@ backend:
 
 endpoints:
   http_base_path: /api/v1
+
+catalogs:
+  capabilities: ./plugin.d/capabilities.yaml
+  exposure: ./plugin.d/exposure.yaml
+  agent_tools: ./plugin.d/agent_tools.yaml
+  events: ./plugin.d/events.yaml
+  rbac: ./plugin.d/rbac.yaml
 
 frontend:
   admin:
@@ -57,153 +62,102 @@ frontend:
       dir: web-admin/i18n
       format: i18next
       default_namespace: menus
-      namespaces:
-        - menus
-      locales:
-        - zh-CN
-        - en
+      namespaces: [menus]
+      locales: [zh-CN, en]
     menus:
-      - id: plugins.com.powerx.plugin.scrm
-        title: Powerx Plugin Scrm Plugin
+      - id: plugins.com.powerx.plugins.scrm
+        title: PowerX SCRM Plugin
         title_i18n:
           namespace: menus
-          key: menu.com.powerx.plugin.scrm.template
-          default: Powerx Plugin Scrm Plugin Console
+          key: menu.com.powerx.plugins.scrm.template
+          default: PowerX SCRM Plugin Console
         icon: i-heroicons-clipboard-document-check
         path: /intro
         route: intro
         order: 20
         slot: group.plugins
-        required_policies: [com.powerx.plugin.scrm:template:read]
+        required_policies: [com.powerx.plugins.scrm:template:read]
         children:
-          - id: plugins.com.powerx.plugin.scrm.intro
-            title: Powerx Plugin Scrm Plugin Intro
+          - id: plugins.com.powerx.plugins.scrm.intro
+            title: PowerX SCRM Plugin Intro
             title_i18n:
               namespace: menus
-              key: menu.com.powerx.plugin.scrm.intro
-              default: Powerx Plugin Scrm Plugin Intro
+              key: menu.com.powerx.plugins.scrm.intro
+              default: PowerX SCRM Plugin Intro
             icon: i-heroicons-information-circle
             path: /intro
             route: intro
             order: 1
-          - id: plugins.com.powerx.plugin.scrm.org_sync
+          - id: plugins.com.powerx.plugins.scrm.org_sync
             title: 组织映射管理
             title_i18n:
               namespace: menus
-              key: menu.com.powerx.plugin.scrm.org_sync.title
+              key: menu.com.powerx.plugins.scrm.org_sync.title
               default: 组织映射管理
             icon: i-heroicons-squares-2x2
             path: /scrm/org_sync
             route: scrm/org_sync
             order: 5
             children:
-              - id: plugins.com.powerx.plugin.scrm.org_sync.main_view
+              - id: plugins.com.powerx.plugins.scrm.org_sync.main_view
                 title: 主组织视图
                 title_i18n:
                   namespace: menus
-                  key: menu.com.powerx.plugin.scrm.org_sync.main_view
+                  key: menu.com.powerx.plugins.scrm.org_sync.main_view
                   default: 主组织视图
                 icon: i-heroicons-users
                 path: /scrm/org_sync/main_view
                 route: scrm/org_sync/main_view
                 order: 1
-          - id: plugins.com.powerx.plugin.scrm.templates
+          - id: plugins.com.powerx.plugins.scrm.templates
             title: 模版
             title_i18n:
               namespace: menus
-              key: menu.com.powerx.plugin.scrm.templates.title
+              key: menu.com.powerx.plugins.scrm.templates.title
               default: Templates
             icon: i-heroicons-clipboard-document-list
             path: /templates
             route: templates
             order: 2
             children:
-              - id: plugins.com.powerx.plugin.scrm.templates.develop
+              - id: plugins.com.powerx.plugins.scrm.templates.develop
                 title: 开发介绍
                 title_i18n:
                   namespace: menus
-                  key: menu.com.powerx.plugin.scrm.templates.develop
+                  key: menu.com.powerx.plugins.scrm.templates.develop
                   default: Templates Develop Intro
                 icon: i-heroicons-document-text
                 path: /templates/develop
                 route: templates/develop
                 order: 1
-              - id: plugins.com.powerx.plugin.scrm.templates.crud
+              - id: plugins.com.powerx.plugins.scrm.templates.crud
                 title: 模版 CRUD
                 title_i18n:
                   namespace: menus
-                  key: menu.com.powerx.plugin.scrm.templates.crud
+                  key: menu.com.powerx.plugins.scrm.templates.crud
                   default: Templates CRUD
                 icon: i-heroicons-wrench
                 path: /templates/crud
                 route: templates/crud
                 order: 2
 
-routes:
-  basePath: /api/v1
-  adminManifest: /api/v1/admin/manifest
-  rbac: /api/v1/admin/rbac
-
-rbac:
-  resources:
-    - resource: com.powerx.plugin.scrm:template
-      actions: [read, create, update, delete]
-
-permissions:
-  - resource: com.powerx.plugin.scrm:template
-    actions: [read, create, update, delete]
-
 agents:
-  - id: com.powerx.plugin.scrm.assistant
-    plugin_id: com.powerx.plugin.scrm
-    name: Powerx Plugin Scrm Plugin 助理
-    description: "Powerx Plugin Scrm Plugin 内置 Agent"
+  - id: com.powerx.plugins.scrm.assistant
+    plugin_id: com.powerx.plugins.scrm
+    name: PowerX SCRM Plugin 助理
+    description: "PowerX SCRM Plugin 内置 Agent"
     default_tools:
-      - com.powerx.plugin.scrm.template.create
+      - com.powerx.plugins.scrm.template.create
 
-capabilities:
-  imports:
-    - contracts/capabilities/com.powerx.plugin.scrm.template.list.yaml
-    - contracts/capabilities/com.powerx.plugin.scrm.template.read.yaml
-    - contracts/capabilities/com.powerx.plugin.scrm.template.create.yaml
-    - contracts/capabilities/com.powerx.plugin.scrm.template.update.yaml
-    - contracts/capabilities/com.powerx.plugin.scrm.template.delete.yaml
-    - contracts/capabilities/com.powerx.plugin.scrm.template.review.yaml
-    - contracts/capabilities/com.powerx.plugin.scrm.template.publish.yaml
-    - contracts/capabilities/com.powerx.plugin.scrm.template.compose.yaml
-    - contracts/capabilities/com.powerx.plugin.scrm.template.audit.yaml
-    - contracts/capabilities/com.powerx.plugin.scrm.template.batch_clone.yaml
-    - contracts/capabilities/com.powerx.plugin.scrm.template.validate.yaml
-    - contracts/capabilities/com.powerx.plugin.scrm.template.quality_distribute.yaml
-
-agent_tools:
-  - id: com.powerx.plugin.scrm.template.create
-    capability: com.powerx.plugin.scrm.template.create
-    handler: backend/internal/handlers/capabilities/template/create_handler.go
-    description: 创建示例模板
-
-exposure:
-  channels:
-    - type: rest
-      capability: com.powerx.plugin.scrm.template.create
-      entrypoint: ${POWERX_PLUGIN_HTTP_BASE:-/api/v1}/resources
-      method: POST
-      auth: jwt
-      rbac: com.powerx.plugin.scrm:template
-    - type: agent_tool
-      capability: com.powerx.plugin.scrm.template.create
-      agent_tool_id: com.powerx.plugin.scrm.template.create
-
-# 工具清单侧重声明接口契约，真实业务参数通过 config.yaml 或环境变量注入
 tools:
-  - id: com.powerx.plugin.scrm.template.create
-    plugin_id: com.powerx.plugin.scrm
+  - id: com.powerx.plugins.scrm.template.create
+    plugin_id: com.powerx.plugins.scrm
     name: 创建示例
     description: 创建示例数据
     transport: http
     endpoint: ${POWERX_PLUGIN_HTTP_BASE:-/api/v1}/resources
     method: POST
-    rbac_resource: com.powerx.plugin.scrm:template
+    rbac_resource: template
 
 dependencies:
   requires: []
@@ -216,21 +170,6 @@ migrations:
   once: true
   timeout: 60s
 
-events:
-  topics:
-    - key: org_sync.progress
-      actions: [publish, subscribe]
-      description: "组织同步进度实时事件"
-    - key: powerx.org_sync.progress.v1
-      actions: [publish, subscribe]
-      description: "组织同步进度实时事件（v1）"
-    - key: powerx.lead.sync.requested.v1
-      actions: [publish]
-      description: "线索同步任务提交事件"
-    - key: powerx.lead.conversation.updated.v1
-      actions: [publish, subscribe]
-      description: "线索会话实时更新事件"
-
 assets:
   public_dir: ./web-admin/public
   webAdminPath: ./web-admin/.output
@@ -242,5 +181,5 @@ signature:
   enabled: false
 
 metadata:
-  author: Powerx Plugin Scrm Plugin Team
+  author: PowerX SCRM Team
   license: MIT

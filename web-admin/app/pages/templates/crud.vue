@@ -12,7 +12,7 @@
       <UButton
         icon="i-heroicons-plus"
         color="primary"
-        :disabled="isDelegatedReadOnly"
+        :disabled="!canCreateTemplate"
         @click="startCreate"
       >
         {{ $t("templates.crud.create") }}
@@ -81,7 +81,7 @@
               size="xs"
               variant="soft"
               icon="i-heroicons-pencil"
-              :disabled="isDelegatedReadOnly"
+              :disabled="!canUpdateTemplate"
               @click="startEdit(row.original)"
             >
               {{ $t('common.edit') }}
@@ -91,7 +91,7 @@
               variant="soft"
               color="error"
               icon="i-heroicons-trash"
-              :disabled="isDelegatedReadOnly"
+              :disabled="!canDeleteTemplate"
               @click="confirmDelete(row.original)"
             >
               {{ $t('common.delete') }}
@@ -132,6 +132,8 @@ import type { Template } from "~/composables/api/useTemplate"
 import TemplateFormModal from "~/components/templates/TemplateFormModal.vue"
 import { nextTick } from "vue"
 import { useI18n } from "vue-i18n"
+import { storeToRefs } from "pinia"
+import { useUserStore } from "~/stores/user"
 
 type TemplateFormState = {
   name: string
@@ -166,16 +168,14 @@ const toast = reactive({
 })
 
 const { t } = useI18n()
-
-const runtimeConfig = useRuntimeConfig()
-const isDelegatedReadOnly = computed(() => {
-  const value = runtimeConfig.public?.insidePowerX
-  if (value === true) return true
-  if (typeof value === "string") {
-    return value === "true" || value === "1"
-  }
-  return false
-})
+const userStore = useUserStore()
+const { templateCapabilities } = storeToRefs(userStore)
+const canCreateTemplate = computed(() => Boolean(templateCapabilities.value?.can_create))
+const canUpdateTemplate = computed(() => Boolean(templateCapabilities.value?.can_update))
+const canDeleteTemplate = computed(() => Boolean(templateCapabilities.value?.can_delete))
+const isDelegatedReadOnly = computed(
+  () => !canCreateTemplate.value && !canUpdateTemplate.value && !canDeleteTemplate.value
+)
 
 const tableColumns = computed(() => [
   { accessorKey: 'name', header: t('templates.crud.fields.name') },
@@ -278,13 +278,19 @@ const closeFormModal = () => {
   showFormModal.value = false
 }
 
-const ensureWritable = () => {
-  if (!isDelegatedReadOnly.value) {
+const ensureWritable = (action: "create" | "update" | "delete") => {
+  const allowed =
+    action === "create"
+      ? canCreateTemplate.value
+      : action === "update"
+        ? canUpdateTemplate.value
+        : canDeleteTemplate.value
+  if (allowed) {
     return true
   }
   showToast({
     title: t("templates.crud.readonlyTitle"),
-    message: t("templates.crud.readonlyToast"),
+    message: "当前账号无模板写权限，请联系管理员授予 base.templates.manage。",
     color: "warning",
     duration: 4500,
   })
@@ -292,13 +298,13 @@ const ensureWritable = () => {
 }
 
 const startCreate = () => {
-  if (!ensureWritable()) return
+  if (!ensureWritable("create")) return
   resetForm()
   openFormModal()
 }
 
 const startEdit = (tpl: Template) => {
-  if (!ensureWritable()) return
+  if (!ensureWritable("update")) return
   editingId.value = tpl.id
   Object.assign(form, {
     name: tpl.name,
@@ -309,8 +315,12 @@ const startEdit = (tpl: Template) => {
 }
 
 const handleSubmit = async (payload: { name: string; description: string; content: string }) => {
-  if (isDelegatedReadOnly.value) {
-    ensureWritable()
+  if (editingId.value && !canUpdateTemplate.value) {
+    ensureWritable("update")
+    return
+  }
+  if (!editingId.value && !canCreateTemplate.value) {
+    ensureWritable("create")
     return
   }
   if (!payload.name || !payload.description || !payload.content) {
@@ -359,15 +369,15 @@ const handleSubmit = async (payload: { name: string; description: string; conten
 }
 
 const confirmDelete = (tpl: Template) => {
-  if (!ensureWritable()) return
+  if (!ensureWritable("delete")) return
   selectedTemplate.value = tpl
   deleteDialog.value = true
 }
 
 const performDelete = async () => {
   if (!selectedTemplate.value || deleting.value) return
-  if (isDelegatedReadOnly.value) {
-    ensureWritable()
+  if (!canDeleteTemplate.value) {
+    ensureWritable("delete")
     return
   }
   deleting.value = true
