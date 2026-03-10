@@ -22,6 +22,8 @@ npm-debug.log*
 yarn-debug.log*
 pnpm-debug.log*
 .cache
+.gocache/
+.gomodcache/
 tmp
 
 # Web admin (Nuxt)
@@ -36,6 +38,7 @@ web-admin/.stylelintcache
 
 # Backend (Go)
 backend/bin/
+backend/plugin
 backend/.cache/
 backend/.gocache/
 backend/.gomodcache
