@@ -106,12 +106,26 @@ func main() {
 	// ★ 在这里把 HTTP/GRPC 的占位符先解析掉（一定要在起服务之前）
 	//   - HTTP 用 PORT（由 PowerX 的 supervisor 注入）
 	cfg.Server.BindAddr = utils.ResolveDynamicAddr(cfg.Server.BindAddr, "PORT")
+	// 宿主优先：明确注入的监听地址/端口应覆盖默认 bind_addr，避免健康检查端口漂移。
+	if v := strings.TrimSpace(os.Getenv("POWERX_HTTP_ADDR")); v != "" {
+		cfg.Server.BindAddr = v
+	} else if v := strings.TrimSpace(os.Getenv("POWERX_DYNAMIC_PORT")); v != "" {
+		cfg.Server.BindAddr = ":" + v
+	} else if v := strings.TrimSpace(os.Getenv("PORT")); v != "" {
+		cfg.Server.BindAddr = ":" + v
+	}
 
 	//   - gRPC 用 POWERX_GRPC_PORT（由 PowerX 的 Enable 阶段注入）
 	if cfg.GRPCServer != nil {
 		// 如果你的字段叫 Addr，就把下一行改成：cfg.GRPCServer.Addr = resolveDynamicAddr(cfg.GRPCServer.Addr, "POWERX_GRPC_PORT")
 		cfg.GRPCServer.Addr = utils.ResolveDynamicAddr(cfg.GRPCServer.Addr, "POWERX_GRPC_PORT")
 	}
+	logger.WithFields(logger.Fields{
+		"bind_addr":           cfg.Server.BindAddr,
+		"powerx_http_addr":    strings.TrimSpace(os.Getenv("POWERX_HTTP_ADDR")),
+		"powerx_dynamic_port": strings.TrimSpace(os.Getenv("POWERX_DYNAMIC_PORT")),
+		"port_env":            strings.TrimSpace(os.Getenv("PORT")),
+	}).Info("Resolved HTTP bind address")
 
 	// 初始化插件
 	queryDB, err := pluginbootstrap.BootstrapPlugin(ctx, cfg)

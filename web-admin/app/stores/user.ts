@@ -24,6 +24,9 @@ export const useUserStore = defineStore("user", {
   }),
 
   getters: {
+    permissions: (state): string[] =>
+      Array.isArray(state.context?.permissions) ? state.context!.permissions : [],
+
     // 基本用户信息
     user: (state): ContextUser | null => state.context?.user || null,
 
@@ -62,6 +65,64 @@ export const useUserStore = defineStore("user", {
             m.tenant_uuid === state.context!.current_tenant_uuid
         ) || null;
       return currentTenant?.is_admin || false;
+    },
+
+    templateCapabilities: (state): { can_create: boolean; can_update: boolean; can_delete: boolean } => {
+      const existing = state.context?.capabilities?.templates;
+      if (
+        existing &&
+        typeof existing.can_create === "boolean" &&
+        typeof existing.can_update === "boolean" &&
+        typeof existing.can_delete === "boolean"
+      ) {
+        return {
+          can_create: existing.can_create,
+          can_update: existing.can_update,
+          can_delete: existing.can_delete,
+        };
+      }
+
+      const permissions = Array.isArray(state.context?.permissions)
+        ? state.context!.permissions.map((p) => String(p || "").trim().toLowerCase())
+        : [];
+      const hasPermission = (...codes: string[]) =>
+        codes.some((code) => permissions.includes(code.toLowerCase()));
+      const canManage =
+        Boolean(state.context?.is_root) ||
+        Boolean(
+          state.context?.members?.find(
+            (m: ContextMember) => m.tenant_uuid === state.context?.current_tenant_uuid
+          )?.is_admin
+        ) ||
+        hasPermission(
+          "base.templates.manage",
+          "template:manage",
+          "com.powerx.plugins.scrm:template:manage"
+        );
+
+      return {
+        can_create:
+          canManage ||
+          hasPermission(
+            "base.templates.create",
+            "template:create",
+            "com.powerx.plugins.scrm:template:create"
+          ),
+        can_update:
+          canManage ||
+          hasPermission(
+            "base.templates.update",
+            "template:update",
+            "com.powerx.plugins.scrm:template:update"
+          ),
+        can_delete:
+          canManage ||
+          hasPermission(
+            "base.templates.delete",
+            "template:delete",
+            "com.powerx.plugins.scrm:template:delete"
+          ),
+      };
     },
 
     // 用户显示名称
@@ -142,6 +203,17 @@ export const useUserStore = defineStore("user", {
         this.lastFetchedAt = Date.now();
         this.persistCurrentTenantUUID();
       } catch (error: any) {
+        const status =
+          error?.response?.status ?? error?.status ?? error?.statusCode;
+        if (status === 404 && this.context) {
+          this.context = {
+            ...this.context,
+            current_tenant_uuid: tenantUuid,
+          };
+          this.lastFetchedAt = Date.now();
+          this.persistCurrentTenantUUID();
+          return;
+        }
         console.error("切换租户失败:", error);
         throw new Error(error?.message || "切换租户失败");
       }

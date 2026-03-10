@@ -168,7 +168,7 @@ func (h *templateListHandler) Handle(ctx context.Context, envelope *domain.Integ
 }
 
 func (h *templateListHandler) CapabilityID() string {
-	return "com.powerx.plugins.base.template.list"
+	return "com.powerx.plugins.scrm.template.list"
 }
 
 type templateReadHandler struct {
@@ -195,7 +195,7 @@ func (h *templateReadHandler) Handle(ctx context.Context, envelope *domain.Integ
 }
 
 func (h *templateReadHandler) CapabilityID() string {
-	return "com.powerx.plugins.base.template.read"
+	return "com.powerx.plugins.scrm.template.read"
 }
 
 type templateCreateHandler struct {
@@ -227,7 +227,7 @@ func (h *templateCreateHandler) Handle(ctx context.Context, envelope *domain.Int
 }
 
 func (h *templateCreateHandler) CapabilityID() string {
-	return "com.powerx.plugins.base.template.create"
+	return "com.powerx.plugins.scrm.template.create"
 }
 
 type templateUpdateHandler struct {
@@ -270,7 +270,7 @@ func (h *templateUpdateHandler) Handle(ctx context.Context, envelope *domain.Int
 }
 
 func (h *templateUpdateHandler) CapabilityID() string {
-	return "com.powerx.plugins.base.template.update"
+	return "com.powerx.plugins.scrm.template.update"
 }
 
 type templateDeleteHandler struct {
@@ -300,7 +300,7 @@ func (h *templateDeleteHandler) Handle(ctx context.Context, envelope *domain.Int
 }
 
 func (h *templateDeleteHandler) CapabilityID() string {
-	return "com.powerx.plugins.base.template.delete"
+	return "com.powerx.plugins.scrm.template.delete"
 }
 
 type templateComposeHandler struct {
@@ -428,7 +428,7 @@ func (h *templateComposeHandler) Handle(ctx context.Context, envelope *domain.In
 }
 
 func (h *templateComposeHandler) CapabilityID() string {
-	return "com.powerx.plugins.base.template.compose"
+	return "com.powerx.plugins.scrm.template.compose"
 }
 
 type templateAuditHandler struct {
@@ -502,7 +502,7 @@ func (h *templateAuditHandler) Handle(ctx context.Context, envelope *domain.Inte
 	return &HostInvocationResult{Status: "accepted", Payload: payloadBytes}, nil
 }
 
-func (h *templateAuditHandler) CapabilityID() string { return "com.powerx.plugins.base.template.audit" }
+func (h *templateAuditHandler) CapabilityID() string { return "com.powerx.plugins.scrm.template.audit" }
 
 type templateQualityHandler struct {
 	svc    *srvtemplates.TemplateService
@@ -602,7 +602,7 @@ func (h *templateQualityHandler) Handle(ctx context.Context, envelope *domain.In
 }
 
 func (h *templateQualityHandler) CapabilityID() string {
-	return "com.powerx.plugins.base.template.quality_distribute"
+	return "com.powerx.plugins.scrm.template.quality_distribute"
 }
 
 func emitEvent(broker *stream.Broker, envelope *domain.IntegrationEnvelope, eventType string, payload interface{}) {

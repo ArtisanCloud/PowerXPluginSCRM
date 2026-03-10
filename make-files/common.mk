@@ -12,7 +12,7 @@ endif
 
 _MANIFEST_ID := $(strip $(shell awk -F': *' '/^id:/ {print $$2; exit}' $(PLUGIN_MANIFEST) 2>/dev/null))
 ifeq ($(_MANIFEST_ID),)
-PLUGIN_ID ?= com.powerx.plugin.sample
+PLUGIN_ID ?= com.powerx.plugins.sample
 else
 PLUGIN_ID ?= $(_MANIFEST_ID)
 endif

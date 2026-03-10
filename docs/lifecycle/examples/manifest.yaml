@@ -1,0 +1,86 @@
+id: com.powerx.plugins.scrm
+name: Powerx Plugin Scrm Plugin
+version: 0.1.0
+channel: dev
+min_core: "0.1.0"
+
+runtime:
+  backend:
+    entrypoint: backend/bin/plugin
+    sha256: dev-placeholder
+
+frontends:
+  - name: admin
+    path: web-admin/.output/public
+    sha256: dev-placeholder
+
+lifecycle:
+  status: active
+
+signature:
+  algorithm: unsigned
+  signed_by: local-dev
+  hashes:
+    - path: backend/bin/plugin
+      sha256: dev-placeholder
+    - path: web-admin/.output/public
+      sha256: dev-placeholder
+
+build:
+  commit: dev
+  builder: local
+  timestamp: "2026-03-09T00:00:00Z"
+
+migrations:
+  - driver: go
+    entry: backend/bin/migrate
+    args: ["setup"]
+    workdir: ./backend
+    once: true
+    timeout: 60s
+
+rbac:
+  - resource: template
+    actions: [read, create, update, delete]
+
+contracts:
+  plugin_yaml: plugin.yaml
+
+capabilities:
+  provides:
+    - id: com.powerx.plugins.scrm.template.list
+      version: 1.0.0
+      descriptor: contracts/capabilities/com.powerx.plugins.scrm.template.list.yaml
+    - id: com.powerx.plugins.scrm.template.read
+      version: 1.0.0
+      descriptor: contracts/capabilities/com.powerx.plugins.scrm.template.read.yaml
+    - id: com.powerx.plugins.scrm.template.create
+      version: 1.0.0
+      descriptor: contracts/capabilities/com.powerx.plugins.scrm.template.create.yaml
+    - id: com.powerx.plugins.scrm.template.update
+      version: 1.0.0
+      descriptor: contracts/capabilities/com.powerx.plugins.scrm.template.update.yaml
+    - id: com.powerx.plugins.scrm.template.delete
+      version: 1.0.0
+      descriptor: contracts/capabilities/com.powerx.plugins.scrm.template.delete.yaml
+    - id: com.powerx.plugins.scrm.template.review
+      version: 1.0.0
+      descriptor: contracts/capabilities/com.powerx.plugins.scrm.template.review.yaml
+    - id: com.powerx.plugins.scrm.template.publish
+      version: 1.0.0
+      descriptor: contracts/capabilities/com.powerx.plugins.scrm.template.publish.yaml
+    - id: com.powerx.plugins.scrm.template.compose
+      version: 1.0.0
+      descriptor: contracts/capabilities/com.powerx.plugins.scrm.template.compose.yaml
+    - id: com.powerx.plugins.scrm.template.audit
+      version: 1.0.0
+      descriptor: contracts/capabilities/com.powerx.plugins.scrm.template.audit.yaml
+    - id: com.powerx.plugins.scrm.template.batch_clone
+      version: 1.0.0
+      descriptor: contracts/capabilities/com.powerx.plugins.scrm.template.batch_clone.yaml
+    - id: com.powerx.plugins.scrm.template.validate
+      version: 1.0.0
+      descriptor: contracts/capabilities/com.powerx.plugins.scrm.template.validate.yaml
+    - id: com.powerx.plugins.scrm.template.quality_distribute
+      version: 1.0.0
+      descriptor: contracts/capabilities/com.powerx.plugins.scrm.template.quality_distribute.yaml

@@ -1,6 +1,6 @@
 # Powerx Plugin Scrm Plugin
 
-由 `px-plugin init com.powerx.plugin.scrm` 生成的 PowerX 插件模板。
+由 `px-plugin init com.powerx.plugins.scrm` 生成的 PowerX 插件模板。
 
 ## 快速开始
 

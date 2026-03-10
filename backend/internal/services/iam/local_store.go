@@ -24,7 +24,7 @@ const (
 	defaultAccessTTL     = 15 * time.Minute
 	defaultRefreshTTL    = 30 * 24 * time.Hour
 	defaultPolicyVersion = "local.v1"
-	defaultPluginID      = "com.powerx.plugins.base"
+	defaultPluginID      = "com.powerx.plugins.scrm"
 )
 
 // LocalDirectory implements IAMDirectory against the plugin's own database.

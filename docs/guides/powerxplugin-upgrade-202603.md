@@ -1,6 +1,6 @@
 # PowerXPlugin 新版对齐记录（2026-03）
 
-本文记录 `com.powerx.plugin.scrm` 按 PowerXPlugin 最新规范完成的迁移对齐点。
+本文记录 `com.powerx.plugins.scrm` 按 PowerXPlugin 最新规范完成的迁移对齐点。
 
 ## 0. IAM 与运行位置（统一语义）
 

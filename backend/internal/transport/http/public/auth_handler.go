@@ -221,7 +221,7 @@ func (h *AuthHandler) handleDelegatedMeContext(c *gin.Context) {
 		h.handleProxyErr(c, err)
 		return
 	}
-	contracts.ResponseSuccess(c, ctx)
+	contracts.ResponseSuccess(c, normalizeDelegatedUserContext(ctx))
 }
 
 func (h *AuthHandler) handleLocalLogin(c *gin.Context) {
@@ -317,6 +317,9 @@ func mapUserContext(uc *iamservice.UserContext) gin.H {
 		return gin.H{}
 	}
 	tenantUUID := strings.TrimSpace(uc.TenantUUID)
+	permissions := normalizeStringSlice(uc.Permissions)
+	roles := normalizeStringSlice(uc.Roles)
+	memberAdmin := uc.IsRoot || hasAdminRole(roles)
 	tenant := gin.H{
 		"uuid": tenantUUID,
 		"key":  uc.TenantKey,
@@ -337,11 +340,15 @@ func mapUserContext(uc *iamservice.UserContext) gin.H {
 			"username":     uc.Username,
 			"email":        uc.Email,
 			"display_name": uc.DisplayName,
+			"avatar_url":   uc.AvatarURL,
 			"is_root":      uc.IsRoot,
 		},
-		"roles":          uc.Roles,
-		"permissions":    uc.Permissions,
+		"roles":          roles,
+		"permissions":    permissions,
 		"policy_version": uc.PolicyVersion,
+		"capabilities": gin.H{
+			"templates": computeTemplateCapabilities(uc.IsRoot, memberAdmin, permissions, nil),
+		},
 	}
 	members := make([]gin.H, 0, 1)
 	if tenantUUID != "" {
@@ -349,7 +356,7 @@ func mapUserContext(uc *iamservice.UserContext) gin.H {
 			"tenant_uuid": tenantUUID,
 			"tenant_name": uc.TenantName,
 			"member_id":   uc.MemberID,
-			"is_admin":    uc.IsRoot || hasAdminRole(uc.Roles),
+			"is_admin":    memberAdmin,
 		})
 	}
 	resp["members"] = members
@@ -357,6 +364,170 @@ func mapUserContext(uc *iamservice.UserContext) gin.H {
 		resp["plugin_id"] = uc.PluginID
 	}
 	return resp
+}
+
+func normalizeDelegatedUserContext(ctx *authproxy.MeContext) gin.H {
+	if ctx == nil {
+		return gin.H{
+			"roles":       []string{},
+			"permissions": []string{},
+			"members":     []gin.H{},
+			"capabilities": gin.H{
+				"templates": gin.H{
+					"can_create": false,
+					"can_update": false,
+					"can_delete": false,
+				},
+			},
+		}
+	}
+	currentTenantUUID := strings.TrimSpace(ctx.CurrentTenantUUID)
+	permissions := normalizeStringSlice(ctx.Permissions)
+	roles := normalizeStringSlice(ctx.Roles)
+	memberAdmin := currentTenantMemberIsAdmin(currentTenantUUID, ctx.Members)
+	templatesCap := computeTemplateCapabilities(ctx.IsRoot, memberAdmin, permissions, ctx.Capabilities.Templates)
+
+	tenant := gin.H{
+		"uuid": currentTenantUUID,
+	}
+	if ctx.Tenant != nil {
+		if key := strings.TrimSpace(ctx.Tenant.Key); key != "" {
+			tenant["key"] = key
+		}
+		if name := strings.TrimSpace(ctx.Tenant.Name); name != "" {
+			tenant["name"] = name
+		}
+		if id := strings.TrimSpace(ctx.Tenant.UUID); id != "" {
+			tenant["uuid"] = id
+		}
+		if ctx.Tenant.LegacyID != nil && *ctx.Tenant.LegacyID > 0 {
+			tenant["legacy_id"] = *ctx.Tenant.LegacyID
+		}
+	}
+
+	user := gin.H{}
+	if ctx.User != nil {
+		user = gin.H{
+			"id":           ctx.User.ID,
+			"username":     strings.TrimSpace(ctx.User.Username),
+			"email":        strings.TrimSpace(ctx.User.Email),
+			"phone":        strings.TrimSpace(ctx.User.Phone),
+			"display_name": strings.TrimSpace(ctx.User.DisplayName),
+			"avatar_url":   strings.TrimSpace(ctx.User.AvatarURL),
+			"status":       ctx.User.Status,
+			"is_root":      ctx.User.IsRoot,
+		}
+	}
+
+	members := make([]gin.H, 0, len(ctx.Members))
+	for _, member := range ctx.Members {
+		memberTenant := strings.TrimSpace(member.TenantUUID)
+		members = append(members, gin.H{
+			"tenant_uuid": memberTenant,
+			"tenant_name": strings.TrimSpace(member.TenantName),
+			"member_id":   member.MemberID,
+			"is_admin":    member.IsAdmin,
+		})
+	}
+
+	resp := gin.H{
+		"tenant":              tenant,
+		"is_root":             ctx.IsRoot,
+		"current_tenant_uuid": currentTenantUUID,
+		"current_member_id":   ctx.CurrentMemberID,
+		"user":                user,
+		"roles":               roles,
+		"permissions":         permissions,
+		"members":             members,
+		"policy_version":      strings.TrimSpace(ctx.PolicyVersion),
+		"capabilities": gin.H{
+			"templates": templatesCap,
+		},
+	}
+	if pid := strings.TrimSpace(ctx.PluginID); pid != "" {
+		resp["plugin_id"] = pid
+	}
+	return resp
+}
+
+func currentTenantMemberIsAdmin(currentTenantUUID string, members []authproxy.MeMemberBrief) bool {
+	currentTenantUUID = strings.TrimSpace(currentTenantUUID)
+	if currentTenantUUID == "" {
+		return false
+	}
+	for _, member := range members {
+		if strings.TrimSpace(member.TenantUUID) == currentTenantUUID {
+			return member.IsAdmin
+		}
+	}
+	return false
+}
+
+func computeTemplateCapabilities(isRoot bool, isTenantAdmin bool, permissions []string, existing *authproxy.TemplateCapabilities) gin.H {
+	permSet := make(map[string]struct{}, len(permissions))
+	for _, permission := range permissions {
+		normalized := strings.ToLower(strings.TrimSpace(permission))
+		if normalized != "" {
+			permSet[normalized] = struct{}{}
+		}
+	}
+	hasPermission := func(items ...string) bool {
+		for _, item := range items {
+			if _, ok := permSet[strings.ToLower(strings.TrimSpace(item))]; ok {
+				return true
+			}
+		}
+		return false
+	}
+
+	canManage := isRoot || isTenantAdmin || hasPermission(
+		"base.templates.manage",
+		"template:manage",
+		"com.powerx.plugins.scrm:template:manage",
+	)
+	canCreate := canManage || hasPermission(
+		"base.templates.create",
+		"template:create",
+		"com.powerx.plugins.scrm:template:create",
+	)
+	canUpdate := canManage || hasPermission(
+		"base.templates.update",
+		"template:update",
+		"com.powerx.plugins.scrm:template:update",
+	)
+	canDelete := canManage || hasPermission(
+		"base.templates.delete",
+		"template:delete",
+		"com.powerx.plugins.scrm:template:delete",
+	)
+
+	if existing != nil {
+		canCreate = canCreate || existing.CanCreate
+		canUpdate = canUpdate || existing.CanUpdate
+		canDelete = canDelete || existing.CanDelete
+	}
+
+	return gin.H{
+		"can_create": canCreate,
+		"can_update": canUpdate,
+		"can_delete": canDelete,
+	}
+}
+
+func normalizeStringSlice(values []string) []string {
+	if len(values) == 0 {
+		return []string{}
+	}
+	normalized := make([]string, 0, len(values))
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			normalized = append(normalized, trimmed)
+		}
+	}
+	if len(normalized) == 0 {
+		return []string{}
+	}
+	return normalized
 }
 
 func hasAdminRole(roles []string) bool {
