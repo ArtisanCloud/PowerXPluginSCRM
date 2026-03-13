@@ -21,6 +21,7 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 	}
 	if catalogHandler != nil {
 		rg.GET("/capabilities", catalogHandler.List)
+		rg.GET("/capabilities/sources", catalogHandler.Sources)
 	}
 	group := rg.Group("/capabilities/register")
 	{

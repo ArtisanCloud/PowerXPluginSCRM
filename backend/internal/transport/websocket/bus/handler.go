@@ -2,6 +2,7 @@ package bus
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/contracts"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/dto"
@@ -28,7 +29,16 @@ var busUpgrader = websocket.Upgrader{
 
 func (h *Handler) ServeWS(c *gin.Context) {
 	tenantCtx, ok := authx.GetTenantContext(c)
-	if !ok || tenantCtx.TenantUUID == "" {
+	if !ok || strings.TrimSpace(tenantCtx.TenantUUID) == "" {
+		// 兼容本地开发场景：当 JWT/DevSwitch 未注入 tenant_ctx 时，允许从 query 读取 tenant_uuid。
+		if qTenant := strings.TrimSpace(c.Query("tenant_uuid")); qTenant != "" {
+			tenantCtx = authx.TenantContext{TenantUUID: qTenant}
+		} else {
+			contracts.ResponseError(c, http.StatusBadRequest, contracts.ErrCodeInvalidRequest, "tenant_uuid required")
+			return
+		}
+	}
+	if strings.TrimSpace(tenantCtx.TenantUUID) == "" {
 		contracts.ResponseError(c, http.StatusBadRequest, contracts.ErrCodeInvalidRequest, "tenant_uuid required")
 		return
 	}

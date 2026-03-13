@@ -82,6 +82,8 @@ var businessTables = []interface{}{
 	&leadCaptureModel.LeadConversationBinding{},
 	&leadCaptureModel.LeadConversationPending{},
 	&leadCaptureModel.LeadRealtimeProjection{},
+	&leadCaptureModel.LeadSourceCatalog{},
+	&leadCaptureModel.ChannelRule{},
 }
 
 var iamTables = []interface{}{

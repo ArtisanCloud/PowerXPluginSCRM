@@ -49,36 +49,13 @@ const resolveWsEndpoint = (
   pluginApiBase?: string,
   powerxCoreBase?: string
 ) => {
-  if (insidePowerX) {
-    if (powerxCoreBase) {
-      const trimmed = powerxCoreBase.replace(/\/+$/, "");
-      const wsPath = `${trimmed}/api/v1/ws`;
-      return toWsUrl(wsPath);
-    }
-    return "/api/v1/ws";
-  }
-
-  const base = apiBaseUrl || pluginApiBase;
-  if (!base) return "/api/v1/ws";
-  const trimmed = base.replace(/\/+$/, "");
-  let wsPath = trimmed;
-  if (/\/api\/v1$/i.test(wsPath)) {
-    wsPath = `${wsPath}/ws`;
-  } else if (/\/api$/i.test(wsPath)) {
-    wsPath = `${wsPath}/v1/ws`;
-  } else {
-    wsPath = `${wsPath}/api/v1/ws`;
-  }
-  if (wsPath.startsWith("http://") || wsPath.startsWith("https://")) {
-    return toWsUrl(wsPath);
-  }
-  if (!wsPath.startsWith("/")) {
-    wsPath = `/${wsPath}`;
-  }
-  if (typeof window !== "undefined") {
-    return `${window.location.origin}${wsPath}`;
-  }
-  return wsPath;
+  void insidePowerX;
+  void apiBaseUrl;
+  void pluginApiBase;
+  void powerxCoreBase;
+  // PowerXPlugin 对齐策略：前端统一连同源 `/api/ws`，
+  // 由宿主网关或本地 dev proxy 负责转发到正确后端。
+  return "/api/ws";
 };
 
 class WsBusClient {

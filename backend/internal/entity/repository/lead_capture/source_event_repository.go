@@ -31,7 +31,14 @@ func (r *LeadSourceEventRepository) CreateEventTx(ctx context.Context, tx *gorm.
 	event.LeadUUID = strings.ToLower(strings.TrimSpace(event.LeadUUID))
 	event.ChannelCode = strings.ToLower(strings.TrimSpace(event.ChannelCode))
 	event.AppType = strings.ToLower(strings.TrimSpace(event.AppType))
-	event.AccountUUID = strings.ToLower(strings.TrimSpace(event.AccountUUID))
+	if event.AccountUUID != nil {
+		accountUUID := strings.ToLower(strings.TrimSpace(*event.AccountUUID))
+		if accountUUID == "" {
+			event.AccountUUID = nil
+		} else {
+			event.AccountUUID = &accountUUID
+		}
+	}
 	event.CampaignCode = strings.TrimSpace(event.CampaignCode)
 	event.UTMSource = strings.TrimSpace(event.UTMSource)
 	event.UTMMedium = strings.TrimSpace(event.UTMMedium)

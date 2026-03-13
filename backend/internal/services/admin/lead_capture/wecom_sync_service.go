@@ -264,7 +264,16 @@ func (s *WeComSyncService) runLocalSyncIngestion(ctx context.Context, req Trigge
 			if item.DisplayName == "" && item.Phone == "" && item.Email == "" {
 				continue
 			}
-			existing, matchErr := s.findExistingLeadForSync(ctx, tx, req.TenantUUID, item.Phone, item.Email)
+			existing, matchErr := s.findExistingLeadForSync(
+				ctx,
+				tx,
+				req.TenantUUID,
+				item.Phone,
+				item.Email,
+				req.Channel,
+				req.AppType,
+				channelAccountUUID,
+			)
 			if matchErr != nil {
 				return matchErr
 			}
@@ -330,14 +339,27 @@ func (s *WeComSyncService) runLocalSyncIngestion(ctx context.Context, req Trigge
 	return stats, nil
 }
 
-func (s *WeComSyncService) findExistingLeadForSync(ctx context.Context, tx *gorm.DB, tenantUUID, phone, email string) (*leadmodel.Lead, error) {
+func (s *WeComSyncService) findExistingLeadForSync(
+	ctx context.Context,
+	tx *gorm.DB,
+	tenantUUID, phone, email, sourceChannel, sourceAppType, sourceAccountUUID string,
+) (*leadmodel.Lead, error) {
 	phone = strings.TrimSpace(phone)
 	email = strings.ToLower(strings.TrimSpace(email))
+	sourceChannel = strings.ToLower(strings.TrimSpace(sourceChannel))
+	sourceAppType = strings.ToLower(strings.TrimSpace(sourceAppType))
+	sourceAccountUUID = strings.TrimSpace(sourceAccountUUID)
 	if phone == "" && email == "" {
 		return nil, nil
 	}
 	var out leadmodel.Lead
-	query := tx.WithContext(ctx).Where("tenant_uuid = ?", tenantUUID)
+	query := tx.WithContext(ctx).
+		Where("tenant_uuid = ? AND source_channel = ? AND source_app_type = ?", tenantUUID, sourceChannel, sourceAppType)
+	if sourceAccountUUID == "" {
+		query = query.Where("source_account_uuid IS NULL")
+	} else {
+		query = query.Where("source_account_uuid = ?", sourceAccountUUID)
+	}
 	if phone != "" {
 		query = query.Where("phone = ?", phone)
 	} else {

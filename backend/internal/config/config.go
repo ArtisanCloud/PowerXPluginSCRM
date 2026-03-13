@@ -359,6 +359,7 @@ type ContextConfig struct {
 
 // Load 加载配置，优先级：YAML 文件 > 默认值（不再从环境变量覆盖）
 func Load() (*Config, error) {
+	loadEnvFiles()
 
 	// 设置默认配置
 	cfg := getDefaultConfig()
@@ -370,6 +371,7 @@ func Load() (*Config, error) {
 	}
 	if configDir != "" {
 		cfg.ConfigDir = configDir
+		loadEnvFiles(configDir, filepath.Dir(configDir))
 	}
 
 	loadSecurityBaselineConfig(cfg)

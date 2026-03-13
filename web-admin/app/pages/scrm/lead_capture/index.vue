@@ -11,6 +11,13 @@
       </div>
       <div class="flex items-center gap-2">
         <UButton
+          icon="i-heroicons-adjustments-horizontal"
+          variant="soft"
+          to="/admin/iam/dictionaries"
+        >
+          来源配置
+        </UButton>
+        <UButton
           icon="i-heroicons-arrow-path"
           variant="soft"
           :loading="store.loading"
@@ -53,7 +60,7 @@
             :ui="{ content: 'z-[200]' }"
           />
         </UFormField>
-        <UFormField label="渠道" class="w-full sm:w-40">
+        <UFormField label="流量平台" class="w-full sm:w-40">
           <USelectMenu
             v-model="channelFilter"
             :items="channelOptions"
@@ -65,7 +72,7 @@
             :ui="{ content: 'z-[200]' }"
           />
         </UFormField>
-        <UFormField label="应用" class="w-full sm:w-40">
+        <UFormField label="流量来源" class="w-full sm:w-40">
           <USelectMenu
             v-model="appTypeFilter"
             :items="appTypeOptions"
@@ -83,22 +90,12 @@
       </div>
     </div>
 
-    <UAlert
-      v-if="store.error"
-      color="warning"
-      variant="soft"
-      icon="i-heroicons-exclamation-triangle"
-    >
-      <template #title>线索列表不可用</template>
-      <template #description>{{ store.error }}</template>
-    </UAlert>
-
     <UCard>
       <template #header>
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div class="flex items-center gap-2">
             <UIcon name="i-heroicons-arrow-path-rounded-square" class="text-primary" />
-            <span class="font-medium">企微同步任务</span>
+            <span class="font-medium text-gray-900 dark:text-gray-100">渠道同步任务</span>
           </div>
           <div class="flex items-center gap-2">
             <UButton size="xs" variant="soft" :loading="syncLoading" @click="refreshSyncTasks">
@@ -111,9 +108,18 @@
         </div>
       </template>
       <div class="space-y-3">
-        <div class="grid grid-cols-1 gap-3 lg:grid-cols-3">
-          <UFormField label="账号 UUID（可选）">
-            <UInput v-model="syncAccountUUID" placeholder="不填走默认账号" />
+        <div class="grid grid-cols-1 gap-3 lg:grid-cols-4">
+          <UFormField label="同步账号（可选）">
+            <USelectMenu
+              v-model="syncAccountUUID"
+              :items="syncAccountOptions"
+              value-key="value"
+              label-key="label"
+              placeholder="不填走默认账号"
+              class="w-full"
+              :portal="false"
+              :ui="{ content: 'z-[200]' }"
+            />
           </UFormField>
           <UFormField label="状态筛选">
             <USelectMenu
@@ -126,18 +132,36 @@
               :ui="{ content: 'z-[200]' }"
             />
           </UFormField>
+          <div class="rounded-md border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900/40">
+            <div class="flex items-center justify-between gap-2">
+              <div class="space-y-1">
+                <div class="text-xs font-medium text-gray-700 dark:text-gray-200">
+                  客户私信自动建线索（WeCom）
+                </div>
+                <div class="text-xs text-gray-500 dark:text-gray-400">
+                  关闭时进入待绑定池；开启后客户私信可自动入池。
+                </div>
+              </div>
+              <USwitch
+                v-model="wecomCustomerDMAutoCreate"
+                :loading="wecomCustomerDMRuleLoading || wecomCustomerDMRuleSaving"
+              />
+            </div>
+            <div class="mt-2 flex justify-end">
+              <UButton
+                size="xs"
+                variant="soft"
+                :loading="wecomCustomerDMRuleSaving"
+                @click="saveWeComCustomerDMRule"
+              >
+                保存规则
+              </UButton>
+            </div>
+          </div>
           <div class="flex items-end text-xs text-gray-500 dark:text-gray-400">
-            最近一次解析来源：{{ syncLastResolveSource || "未触发" }}
+            最近一次账号解析来源：{{ syncLastResolveSource || "未触发" }}
           </div>
         </div>
-
-        <UAlert
-          v-if="syncTaskError"
-          color="warning"
-          variant="soft"
-          icon="i-heroicons-exclamation-triangle"
-          :description="syncTaskError"
-        />
 
         <UTable :columns="syncTaskColumns" :data="syncTasks" :loading="syncLoading">
           <template #status-cell="{ row }">
@@ -163,7 +187,7 @@
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2">
             <UIcon name="i-heroicons-rectangle-stack" class="text-primary" />
-            <span class="font-medium">线索列表</span>
+            <span class="font-medium text-gray-900 dark:text-gray-100">线索列表</span>
           </div>
           <UBadge variant="soft" color="primary">{{ filteredLeads.length }}</UBadge>
         </div>
@@ -255,31 +279,77 @@
       </template>
       <template #body>
         <UForm :state="createForm" class="space-y-4 p-4 sm:p-5">
+          <UFormField label="联系人信息（至少一项）" required>
+            <p class="text-xs text-gray-500">姓名 / 手机号 / 邮箱 至少填写一项。</p>
+          </UFormField>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <UFormField label="姓名">
+            <UFormField label="姓名" required>
               <UInput v-model="createForm.display_name" placeholder="线索姓名" />
             </UFormField>
-            <UFormField label="手机号">
+            <UFormField label="手机号" required>
               <UInput v-model="createForm.phone" placeholder="手机号" />
             </UFormField>
           </div>
-          <UFormField label="邮箱">
+          <UFormField label="邮箱" required>
             <UInput v-model="createForm.email" placeholder="邮箱" />
           </UFormField>
+          <UAlert
+            v-if="createFormError"
+            color="warning"
+            variant="soft"
+            icon="i-heroicons-exclamation-triangle"
+            :description="createFormError"
+          />
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <UFormField label="来源渠道">
-              <UInput v-model="createForm.source_channel" placeholder="wechat / dingding / mt" />
+            <UFormField label="流量平台">
+              <USelectMenu
+                v-model="createForm.source_channel"
+                :items="createSourceChannelOptions"
+                value-key="value"
+                label-key="label"
+                placeholder="请选择来源渠道"
+                class="w-full"
+                :portal="false"
+                :ui="{ content: 'z-[200]' }"
+              />
             </UFormField>
-            <UFormField label="应用类型">
-              <UInput v-model="createForm.source_app_type" placeholder="公众号 / 小程序 / wecom" />
+            <UFormField label="流量来源">
+              <USelectMenu
+                v-model="createForm.source_app_type"
+                :items="createSourceAppTypeOptions"
+                value-key="value"
+                label-key="label"
+                placeholder="请选择应用类型"
+                class="w-full"
+                :portal="false"
+                :ui="{ content: 'z-[200]' }"
+              />
             </UFormField>
           </div>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <UFormField label="账号 UUID">
-              <UInput v-model="createForm.source_account_uuid" placeholder="关联渠道账号 UUID" />
+            <UFormField label="关联系统渠道账号（高级）">
+              <USelectMenu
+                v-model="createForm.source_account_uuid"
+                :items="createAccountOptions"
+                value-key="value"
+                label-key="label"
+                placeholder="请选择系统内渠道账号"
+                class="w-full"
+                :portal="false"
+                :ui="{ content: 'z-[200]' }"
+              />
             </UFormField>
-            <UFormField label="负责人 UUID">
-              <UInput v-model="createForm.owner_user_uuid" placeholder="可选" />
+            <UFormField label="负责人（高级）">
+              <USelectMenu
+                v-model="createForm.owner_user_uuid"
+                :items="createOwnerOptions"
+                value-key="value"
+                label-key="label"
+                placeholder="请选择负责人（可选）"
+                class="w-full"
+                :portal="false"
+                :ui="{ content: 'z-[200]' }"
+              />
             </UFormField>
           </div>
         </UForm>
@@ -467,19 +537,38 @@ import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useRouter } from "#imports";
 import type { LeadCreatePayload } from "~/types/lead_capture/lead";
 import { useLeadCaptureStore } from "~/stores/scrm/lead_capture/lead_store";
+import { useUserStore } from "~/stores/user";
 import ToastAlert from "~/components/ToastAlert.vue";
 import {
   useLeadCaptureService,
   type WeComSyncTaskRecord,
+  type WeComCustomerDMRule,
 } from "~/composables/api/services/leadCapture";
+import {
+  RuntimeDictionaryNamespaces,
+  useRuntimeDictionaryService,
+  type RuntimeDictionaryItem,
+} from "~/composables/api/services/runtimeDictionary";
+import {
+  useSocialChannelGovernanceService,
+  type ChannelAccount,
+} from "~/composables/api/services/socialChannelGovernance";
+import {
+  useIAMService,
+  type MemberRecord,
+} from "~/composables/api/services/iamService";
 
 definePageMeta({
   layout: "default",
 });
 
 const store = useLeadCaptureStore();
+const userStore = useUserStore();
 const router = useRouter();
 const leadCaptureService = useLeadCaptureService();
+const runtimeDictionaryService = useRuntimeDictionaryService();
+const socialChannelService = useSocialChannelGovernanceService();
+const iamService = useIAMService();
 
 const searchText = ref("");
 const statusFilter = ref<string>("");
@@ -487,6 +576,7 @@ const channelFilter = ref<string>("");
 const appTypeFilter = ref<string>("");
 const createModalOpen = ref(false);
 const creating = ref(false);
+const createFormError = ref("");
 const currentPage = ref(1);
 const pageSize = ref(10);
 const importModalOpen = ref(false);
@@ -497,11 +587,16 @@ const importResult = ref<any | null>(null);
 const importStep = ref(1);
 const syncLoading = ref(false);
 const syncSubmitting = ref(false);
-const syncTaskError = ref("");
 const syncAccountUUID = ref("");
 const syncStatusFilter = ref<string>("");
 const syncTasks = ref<WeComSyncTaskRecord[]>([]);
 const syncLastResolveSource = ref("");
+const wecomCustomerDMRuleLoading = ref(false);
+const wecomCustomerDMRuleSaving = ref(false);
+const wecomCustomerDMAutoCreate = ref(false);
+const channelAccounts = ref<ChannelAccount[]>([]);
+const iamMembers = ref<MemberRecord[]>([]);
+const sourceCatalogs = ref<RuntimeDictionaryItem[]>([]);
 const previewHeaders = ref<string[]>([]);
 const previewRows = ref<string[][]>([]);
 const mappingForm = reactive<Record<string, number>>({});
@@ -562,6 +657,8 @@ const toast = reactive({
   color: "primary" as ToastColor,
   duration: 3000,
 });
+const lastToast = ref<{ key: string; at: number } | null>(null);
+const TOAST_DEDUP_WINDOW_MS = 3000;
 
 const leadColumns = [
   { accessorKey: "display_name", header: "线索" },
@@ -605,19 +702,83 @@ const syncTaskColumns = [
 
 const channelOptions = computed(() => {
   const entries = new Set<string>();
+  sourceCatalogs.value
+    .filter((item) => item.namespace === RuntimeDictionaryNamespaces.leadTrafficPlatform && item.enabled)
+    .forEach((item) => entries.add(item.code));
   store.leads.forEach((lead) => {
     if (lead.source_channel) entries.add(lead.source_channel);
   });
-  return [{ label: "全部", value: "" }, ...Array.from(entries).map((value) => ({ label: value, value }))];
+  const labelMap = new Map<string, string>();
+  sourceCatalogs.value
+    .filter((item) => item.namespace === RuntimeDictionaryNamespaces.leadTrafficPlatform)
+    .forEach((item) => labelMap.set(item.code, item.label));
+  return [
+    { label: "全部", value: "" },
+    ...Array.from(entries).map((value) => ({ label: labelMap.get(value) || value, value })),
+  ];
 });
 
 const appTypeOptions = computed(() => {
   const entries = new Set<string>();
+  sourceCatalogs.value
+    .filter((item) => item.namespace === RuntimeDictionaryNamespaces.leadTrafficSource && item.enabled)
+    .forEach((item) => entries.add(item.code));
   store.leads.forEach((lead) => {
     if (lead.source_app_type) entries.add(lead.source_app_type);
   });
-  return [{ label: "全部", value: "" }, ...Array.from(entries).map((value) => ({ label: value, value }))];
+  const labelMap = new Map<string, string>();
+  sourceCatalogs.value
+    .filter((item) => item.namespace === RuntimeDictionaryNamespaces.leadTrafficSource)
+    .forEach((item) => labelMap.set(item.code, item.label));
+  return [
+    { label: "全部", value: "" },
+    ...Array.from(entries).map((value) => ({ label: labelMap.get(value) || value, value })),
+  ];
 });
+
+const createSourceChannelOptions = computed(() => {
+  const items = sourceCatalogs.value
+    .filter((item) => item.namespace === RuntimeDictionaryNamespaces.leadTrafficPlatform && item.enabled)
+    .sort((a, b) => (a.sort || 100) - (b.sort || 100));
+  return items.map((item) => ({ value: item.code, label: item.label }));
+});
+
+const createSourceAppTypeOptions = computed(() => {
+  const items = sourceCatalogs.value
+    .filter((item) => item.namespace === RuntimeDictionaryNamespaces.leadTrafficSource && item.enabled)
+    .sort((a, b) => (a.sort || 100) - (b.sort || 100));
+  return items.map((item) => ({ value: item.code, label: item.label }));
+});
+
+const createAccountOptions = computed(() => {
+  const selectedChannel = createForm.source_channel?.trim().toLowerCase() || "";
+  const selectedAppType = createForm.source_app_type?.trim().toLowerCase() || "";
+  const filtered = channelAccounts.value.filter((account) => {
+    const channel = (account.channel_code || "").trim().toLowerCase();
+    const appType = (account.app_type || "").trim().toLowerCase();
+    if (selectedChannel && channel !== selectedChannel) return false;
+    if (selectedAppType && appType !== selectedAppType) return false;
+    return true;
+  });
+  return filtered.map((account) => ({
+    label: `${account.display_name || account.account_id} (${account.channel_code}/${account.app_type})`,
+    value: account.account_uuid,
+  }));
+});
+
+const syncAccountOptions = computed(() =>
+  channelAccounts.value.map((account) => ({
+    label: `${account.display_name || account.account_id} (${account.channel_code}/${account.app_type})`,
+    value: account.account_uuid,
+  }))
+);
+
+const createOwnerOptions = computed(() =>
+  iamMembers.value.map((member) => ({
+    label: `${member.display_name} (${member.email || member.username || member.member_id})`,
+    value: String(member.member_id),
+  }))
+);
 
 const filteredLeads = computed(() => {
   const keyword = searchText.value.trim().toLowerCase();
@@ -682,6 +843,9 @@ const statusMeta = (status?: string) => {
 
 const refreshLeads = async () => {
   await store.fetchLeads();
+  if (store.error) {
+    showToast(store.error, "error", "线索列表加载失败");
+  }
 };
 
 const syncStatusMeta = (status?: string) => {
@@ -700,7 +864,6 @@ const syncStatusMeta = (status?: string) => {
 
 const refreshSyncTasks = async () => {
   syncLoading.value = true;
-  syncTaskError.value = "";
   try {
     const resp = await leadCaptureService.listWeComSyncTasks({
       channel_account_uuid: syncAccountUUID.value.trim() || undefined,
@@ -709,7 +872,7 @@ const refreshSyncTasks = async () => {
     });
     syncTasks.value = ((resp as any)?.data?.items || []) as WeComSyncTaskRecord[];
   } catch (err: any) {
-    syncTaskError.value = err?.message || "同步任务加载失败";
+    showToast(err?.message || "同步任务加载失败", "error");
   } finally {
     syncLoading.value = false;
   }
@@ -728,7 +891,7 @@ const triggerWeComSync = async () => {
     if (task?.account_resolve_source) {
       syncLastResolveSource.value = task.account_resolve_source;
     }
-    showToast("已触发企微同步任务", "success");
+    showToast("已触发渠道同步任务", "success");
     await refreshSyncTasks();
   } catch (err: any) {
     showToast(err?.message || "触发同步失败", "error");
@@ -737,12 +900,66 @@ const triggerWeComSync = async () => {
   }
 };
 
+const loadWeComCustomerDMRule = async () => {
+  wecomCustomerDMRuleLoading.value = true;
+  try {
+    const resp = await leadCaptureService.getWeComCustomerDMRule();
+    const rule = ((resp as any)?.data || null) as WeComCustomerDMRule | null;
+    wecomCustomerDMAutoCreate.value = !!rule?.auto_create_lead_from_customer_dm;
+  } catch (err: any) {
+    showToast(err?.message || "加载渠道规则失败", "error");
+  } finally {
+    wecomCustomerDMRuleLoading.value = false;
+  }
+};
+
+const saveWeComCustomerDMRule = async () => {
+  wecomCustomerDMRuleSaving.value = true;
+  try {
+    const resp = await leadCaptureService.updateWeComCustomerDMRule({
+      enabled: !!wecomCustomerDMAutoCreate.value,
+    });
+    const rule = ((resp as any)?.data || null) as WeComCustomerDMRule | null;
+    wecomCustomerDMAutoCreate.value = !!rule?.auto_create_lead_from_customer_dm;
+    showToast("渠道规则已保存", "success");
+  } catch (err: any) {
+    showToast(err?.message || "保存渠道规则失败", "error");
+  } finally {
+    wecomCustomerDMRuleSaving.value = false;
+  }
+};
+
 const openDetail = (leadId: string) => {
   router.push(`/scrm/lead_capture/${leadId}`);
 };
 
+const loadCreateLookupOptions = async () => {
+  try {
+    const [accountResp, memberResp, catalogResp] = await Promise.all([
+      socialChannelService.listChannelAccounts(),
+      userStore.currentTenantUuid
+        ? iamService.listMembers({
+            tenantUuid: userStore.currentTenantUuid,
+            page: 1,
+            pageSize: 200,
+          })
+        : Promise.resolve({ data: { items: [] } } as any),
+      runtimeDictionaryService.listDictionaries(),
+    ]);
+    channelAccounts.value = ((accountResp as any)?.data?.items || []) as ChannelAccount[];
+    iamMembers.value = ((memberResp as any)?.data?.items || []) as MemberRecord[];
+    sourceCatalogs.value = ((catalogResp as any)?.data?.items || []) as RuntimeDictionaryItem[];
+  } catch {
+    channelAccounts.value = [];
+    iamMembers.value = [];
+    sourceCatalogs.value = [];
+  }
+};
+
 const openCreateModal = () => {
+  createFormError.value = "";
   createModalOpen.value = true;
+  void loadCreateLookupOptions();
 };
 
 const openImportModal = () => {
@@ -780,18 +997,50 @@ const resetCreateForm = () => {
   createForm.source_app_type = "";
   createForm.source_account_uuid = "";
   createForm.owner_user_uuid = "";
+  createFormError.value = "";
+};
+
+const sanitizeCreatePayload = (): LeadCreatePayload => {
+  const payload: LeadCreatePayload = {};
+  const displayName = createForm.display_name?.trim();
+  const phone = createForm.phone?.trim();
+  const email = createForm.email?.trim();
+  const sourceChannel = createForm.source_channel?.trim();
+  const sourceAppType = createForm.source_app_type?.trim();
+  const sourceAccountUUID = createForm.source_account_uuid?.trim();
+  const ownerUserUUID = createForm.owner_user_uuid?.trim();
+
+  if (displayName) payload.display_name = displayName;
+  if (phone) payload.phone = phone;
+  if (email) payload.email = email;
+  if (sourceChannel) payload.source_channel = sourceChannel;
+  if (sourceAppType) payload.source_app_type = sourceAppType;
+  if (sourceAccountUUID) payload.source_account_uuid = sourceAccountUUID;
+  if (ownerUserUUID) payload.owner_user_uuid = ownerUserUUID;
+  return payload;
+};
+
+const validateCreateForm = (): boolean => {
+  const hasContact =
+    !!createForm.display_name?.trim() ||
+    !!createForm.phone?.trim() ||
+    !!createForm.email?.trim();
+  if (!hasContact) {
+    createFormError.value = "姓名 / 手机号 / 邮箱至少填写一项。";
+    return false;
+  }
+  createFormError.value = "";
+  return true;
 };
 
 const submitCreate = async () => {
-  const hasContact =
-    !!createForm.display_name || !!createForm.phone || !!createForm.email;
-  if (!hasContact) {
+  if (!validateCreateForm()) {
     showToast("请至少填写姓名、手机号或邮箱之一", "warning");
     return;
   }
   creating.value = true;
   try {
-    const created = await store.createLead({ ...createForm });
+    const created = await store.createLead(sanitizeCreatePayload());
     if (created?.lead_uuid) {
       showToast("线索已创建", "success");
       blurActiveElement();
@@ -982,8 +1231,17 @@ const submitConfirm = async () => {
 };
 
 const showToast = (message: string, color: ToastColor = "primary", title = "") => {
-  toast.title = title || message;
-  toast.message = title ? message : "";
+  const resolvedTitle = title || message;
+  const resolvedMessage = title ? message : "";
+  const key = `${color}|${resolvedTitle}|${resolvedMessage}`;
+  const now = Date.now();
+  if (lastToast.value && lastToast.value.key === key && now - lastToast.value.at < TOAST_DEDUP_WINDOW_MS) {
+    return;
+  }
+  lastToast.value = { key, at: now };
+
+  toast.title = resolvedTitle;
+  toast.message = resolvedMessage;
   toast.color = color;
   toast.visible = true;
 };
@@ -1007,7 +1265,9 @@ watch([currentPage, pageSize], () => {
 });
 
 onMounted(async () => {
+  await loadCreateLookupOptions();
   await refreshLeads();
   await refreshSyncTasks();
+  await loadWeComCustomerDMRule();
 });
 </script>

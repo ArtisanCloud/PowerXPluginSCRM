@@ -156,6 +156,34 @@ func (c *DelegatedClient) MeContext(ctx context.Context, accessToken string) (*M
 	return &resp, nil
 }
 
+// ProxyRequest forwards a generic JSON request to PowerX Core.
+func (c *DelegatedClient) ProxyRequest(ctx context.Context, method, path string, payload any, out any, extraHeaders map[string]string) error {
+	method = strings.ToUpper(strings.TrimSpace(method))
+	if method == "" {
+		method = http.MethodGet
+	}
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+	var body io.Reader
+	if payload != nil && method != http.MethodGet && method != http.MethodDelete {
+		raw, err := json.Marshal(payload)
+		if err != nil {
+			return fmt.Errorf("authproxy: marshal payload: %w", err)
+		}
+		body = bytes.NewReader(raw)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, c.apiBase+path, body)
+	if err != nil {
+		return fmt.Errorf("authproxy: build request: %w", err)
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	c.applyHeaders(req, extraHeaders)
+	return c.do(req, out)
+}
+
 // ----- HTTP helpers -----
 
 type loginResponse struct {

@@ -98,4 +98,6 @@ const (
 	TableLeadCaptureConversationBindings = "lead_capture_conversation_bindings"
 	TableLeadCaptureConversationPending  = "lead_capture_conversation_pending"
 	TableLeadCaptureRealtimeProjection   = "lead_capture_realtime_projection"
+	TableLeadCaptureSourceCatalogs       = "lead_capture_source_catalogs"
+	TableLeadCaptureChannelRules         = "lead_capture_channel_rules"
 )

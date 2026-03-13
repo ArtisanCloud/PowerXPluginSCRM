@@ -28,6 +28,7 @@ type DelegatedAuthProxy interface {
 	Refresh(ctx context.Context, refreshToken string) (*iamservice.AuthTokens, error)
 	Logout(ctx context.Context, refreshToken string) error
 	MeContext(ctx context.Context, accessToken string) (*authproxy.MeContext, error)
+	ProxyRequest(ctx context.Context, method, path string, payload any, out any, extraHeaders map[string]string) error
 }
 
 // Deps bundles shared infrastructure dependencies for handlers and services.

@@ -21,6 +21,8 @@ func TestDedupService_PhoneHasHigherPriorityThanEmail(t *testing.T) {
 		Phone:      "13800000001",
 		Email:      "phone@example.com",
 		Status:     leadmodel.LeadStatusNew,
+		SourceChannel: "wechat",
+		SourceAppType: "wecom",
 		CreatedAt:  now.Add(-2 * time.Minute),
 		UpdatedAt:  now.Add(-2 * time.Minute),
 	}).Error)
@@ -30,16 +32,58 @@ func TestDedupService_PhoneHasHigherPriorityThanEmail(t *testing.T) {
 		Phone:      "",
 		Email:      "same@example.com",
 		Status:     leadmodel.LeadStatusNew,
+		SourceChannel: "wechat",
+		SourceAppType: "wecom",
 		CreatedAt:  now.Add(-1 * time.Minute),
 		UpdatedAt:  now.Add(-1 * time.Minute),
 	}).Error)
 
 	svc := NewDedupService()
-	lead, matchOn, err := svc.FindExistingLead(context.Background(), db, "00000000-0000-0000-0000-000000000001", "13800000001", "same@example.com")
+	lead, matchOn, err := svc.FindExistingLead(
+		context.Background(),
+		db,
+		"00000000-0000-0000-0000-000000000001",
+		"13800000001",
+		"same@example.com",
+		"wechat",
+		"wecom",
+		"",
+	)
 	require.NoError(t, err)
 	require.NotNil(t, lead)
 	require.Equal(t, "phone", matchOn)
 	require.Equal(t, "10000000-0000-4000-8000-000000000001", lead.LeadUUID)
+}
+
+func TestDedupService_DoesNotMergeAcrossSourceScope(t *testing.T) {
+	db := openMergePolicyTestDB(t, "merge_policy_scope")
+	now := time.Now().UTC()
+	require.NoError(t, db.Create(&leadmodel.Lead{
+		LeadUUID:       "10000000-0000-4000-8000-000000000011",
+		TenantUUID:     "00000000-0000-0000-0000-000000000001",
+		Phone:          "13800000001",
+		Email:          "scope@example.com",
+		Status:         leadmodel.LeadStatusNew,
+		SourceChannel:  "wechat",
+		SourceAppType:  "wecom",
+		CreatedAt:      now.Add(-2 * time.Minute),
+		UpdatedAt:      now.Add(-2 * time.Minute),
+	}).Error)
+
+	svc := NewDedupService()
+	lead, matchOn, err := svc.FindExistingLead(
+		context.Background(),
+		db,
+		"00000000-0000-0000-0000-000000000001",
+		"13800000001",
+		"scope@example.com",
+		"douyin",
+		"short_video",
+		"",
+	)
+	require.NoError(t, err)
+	require.Nil(t, lead)
+	require.Equal(t, "", matchOn)
 }
 
 func TestDedupService_BuildMergeUpdatesOnlyFillsEmptyFields(t *testing.T) {

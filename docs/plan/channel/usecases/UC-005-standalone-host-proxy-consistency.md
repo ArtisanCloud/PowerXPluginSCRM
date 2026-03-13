@@ -1,5 +1,11 @@
 # UC-005 Standalone 与 Host/Proxy 一致性
 
+## 实现状态
+
+- 状态：部分实现
+- 与 004 关系：已支持同步任务 provider 的 `framework/local_fallback` 切换
+- 当前缺口：缺少覆盖 channel 相关核心场景的一致性自动化回归矩阵
+
 ## 目标
 
 确保 SCRM 在 standalone 与 host/proxy 两种模式下业务输出一致。
@@ -32,3 +38,8 @@
 
 1. 契约字段不一致：标记 `CONTRACT_DRIFT`。
 2. 模式行为不一致：标记 `MODE_BEHAVIOR_MISMATCH` 并阻断发布。
+
+## 开发落地建议
+
+1. 固化最小回归集：wecom 同步、会话 webhook、WS 推送、去重合并。
+2. 同一输入在两种模式下做契约快照对比并纳入 CI。

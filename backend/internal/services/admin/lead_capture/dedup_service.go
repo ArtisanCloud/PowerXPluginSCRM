@@ -16,17 +16,33 @@ func NewDedupService() *DedupService {
 	return &DedupService{}
 }
 
-func (s *DedupService) FindExistingLead(ctx context.Context, tx *gorm.DB, tenantUUID, phone, email string) (*model.Lead, string, error) {
+func (s *DedupService) FindExistingLead(
+	ctx context.Context,
+	tx *gorm.DB,
+	tenantUUID, phone, email, sourceChannel, sourceAppType, sourceAccountUUID string,
+) (*model.Lead, string, error) {
 	_ = s
 	if tx == nil {
 		return nil, "", errors.New("database transaction is nil")
 	}
 	phone = strings.TrimSpace(phone)
 	email = strings.ToLower(strings.TrimSpace(email))
+	sourceChannel = strings.ToLower(strings.TrimSpace(sourceChannel))
+	sourceAppType = strings.ToLower(strings.TrimSpace(sourceAppType))
+	sourceAccountUUID = strings.TrimSpace(sourceAccountUUID)
+
+	scopeQuery := tx.WithContext(ctx).
+		Where("tenant_uuid = ? AND source_channel = ? AND source_app_type = ?", tenantUUID, sourceChannel, sourceAppType)
+	if sourceAccountUUID == "" {
+		scopeQuery = scopeQuery.Where("source_account_uuid IS NULL")
+	} else {
+		scopeQuery = scopeQuery.Where("source_account_uuid = ?", sourceAccountUUID)
+	}
+
 	if phone != "" {
 		var lead model.Lead
-		err := tx.WithContext(ctx).
-			Where("tenant_uuid = ? AND phone = ?", tenantUUID, phone).
+		err := scopeQuery.
+			Where("phone = ?", phone).
 			Order("created_at ASC").
 			First(&lead).Error
 		if err == nil {
@@ -38,8 +54,8 @@ func (s *DedupService) FindExistingLead(ctx context.Context, tx *gorm.DB, tenant
 	}
 	if email != "" {
 		var lead model.Lead
-		err := tx.WithContext(ctx).
-			Where("tenant_uuid = ? AND email = ?", tenantUUID, email).
+		err := scopeQuery.
+			Where("email = ?", email).
 			Order("created_at ASC").
 			First(&lead).Error
 		if err == nil {

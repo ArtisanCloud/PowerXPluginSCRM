@@ -50,6 +50,7 @@ curl -X POST "http://127.0.0.1:8092/api/v1/admin/leads/wecom/sync" \
 - 返回 `task_uuid`。
 - 未传账号时返回 `account_resolve_source=default`。
 - `task_provider` 正确（`framework` 或 `local_fallback`）。
+- 同步任务口径固定为 WeCom（`source_channel=wechat`、`source_app_type=wecom`）。
 
 ### 3.2 查询同步任务
 
@@ -68,6 +69,7 @@ curl -G "http://127.0.0.1:8092/api/v1/admin/leads/wecom/sync-tasks" \
 
 ### 4.1 去重归并（手机号优先）
 
+在同一来源作用域（`tenant + source_channel + source_app_type + source_account_uuid`）下，
 连续创建两条手机号相同线索，第二条应合并到第一条（不新增线索记录）。
 
 验收点：

@@ -26,6 +26,33 @@ export interface LeadCreatePayload {
   owner_user_uuid?: string;
 }
 
+export interface LeadSourceCatalogRecord {
+  catalog_uuid: string;
+  tenant_uuid: string;
+  category: "traffic_platform" | "traffic_source";
+  code: string;
+  label: string;
+  sort: number;
+  enabled: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface LeadSourceCatalogCreatePayload {
+  category: "traffic_platform" | "traffic_source";
+  code: string;
+  label: string;
+  sort?: number;
+  enabled?: boolean;
+}
+
+export interface LeadSourceCatalogUpdatePayload {
+  code?: string;
+  label?: string;
+  sort?: number;
+  enabled?: boolean;
+}
+
 export interface LeadListResponse {
   items: LeadRecord[];
 }
@@ -151,6 +178,20 @@ export interface WeComSyncTaskListResponse {
   items: WeComSyncTaskRecord[];
 }
 
+export interface WeComCustomerDMRule {
+  channel: "wechat";
+  app_type: "wecom";
+  auto_create_lead_from_customer_dm: boolean;
+}
+
+export interface WeComCustomerDMRuleUpdatePayload {
+  enabled: boolean;
+}
+
+export interface LeadSourceCatalogListResponse {
+  items: LeadSourceCatalogRecord[];
+}
+
 export const useLeadCaptureService = () => {
   const apiClient = useApiClient();
   const baseUrl = "/admin/leads";
@@ -217,5 +258,28 @@ export const useLeadCaptureService = () => {
       apiClient.get<ApiResponse<WeComSyncTaskListResponse>>(`${baseUrl}/wecom/sync-tasks`, {
         params,
       }),
+    getWeComCustomerDMRule: () =>
+      apiClient.get<ApiResponse<WeComCustomerDMRule>>(`${baseUrl}/channel-rules/wecom/customer-dm`),
+    updateWeComCustomerDMRule: (payload: WeComCustomerDMRuleUpdatePayload) =>
+      apiClient.put<ApiResponse<WeComCustomerDMRule>>(
+        `${baseUrl}/channel-rules/wecom/customer-dm`,
+        payload
+      ),
+    listSourceCatalogs: (params?: {
+      category?: "traffic_platform" | "traffic_source";
+      enabled?: boolean;
+    }) =>
+      apiClient.get<ApiResponse<LeadSourceCatalogListResponse>>(`${baseUrl}/source-catalogs`, {
+        params,
+      }),
+    createSourceCatalog: (payload: LeadSourceCatalogCreatePayload) =>
+      apiClient.post<ApiResponse<LeadSourceCatalogRecord>>(`${baseUrl}/source-catalogs`, payload),
+    updateSourceCatalog: (catalogId: string, payload: LeadSourceCatalogUpdatePayload) =>
+      apiClient.patch<ApiResponse<LeadSourceCatalogRecord>>(
+        `${baseUrl}/source-catalogs/${catalogId}`,
+        payload
+      ),
+    deleteSourceCatalog: (catalogId: string) =>
+      apiClient.delete<ApiResponse<{ deleted: boolean }>>(`${baseUrl}/source-catalogs/${catalogId}`),
   };
 };

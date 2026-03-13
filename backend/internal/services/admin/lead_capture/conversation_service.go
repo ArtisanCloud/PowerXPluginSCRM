@@ -40,7 +40,9 @@ type ConversationService struct {
 	bindingRepo    *leadrepo.LeadConversationBindingRepository
 	pendingRepo    *leadrepo.LeadConversationPendingRepository
 	projectionRepo *leadrepo.LeadRealtimeProjectionRepository
+	ruleRepo       *leadrepo.ChannelRuleRepository
 	leadRepo       *leadrepo.LeadRepository
+	leadService    *LeadService
 	realtime       *ConversationRealtimePublisher
 	metrics        *leadobs.Metrics
 }
@@ -68,6 +70,22 @@ func (s *ConversationService) WithLeadRepository(leadRepo *leadrepo.LeadReposito
 		return s
 	}
 	s.leadRepo = leadRepo
+	return s
+}
+
+func (s *ConversationService) WithLeadService(leadService *LeadService) *ConversationService {
+	if s == nil {
+		return s
+	}
+	s.leadService = leadService
+	return s
+}
+
+func (s *ConversationService) WithChannelRuleRepository(ruleRepo *leadrepo.ChannelRuleRepository) *ConversationService {
+	if s == nil {
+		return s
+	}
+	s.ruleRepo = ruleRepo
 	return s
 }
 
@@ -217,6 +235,14 @@ func (s *ConversationService) routeConversationEvent(ctx context.Context, event 
 	}
 	leadUUID, reason := s.resolveLeadUUID(ctx, event)
 	if leadUUID == "" {
+		if s.shouldAutoCreateLeadFromCustomerDM(ctx, event) {
+			createdLeadUUID, createErr := s.autoCreateLeadFromConversation(ctx, event)
+			if createErr == nil && createdLeadUUID != "" {
+				leadUUID = createdLeadUUID
+			}
+		}
+	}
+	if leadUUID == "" {
 		if s.pendingRepo != nil {
 			_, _ = s.pendingRepo.Create(ctx, &leadmodel.LeadConversationPending{
 				TenantUUID:         event.TenantUUID,
@@ -241,6 +267,47 @@ func (s *ConversationService) routeConversationEvent(ctx context.Context, event 
 		return err
 	}
 	return s.upsertProjectionAndPublish(ctx, leadUUID, event, true)
+}
+
+func (s *ConversationService) shouldAutoCreateLeadFromCustomerDM(ctx context.Context, event *leadmodel.ConversationEvent) bool {
+	if s == nil || s.ruleRepo == nil || event == nil {
+		return false
+	}
+	if !strings.EqualFold(strings.TrimSpace(event.ActorType), "customer") {
+		return false
+	}
+	rule, err := s.ruleRepo.GetByChannelApp(ctx, event.TenantUUID, event.Channel, event.AppType)
+	if err != nil {
+		return false
+	}
+	return rule != nil && rule.AutoCreateLeadFromCustomerDM
+}
+
+func (s *ConversationService) autoCreateLeadFromConversation(ctx context.Context, event *leadmodel.ConversationEvent) (string, error) {
+	if s == nil || s.leadService == nil || event == nil {
+		return "", errors.New("lead service unavailable")
+	}
+	displayName := rawString(event.RawPayload, "display_name", "name", "customer_name", "nickname")
+	phone := rawString(event.RawPayload, "phone", "customer_phone", "mobile")
+	email := rawString(event.RawPayload, "email", "customer_email")
+	if displayName == "" && phone == "" && email == "" {
+		return "", errors.New("no identity fields for auto create")
+	}
+	if displayName == "" {
+		displayName = strings.TrimSpace(event.ActorID)
+	}
+	created, err := s.leadService.Create(ctx, event.TenantUUID, LeadCreateRequest{
+		DisplayName:       displayName,
+		Phone:             phone,
+		Email:             email,
+		SourceChannel:     event.Channel,
+		SourceAppType:     event.AppType,
+		SourceAccountUUID: event.ChannelAccountUUID,
+	})
+	if err != nil || created == nil {
+		return "", err
+	}
+	return strings.ToLower(strings.TrimSpace(created.LeadUUID)), nil
 }
 
 func (s *ConversationService) upsertProjectionAndPublish(ctx context.Context, leadUUID string, event *leadmodel.ConversationEvent, fromWebhook bool) error {

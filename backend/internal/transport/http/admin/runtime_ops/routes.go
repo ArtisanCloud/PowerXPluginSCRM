@@ -25,6 +25,12 @@ func RegisterRoutes(router *gin.RouterGroup, deps *app.Deps) {
 
 	router.GET("/metrics", MetricsHandler)
 
+	dictionaryHandler := NewDictionaryHandler(runtimeops.NewDictionaryService(deps))
+	router.GET("/dictionaries", dictionaryHandler.List)
+	router.POST("/dictionaries", dictionaryHandler.Create)
+	router.PATCH("/dictionaries/:item_id", dictionaryHandler.Update)
+	router.DELETE("/dictionaries/:item_id", dictionaryHandler.Delete)
+
 	router.POST("/event-bridge/emit", EventBridgeEmitHandler(deps))
 	router.POST("/internal/event-fabric/topics", EventFabricCreateTopicHandler(deps))
 	router.POST("/internal/ws-bus/publish", WSBusPublishHandler(deps))
