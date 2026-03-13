@@ -4,6 +4,10 @@
 run: ## 启动后端服务（开发模式）
 	@echo "启动后端服务..."
 	cd $(BACKEND_DIR) && \
+		set -a && \
+		[ -f .env ] && . ./.env || true && \
+		[ -f .env.local ] && . ./.env.local || true && \
+		set +a && \
 		POWERX_BIND_ADDR=":8086" \
 		POWERX_DB_SCHEMA="$(POWERX_DB_SCHEMA)" \
 		POWERX_LOG_LEVEL="debug" \

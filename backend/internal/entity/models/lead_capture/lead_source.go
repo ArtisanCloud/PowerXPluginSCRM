@@ -13,7 +13,7 @@ type LeadSource struct {
 	TenantUUID   string    `gorm:"column:tenant_uuid;type:uuid;not null;index:idx_lead_capture_sources_tenant" json:"tenant_uuid"`
 	ChannelCode  string    `gorm:"column:channel_code;type:varchar(64)" json:"channel_code"`
 	AppType      string    `gorm:"column:app_type;type:varchar(64)" json:"app_type"`
-	AccountUUID  string    `gorm:"column:account_uuid;type:uuid" json:"account_uuid"`
+	AccountUUID  *string   `gorm:"column:account_uuid;type:uuid" json:"account_uuid,omitempty"`
 	CampaignCode string    `gorm:"column:campaign_code;type:text" json:"campaign_code"`
 	UTMSource    string    `gorm:"column:utm_source;type:text" json:"utm_source"`
 	UTMMedium    string    `gorm:"column:utm_medium;type:text" json:"utm_medium"`

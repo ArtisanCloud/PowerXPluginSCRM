@@ -203,6 +203,51 @@ Task: T025 web-admin/app/composables/api/services/leadCapture.ts
 
 ---
 
+## Phase 7: Channel 扩展落地（开发前任务与执行任务）
+
+**Purpose**: 把 channel 规划从文档阶段收敛为可执行任务，并在不破坏 004 WeCom MVP 的前提下推进下一步开发。
+
+### 7.1 文档收敛（已完成）
+
+- [x] T052 [P] [US4] 对齐 channel 主开发文档到 004 当前实现口径，更新 `docs/plan/channel/development-guide.md`
+- [x] T053 [P] [US4] 对齐 lead-capture 验收文档口径（WeCom 固定入口 + 去重作用域），更新 `docs/guides/lead-capture/README.md`
+- [x] T054 [P] [US4] 对齐 wecom_lead_sync 规划口径到 004，更新 `docs/plan/lead_capture/wecom_lead_sync/README.md`
+- [x] T055 [P] [US4] 拆分并标注 channel usecase 实现状态（规划中/部分实现），更新 `docs/plan/channel/usecases/*.md`
+
+### 7.2 下一步开发（待执行）
+
+#### Tests for User Story 4（Channel 入口与自动建线索规则）
+
+- [x] T056 [P] [US4] 新增合同测试：WeCom webhook 命中“自动建线索规则开启”时创建线索到 `backend/tests/contract/lead_capture_channel_rule_contract_test.go`
+- [x] T057 [P] [US4] 新增服务单测：待绑定池与自动建线索规则互斥策略到 `backend/internal/services/admin/lead_capture/conversation_service_test.go`
+- [x] T058 [US4] 新增集成测试：规则开启/关闭两种模式下的入池行为到 `backend/tests/integration/lead_capture_channel_rule_integration_test.go`
+
+#### Implementation for User Story 4
+
+- [x] T059 [US4] 新增“私信自动建线索规则”配置模型与仓储（租户级）到 `backend/internal/entity/models/lead_capture/` 与 `backend/internal/entity/repository/lead_capture/`
+- [x] T060 [US4] 扩展会话服务：按规则决定“待绑定”或“自动建线索”到 `backend/internal/services/admin/lead_capture/conversation_service.go`
+- [x] T061 [US4] 新增 admin 配置接口（查询/更新规则）到 `backend/internal/transport/http/admin/lead_capture/`
+- [x] T062 [US4] 前端线索页增加规则开关与说明到 `web-admin/app/pages/scrm/lead_capture/index.vue`
+
+#### Tests for User Story 5（Bot 命令创建线索，WeCom 单渠道）
+
+- [x] T063 [P] [US5] 新增服务单测：Bot 命令解析与权限校验到 `backend/internal/services/admin/lead_capture/`
+- [x] T064 [US5] 新增集成测试：Bot 重放命中幂等不重复创建到 `backend/tests/integration/lead_capture_bot_command_integration_test.go`
+
+#### Implementation for User Story 5
+
+- [x] T065 [US5] 新增 Bot 命令 DTO 与校验到 `backend/internal/dto/lead_capture/`
+- [x] T066 [US5] 新增 Bot 命令入口 handler（仅 WeCom）到 `backend/internal/transport/http/webhooks/`
+- [x] T067 [US5] 复用 LeadService.Create 接入命令链路，写入审计与幂等到 `backend/internal/services/admin/lead_capture/`
+- [x] T068 [US5] 新增前端回执展示字段（request_id/lead_id）到 `web-admin/app/pages/scrm/lead_capture/[lead_id].vue`
+
+#### Cross-cutting
+
+- [ ] T069 [P] 新增一致性回归：standalone vs host/proxy 的 channel 关键路径快照对比到 `backend/tests/integration/`
+- [ ] T070 更新 quickstart 与运维手册（新增规则开关与 Bot 调试）到 `specs/004-wecom-lead-managment/quickstart.md` 与 `docs/guides/lead-capture/README.md`
+
+---
+
 ## Notes
 
 - `[P]` 任务仅表示文件与依赖允许并行，不代表可跳过顺序约束。

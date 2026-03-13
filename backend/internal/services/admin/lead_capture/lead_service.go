@@ -105,7 +105,16 @@ func (s *LeadService) Create(ctx context.Context, tenantUUID string, req LeadCre
 	var mergeMeta map[string]any
 	var merged bool
 	err := s.repo.WithTenantTx(ctx, tenantUUID, func(tx *gorm.DB) error {
-		existing, matchOn, err := s.findExistingLead(ctx, tx, tenantUUID, normalized.Phone, normalized.Email)
+		existing, matchOn, err := s.findExistingLead(
+			ctx,
+			tx,
+			tenantUUID,
+			normalized.Phone,
+			normalized.Email,
+			normalized.SourceChannel,
+			normalized.SourceAppType,
+			sourceAccountUUID,
+		)
 		if err != nil {
 			return err
 		}
@@ -765,14 +774,18 @@ func isAllowedLeadStatusTransition(fromStatus, toStatus string) bool {
 	}
 }
 
-func (s *LeadService) findExistingLead(ctx context.Context, tx *gorm.DB, tenantUUID, phone, email string) (*model.Lead, string, error) {
+func (s *LeadService) findExistingLead(
+	ctx context.Context,
+	tx *gorm.DB,
+	tenantUUID, phone, email, sourceChannel, sourceAppType, sourceAccountUUID string,
+) (*model.Lead, string, error) {
 	if s != nil && s.dedupSvc != nil {
-		return s.dedupSvc.FindExistingLead(ctx, tx, tenantUUID, phone, email)
+		return s.dedupSvc.FindExistingLead(ctx, tx, tenantUUID, phone, email, sourceChannel, sourceAppType, sourceAccountUUID)
 	}
 	if tx == nil {
 		return nil, "", errors.New("database transaction is nil")
 	}
-	return NewDedupService().FindExistingLead(ctx, tx, tenantUUID, phone, email)
+	return NewDedupService().FindExistingLead(ctx, tx, tenantUUID, phone, email, sourceChannel, sourceAppType, sourceAccountUUID)
 }
 
 func (s *LeadService) createSourceTrace(ctx context.Context, tx *gorm.DB, tenantUUID, leadUUID string, req LeadCreateRequest) error {
@@ -780,12 +793,16 @@ func (s *LeadService) createSourceTrace(ctx context.Context, tx *gorm.DB, tenant
 		return nil
 	}
 	sourceAccountUUID := strings.TrimSpace(req.SourceAccountUUID)
+	var sourceAccountPtr *string
+	if sourceAccountUUID != "" {
+		sourceAccountPtr = &sourceAccountUUID
+	}
 	returned := &model.LeadSource{
 		TenantUUID:  tenantUUID,
 		LeadUUID:    leadUUID,
 		ChannelCode: strings.TrimSpace(req.SourceChannel),
 		AppType:     strings.TrimSpace(req.SourceAppType),
-		AccountUUID: sourceAccountUUID,
+		AccountUUID: sourceAccountPtr,
 	}
 	if strings.EqualFold(strings.TrimSpace(req.SourceChannel), "wechat") &&
 		strings.EqualFold(strings.TrimSpace(req.SourceAppType), "wecom") {

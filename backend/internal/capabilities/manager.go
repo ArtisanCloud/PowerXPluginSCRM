@@ -234,10 +234,20 @@ type manifestCapability struct {
 }
 
 type manifestDoc struct {
-	ID           string `yaml:"id"`
-	Version      string `yaml:"version"`
+	ID       string `yaml:"id"`
+	Version  string `yaml:"version"`
+	Catalogs struct {
+		Capabilities string `yaml:"capabilities"`
+	} `yaml:"catalogs"`
 	Capabilities struct {
-		Imports  []string            `yaml:"imports"`
+		Imports  []string             `yaml:"imports"`
+		Provides []manifestCapability `yaml:"provides"`
+	} `yaml:"capabilities"`
+}
+
+type manifestCatalogDoc struct {
+	Capabilities struct {
+		Imports  []string             `yaml:"imports"`
 		Provides []manifestCapability `yaml:"provides"`
 	} `yaml:"capabilities"`
 }
@@ -256,6 +266,37 @@ func loadCatalogFromManifest(log *logrus.Entry) (*CatalogSnapshot, error) {
 		return nil, fmt.Errorf("parse manifest %s: %w", manifestPath, err)
 	}
 	manifestDir := filepath.Dir(manifestPath)
+
+	// Backward/compat mode:
+	// If manifest top-level capabilities is empty, read catalogs.capabilities (plugin.d/capabilities.yaml).
+	if len(doc.Capabilities.Imports) == 0 && len(doc.Capabilities.Provides) == 0 {
+		relCatalog := strings.TrimSpace(doc.Catalogs.Capabilities)
+		if relCatalog != "" {
+			absCatalog := relCatalog
+			if !filepath.IsAbs(absCatalog) {
+				absCatalog = filepath.Join(manifestDir, filepath.FromSlash(relCatalog))
+			}
+			if catalogRaw, err := os.ReadFile(absCatalog); err == nil {
+				var catalogDoc manifestCatalogDoc
+				if err := yaml.Unmarshal(catalogRaw, &catalogDoc); err == nil {
+					doc.Capabilities.Imports = catalogDoc.Capabilities.Imports
+					doc.Capabilities.Provides = catalogDoc.Capabilities.Provides
+					if log != nil {
+						log.WithFields(logrus.Fields{
+							"catalog_path": absCatalog,
+							"imports":      len(doc.Capabilities.Imports),
+							"provides":     len(doc.Capabilities.Provides),
+						}).Info("loaded capabilities from catalogs.capabilities")
+					}
+				} else if log != nil {
+					log.WithError(err).Warnf("failed to parse catalogs.capabilities: %s", absCatalog)
+				}
+			} else if log != nil {
+				log.WithError(err).Warnf("failed to read catalogs.capabilities: %s", absCatalog)
+			}
+		}
+	}
+
 	now := time.Now().UTC().Format(time.RFC3339)
 	snapshot := &CatalogSnapshot{
 		PluginID:        strings.TrimSpace(doc.ID),

@@ -1,5 +1,11 @@
 # UC-001 员工在企微 Bot 创建线索
 
+## 实现状态
+
+- 状态：规划中
+- 与 004 关系：`specs/004-wecom-lead-managment` 未交付 Bot 命令编排创建线索链路
+- 当前可复用：线索创建服务、去重合并、会话桥接基础能力
+
 ## 目标
 
 员工通过企微 Bot 输入结构化命令后，系统创建一条新线索并返回可追踪结果。
@@ -85,3 +91,9 @@ sequenceDiagram
 1. 参数非法：返回 `VALIDATION_ERROR`。
 2. 权限不足：返回 `FORBIDDEN`。
 3. 重放请求：返回 `IDEMPOTENT_HIT`（不重复创建）。
+
+## 开发落地建议（下一阶段）
+
+1. 新增 Bot 命令入口（仅 WeCom）并映射到 `scrm.lead.create`。
+2. 复用现有 `LeadService.Create`，不新增私有入库逻辑。
+3. 幂等键统一收口到现有幂等存储，避免 Bot 链路重复实现。

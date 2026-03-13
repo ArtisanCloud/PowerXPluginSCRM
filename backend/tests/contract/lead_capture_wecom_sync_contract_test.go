@@ -136,6 +136,29 @@ func createContractTestSchema(db *gorm.DB) error {
 			created_at DATETIME,
 			updated_at DATETIME
 		);`,
+		`CREATE TABLE IF NOT EXISTS lead_capture_sources (
+			source_uuid TEXT PRIMARY KEY,
+			lead_uuid TEXT NOT NULL,
+			tenant_uuid TEXT NOT NULL,
+			channel_code TEXT,
+			app_type TEXT,
+			account_uuid TEXT,
+			campaign_code TEXT,
+			utm_source TEXT,
+			utm_medium TEXT,
+			utm_campaign TEXT,
+			created_at DATETIME,
+			updated_at DATETIME
+		);`,
+		`CREATE TABLE IF NOT EXISTS lead_capture_activities (
+			activity_uuid TEXT PRIMARY KEY,
+			lead_uuid TEXT NOT NULL,
+			tenant_uuid TEXT NOT NULL,
+			activity_type TEXT NOT NULL,
+			payload TEXT,
+			created_at DATETIME,
+			updated_at DATETIME
+		);`,
 		`CREATE TABLE IF NOT EXISTS lead_capture_conversation_events (
 			event_uuid TEXT PRIMARY KEY,
 			tenant_uuid TEXT NOT NULL,
@@ -193,6 +216,17 @@ func createContractTestSchema(db *gorm.DB) error {
 		);`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS uq_lead_capture_realtime_projection
 			ON lead_capture_realtime_projection (tenant_uuid, lead_uuid, conversation_id);`,
+		`CREATE TABLE IF NOT EXISTS lead_capture_channel_rules (
+			rule_uuid TEXT PRIMARY KEY,
+			tenant_uuid TEXT NOT NULL,
+			channel TEXT NOT NULL,
+			app_type TEXT NOT NULL,
+			auto_create_lead_from_customer_dm BOOLEAN NOT NULL DEFAULT FALSE,
+			created_at DATETIME,
+			updated_at DATETIME
+		);`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS uq_lead_capture_channel_rules_tenant_channel_app
+			ON lead_capture_channel_rules (tenant_uuid, channel, app_type);`,
 	}
 	for _, stmt := range stmts {
 		if err := db.Exec(stmt).Error; err != nil {

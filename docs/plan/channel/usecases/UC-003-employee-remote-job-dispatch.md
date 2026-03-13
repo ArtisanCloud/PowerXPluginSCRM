@@ -1,5 +1,11 @@
 # UC-003 员工远程下发业务作业
 
+## 实现状态
+
+- 状态：规划中
+- 与 004 关系：不在 `specs/004-wecom-lead-managment` 交付范围
+- 依赖前置：Channel 通用命令契约、作业编排服务、权限模型扩展
+
 ## 目标
 
 员工在 Telegram/Discord 等 Bot 窗口中下发标准作业并得到执行回执。
@@ -39,3 +45,8 @@
 1. 无权限：`FORBIDDEN`。
 2. 模板不存在：`JOB_TEMPLATE_NOT_FOUND`。
 3. 执行超时：`JOB_TIMEOUT`。
+
+## 开发前置建议
+
+1. 先定义统一 `ChannelCommand` 与 Job 执行回执契约。
+2. 先打通 WeCom 单渠道，再扩展 Telegram/Discord。

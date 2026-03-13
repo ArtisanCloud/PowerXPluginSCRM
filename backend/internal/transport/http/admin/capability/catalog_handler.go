@@ -16,6 +16,12 @@ type CatalogHandler struct {
 	service *capservice.CatalogService
 }
 
+type sourceOption struct {
+	ID          string `json:"id"`
+	Label       string `json:"label"`
+	Description string `json:"description,omitempty"`
+}
+
 // NewCatalogHandler wires catalog handler when the service is available.
 func NewCatalogHandler(deps *app.Deps) *CatalogHandler {
 	svc := capservice.NewCatalogService(deps)
@@ -48,4 +54,21 @@ func (h *CatalogHandler) List(c *gin.Context) {
 		"request_path": c.FullPath(),
 	}).Info("capability catalog request handled")
 	contracts.ResponseSuccess(c, entries)
+}
+
+// Sources returns capability source enums and alias mapping.
+func (h *CatalogHandler) Sources(c *gin.Context) {
+	contracts.ResponseSuccess(c, gin.H{
+		"default": "all",
+		"aliases": gin.H{
+			"all":      "all",
+			"any":      "all",
+			"platform": "corex",
+		},
+		"sources": []sourceOption{
+			{ID: "all", Label: "all", Description: "查询全部来源（不传 source 或 source=all）"},
+			{ID: "corex", Label: "corex", Description: "PowerX 底座能力"},
+			{ID: "plugin", Label: "plugin", Description: "插件/租户注册能力"},
+		},
+	})
 }

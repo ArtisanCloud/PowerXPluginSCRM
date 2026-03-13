@@ -114,7 +114,7 @@ context:
   jwks_url: ""
   issuer: ""
   audience: ""
-  ttl: "5m"
+  ttl: "120h"
 
 security:
   enable_cors: true

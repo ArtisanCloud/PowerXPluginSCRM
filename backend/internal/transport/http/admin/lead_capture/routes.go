@@ -20,13 +20,18 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 	}
 
 	var (
-		leadSvc         *leadsvc.LeadService
-		wecomSyncSvc    *leadsvc.WeComSyncService
-		conversationSvc *leadsvc.ConversationService
+		leadSvc          *leadsvc.LeadService
+		wecomSyncSvc     *leadsvc.WeComSyncService
+		conversationSvc  *leadsvc.ConversationService
+		sourceCatalogSvc *leadsvc.LeadSourceCatalogService
+		channelRuleSvc   *leadsvc.ChannelRuleService
 	)
 	if deps.DB != nil {
 		leadRepository := leadrepo.NewLeadRepository(deps.DB)
 		leadSvc = leadsvc.NewLeadService(leadRepository)
+		sourceCatalogSvc = leadsvc.NewLeadSourceCatalogService(leadrepo.NewLeadSourceCatalogRepository(deps.DB))
+		channelRuleRepo := leadrepo.NewChannelRuleRepository(deps.DB)
+		channelRuleSvc = leadsvc.NewChannelRuleService(channelRuleRepo)
 
 		metrics := deps.LeadCaptureMetrics
 		if metrics == nil {
@@ -68,16 +73,24 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		}
 		realtime := leadsvc.NewConversationRealtimePublisher(publisher, metrics)
 		conversationSvc = leadsvc.NewConversationService(eventRepo, bindingRepo, pendingRepo, projectionRepo, realtime, metrics).
-			WithLeadRepository(leadRepository)
+			WithLeadRepository(leadRepository).
+			WithLeadService(leadSvc).
+			WithChannelRuleRepository(channelRuleRepo)
 	}
 
 	handler := NewLeadHandler(leadSvc)
 	wecomSyncHandler := NewWeComSyncHandler(wecomSyncSvc)
 	conversationHandler := NewConversationHandler(conversationSvc)
+	sourceCatalogHandler := NewSourceCatalogHandler(sourceCatalogSvc)
+	channelRuleHandler := NewChannelRuleHandler(channelRuleSvc)
 	group := rg.Group("/leads", httpmw.EnsureTenant())
 	{
 		group.GET("", handler.List)
 		group.POST("", handler.Create)
+		group.GET("/source-catalogs", sourceCatalogHandler.List)
+		group.POST("/source-catalogs", sourceCatalogHandler.Create)
+		group.PATCH("/source-catalogs/:catalog_id", sourceCatalogHandler.Update)
+		group.DELETE("/source-catalogs/:catalog_id", sourceCatalogHandler.Delete)
 		group.POST("/import", handler.Import)
 		group.POST("/import/preview", handler.ImportPreview)
 		group.POST("/import/confirm", handler.ImportConfirm)
@@ -91,6 +104,8 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 
 		group.POST("/wecom/sync", wecomSyncHandler.TriggerSync)
 		group.GET("/wecom/sync-tasks", wecomSyncHandler.ListSyncTasks)
+		group.GET("/channel-rules/wecom/customer-dm", channelRuleHandler.GetWeComCustomerDMRule)
+		group.PUT("/channel-rules/wecom/customer-dm", channelRuleHandler.UpdateWeComCustomerDMRule)
 		group.GET("/:lead_id/conversations", conversationHandler.ListLeadConversations)
 		group.POST("/:lead_id/conversations/bind", conversationHandler.BindConversation)
 	}

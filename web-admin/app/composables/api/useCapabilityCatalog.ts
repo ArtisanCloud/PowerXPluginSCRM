@@ -18,6 +18,24 @@ export type CapabilityCatalogEntry = {
   protocols?: Record<string, any>;
 };
 
+export type CapabilitySourceItem = {
+  value: string;
+  label?: string;
+  aliases?: string[];
+  is_default?: boolean;
+};
+
+export type CapabilitySourcesResponse = {
+  items?: CapabilitySourceItem[];
+  sources?: Array<{
+    id: string;
+    label?: string;
+    description?: string;
+  }>;
+  default?: string;
+  aliases?: Record<string, string>;
+};
+
 export function useCapabilityCatalogApi() {
   const list = (query?: Record<string, any>) =>
     apiGet<ApiResponse<CapabilityCatalogEntry[]>>(
@@ -25,7 +43,13 @@ export function useCapabilityCatalogApi() {
       query,
     ).then((res) => res.data);
 
+  const listSources = () =>
+    apiGet<ApiResponse<CapabilitySourcesResponse>>(
+      "admin/capabilities/sources",
+    ).then((res) => res.data);
+
   return {
     list,
+    listSources,
   };
 }

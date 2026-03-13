@@ -163,7 +163,7 @@
         暂无可用数据。
       </div>
 
-      <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
         <div>
           <div class="text-sm font-medium text-gray-900 dark:text-white mb-3">来源追溯</div>
           <div v-if="sourceEvents.length" class="space-y-3">
@@ -202,6 +202,27 @@
             </div>
           </div>
           <div v-else class="text-sm text-gray-500">暂无合并活动。</div>
+        </div>
+        <div>
+          <div class="text-sm font-medium text-gray-900 dark:text-white mb-3">Bot 回执</div>
+          <div v-if="botCommandActivities.length" class="space-y-3">
+            <div
+              v-for="item in botCommandActivities"
+              :key="item.activity_uuid"
+              class="rounded-lg border border-gray-200 dark:border-gray-700 p-3"
+            >
+              <div class="text-xs text-gray-500 dark:text-gray-400">
+                request_id：{{ item.payload?.request_id || "-" }}
+              </div>
+              <div class="text-xs text-gray-500 dark:text-gray-400">
+                lead_id：{{ item.payload?.lead_id || leadId || "-" }}
+              </div>
+              <div class="text-xs text-gray-500 dark:text-gray-400">
+                {{ item.created_at }}
+              </div>
+            </div>
+          </div>
+          <div v-else class="text-sm text-gray-500">暂无 Bot 回执。</div>
         </div>
       </div>
     </UCard>
@@ -436,6 +457,9 @@ const sourceEvents = computed(() => store.sourceEvents);
 const activities = computed(() => store.activities);
 const mergeActivities = computed(() =>
   activities.value.filter((item) => item.activity_type === "merge")
+);
+const botCommandActivities = computed(() =>
+  activities.value.filter((item) => item.activity_type === "bot_command")
 );
 const latestAssignmentReason = computed(() => assignments.value[0]?.reason || "");
 
