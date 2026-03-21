@@ -119,14 +119,31 @@ func (s *SyncService) TriggerSync(ctx context.Context, tenantUUID, sourceAccount
 	}
 	progressReporter := func(current, total int, stage string) {
 		percent := 0
-		if total > 0 {
-			percent = int(float64(current) / float64(total) * 100.0)
-			if percent > 100 {
-				percent = 100
+		switch stage {
+		case "fetch_user_detail":
+			// 明细拉取阶段占用 35% 进度区间（45% -> 80%）。
+			percent = 45
+			if total > 0 {
+				percent = 45 + int(float64(current)/float64(total)*35.0)
 			}
-			if percent < 0 {
-				percent = 0
+		case "fetch_members":
+			percent = 45
+		case "persist":
+			percent = 90
+		case "fetch_units":
+			percent = 20
+		case "init":
+			percent = 5
+		default:
+			if total > 0 {
+				percent = int(float64(current) / float64(total) * 100.0)
 			}
+		}
+		if percent > 100 {
+			percent = 100
+		}
+		if percent < 0 {
+			percent = 0
 		}
 		updateSyncLog(map[string]any{
 			"progress_total":   total,
@@ -143,31 +160,45 @@ func (s *SyncService) TriggerSync(ctx context.Context, tenantUUID, sourceAccount
 		memberPayloads []orgdriver.SourceMemberDTO
 	)
 	startTime := time.Now()
-	s.publishProgress(ctx, tenantUUID, sourceAccountUUID, syncLogUUID, model.SyncStatusRunning, "init", "同步中", 0, 0, 0, 0)
+	currentPercent := 5
+	s.publishProgress(ctx, tenantUUID, sourceAccountUUID, syncLogUUID, model.SyncStatusRunning, "init", "同步中", 0, 0, currentPercent, 0)
 	updateSyncLog(map[string]any{
-		"status": model.SyncStatusRunning,
-		"stage":  "fetch_units",
+		"status":           model.SyncStatusRunning,
+		"stage":            "fetch_units",
+		"progress_percent": 20,
 	})
-	s.publishProgress(ctx, tenantUUID, sourceAccountUUID, syncLogUUID, model.SyncStatusRunning, "fetch_units", "同步中", 0, 0, 0, 0)
+	currentPercent = 20
+	s.publishProgress(ctx, tenantUUID, sourceAccountUUID, syncLogUUID, model.SyncStatusRunning, "fetch_units", "同步中", 0, 0, currentPercent, 0)
 	unitPayloads, err = drv.FetchUnits(ctx, driverContext)
 	if err != nil {
 		status = model.SyncStatusFailed
 		message = err.Error()
 	}
 	if status == model.SyncStatusSuccess {
-		updateSyncLog(map[string]any{"stage": "fetch_members"})
-		s.publishProgress(ctx, tenantUUID, sourceAccountUUID, syncLogUUID, model.SyncStatusRunning, "fetch_members", "同步中", 0, 0, 0, 0)
+		updateSyncLog(map[string]any{
+			"stage":            "fetch_members",
+			"progress_percent": 45,
+		})
+		currentPercent = 45
+		s.publishProgress(ctx, tenantUUID, sourceAccountUUID, syncLogUUID, model.SyncStatusRunning, "fetch_members", "同步中", 0, 0, currentPercent, 0)
 		memberCtx := orgdriver.WithProgressReporter(ctx, progressReporter)
 		memberPayloads, err = drv.FetchMembers(memberCtx, driverContext)
 		if err != nil {
 			status = model.SyncStatusFailed
 			message = err.Error()
 		}
+		if len(unitPayloads) == 0 && len(memberPayloads) == 0 {
+			message = "同步完成，但企业微信返回空组织数据（部门/成员均为 0）。请检查应用可见范围、通讯录权限与 Secret。"
+		}
 	}
 	duration := time.Since(startTime).Milliseconds()
 	if status == model.SyncStatusSuccess {
-		updateSyncLog(map[string]any{"stage": "persist"})
-		s.publishProgress(ctx, tenantUUID, sourceAccountUUID, syncLogUUID, model.SyncStatusRunning, "persist", "同步中", 0, 0, 0, 0)
+		updateSyncLog(map[string]any{
+			"stage":            "persist",
+			"progress_percent": 90,
+		})
+		currentPercent = 90
+		s.publishProgress(ctx, tenantUUID, sourceAccountUUID, syncLogUUID, model.SyncStatusRunning, "persist", "同步中", 0, 0, currentPercent, 0)
 	}
 	updates := map[string]any{
 		"last_sync_at":      now,
@@ -269,7 +300,7 @@ func (s *SyncService) TriggerSync(ctx context.Context, tenantUUID, sourceAccount
 	if status == model.SyncStatusSuccess {
 		s.publishProgress(ctx, tenantUUID, sourceAccountUUID, syncLogUUID, status, "done", message, int(memberTotal), int(memberTotal), 100, duration)
 	} else {
-		s.publishProgress(ctx, tenantUUID, sourceAccountUUID, syncLogUUID, status, "failed", message, 0, int(memberTotal), 0, duration)
+		s.publishProgress(ctx, tenantUUID, sourceAccountUUID, syncLogUUID, status, "failed", message, 0, int(memberTotal), currentPercent, duration)
 	}
 	account.LastSyncAt = &now
 	account.LastSyncStatus = status

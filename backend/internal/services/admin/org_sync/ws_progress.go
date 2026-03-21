@@ -6,6 +6,7 @@ import (
 
 	fwwsbus "github.com/ArtisanCloud/PowerXPlugin/framework/backend/go/runtime/wsbus"
 	orgmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/org_sync"
+	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/logger"
 )
 
 const TopicOrgSyncProgress = "org_sync.progress"
@@ -58,6 +59,17 @@ func (s *SyncService) publishProgress(ctx context.Context, tenantUUID, sourceAcc
 	}
 	result := s.publisher.Publish(ctx, TopicOrgSyncProgress, payload, fwwsbus.PublishOptions{TenantUUID: tenantUUID})
 	if !result.OK {
+		logger.WithFields(logger.Fields{
+			"component":           "org_sync_ws",
+			"tenant_uuid":         tenantUUID,
+			"source_account_uuid": sourceAccountUUID,
+			"sync_log_uuid":       syncLogUUID,
+			"topic":               TopicOrgSyncProgress,
+			"status":              status,
+			"stage":               stage,
+			"error_code":          result.ErrorCode,
+			"error_message":       result.ErrorMessage,
+		}).Warn("org sync progress publish failed")
 		return
 	}
 }

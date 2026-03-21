@@ -299,7 +299,6 @@ func (h *AccountHandler) TestAppSecret(c *gin.Context) {
 		contracts.ResponseBadRequest(c, "应用 Secret 未填写")
 		return
 	}
-	credentials["secret"] = appSecret
 	ipList, err := orgdriver.TestWeComConnection(c.Request.Context(), orgdriver.AccountContext{
 		TenantUUID:         account.TenantUuid,
 		ChannelAccountUUID: account.AccountUUID,
@@ -324,17 +323,24 @@ func (h *AccountHandler) TestContactSecret(c *gin.Context) {
 		return
 	}
 	var payload struct {
-		HttpDebug bool   `json:"http_debug"`
-		Mode      string `json:"mode"`
+		HttpDebug   bool              `json:"http_debug"`
+		Mode        string            `json:"mode"`
+		Credentials map[string]string `json:"credentials"`
 	}
 	_ = c.ShouldBindJSON(&payload)
 	credentials := credentialsToMap(account.Credentials)
+	for key, value := range payload.Credentials {
+		trimmedKey := strings.TrimSpace(key)
+		if trimmedKey == "" {
+			continue
+		}
+		credentials[trimmedKey] = strings.TrimSpace(value)
+	}
 	appSecret := strings.TrimSpace(credentials["app_secret"])
 	if appSecret == "" {
 		contracts.ResponseBadRequest(c, "应用 Secret 未填写")
 		return
 	}
-	credentials["secret"] = appSecret
 	if payload.HttpDebug {
 		credentials["http_debug"] = "true"
 	}

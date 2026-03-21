@@ -19,32 +19,79 @@ type Fields = logrus.Fields
 
 // Init 初始化日志配置
 func Init(level string) {
+	InitWithOptions(level, "", "", "")
+}
+
+// InitWithOptions initializes logger by logging config fields.
+// - level: debug/info/warn/error
+// - format: text/json (empty means legacy auto by level)
+// - output: stdout/stderr/file (empty means stdout)
+// - filePath: required when output=file
+func InitWithOptions(level, format, output, filePath string) {
 	Logger = logrus.New()
 
+	normalizedLevel := strings.ToLower(strings.TrimSpace(level))
+	normalizedFormat := strings.ToLower(strings.TrimSpace(format))
+	normalizedOutput := strings.ToLower(strings.TrimSpace(output))
+
 	// 设置日志级别
-	logLevel, err := logrus.ParseLevel(strings.ToLower(level))
+	logLevel, err := logrus.ParseLevel(normalizedLevel)
 	if err != nil {
 		logLevel = logrus.InfoLevel
 	}
 	Logger.SetLevel(logLevel)
 
-	// 设置输出格式
-	if level == "debug" {
-		// 开发模式使用文本格式
+	// 设置输出格式：
+	// - 若显式配置 format，严格按配置。
+	// - 若未配置，兼容旧行为：debug=text，其他=json。
+	switch normalizedFormat {
+	case "text":
 		Logger.SetFormatter(&logrus.TextFormatter{
 			FullTimestamp:   true,
 			TimestampFormat: "2006-01-02 15:04:05",
 			ForceColors:     true,
 		})
-	} else {
-		// 生产模式使用 JSON 格式
+	case "json":
 		Logger.SetFormatter(&logrus.JSONFormatter{
 			TimestampFormat: "2006-01-02T15:04:05.000Z07:00",
 		})
+	default:
+		if normalizedLevel == "debug" {
+			Logger.SetFormatter(&logrus.TextFormatter{
+				FullTimestamp:   true,
+				TimestampFormat: "2006-01-02 15:04:05",
+				ForceColors:     true,
+			})
+		} else {
+			Logger.SetFormatter(&logrus.JSONFormatter{
+				TimestampFormat: "2006-01-02T15:04:05.000Z07:00",
+			})
+		}
 	}
 
-	// 设置输出
-	Logger.SetOutput(os.Stdout)
+	// 设置输出目标，默认 stdout
+	switch normalizedOutput {
+	case "", "stdout":
+		Logger.SetOutput(os.Stdout)
+	case "stderr":
+		Logger.SetOutput(os.Stderr)
+	case "file":
+		fp := strings.TrimSpace(filePath)
+		if fp == "" {
+			fmt.Fprintln(os.Stderr, "logger: output=file but file_path is empty, fallback to stdout")
+			Logger.SetOutput(os.Stdout)
+			break
+		}
+		f, openErr := os.OpenFile(fp, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+		if openErr != nil {
+			fmt.Fprintf(os.Stderr, "logger: failed to open log file %q: %v, fallback to stdout\n", fp, openErr)
+			Logger.SetOutput(os.Stdout)
+			break
+		}
+		Logger.SetOutput(f)
+	default:
+		Logger.SetOutput(os.Stdout)
+	}
 
 	// 添加调用位置信息（仅在 debug 模式）
 	if logLevel == logrus.DebugLevel || logLevel == logrus.TraceLevel {

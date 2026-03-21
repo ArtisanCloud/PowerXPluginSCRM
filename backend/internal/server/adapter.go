@@ -2,6 +2,7 @@ package server
 
 import (
 	"net/http"
+	"strings"
 
 	fwbootstrap "github.com/ArtisanCloud/PowerXPlugin/framework/backend/go/bootstrap"
 	"github.com/gin-gonic/gin"
@@ -28,6 +29,23 @@ func RegisterGinRoutes(r fwbootstrap.Router, engine *gin.Engine) {
 		r.Handle(method, "", handler)
 		r.Handle(method, "/*path", handler)
 	}
+}
+
+// RegisterGinWebsocketRoute wires a root-level GET route (e.g. /api/ws) to gin.
+// This is required when framework plugin routes are mounted under /api/v1, because
+// websocket endpoints usually live outside that prefix.
+func RegisterGinWebsocketRoute(r fwbootstrap.Router, engine *gin.Engine, wsPath string) {
+	if r == nil || engine == nil {
+		return
+	}
+	p := strings.TrimSpace(wsPath)
+	if p == "" {
+		p = "/api/ws"
+	}
+	if !strings.HasPrefix(p, "/") {
+		p = "/" + p
+	}
+	r.Handle(http.MethodGet, p, ginHandler(engine))
 }
 
 func ginHandler(engine *gin.Engine) fwbootstrap.Handler {
