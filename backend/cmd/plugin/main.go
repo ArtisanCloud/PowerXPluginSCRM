@@ -308,6 +308,8 @@ func main() {
 	fwrouter.RegisterPluginRoutes(fwApp, func(r fwbootstrap.Router) {
 		httpserver.RegisterGinRoutes(r, engine)
 	})
+	// WS endpoint lives outside /api/v1; bridge it explicitly at framework root.
+	httpserver.RegisterGinWebsocketRoute(fwApp.Router, engine, cfg.Server.WSPrefix)
 
 	if err := manifest.Register(fwApp, manifestx.Plugin()); err != nil {
 		logger.WithError(err).Fatal("Failed to register manifest")

@@ -275,8 +275,30 @@ const currentStatusLabel = computed(() => {
 });
 const currentStatusTime = computed(() => latestLog.value?.created_at || syncStatus.value?.last_sync_at);
 const currentStatusMessage = computed(() => latestLog.value?.message || syncStatus.value?.last_sync_message || "-");
-const progressPercent = computed(() => latestLog.value?.progress_percent ?? 0);
 const progressStageLabel = computed(() => formatStageLabel(latestLog.value?.stage));
+const displayProgressPercent = computed(() => {
+  const raw = Number(latestLog.value?.progress_percent ?? 0);
+  if (Number.isFinite(raw) && raw > 0) {
+    return Math.max(0, Math.min(100, raw));
+  }
+  const stage = String(latestLog.value?.stage || "").trim();
+  switch (stage) {
+    case "init":
+      return 5;
+    case "fetch_units":
+      return 20;
+    case "fetch_members":
+      return 45;
+    case "fetch_user_detail":
+      return 70;
+    case "persist":
+      return 90;
+    case "done":
+      return 100;
+    default:
+      return 0;
+  }
+});
 const gl = useGlobalLoadingAdapter();
 const wsBus = useWsBusClient();
 const wsConnected = wsBus.connected;
@@ -460,15 +482,11 @@ const triggerSync = async () => {
     const resp = await service.triggerSync(selectedAccountUUID.value);
     syncStatus.value = (resp as any)?.data ?? null;
     showToast("同步已触发", "success");
-    await loadSyncLogs();
   } catch (err: any) {
     showToast("同步失败", "error", err?.message ?? "");
     releaseSyncOverlay("failed");
   } finally {
     syncing.value = false;
-    if (latestLog.value?.status === "success" || latestLog.value?.status === "failed") {
-      releaseSyncOverlay(latestLog.value?.status);
-    }
   }
 };
 
@@ -523,6 +541,9 @@ const ensureWsSubscription = () => {
 };
 
 const handleWsProgress = (payload: any) => {
+  if (import.meta.dev) {
+    console.info("[org-sync][ws-progress]", payload);
+  }
   if (!payload || payload.source_account_uuid !== selectedAccountUUID.value) return;
   const patch: Partial<OrgSyncSyncLog> = {
     sync_log_uuid: payload.sync_log_uuid,
@@ -615,8 +636,8 @@ const updateGlobalLoadingFromLog = () => {
   if (!log) return;
   if (log.status === "running" || log.status === "queued") {
     gl.setMessage(`同步中 · ${progressStageLabel.value}`);
-    gl.setProgress(progressPercent.value);
-    gl.show({ progress: progressPercent.value });
+    gl.setProgress(displayProgressPercent.value);
+    gl.show({ progress: displayProgressPercent.value });
     return;
   }
   if (log.status === "success" || log.status === "failed") {

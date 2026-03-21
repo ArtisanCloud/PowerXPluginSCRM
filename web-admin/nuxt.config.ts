@@ -58,7 +58,32 @@ const hostApiBase = envApiBase ?? fallbackHostApiBase;
 const localApiBase = envApiBase ?? defaultLocalApiBase;
 const devApiProxyTarget =
   process.env.NUXT_DEV_API_PROXY || "http://localhost:8078";
-const devWsProxyTarget = process.env.NUXT_DEV_WS_PROXY || "ws://127.0.0.1:4000";
+const deriveWsProxyTarget = (apiTarget: string, rawWsTarget?: string) => {
+  const ws = String(rawWsTarget || "").trim();
+  const isLegacy4000 = (() => {
+    if (!ws) return false;
+    try {
+      const parsed = new URL(ws);
+      return parsed.port === "4000";
+    } catch {
+      return /:4000\/?$/i.test(ws);
+    }
+  })();
+  if (ws && !isLegacy4000) {
+    return ws.replace(/\/$/, "");
+  }
+  try {
+    const apiURL = new URL(apiTarget);
+    apiURL.protocol = apiURL.protocol === "https:" ? "wss:" : "ws:";
+    apiURL.pathname = "";
+    apiURL.search = "";
+    apiURL.hash = "";
+    return apiURL.toString().replace(/\/$/, "");
+  } catch {
+    return "ws://127.0.0.1:8092";
+  }
+};
+const devWsProxyTarget = deriveWsProxyTarget(devApiProxyTarget, process.env.NUXT_DEV_WS_PROXY);
 const imgSources = ["'self'", "data:", "https://avatars.githubusercontent.com"];
 const extraConnectHosts = new Set<string>();
 const registerConnectOrigin = (candidate?: string | null) => {
@@ -138,6 +163,11 @@ const BRIDGE_DEBUG =
 
 // Dev-time proxy: always forward /api + ws; add /_p/.../api only in proxy mode
 const devProxy: Record<string, any> = {
+  "/api/ws": {
+    target: devWsProxyTarget,
+    changeOrigin: true,
+    ws: true,
+  },
   "/api": {
     target: devApiProxyTarget,
     changeOrigin: true,
@@ -152,6 +182,31 @@ const devProxy: Record<string, any> = {
 
 if (INSIDE_POWERX) {
   devProxy[`/_p/${pluginId}/api`] = {
+    target: devApiProxyTarget,
+    changeOrigin: true,
+  };
+}
+
+const nitroDevProxy: Record<string, any> = {
+  "/api/ws": {
+    target: devWsProxyTarget,
+    changeOrigin: true,
+    ws: true,
+  },
+  "/api": {
+    target: devApiProxyTarget,
+    changeOrigin: true,
+    ws: true,
+  },
+  "/ws": {
+    target: devWsProxyTarget,
+    changeOrigin: true,
+    ws: true,
+  },
+};
+
+if (INSIDE_POWERX) {
+  nitroDevProxy[`/_p/${pluginId}/api`] = {
     target: devApiProxyTarget,
     changeOrigin: true,
   };
@@ -287,6 +342,7 @@ export default defineNuxtConfig({
   nitro: {
     preset: "node-server",
     serveStatic: true,
+    devProxy: nitroDevProxy,
     experimental: {
       websocket: true,
     },

@@ -73,7 +73,7 @@ func (d *WeComDriver) FetchUnits(ctx context.Context, account AccountContext) ([
 	if err != nil {
 		return nil, err
 	}
-	resp, err := app.Department.List(ctx, 0)
+	resp, err := app.Department.List(ctx, 1)
 	if err != nil {
 		return nil, err
 	}
@@ -134,7 +134,7 @@ func TestWeComContactsDetail(ctx context.Context, account AccountContext) (*WeCo
 	if err != nil {
 		return nil, err
 	}
-	deptResp, err := app.Department.List(ctx, 0)
+	deptResp, err := app.Department.List(ctx, 1)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +159,7 @@ func TestWeComDepartments(ctx context.Context, account AccountContext) (*WeComCo
 	if err != nil {
 		return nil, err
 	}
-	deptResp, err := app.Department.List(ctx, 0)
+	deptResp, err := app.Department.List(ctx, 1)
 	if err != nil {
 		return nil, err
 	}
@@ -177,15 +177,8 @@ func TestWeComDepartments(ctx context.Context, account AccountContext) (*WeComCo
 
 func newWeComContactApp(credentials map[string]string) (*work.Work, error) {
 	corpID := strings.TrimSpace(credentials["corp_id"])
-	secret := strings.TrimSpace(credentials["secret"])
 	appSecret := strings.TrimSpace(credentials["app_secret"])
-	if appSecret != "" {
-		secret = appSecret
-	}
-	if secret == "" {
-		secret = strings.TrimSpace(credentials["app_secret"])
-	}
-	if corpID == "" || secret == "" {
+	if corpID == "" || appSecret == "" {
 		return nil, fmt.Errorf("缺少企业 ID（CorpID）或应用 Secret")
 	}
 	callback := strings.TrimSpace(credentials["oauth_callback"])
@@ -197,17 +190,17 @@ func newWeComContactApp(credentials map[string]string) (*work.Work, error) {
 	httpDebug := parseCredentialBool(credentials["http_debug"])
 	logrus.WithFields(logrus.Fields{
 		"corp_id": corpID,
-		"secret":  secret,
+		"secret":  appSecret,
 	}).Info("wecom contact init credentials")
 	logrus.WithFields(logrus.Fields{
 		"corp_id":        corpID,
-		"contact_secret": secret,
+		"contact_secret": appSecret,
 		"oauth_callback": callback,
 		"http_debug":     httpDebug,
 	}).Info("wecom contact credentials debug")
 	app, err := work.NewWork(&work.UserConfig{
 		CorpID:      corpID,
-		Secret:      secret,
+		Secret:      appSecret,
 		CallbackURL: callback,
 		Cache:       cache,
 		Log: work.Log{
@@ -225,7 +218,7 @@ func newWeComContactApp(credentials map[string]string) (*work.Work, error) {
 	if err != nil {
 		return nil, err
 	}
-	patchWeComAccessToken(app, corpID, secret)
+	patchWeComAccessToken(app, corpID, appSecret)
 	return app, nil
 }
 
@@ -250,16 +243,9 @@ func TestWeComConnection(ctx context.Context, account AccountContext) ([]string,
 
 func newWeComApp(credentials map[string]string) (*work.Work, error) {
 	corpID := strings.TrimSpace(credentials["corp_id"])
-	secret := strings.TrimSpace(credentials["secret"])
 	appSecret := strings.TrimSpace(credentials["app_secret"])
-	if appSecret != "" {
-		secret = appSecret
-	}
-	if secret == "" {
-		secret = strings.TrimSpace(credentials["app_secret"])
-	}
 	agentID := strings.TrimSpace(credentials["agent_id"])
-	if corpID == "" || secret == "" {
+	if corpID == "" || appSecret == "" {
 		return nil, fmt.Errorf("缺少企业 ID（CorpID）或应用 Secret")
 	}
 	agentIDInt, err := strconv.Atoi(agentID)
@@ -279,12 +265,12 @@ func newWeComApp(credentials map[string]string) (*work.Work, error) {
 	logrus.WithFields(logrus.Fields{
 		"corp_id":  corpID,
 		"agent_id": agentID,
-		"secret":   secret,
+		"secret":   appSecret,
 	}).Info("wecom init credentials")
 	logrus.WithFields(logrus.Fields{
 		"corp_id":        corpID,
 		"agent_id":       agentID,
-		"app_secret":     secret,
+		"app_secret":     appSecret,
 		"token":          strings.TrimSpace(credentials["token"]),
 		"oauth_callback": callback,
 		"http_debug":     httpDebug,
@@ -292,7 +278,7 @@ func newWeComApp(credentials map[string]string) (*work.Work, error) {
 	app, err := work.NewWork(&work.UserConfig{
 		CorpID:  corpID,
 		AgentID: agentIDInt,
-		Secret:  secret,
+		Secret:  appSecret,
 		Token:   strings.TrimSpace(credentials["token"]),
 		Cache:   cache,
 		Log: work.Log{
@@ -310,7 +296,7 @@ func newWeComApp(credentials map[string]string) (*work.Work, error) {
 	if err != nil {
 		return nil, err
 	}
-	patchWeComAccessToken(app, corpID, secret)
+	patchWeComAccessToken(app, corpID, appSecret)
 	return app, nil
 }
 
@@ -406,7 +392,7 @@ func fetchMembersByDepartmentList(ctx context.Context, app *work.Work) ([]Source
 	if app == nil {
 		return nil, fmt.Errorf("wecom app is nil")
 	}
-	deptResp, err := app.Department.List(ctx, 0)
+	deptResp, err := app.Department.List(ctx, 1)
 	if err != nil {
 		return nil, err
 	}
@@ -492,6 +478,13 @@ func fetchMembersByDepartmentList(ctx context.Context, app *work.Work) ([]Source
 	if reporter != nil {
 		reporter(0, len(userIDs), "fetch_user_detail")
 	}
+	progressStep := 1
+	if len(userIDs) > 20 {
+		progressStep = len(userIDs) / 20
+		if progressStep <= 0 {
+			progressStep = 1
+		}
+	}
 	for idx, userID := range userIDs {
 		detail, err := app.User.Get(ctx, userID)
 		if err != nil {
@@ -536,7 +529,7 @@ func fetchMembersByDepartmentList(ctx context.Context, app *work.Work) ([]Source
 		}
 		dto.ProfileStatus = resolveProfileStatus(dto.Name, dto.Phone, dto.Email)
 		if reporter != nil {
-			if (idx+1)%5 == 0 || idx+1 == len(userIDs) {
+			if (idx+1)%progressStep == 0 || idx+1 == len(userIDs) {
 				reporter(idx+1, len(userIDs), "fetch_user_detail")
 			}
 		}

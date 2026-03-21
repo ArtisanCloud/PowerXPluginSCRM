@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/dto"
+	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/logger"
 )
 
 const (
@@ -88,11 +89,20 @@ func (h *Hub) Publish(tenantUUID, topic string, payload any, traceID string) {
 	}
 	h.mu.RLock()
 	subs := h.subscribers[topic]
+	delivered := 0
 	for _, client := range subs {
 		if client == nil || client.TenantUUID != tenantUUID {
 			continue
 		}
 		client.sendEnvelope(env)
+		delivered++
 	}
 	h.mu.RUnlock()
+	logger.WithFields(logger.Fields{
+		"component":      "ws_bus",
+		"topic":          topic,
+		"tenant_uuid":    tenantUUID,
+		"trace_id":       traceID,
+		"subscriber_hit": delivered,
+	}).Info("ws topic published")
 }

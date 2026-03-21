@@ -34,6 +34,7 @@ func RegisterRoutes(router *gin.RouterGroup, deps *app.Deps) {
 	router.POST("/event-bridge/emit", EventBridgeEmitHandler(deps))
 	router.POST("/internal/event-fabric/topics", EventFabricCreateTopicHandler(deps))
 	router.POST("/internal/ws-bus/publish", WSBusPublishHandler(deps))
+	router.POST("/internal/ws-bus/test-notification", WSBusTestNotificationHandler(deps))
 	router.POST("/internal/ws-bus/grant", WSBusGrantHandler(deps))
 	router.POST("/internal/ws-bus/register", WSBusRegisterHandler(deps))
 }
