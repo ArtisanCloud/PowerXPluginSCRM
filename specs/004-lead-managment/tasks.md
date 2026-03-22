@@ -1,6 +1,6 @@
 # Tasks: 企业微信线索拉取与对话桥接
 
-**Input**: Design documents from `/specs/004-wecom-lead-managment/`  
+**Input**: Design documents from `/specs/004-lead-managment/`  
 **Prerequisites**: `plan.md`, `spec.md`, `research.md`, `data-model.md`, `contracts/`, `quickstart.md`
 
 **Tests**: 本 feature 明确要求可独立验收（US1/US2/US3），且宪章要求补齐测试，因此包含合同测试、集成测试与关键服务单测。  
@@ -16,7 +16,7 @@
 
 **Purpose**: 建立 feature 基础骨架与配置入口
 
-- [x] T001 创建 feature 文档与契约骨架校验脚本引用，更新 `specs/004-wecom-lead-managment/quickstart.md`
+- [x] T001 创建 feature 文档与契约骨架校验脚本引用，更新 `specs/004-lead-managment/quickstart.md`
 - [x] T002 [P] 新增后端配置项与环境变量说明（仅流程级参数，账号级配置走数据库；预留 framework/local_fallback provider 开关），更新 `backend/etc/config.example.yaml`
 - [x] T003 [P] 新增后端 `.env` 示例（仅全局开关，不包含账号/密钥；含任务 provider 选择项），更新 `backend/.env.example`
 - [x] T004 [P] 在管理台占位入口补充“企微线索同步/会话绑定”菜单路由占位，更新 `web-admin/app/components/AppSidebar.vue`
@@ -124,9 +124,9 @@
 
 **Purpose**: 跨故事收敛、稳定性与文档完善
 
-- [x] T046 [P] 补充联调与运维说明（含 framework/local_fallback 切换验证）到 `specs/004-wecom-lead-managment/quickstart.md`
+- [x] T046 [P] 补充联调与运维说明（含 framework/local_fallback 切换验证）到 `specs/004-lead-managment/quickstart.md`
 - [x] T047 [P] 补充计划与模块文档回写到 `docs/plan/lead_capture/README.md`
-- [x] T048 回归关键路径（US1~US3）并记录结果到 `specs/004-wecom-lead-managment/research.md`
+- [x] T048 回归关键路径（US1~US3）并记录结果到 `specs/004-lead-managment/research.md`
 - [x] T049 性能与幂等观测指标检查（p95 延迟/重复落库率/任务 provider 维度）到 `backend/internal/observability/lead_capture/`
 - [x] T050 新增 framework 统一任务 provider 适配层（含 local fallback；framework 路径通过 EventBridge/TaskBus HostProvider 真正提交 `powerx.lead.sync.requested.v1`）到 `backend/internal/services/admin/lead_capture/task_provider_adapter.go`
 - [x] T051 [P] 新增集成测试：framework/local_fallback provider 切换一致性到 `backend/tests/integration/lead_capture_task_provider_integration_test.go`
@@ -244,7 +244,7 @@ Task: T025 web-admin/app/composables/api/services/leadCapture.ts
 #### Cross-cutting
 
 - [ ] T069 [P] 新增一致性回归：standalone vs host/proxy 的 channel 关键路径快照对比到 `backend/tests/integration/`
-- [ ] T070 更新 quickstart 与运维手册（新增规则开关与 Bot 调试）到 `specs/004-wecom-lead-managment/quickstart.md` 与 `docs/guides/lead-capture/README.md`
+- [ ] T070 更新 quickstart 与运维手册（新增规则开关与 Bot 调试）到 `specs/004-lead-managment/quickstart.md` 与 `docs/guides/lead-capture/README.md`
 
 ---
 
@@ -253,3 +253,35 @@ Task: T025 web-admin/app/composables/api/services/leadCapture.ts
 - `[P]` 任务仅表示文件与依赖允许并行，不代表可跳过顺序约束。
 - 严格遵守租户隔离、幂等键口径、topic 单发策略。
 - 任一故事完成后都应保证“可单独测试、可单独演示、可单独交付”。
+
+---
+
+## Phase 8: WeCom External User 实拉与作用域验收补齐（待执行）
+
+**Purpose**: 把 004 当前“任务链路可跑通但适配器占位”的状态推进到“真实 external user 可入池”，并补齐你确认的去重作用域验收。
+
+### 8.0 Factory Foundation（先做，阻塞后续 8.1/8.2）
+
+- [x] T080 [US1] 新增 channel 工厂接口与注册容器（按 `channel + app_type` 解析）到 `backend/internal/services/admin/lead_capture/channel_factory.go`
+- [x] T081 [US1] 改造同步服务使用工厂解析 adapter/provider，移除 WeCom 硬编码分支到 `backend/internal/services/admin/lead_capture/wecom_sync_service.go`
+- [x] T082 [US1] 在 DI 中装配工厂并注册 WeCom 首个实现到 `backend/internal/shared/app/deps.go`
+- [x] T083 [P] [US1] 新增工厂解析单测（未知 channel/app_type 返回明确错误）到 `backend/internal/services/admin/lead_capture/channel_factory_test.go`
+- [x] T084 [US1] 新增集成测试：同一入口下按 `channel + app_type` 选择不同 adapter（含 WeCom 命中）到 `backend/tests/integration/lead_capture_channel_factory_integration_test.go`
+
+### 8.1 Tests（先写测试）
+
+- [x] T071 [P] [US1] 新增服务单测：`WeComLeadAdapter.FetchLeads` 字段映射与分页游标处理到 `backend/internal/services/admin/lead_capture/wecom_lead_adapter_test.go`
+- [x] T072 [P] [US2] 新增集成测试：同 tenant 下“同手机号跨 `source_account_uuid` 不合并”到 `backend/tests/integration/lead_capture_dedup_scope_account_integration_test.go`
+- [x] T073 [P] [US2] 新增集成测试：跨 `source_channel`/`source_app_type` 不合并到 `backend/tests/integration/lead_capture_dedup_scope_channel_integration_test.go`
+- [x] T074 [US2] 新增集成测试：手工导入 `source_account_uuid` 为空仅在空账号作用域去重到 `backend/tests/integration/lead_capture_import_empty_account_scope_integration_test.go`
+
+### 8.2 Implementation（实现）
+
+- [x] T075 [US1] 实现真实 WeCom external user 拉取适配器（分页拉取、错误码归一、最小字段映射）到 `backend/internal/services/admin/lead_capture/wecom_lead_adapter.go`
+- [x] T076 [US1] 在同步服务中接入 external user 原始标识与来源追溯字段（用于审计/排障）到 `backend/internal/services/admin/lead_capture/wecom_sync_service.go`
+- [x] T077 [US2] 强化导入链路的来源作用域写入规则（手工导入允许空账号、显式保留 `source_channel/source_app_type`）到 `backend/internal/services/admin/lead_capture/lead_service.go`
+
+### 8.3 Validation & Docs（验收与文档）
+
+- [x] T078 [P] 追加 quickstart 验收步骤：不同账号触发同步后的 `created/updated/merged` 对比到 `specs/004-lead-managment/quickstart.md`
+- [x] T079 记录外部联系人实拉联调结论与限制（字段覆盖、权限前置、失败重试建议）到 `specs/004-lead-managment/research.md`

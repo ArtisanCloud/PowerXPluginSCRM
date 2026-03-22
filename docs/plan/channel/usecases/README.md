@@ -1,6 +1,6 @@
 # Channel Use Cases（SCRM）
 
-- 当前基线：`specs/004-wecom-lead-managment`
+- 当前基线：`specs/004-lead-managment`
 - 口径说明：先交付 WeCom MVP，再扩展通用 channel
 
 - [UC-001 员工在企微 Bot 创建线索](./UC-001-wecom-bot-create-lead.md)

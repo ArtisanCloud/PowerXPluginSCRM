@@ -48,7 +48,7 @@
 
 参考 `.specify/memory/manifest.yaml` 与 `.specify/memory/constitution.md`。
 
-## 004-wecom-lead-managment 回写（2026-03-05）
+## 004-lead-managment 回写（2026-03-05）
 
 ### 后端模块
 - 线索同步（US1）：

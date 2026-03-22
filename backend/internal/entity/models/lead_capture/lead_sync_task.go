@@ -24,6 +24,9 @@ type LeadSyncTask struct {
 	TaskProvider         string     `gorm:"column:task_provider;type:varchar(32);not null;default:'local_fallback';index:idx_lead_capture_sync_tasks_provider" json:"task_provider"`
 	TriggerType          string     `gorm:"column:trigger_type;type:varchar(32);not null;default:'manual'" json:"trigger_type"`
 	Status               string     `gorm:"column:status;type:varchar(32);not null;default:'queued';index:idx_lead_capture_sync_tasks_status" json:"status"`
+	ProgressTotal        int        `gorm:"column:progress_total;type:int;not null;default:0" json:"progress_total"`
+	ProgressCurrent      int        `gorm:"column:progress_current;type:int;not null;default:0" json:"progress_current"`
+	ProgressPercent      int        `gorm:"column:progress_percent;type:int;not null;default:0" json:"progress_percent"`
 	StatsTotal           int        `gorm:"column:stats_total;type:int;not null;default:0" json:"stats_total"`
 	StatsCreated         int        `gorm:"column:stats_created;type:int;not null;default:0" json:"stats_created"`
 	StatsUpdated         int        `gorm:"column:stats_updated;type:int;not null;default:0" json:"stats_updated"`

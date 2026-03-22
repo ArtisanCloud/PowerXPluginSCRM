@@ -1,4 +1,4 @@
-# Quickstart: 004-wecom-lead-managment
+# Quickstart: 004-lead-managment
 
 ## 0. 文档与契约骨架校验
 
@@ -11,7 +11,7 @@
 建议同时确认契约文件已存在：
 
 ```bash
-ls -la specs/004-wecom-lead-managment/contracts/
+ls -la specs/004-lead-managment/contracts/
 ```
 
 ## 1. 前置条件
@@ -76,6 +76,39 @@ curl -G "http://127.0.0.1:8092/api/v1/admin/leads/wecom/sync-tasks" \
 ```
 
 预期：可见 `success` 或 `failed` 与统计字段；若存在 `external_task_id`，以统一任务中心状态为主，插件列表用于业务投影展示。
+
+## 3.1 同步策略口径（必读）
+
+- 渠道同步（WeCom）建议始终携带 `channel_account_uuid`，避免多账号串线索。
+- 手工导入允许不传 `source_account_uuid`，但会进入“账号为空”作用域。
+- 去重/合并固定在作用域内：`tenant + source_channel + source_app_type + source_account_uuid`。
+- 因此，切换平台或切换同平台不同 app/账号时，线索不会跨作用域自动合并。
+
+## 3.2 多账号作用域验收（created/updated/merged 对比）
+
+1. 准备同租户下两个 WeCom 渠道账号：`account_a`、`account_b`（同 `channel=wechat/app_type=wecom`）。
+2. 先触发 `account_a` 同步两次（第二次包含与第一次相同手机号）：
+   - 第一次预期：`stats_created > 0`，`stats_updated = 0`，`stats_merged = 0`
+   - 第二次预期：`stats_updated >= 0`，且在“同账号 + 同手机号”场景会出现 `stats_merged >= 0`
+3. 再触发 `account_b` 同步（包含与 `account_a` 相同手机号）：
+   - 预期：不会复用 `account_a` 作用域内线索，`account_b` 任务应出现独立 `created`（不跨账号合并）
+4. 分别按账号查询任务：
+
+```bash
+curl -G "http://127.0.0.1:8092/api/v1/admin/leads/wecom/sync-tasks" \
+  -H "Authorization: Bearer $USER_TOKEN" \
+  --data-urlencode "channel_account_uuid=<account_a>" \
+  --data-urlencode "limit=5"
+
+curl -G "http://127.0.0.1:8092/api/v1/admin/leads/wecom/sync-tasks" \
+  -H "Authorization: Bearer $USER_TOKEN" \
+  --data-urlencode "channel_account_uuid=<account_b>" \
+  --data-urlencode "limit=5"
+```
+
+5. 对比结论：
+   - 同账号重复数据：可出现 `updated/merged`
+   - 跨账号重复数据：应保持账号隔离，不跨 `source_account_uuid` 合并
 
 ## 4. 模拟会话 webhook 入站
 

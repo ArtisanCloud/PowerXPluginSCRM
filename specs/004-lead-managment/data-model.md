@@ -141,6 +141,16 @@
 - `LeadConversationBinding` 1:N `ConversationEvent`（通过 `conversation_id`）
 - `ConversationEvent` 0..1 `LeadConversationPending`
 
+## Lead 去重作用域规则（实现约束）
+
+- 去重键命中条件必须同时满足：
+  - `tenant_uuid`
+  - `source_channel`
+  - `source_app_type`
+  - `source_account_uuid`（空值与非空值是不同作用域）
+- 同手机号/邮箱仅在同作用域内触发合并；跨平台、跨 app_type、跨账号不得合并。
+- 手工导入允许 `source_account_uuid` 为空；为空数据仅与“账号为空”数据互相去重，不与任一具体账号去重。
+
 ## State Transitions
 
 ### LeadSyncTask.status

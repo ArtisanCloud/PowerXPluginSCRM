@@ -1,12 +1,12 @@
 # Implementation Plan: 企业微信线索拉取与对话桥接
 
-**Branch**: `004-wecom-lead-managment` | **Date**: 2026-02-10 | **Spec**: `specs/004-wecom-lead-managment/spec.md`  
-**Input**: Feature specification from `specs/004-wecom-lead-managment/spec.md`
+**Branch**: `004-lead-managment` | **Date**: 2026-02-10 | **Spec**: `specs/004-lead-managment/spec.md`  
+**Input**: Feature specification from `specs/004-lead-managment/spec.md`
 
 ## Summary
 
-在已完成组织同步与成员映射（`003-org-sync`）基础上，交付企业微信线索入池与会话桥接 MVP：
-1) 渠道账号维度的线索同步任务（手动+定时），支持“显式账号 + 渠道默认账号兜底”，并按 framework 统一任务 envelope 设计，复用 lead_capture 标准化/去重策略；
+在已完成组织同步与成员映射（`003-org-sync`）基础上，交付“channel 工厂模式 + WeCom 首个实现”的线索入池与会话桥接 MVP：
+1) 先落地 `channel + app_type` 工厂注册/解析，再接入 WeCom 线索同步任务（手动+定时），支持“显式账号 + 渠道默认账号兜底”，并按 framework 统一任务 envelope 设计，复用 lead_capture 标准化/去重策略；
 2) 员工/app/bot 会话事件入站、幂等落库、待绑定池与人工补绑；
 3) 线索会话变更通过 `powerx.lead.conversation.updated.v1` 实时推送到前端。
 
@@ -46,7 +46,7 @@
 ### Documentation (this feature)
 
 ```text
-specs/004-wecom-lead-managment/
+specs/004-lead-managment/
 ├── plan.md
 ├── research.md
 ├── data-model.md
@@ -82,7 +82,7 @@ web-admin/
 
 ## Phase 0: Research Output
 
-见：`specs/004-wecom-lead-managment/research.md`
+见：`specs/004-lead-managment/research.md`
 
 研究结论已收敛并固化：
 - 会话无法关联线索默认进入待绑定池（不自动建线索）；
@@ -91,16 +91,18 @@ web-admin/
 - 幂等键口径：`tenant + channel_account_uuid + external_event_id`；
 - topic 仅发布 `powerx.lead.conversation.updated.v1`。
 - 统一任务管理（framework）优先，framework 提交通过 EventBridge/TaskBus HostProvider 发出 `powerx.lead.sync.requested.v1`，local cron 仅作 fallback。
+- 同步实现走 channel 工厂模式：主流程不写死 WeCom，WeCom 仅为首个 adapter/provider。
 
 ## Phase 1: Design & Contracts Output
 
-- 数据模型：`specs/004-wecom-lead-managment/data-model.md`
-- 接口契约：`specs/004-wecom-lead-managment/contracts/wecom-lead-conversation.openapi.yaml`
-- 快速联调：`specs/004-wecom-lead-managment/quickstart.md`
+- 数据模型：`specs/004-lead-managment/data-model.md`
+- 接口契约：`specs/004-lead-managment/contracts/wecom-lead-conversation.openapi.yaml`
+- 快速联调：`specs/004-lead-managment/quickstart.md`
 
 ## Implementation Strategy (Phase 2 preview)
 
 1. **Lead Sync Pipeline**
+   - 新增 channel 工厂注册层（按 `channel + app_type` 解析 sync adapter/provider）；
    - 增加 wecom lead sync 任务入口（手动触发 + 定时调度）；
    - 在服务层统一账号解析（显式优先，默认兜底），并回写解析来源；
    - 调度入口封装成 provider adapter（framework task / local fallback），framework 路径复用 EventBridge + TaskBus HostProvider。
