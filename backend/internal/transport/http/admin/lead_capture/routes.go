@@ -6,6 +6,7 @@ import (
 
 	fwwsbus "github.com/ArtisanCloud/PowerXPlugin/framework/backend/go/runtime/wsbus"
 	leadrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/lead_capture"
+	socialrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/social_channel_governance"
 	leadobs "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/lead_capture"
 	leadsvc "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/services/admin/lead_capture"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/shared/app"
@@ -38,9 +39,19 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 			metrics = leadobs.NewMetrics()
 		}
 		taskRepo := leadrepo.NewLeadSyncTaskRepository(deps.DB)
+		channelAccountRepo := socialrepo.NewAccountRepository(deps.DB)
 		providerAdapter := leadsvc.NewDefaultSyncTaskProviderAdapter(deps.Config, deps.EventEmitter)
-		wecomSyncSvc = leadsvc.NewWeComSyncService(taskRepo, metrics, providerAdapter).
-			WithLeadIngestion(leadRepository, leadsvc.NewDefaultWeComLeadAdapter()).
+		channelFactory := leadsvc.NewChannelSyncFactory()
+		defaultIdentity := deps.DefaultLeadSyncChannelIdentity()
+		_ = channelFactory.Register(
+			defaultIdentity.Channel,
+			defaultIdentity.AppType,
+			leadsvc.NewDefaultWeComLeadAdapterWithAccountRepo(channelAccountRepo),
+			providerAdapter,
+		)
+		wecomSyncSvc = leadsvc.NewWeComSyncService(taskRepo, metrics, nil).
+			WithChannelFactory(channelFactory).
+			WithLeadIngestion(leadRepository, nil).
 			WithLeadService(leadSvc)
 
 		eventRepo := leadrepo.NewConversationEventRepository(deps.DB)

@@ -232,7 +232,7 @@ operations:
     timezone: "UTC"
     daily_cron: "0 5 * * *"
 
-# WeCom 线索拉取与会话桥接（004-wecom-lead-managment）
+# WeCom 线索拉取与会话桥接（004-lead-managment）
 # 说明：
 # 1) 渠道账号、授权凭证、回调密钥等账号级参数统一来自数据库（渠道账号表），
 #    不在 config/.env 中按账号写死；

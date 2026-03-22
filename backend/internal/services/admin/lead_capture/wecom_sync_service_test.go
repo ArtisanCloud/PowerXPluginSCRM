@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	basemodels "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models"
 	leadmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/lead_capture"
@@ -113,6 +114,113 @@ func TestWeComSyncService_FailedThenRetryToQueued(t *testing.T) {
 	require.Equal(t, task.TaskUUID, items[0].TaskUUID)
 }
 
+func TestWeComSyncService_WriteExternalUserSourceTraceActivity(t *testing.T) {
+	tenantUUID := "00000000-0000-0000-0000-000000000001"
+	accountUUID := "11111111-1111-4111-8111-111111111111"
+	traceID := "trace-ext-001"
+
+	db := openWeComSyncServiceTestDB(t, "wecom_sync_service_source_trace")
+	require.NoError(t, db.Create(&socialmodel.ChannelAccount{
+		AccountUUID:     accountUUID,
+		TenantUuid:      tenantUUID,
+		ChannelCode:     "wechat",
+		AppType:         "wecom",
+		AccountID:       "wecom-main",
+		DisplayName:     "企微主账号",
+		Status:          socialmodel.ChannelAccountStatusConnected,
+		OrgSyncDefault:  true,
+		OwnerMemberUUID: "owner-001",
+	}).Error)
+
+	taskRepo := leadrepo.NewLeadSyncTaskRepository(db)
+	leadRepo := leadrepo.NewLeadRepository(db)
+	leadSvc := NewLeadService(leadRepo)
+	svc := NewWeComSyncService(taskRepo, nil, mockProviderAdapter{}).
+		WithLeadIngestion(leadRepo, mockWeComLeadAdapter{
+			items: []WeComLeadRecord{{
+				ExternalLeadID: "ext-user-001",
+				DisplayName:    "External User",
+				Phone:          "13800000009",
+				Email:          "ext-user@example.com",
+				OccurredAt:     time.Date(2026, 3, 20, 0, 0, 0, 0, time.UTC),
+			}},
+		}).
+		WithLeadService(leadSvc)
+
+	_, err := svc.TriggerSync(context.Background(), TriggerSyncRequest{
+		TenantUUID: tenantUUID,
+		Channel:    "wechat",
+		AppType:    "wecom",
+		TraceID:    traceID,
+	})
+	require.NoError(t, err)
+
+	lead, err := leadRepo.FindFirstByPhone(context.Background(), tenantUUID, "13800000009")
+	require.NoError(t, err)
+	require.NotNil(t, lead)
+
+	activities, err := leadSvc.ListActivities(context.Background(), tenantUUID, lead.LeadUUID)
+	require.NoError(t, err)
+	require.NotEmpty(t, activities)
+
+	var syncTrace *leadmodel.LeadActivity
+	for _, item := range activities {
+		if item != nil && item.ActivityType == leadmodel.LeadActivityTypeSyncTrace {
+			syncTrace = item
+			break
+		}
+	}
+	require.NotNil(t, syncTrace)
+	require.Equal(t, "ext-user-001", syncTrace.Payload["external_lead_id"])
+	require.Equal(t, "wechat", syncTrace.Payload["source_channel"])
+	require.Equal(t, "wecom", syncTrace.Payload["source_app_type"])
+	require.Equal(t, accountUUID, syncTrace.Payload["source_account_uuid"])
+	require.Equal(t, traceID, syncTrace.Payload["trace_id"])
+}
+
+func TestWeComSyncService_TriggerSyncAsync_ReturnQueuedThenFinish(t *testing.T) {
+	tenantUUID := "00000000-0000-0000-0000-000000000001"
+	accountUUID := "11111111-1111-4111-8111-111111111111"
+
+	db := openWeComSyncServiceTestDB(t, "wecom_sync_service_async")
+	require.NoError(t, db.Create(&socialmodel.ChannelAccount{
+		AccountUUID:     accountUUID,
+		TenantUuid:      tenantUUID,
+		ChannelCode:     "wechat",
+		AppType:         "wecom",
+		AccountID:       "wecom-main",
+		DisplayName:     "企微主账号",
+		Status:          socialmodel.ChannelAccountStatusConnected,
+		OrgSyncDefault:  true,
+		OwnerMemberUUID: "owner-001",
+	}).Error)
+
+	taskRepo := leadrepo.NewLeadSyncTaskRepository(db)
+	leadRepo := leadrepo.NewLeadRepository(db)
+	leadSvc := NewLeadService(leadRepo)
+	svc := NewWeComSyncService(taskRepo, nil, mockProviderAdapter{}).
+		WithLeadIngestion(leadRepo, mockWeComLeadAdapter{
+			items: []WeComLeadRecord{{DisplayName: "Async Lead", Phone: "13800000019"}},
+		}).
+		WithLeadService(leadSvc)
+
+	task, err := svc.TriggerSyncAsync(context.Background(), TriggerSyncRequest{
+		TenantUUID: tenantUUID,
+		Channel:    "wechat",
+		AppType:    "wecom",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "queued", task.Status)
+
+	require.Eventually(t, func() bool {
+		list, listErr := taskRepo.ListByFilter(context.Background(), tenantUUID, accountUUID, "", 1)
+		if listErr != nil || len(list) == 0 || list[0] == nil {
+			return false
+		}
+		return list[0].Status == "success" && list[0].ProgressPercent == 100
+	}, 2*time.Second, 30*time.Millisecond)
+}
+
 func openWeComSyncServiceTestDB(t *testing.T, name string) *gorm.DB {
 	t.Helper()
 	basemodels.ForceSchemaForTests("")
@@ -152,6 +260,9 @@ func createWeComSyncTestSchema(db *gorm.DB) error {
 			task_provider TEXT NOT NULL,
 			trigger_type TEXT NOT NULL,
 			status TEXT NOT NULL,
+			progress_total INTEGER NOT NULL DEFAULT 0,
+			progress_current INTEGER NOT NULL DEFAULT 0,
+			progress_percent INTEGER NOT NULL DEFAULT 0,
 			stats_total INTEGER NOT NULL DEFAULT 0,
 			stats_created INTEGER NOT NULL DEFAULT 0,
 			stats_updated INTEGER NOT NULL DEFAULT 0,
@@ -174,6 +285,29 @@ func createWeComSyncTestSchema(db *gorm.DB) error {
 			source_channel TEXT,
 			source_app_type TEXT,
 			source_account_uuid TEXT,
+			created_at DATETIME,
+			updated_at DATETIME
+		);`,
+		`CREATE TABLE IF NOT EXISTS lead_capture_activities (
+			activity_uuid TEXT PRIMARY KEY,
+			lead_uuid TEXT NOT NULL,
+			tenant_uuid TEXT NOT NULL,
+			activity_type TEXT NOT NULL,
+			payload TEXT,
+			created_at DATETIME,
+			updated_at DATETIME
+		);`,
+		`CREATE TABLE IF NOT EXISTS lead_capture_sources (
+			source_uuid TEXT PRIMARY KEY,
+			lead_uuid TEXT NOT NULL,
+			tenant_uuid TEXT NOT NULL,
+			channel_code TEXT,
+			app_type TEXT,
+			account_uuid TEXT,
+			campaign_code TEXT,
+			utm_source TEXT,
+			utm_medium TEXT,
+			utm_campaign TEXT,
 			created_at DATETIME,
 			updated_at DATETIME
 		);`,

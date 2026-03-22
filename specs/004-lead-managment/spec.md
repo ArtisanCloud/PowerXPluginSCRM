@@ -1,6 +1,6 @@
 # Feature Specification: 企业微信线索拉取与对话桥接
 
-**Feature Branch**: `004-wecom-lead-managment`  
+**Feature Branch**: `004-lead-managment`  
 **Created**: 2026-02-10  
 **Status**: Draft  
 **Input**: User description: "根据 docs/plan/lead_capture 生成对应 spec，优先推进企微线索拉取与员工/app/bot 对话桥接"
@@ -21,6 +21,9 @@
 - Q: 待绑定会话是否自动创建线索？ → A: 不自动创建，仅人工或明确规则触发。
 - Q: 多渠道场景下未显式传渠道账号时如何处理？ → A: 按“显式 channel_account_uuid 优先，未传则回落到该渠道默认账号”解析。
 - Q: 统一任务管理接入后，当前同步任务如何演进？ → A: 任务状态与接口先按 framework 兼容 envelope 实现，调度层支持从 local fallback 平滑切换到统一任务中心。
+- Q: 不同平台或同平台不同 app/账号的线索是否隔离？ → A: 逻辑隔离，去重作用域固定为 `tenant + source_channel + source_app_type + source_account_uuid`。
+- Q: 是否强制所有线索都必须带 `source_account_uuid`？ → A: 不强制；渠道同步建议带账号，手工导入允许无账号并进入“账号为空”作用域。
+- Q: 004 是否仅实现 WeCom 单点逻辑？ → A: 不是；004 必须先落地 channel 工厂模式，WeCom 仅作为首个 adapter/provider 实现。
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -119,6 +122,10 @@
 - **FR-021**: 当同步请求未显式提供 `channel_account_uuid` 时，系统必须按 `tenant + channel + app_type` 解析默认账号，并在响应/任务记录中返回解析来源（`explicit`/`default`）。
 - **FR-022**: 线索同步任务的状态模型与响应 envelope 必须与 PowerXPlugin framework 统一任务管理兼容（字段、状态机、可观测标签可直连迁移）。
 - **FR-023**: 调度执行层必须支持 provider 化（`framework`/`local_fallback`），宿主与 standalone 均可运行且可平滑切换。
+- **FR-024**: 线索去重/合并必须限定在来源作用域 `tenant + source_channel + source_app_type + source_account_uuid` 内，不得跨平台、跨 app_type、跨账号合并。
+- **FR-025**: 手工导入（如 Excel）不得强制要求 `source_account_uuid`；当账号为空时，线索必须进入“账号为空”的独立作用域，与有账号作用域隔离。
+- **FR-026**: 系统必须提供 channel 工厂注册与解析机制（按 `channel + app_type` 选择同步 adapter/provider），业务服务不得硬编码 WeCom 分支。
+- **FR-027**: WeCom 必须作为工厂首个实现接入，且不影响后续新增 channel/app_type 的无侵入扩展。
 
 ### Key Entities *(include if feature involves data)*
 
@@ -149,6 +156,10 @@
 - 调度执行采用 provider 抽象：优先 framework 统一任务 provider（通过 EventBridge/TaskBus HostProvider 提交 `powerx.lead.sync.requested.v1`），local 仅作为 fallback。
 - 同步流程分为：拉取、标准化、去重合并、活动写入、结果汇总。
 - 失败任务支持重试窗口与可观测告警。
+
+### Channel Factory
+- 引入 `channel + app_type` 维度的工厂注册表，统一解析 `LeadSyncAdapter` 与 `TaskProviderAdapter`。
+- `wecom` 作为首个工厂实例实现，后续新增渠道（如 feishu/dingtalk）只需新增 adapter 并注册，不改主流程服务。
 
 ### Conversation Bridge
 - Webhook 入站统一转换为标准 `ConversationEvent`。

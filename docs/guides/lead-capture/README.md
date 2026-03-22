@@ -1,6 +1,6 @@
 # 企微线索入池与会话桥接验收指南
 
-本指南用于验收 `004-wecom-lead-managment` 新开发能力，覆盖 US1~US3：
+本指南用于验收 `004-lead-managment` 新开发能力，覆盖 US1~US3：
 
 - US1：企业微信线索入池（同步任务）
 - US2：线索归并与分配前置（去重、来源追溯、分配绑定校验）
@@ -51,6 +51,7 @@ curl -X POST "http://127.0.0.1:8092/api/v1/admin/leads/wecom/sync" \
 - 未传账号时返回 `account_resolve_source=default`。
 - `task_provider` 正确（`framework` 或 `local_fallback`）。
 - 同步任务口径固定为 WeCom（`source_channel=wechat`、`source_app_type=wecom`）。
+- 同步后可在线索活动中看到 `sync_trace`（包含 `external_lead_id/source_channel/source_app_type/source_account_uuid/trace_id`）。
 
 ### 3.2 查询同步任务
 
@@ -64,6 +65,26 @@ curl -G "http://127.0.0.1:8092/api/v1/admin/leads/wecom/sync-tasks" \
 验收点：
 - 可按 `status` 过滤。
 - 返回统计字段：`stats_total/stats_created/stats_updated/stats_merged`。
+
+### 3.3 多账号作用域对比（created/updated/merged）
+
+在同一租户准备两个 WeCom 账号 `account_a`、`account_b`，并分别触发同步：
+
+```bash
+curl -X POST "http://127.0.0.1:8092/api/v1/admin/leads/wecom/sync" \
+  -H "Authorization: Bearer $USER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"channel_account_uuid":"<account_a>","trace_id":"guide-sync-a-1"}'
+
+curl -X POST "http://127.0.0.1:8092/api/v1/admin/leads/wecom/sync" \
+  -H "Authorization: Bearer $USER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"channel_account_uuid":"<account_b>","trace_id":"guide-sync-b-1"}'
+```
+
+验收点：
+- 同账号重复数据可产生 `updated/merged`。
+- 跨账号重复数据不跨 `source_account_uuid` 合并，应保持独立 `created`。
 
 ## 4. US2 验收：归并与分配前置
 
@@ -79,7 +100,14 @@ curl -G "http://127.0.0.1:8092/api/v1/admin/leads/wecom/sync-tasks" \
   - 来源追溯记录（Source Events）
   - 合并活动记录（merge activity）
 
-### 4.2 分配绑定前置校验
+### 4.2 手工导入来源作用域（新增）
+
+导入 CSV 时，来源字段口径如下：
+- 允许 `source_account_uuid` 为空（进入“空账号作用域”）。
+- 若 CSV 显式提供 `source_channel/source_app_type`，必须按原值保留，不回退为默认 `wechat/wecom`。
+- 若 CSV 未提供来源字段，则保持为空，不强制补默认值。
+
+### 4.3 分配绑定前置校验
 
 对未绑定成员执行分配：
 - 应返回校验失败（assignee 未绑定 source member）。

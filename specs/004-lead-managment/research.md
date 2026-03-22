@@ -56,3 +56,36 @@ go test ./internal/services/admin/lead_capture ./tests/contract ./tests/integrat
 - 重复 webhook（同 `external_event_id`）命中幂等，不重复写入事件。
 - 会话桥接链路可在绑定后写入投影并发布 `powerx.lead.conversation.updated.v1`。
 - 同步任务与会话事件指标均带 provider 维度，可区分 `framework/local_fallback`。
+
+## Phase 8 实拉联调记录（2026-03-22）
+
+### External User 字段覆盖结论
+- 已接入 WeCom `external user` 实拉，当前最小映射覆盖：
+  - `external_userid -> ExternalLeadID`
+  - `name -> display_name`（缺失回落 `follow_info.remark`）
+  - `remark_mobiles[0] -> phone`
+  - `external_attr(email/邮箱) -> email`
+  - `createtime -> occurred_at`（缺失回落服务端当前时间）
+- 同步服务已写入 `sync_trace` activity，审计 payload 包含：
+  - `external_lead_id`
+  - `source_channel/source_app_type/source_account_uuid`
+  - `trace_id`
+  - 基础映射字段（display_name/phone/email/occurred_at）
+
+### 权限与配置前置
+- 渠道账号必须为同租户下可用状态（`connected`），且 WeCom 凭据可调用 external-contact 相关接口。
+- 建议显式传 `channel_account_uuid`，避免默认账号解析带来的调试歧义。
+- standalone 联调需确认：
+  - `POWERX_PROXY=0`
+  - `IAMMode=local`
+  - runtime bus driver 使用 local（ws/task/event）
+
+### 失败与重试建议
+- 接口类失败（鉴权、参数、权限）：
+  - 任务应标记 `failed`，保留 `error_message`，修复后走 `RetryTask` 或重新触发。
+- 上游限流/瞬时失败：
+  - 建议在 provider 侧采用指数退避（例如 1s/2s/4s）并限制最大重试次数，避免雪崩。
+- 排障优先顺序：
+  1. 先看 `sync_tasks` 的 `status/stats/error_message`
+  2. 再看线索 `source_channel/app_type/account_uuid` 是否符合预期作用域
+  3. 最后看 `sync_trace` activity 的 `external_lead_id + trace_id` 是否贯通

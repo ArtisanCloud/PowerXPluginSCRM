@@ -2,7 +2,7 @@
 
 ## 1. 对齐范围（当前生效）
 
-本文件当前以 `specs/004-wecom-lead-managment` 为唯一实施口径，先聚焦 WeCom MVP，不把“多渠道统一 runtime”当作已交付能力。
+本文件当前以 `specs/004-lead-managment` 为唯一实施口径，先聚焦 WeCom MVP，不把“多渠道统一 runtime”当作已交付能力。
 
 - 当前已实现业务范围：
   - 企业微信线索同步任务（手动触发 + 默认账号兜底）
@@ -52,6 +52,6 @@
 
 ## 6. 联调与验收入口
 
-- 规范来源：`specs/004-wecom-lead-managment/spec.md`
-- 快速联调：`specs/004-wecom-lead-managment/quickstart.md`
+- 规范来源：`specs/004-lead-managment/spec.md`
+- 快速联调：`specs/004-lead-managment/quickstart.md`
 - 验收手册：`docs/guides/lead-capture/README.md`

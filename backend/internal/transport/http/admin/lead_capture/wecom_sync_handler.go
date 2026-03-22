@@ -33,7 +33,7 @@ func (h *WeComSyncHandler) TriggerSync(c *gin.Context) {
 		contracts.ResponseBadRequest(c, "invalid body: "+err.Error())
 		return
 	}
-	task, err := h.svc.TriggerSync(c.Request.Context(), leadsvc.TriggerSyncRequest{
+	task, err := h.svc.TriggerSyncAsync(c.Request.Context(), leadsvc.TriggerSyncRequest{
 		TenantUUID:         tenantUUID,
 		Channel:            "wechat",
 		AppType:            "wecom",

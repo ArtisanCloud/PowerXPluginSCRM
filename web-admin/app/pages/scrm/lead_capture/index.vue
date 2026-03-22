@@ -108,66 +108,103 @@
         </div>
       </template>
       <div class="space-y-3">
-        <div class="grid grid-cols-1 gap-3 lg:grid-cols-4">
-          <UFormField label="同步账号（可选）">
-            <USelectMenu
-              v-model="syncAccountUUID"
-              :items="syncAccountOptions"
-              value-key="value"
-              label-key="label"
-              placeholder="不填走默认账号"
-              class="w-full"
-              :portal="false"
-              :ui="{ content: 'z-[200]' }"
-            />
-          </UFormField>
-          <UFormField label="状态筛选">
-            <USelectMenu
-              v-model="syncStatusFilter"
-              :items="syncStatusOptions"
-              value-key="value"
-              label-key="label"
-              class="w-full"
-              :portal="false"
-              :ui="{ content: 'z-[200]' }"
-            />
-          </UFormField>
-          <div class="rounded-md border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900/40">
-            <div class="flex items-center justify-between gap-2">
-              <div class="space-y-1">
-                <div class="text-xs font-medium text-gray-700 dark:text-gray-200">
-                  客户私信自动建线索（WeCom）
+        <div class="grid grid-cols-1 gap-4 xl:grid-cols-12">
+          <div class="xl:col-span-8">
+            <div class="rounded-xl border border-gray-200/80 bg-gray-50/70 p-4 dark:border-gray-700/80 dark:bg-gray-900/40">
+              <div class="mb-3 flex items-center justify-between">
+                <div class="text-sm font-medium text-gray-800 dark:text-gray-100">
+                  同步筛选
                 </div>
                 <div class="text-xs text-gray-500 dark:text-gray-400">
-                  关闭时进入待绑定池；开启后客户私信可自动入池。
+                  触发同步前可切换账号与状态范围
                 </div>
               </div>
-              <USwitch
-                v-model="wecomCustomerDMAutoCreate"
-                :loading="wecomCustomerDMRuleLoading || wecomCustomerDMRuleSaving"
-              />
-            </div>
-            <div class="mt-2 flex justify-end">
-              <UButton
-                size="xs"
-                variant="soft"
-                :loading="wecomCustomerDMRuleSaving"
-                @click="saveWeComCustomerDMRule"
+              <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <UFormField label="同步账号（可选）">
+                  <USelectMenu
+                    v-model="syncAccountUUID"
+                    :items="syncAccountOptions"
+                    value-key="value"
+                    label-key="label"
+                    placeholder="不填走默认账号"
+                    class="w-full"
+                    :portal="false"
+                    :ui="{ content: 'z-[200]' }"
+                  />
+                </UFormField>
+                <UFormField label="状态筛选">
+                  <USelectMenu
+                    v-model="syncStatusFilter"
+                    :items="syncStatusOptions"
+                    value-key="value"
+                    label-key="label"
+                    class="w-full"
+                    :portal="false"
+                    :ui="{ content: 'z-[200]' }"
+                  />
+                </UFormField>
+              </div>
+              <div
+                class="mt-3 rounded-lg border border-dashed border-gray-300/80 bg-white/70 px-3 py-2 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-950/30 dark:text-gray-300"
               >
-                保存规则
-              </UButton>
+                最近一次账号解析来源：<span class="font-medium text-gray-800 dark:text-gray-100">{{ syncLastResolveSource || "未触发" }}</span>
+              </div>
             </div>
           </div>
-          <div class="flex items-end text-xs text-gray-500 dark:text-gray-400">
-            最近一次账号解析来源：{{ syncLastResolveSource || "未触发" }}
+
+          <div class="xl:col-span-4">
+            <div class="h-full rounded-xl border border-primary/30 bg-primary/5 p-4 dark:bg-primary/10">
+              <div class="space-y-3">
+                <div class="flex items-start justify-between gap-3">
+                  <div>
+                    <div class="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                      客户私信自动建线索（WeCom）
+                    </div>
+                    <div class="mt-1 text-xs leading-5 text-gray-600 dark:text-gray-300">
+                      关闭时进入待绑定池，开启后客户私信自动入池。
+                    </div>
+                  </div>
+                  <USwitch
+                    v-model="wecomCustomerDMAutoCreate"
+                    :loading="wecomCustomerDMRuleLoading || wecomCustomerDMRuleSaving"
+                  />
+                </div>
+                <div class="flex justify-end">
+                  <UButton
+                    size="xs"
+                    color="primary"
+                    :loading="wecomCustomerDMRuleSaving"
+                    @click="saveWeComCustomerDMRule"
+                  >
+                    保存规则
+                  </UButton>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
         <UTable :columns="syncTaskColumns" :data="syncTasks" :loading="syncLoading">
+          <template #channel_account_uuid-cell="{ row }">
+            <span class="text-sm text-gray-700 dark:text-gray-200">
+              {{ resolveSyncAccountLabel(row.original) }}
+            </span>
+          </template>
           <template #status-cell="{ row }">
             <UBadge :color="syncStatusMeta(row.original.status).color" variant="soft">
               {{ syncStatusMeta(row.original.status).label }}
             </UBadge>
+          </template>
+          <template #progress-cell="{ row }">
+            <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-300">
+              <div class="h-1.5 w-24 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                <div
+                  class="h-full rounded-full bg-primary transition-all duration-300"
+                  :style="{ width: `${syncProgressPercent(row.original)}%` }"
+                />
+              </div>
+              <span>{{ syncProgressPercent(row.original) }}%</span>
+            </div>
           </template>
           <template #stats-cell="{ row }">
             <div class="text-xs text-gray-500 dark:text-gray-400">
@@ -533,7 +570,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { useRouter } from "#imports";
 import type { LeadCreatePayload } from "~/types/lead_capture/lead";
 import { useLeadCaptureStore } from "~/stores/scrm/lead_capture/lead_store";
@@ -570,10 +607,12 @@ const runtimeDictionaryService = useRuntimeDictionaryService();
 const socialChannelService = useSocialChannelGovernanceService();
 const iamService = useIAMService();
 
+const ALL_OPTION_VALUE = "__all__";
+
 const searchText = ref("");
-const statusFilter = ref<string>("");
-const channelFilter = ref<string>("");
-const appTypeFilter = ref<string>("");
+const statusFilter = ref<string>(ALL_OPTION_VALUE);
+const channelFilter = ref<string>(ALL_OPTION_VALUE);
+const appTypeFilter = ref<string>(ALL_OPTION_VALUE);
 const createModalOpen = ref(false);
 const creating = ref(false);
 const createFormError = ref("");
@@ -588,8 +627,10 @@ const importStep = ref(1);
 const syncLoading = ref(false);
 const syncSubmitting = ref(false);
 const syncAccountUUID = ref("");
-const syncStatusFilter = ref<string>("");
+const syncStatusFilter = ref<string>(ALL_OPTION_VALUE);
 const syncTasks = ref<WeComSyncTaskRecord[]>([]);
+let syncPollTimer: ReturnType<typeof setTimeout> | null = null;
+const lastLeadAutoRefreshTaskSignature = ref("");
 const syncLastResolveSource = ref("");
 const wecomCustomerDMRuleLoading = ref(false);
 const wecomCustomerDMRuleSaving = ref(false);
@@ -669,7 +710,7 @@ const leadColumns = [
 ] satisfies any;
 
 const statusFilterOptions = [
-  { label: "全部", value: "" },
+  { label: "全部", value: ALL_OPTION_VALUE },
   { label: "新线索", value: "new" },
   { label: "已分配", value: "assigned" },
   { label: "跟进中", value: "in_progress" },
@@ -684,7 +725,7 @@ const pageSizeOptions = [
 ];
 
 const syncStatusOptions = [
-  { label: "全部状态", value: "" },
+  { label: "全部状态", value: ALL_OPTION_VALUE },
   { label: "排队中", value: "queued" },
   { label: "执行中", value: "running" },
   { label: "成功", value: "success" },
@@ -693,9 +734,10 @@ const syncStatusOptions = [
 
 const syncTaskColumns = [
   { accessorKey: "task_uuid", header: "任务 UUID" },
-  { accessorKey: "channel_account_uuid", header: "账号 UUID" },
+  { accessorKey: "channel_account_uuid", header: "同步账号" },
   { accessorKey: "task_provider", header: "Provider" },
   { accessorKey: "status", header: "状态" },
+  { accessorKey: "progress", header: "进度" },
   { accessorKey: "stats", header: "统计" },
   { accessorKey: "error", header: "错误" },
 ] satisfies any;
@@ -713,7 +755,7 @@ const channelOptions = computed(() => {
     .filter((item) => item.namespace === RuntimeDictionaryNamespaces.leadTrafficPlatform)
     .forEach((item) => labelMap.set(item.code, item.label));
   return [
-    { label: "全部", value: "" },
+    { label: "全部", value: ALL_OPTION_VALUE },
     ...Array.from(entries).map((value) => ({ label: labelMap.get(value) || value, value })),
   ];
 });
@@ -731,7 +773,7 @@ const appTypeOptions = computed(() => {
     .filter((item) => item.namespace === RuntimeDictionaryNamespaces.leadTrafficSource)
     .forEach((item) => labelMap.set(item.code, item.label));
   return [
-    { label: "全部", value: "" },
+    { label: "全部", value: ALL_OPTION_VALUE },
     ...Array.from(entries).map((value) => ({ label: labelMap.get(value) || value, value })),
   ];
 });
@@ -773,6 +815,16 @@ const syncAccountOptions = computed(() =>
   }))
 );
 
+const syncAccountLabelMap = computed(() => {
+  const map = new Map<string, string>();
+  channelAccounts.value.forEach((account) => {
+    const key = (account.account_uuid || "").trim().toLowerCase();
+    if (!key) return;
+    map.set(key, `${account.display_name || account.account_id} (${account.channel_code}/${account.app_type})`);
+  });
+  return map;
+});
+
 const createOwnerOptions = computed(() =>
   iamMembers.value.map((member) => ({
     label: `${member.display_name} (${member.email || member.username || member.member_id})`,
@@ -783,13 +835,13 @@ const createOwnerOptions = computed(() =>
 const filteredLeads = computed(() => {
   const keyword = searchText.value.trim().toLowerCase();
   return store.leads.filter((lead) => {
-    if (statusFilter.value && lead.status !== statusFilter.value) {
+    if (statusFilter.value !== ALL_OPTION_VALUE && lead.status !== statusFilter.value) {
       return false;
     }
-    if (channelFilter.value && lead.source_channel !== channelFilter.value) {
+    if (channelFilter.value !== ALL_OPTION_VALUE && lead.source_channel !== channelFilter.value) {
       return false;
     }
-    if (appTypeFilter.value && lead.source_app_type !== appTypeFilter.value) {
+    if (appTypeFilter.value !== ALL_OPTION_VALUE && lead.source_app_type !== appTypeFilter.value) {
       return false;
     }
     if (!keyword) {
@@ -862,15 +914,54 @@ const syncStatusMeta = (status?: string) => {
   }
 };
 
+const syncProgressPercent = (task?: WeComSyncTaskRecord) => {
+  if (!task) return 0;
+  const raw = Number(task.progress_percent || 0);
+  if (Number.isFinite(raw)) {
+    if (raw < 0) return 0;
+    if (raw > 100) return 100;
+    return raw;
+  }
+  if (task.status === "success") return 100;
+  if (task.status === "running") return 5;
+  return 0;
+};
+
+const resolveSyncAccountLabel = (task?: WeComSyncTaskRecord) => {
+  const uuid = (task?.channel_account_uuid || "").trim();
+  if (!uuid) return "-";
+  return syncAccountLabelMap.value.get(uuid.toLowerCase()) || uuid;
+};
+
 const refreshSyncTasks = async () => {
   syncLoading.value = true;
   try {
     const resp = await leadCaptureService.listWeComSyncTasks({
       channel_account_uuid: syncAccountUUID.value.trim() || undefined,
-      status: (syncStatusFilter.value || undefined) as any,
+      status: (syncStatusFilter.value === ALL_OPTION_VALUE ? undefined : syncStatusFilter.value) as any,
       limit: 20,
     });
     syncTasks.value = ((resp as any)?.data?.items || []) as WeComSyncTaskRecord[];
+    const finishedSuccessTask = syncTasks.value.find((item) => item?.status === "success" && !!item?.finished_at);
+    if (finishedSuccessTask) {
+      const signature = `${finishedSuccessTask.task_uuid}:${finishedSuccessTask.finished_at}`;
+      if (signature !== lastLeadAutoRefreshTaskSignature.value) {
+        lastLeadAutoRefreshTaskSignature.value = signature;
+        await refreshLeads();
+      }
+    }
+    if (syncPollTimer) {
+      clearTimeout(syncPollTimer);
+      syncPollTimer = null;
+    }
+    const hasPendingTasks = syncTasks.value.some(
+      (item) => item?.status === "queued" || item?.status === "running"
+    );
+    if (hasPendingTasks && process.client) {
+      syncPollTimer = setTimeout(() => {
+        void refreshSyncTasks();
+      }, 2000);
+    }
   } catch (err: any) {
     showToast(err?.message || "同步任务加载失败", "error");
   } finally {
@@ -1269,5 +1360,12 @@ onMounted(async () => {
   await refreshLeads();
   await refreshSyncTasks();
   await loadWeComCustomerDMRule();
+});
+
+onBeforeUnmount(() => {
+  if (syncPollTimer) {
+    clearTimeout(syncPollTimer);
+    syncPollTimer = null;
+  }
 });
 </script>

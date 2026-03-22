@@ -3,7 +3,7 @@
 ## 实现状态
 
 - 状态：规划中
-- 与 004 关系：不在 `specs/004-wecom-lead-managment` 交付范围
+- 与 004 关系：不在 `specs/004-lead-managment` 交付范围
 - 依赖前置：Channel 通用命令契约、作业编排服务、权限模型扩展
 
 ## 目标

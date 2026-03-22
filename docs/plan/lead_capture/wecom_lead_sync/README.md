@@ -5,7 +5,7 @@
 
 ## 004 对齐声明
 
-本页以 `specs/004-wecom-lead-managment` 为准，当前是 WeCom MVP：
+本页以 `specs/004-lead-managment` 为准，当前是 WeCom MVP：
 
 - API 入口：`/api/v1/admin/leads/wecom/sync`、`/api/v1/admin/leads/wecom/sync-tasks`
 - 渠道字段固定：`source_channel=wechat`、`source_app_type=wecom`

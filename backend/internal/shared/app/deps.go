@@ -55,6 +55,11 @@ type Deps struct {
 	IAMDirectory        iamservice.IAMDirectory
 }
 
+type LeadSyncChannelIdentity struct {
+	Channel string
+	AppType string
+}
+
 type gatewayClient interface {
 	Enabled() bool
 	Invoke(ctx context.Context, params gateway.InvokeParams) (*gateway.InvokeResult, error)
@@ -68,6 +73,15 @@ func (d *Deps) RuntimeDefaults() *config.RuntimeOpsDefaults {
 		return nil
 	}
 	return d.Config.RuntimeOps
+}
+
+// DefaultLeadSyncChannelIdentity defines the baseline channel/app pair for sync factory bootstrap.
+func (d *Deps) DefaultLeadSyncChannelIdentity() LeadSyncChannelIdentity {
+	_ = d
+	return LeadSyncChannelIdentity{
+		Channel: "wechat",
+		AppType: "wecom",
+	}
 }
 
 // RuntimeLogger provides a structured logger enriched with runtime metadata.

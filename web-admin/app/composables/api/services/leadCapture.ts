@@ -165,6 +165,9 @@ export interface WeComSyncTaskRecord {
   task_provider: "framework" | "local_fallback";
   external_task_id?: string | null;
   status: "queued" | "running" | "success" | "failed";
+  progress_total: number;
+  progress_current: number;
+  progress_percent: number;
   stats_total: number;
   stats_created: number;
   stats_updated: number;

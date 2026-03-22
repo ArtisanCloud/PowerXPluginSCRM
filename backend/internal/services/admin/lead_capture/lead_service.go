@@ -69,6 +69,14 @@ type LeadStatusUpdateRequest struct {
 }
 
 func (s *LeadService) Create(ctx context.Context, tenantUUID string, req LeadCreateRequest) (*model.Lead, error) {
+	return s.createWithOptions(ctx, tenantUUID, req, leadCreateOptions{})
+}
+
+type leadCreateOptions struct {
+	preserveSourceScope bool
+}
+
+func (s *LeadService) createWithOptions(ctx context.Context, tenantUUID string, req LeadCreateRequest, opts leadCreateOptions) (*model.Lead, error) {
 	if s == nil || s.repo == nil {
 		return nil, errors.New("lead repository not configured")
 	}
@@ -88,6 +96,11 @@ func (s *LeadService) Create(ctx context.Context, tenantUUID string, req LeadCre
 			SourceAccountUUID: n.SourceAccountUUID,
 			OwnerUserUUID:     n.OwnerUserUUID,
 		}
+	}
+	if opts.preserveSourceScope {
+		normalized.SourceChannel = strings.ToLower(strings.TrimSpace(req.SourceChannel))
+		normalized.SourceAppType = strings.ToLower(strings.TrimSpace(req.SourceAppType))
+		normalized.SourceAccountUUID = strings.ToLower(strings.TrimSpace(req.SourceAccountUUID))
 	}
 
 	if strings.TrimSpace(normalized.DisplayName) == "" &&
@@ -573,7 +586,7 @@ func (s *LeadService) ImportCSV(ctx context.Context, tenantUUID string, reader i
 			continue
 		}
 		result.Total++
-		if _, err := s.Create(ctx, tenantUUID, payload); err != nil {
+		if _, err := s.createWithOptions(ctx, tenantUUID, payload, leadCreateOptions{preserveSourceScope: true}); err != nil {
 			result.Failed++
 			result.Errors = append(result.Errors, LeadImportError{Row: rowIndex, Reason: err.Error()})
 			continue
@@ -688,7 +701,7 @@ func (s *LeadService) ImportCSVWithMapping(ctx context.Context, tenantUUID strin
 			continue
 		}
 		result.Total++
-		if _, err := s.Create(ctx, tenantUUID, payload); err != nil {
+		if _, err := s.createWithOptions(ctx, tenantUUID, payload, leadCreateOptions{preserveSourceScope: true}); err != nil {
 			result.Failed++
 			result.Errors = append(result.Errors, LeadImportError{Row: rowIndex, Reason: err.Error()})
 			continue

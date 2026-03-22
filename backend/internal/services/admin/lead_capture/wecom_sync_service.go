@@ -9,18 +9,19 @@ import (
 
 	leadmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/lead_capture"
 	leadrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/lead_capture"
+	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/logger"
 	leadobs "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/lead_capture"
 	"github.com/google/uuid"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
 type WeComSyncService struct {
-	taskRepo        *leadrepo.LeadSyncTaskRepository
-	leadRepo        *leadrepo.LeadRepository
-	leadService     *LeadService
-	metrics         *leadobs.Metrics
-	providerAdapter SyncTaskProviderAdapter
-	leadAdapter     WeComLeadAdapter
+	taskRepo    *leadrepo.LeadSyncTaskRepository
+	leadRepo    *leadrepo.LeadRepository
+	leadService *LeadService
+	metrics     *leadobs.Metrics
+	syncFactory *ChannelSyncFactory
 }
 
 type TriggerSyncRequest struct {
@@ -34,7 +35,12 @@ type TriggerSyncRequest struct {
 }
 
 func NewWeComSyncService(taskRepo *leadrepo.LeadSyncTaskRepository, metrics *leadobs.Metrics, providerAdapter SyncTaskProviderAdapter) *WeComSyncService {
-	return &WeComSyncService{taskRepo: taskRepo, metrics: metrics, providerAdapter: providerAdapter}
+	factory := NewChannelSyncFactory()
+	if providerAdapter == nil {
+		providerAdapter = NewDefaultSyncTaskProviderAdapter(nil, nil)
+	}
+	_ = factory.Register("wechat", "wecom", NewDefaultWeComLeadAdapter(), providerAdapter)
+	return &WeComSyncService{taskRepo: taskRepo, metrics: metrics, syncFactory: factory}
 }
 
 func (s *WeComSyncService) WithLeadIngestion(leadRepo *leadrepo.LeadRepository, adapter WeComLeadAdapter) *WeComSyncService {
@@ -42,7 +48,12 @@ func (s *WeComSyncService) WithLeadIngestion(leadRepo *leadrepo.LeadRepository, 
 		return s
 	}
 	s.leadRepo = leadRepo
-	s.leadAdapter = adapter
+	if adapter != nil {
+		if s.syncFactory == nil {
+			s.syncFactory = NewChannelSyncFactory()
+		}
+		_ = s.syncFactory.RegisterLeadAdapter("wechat", "wecom", adapter)
+	}
 	return s
 }
 
@@ -54,6 +65,14 @@ func (s *WeComSyncService) WithLeadService(leadService *LeadService) *WeComSyncS
 	return s
 }
 
+func (s *WeComSyncService) WithChannelFactory(factory *ChannelSyncFactory) *WeComSyncService {
+	if s == nil || factory == nil {
+		return s
+	}
+	s.syncFactory = factory
+	return s
+}
+
 type SyncIngestStats struct {
 	Total   int
 	Created int
@@ -62,14 +81,57 @@ type SyncIngestStats struct {
 }
 
 func (s *WeComSyncService) TriggerSync(ctx context.Context, req TriggerSyncRequest) (*leadmodel.LeadSyncTask, error) {
+	req, accountUUID, submit, created, err := s.prepareSyncTask(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	if submit.Provider == leadmodel.LeadSyncTaskProviderLocalFallback {
+		if runErr := s.executeLocalSyncTask(ctx, req, accountUUID, created); runErr != nil {
+			return nil, runErr
+		}
+	}
+
+	if s.metrics != nil && submit.Provider != leadmodel.LeadSyncTaskProviderLocalFallback {
+		s.metrics.RecordSyncTask(submit.Provider, created.Status)
+	}
+	return created, nil
+}
+
+func (s *WeComSyncService) TriggerSyncAsync(ctx context.Context, req TriggerSyncRequest) (*leadmodel.LeadSyncTask, error) {
+	req, accountUUID, submit, created, err := s.prepareSyncTask(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	if submit.Provider == leadmodel.LeadSyncTaskProviderLocalFallback {
+		go func(backgroundReq TriggerSyncRequest, resolvedAccountUUID string, queuedTask *leadmodel.LeadSyncTask) {
+			bgCtx := context.Background()
+			if runErr := s.executeLocalSyncTask(bgCtx, backgroundReq, resolvedAccountUUID, queuedTask); runErr != nil {
+				logger.WithFields(logger.Fields{
+					"component":            "lead_sync",
+					"tenant_uuid":          strings.TrimSpace(backgroundReq.TenantUUID),
+					"task_uuid":            strings.TrimSpace(queuedTask.TaskUUID),
+					"channel_account_uuid": strings.TrimSpace(resolvedAccountUUID),
+					"trace_id":             strings.TrimSpace(backgroundReq.TraceID),
+				}).WithError(runErr).Error("lead sync async execution failed")
+			}
+		}(req, accountUUID, created)
+	}
+	if s.metrics != nil {
+		s.metrics.RecordSyncTask(submit.Provider, created.Status)
+	}
+	return created, nil
+}
+
+func (s *WeComSyncService) prepareSyncTask(ctx context.Context, req TriggerSyncRequest) (TriggerSyncRequest, string, SyncTaskSubmitResult, *leadmodel.LeadSyncTask, error) {
 	if s == nil || s.taskRepo == nil {
-		return nil, errors.New("wecom sync service unavailable")
+		return TriggerSyncRequest{}, "", SyncTaskSubmitResult{}, nil, errors.New("wecom sync service unavailable")
 	}
 	req.TenantUUID = strings.ToLower(strings.TrimSpace(req.TenantUUID))
 	req.Channel = strings.ToLower(strings.TrimSpace(req.Channel))
 	req.AppType = strings.ToLower(strings.TrimSpace(req.AppType))
 	if req.TenantUUID == "" {
-		return nil, errors.New("tenant_uuid is required")
+		return TriggerSyncRequest{}, "", SyncTaskSubmitResult{}, nil, errors.New("tenant_uuid is required")
 	}
 	if req.Channel == "" {
 		req.Channel = "wechat"
@@ -86,12 +148,11 @@ func (s *WeComSyncService) TriggerSync(ctx context.Context, req TriggerSyncReque
 		if s.metrics != nil {
 			s.metrics.RecordSyncTask(leadmodel.LeadSyncTaskProviderLocalFallback, "resolve_failed")
 		}
-		return nil, err
+		return TriggerSyncRequest{}, "", SyncTaskSubmitResult{}, nil, err
 	}
-
-	adapter := s.providerAdapter
-	if adapter == nil {
-		adapter = NewDefaultSyncTaskProviderAdapter(nil, nil)
+	adapter, resolveErr := s.resolveTaskProvider(req.Channel, req.AppType)
+	if resolveErr != nil {
+		return TriggerSyncRequest{}, "", SyncTaskSubmitResult{}, nil, resolveErr
 	}
 	submit := adapter.SubmitSyncTask(ctx, req, accountUUID)
 	if submit.Provider == "" {
@@ -100,8 +161,6 @@ func (s *WeComSyncService) TriggerSync(ctx context.Context, req TriggerSyncReque
 	if submit.Status == "" {
 		submit.Status = "queued"
 	}
-
-	now := time.Now().UTC()
 	task := &leadmodel.LeadSyncTask{
 		ExternalTaskID:       submit.ExternalTaskID,
 		TenantUUID:           req.TenantUUID,
@@ -112,56 +171,108 @@ func (s *WeComSyncService) TriggerSync(ctx context.Context, req TriggerSyncReque
 		TaskProvider:         submit.Provider,
 		TriggerType:          req.TriggerType,
 		Status:               submit.Status,
-		StartedAt:            &now,
+		ProgressTotal:        0,
+		ProgressCurrent:      0,
+		ProgressPercent:      0,
 	}
 	created, err := s.taskRepo.CreateTask(ctx, task)
 	if err != nil {
 		if s.metrics != nil {
 			s.metrics.RecordSyncTask(submit.Provider, "create_failed")
 		}
-		return nil, err
+		return TriggerSyncRequest{}, "", SyncTaskSubmitResult{}, nil, err
+	}
+	return req, accountUUID, submit, created, nil
+}
+
+func (s *WeComSyncService) executeLocalSyncTask(ctx context.Context, req TriggerSyncRequest, accountUUID string, task *leadmodel.LeadSyncTask) error {
+	if err := s.updateTaskRunning(ctx, task); err != nil {
+		return err
+	}
+	lastProgressPercent := -1
+	reportProgress := func(current, total int) {
+		if s == nil || s.taskRepo == nil || task == nil {
+			return
+		}
+		if total < 0 {
+			total = 0
+		}
+		if current < 0 {
+			current = 0
+		}
+		if total > 0 && current > total {
+			current = total
+		}
+		percent := 0
+		if total > 0 {
+			percent = int(float64(current) / float64(total) * 100.0)
+		}
+		if percent < 0 {
+			percent = 0
+		}
+		if percent > 100 {
+			percent = 100
+		}
+		if current < total && percent >= 100 {
+			percent = 99
+		}
+		if current != total && lastProgressPercent >= 0 && percent-lastProgressPercent < 5 {
+			return
+		}
+		if percent == lastProgressPercent && current != total {
+			return
+		}
+		lastProgressPercent = percent
+		_ = s.taskRepo.UpdateStatus(ctx, task.TenantUUID, task.TaskUUID, "", map[string]any{
+			"progress_total":   total,
+			"progress_current": current,
+			"progress_percent": percent,
+		})
 	}
 
-	if submit.Provider == leadmodel.LeadSyncTaskProviderLocalFallback {
-		if err := s.updateTaskRunning(ctx, created); err != nil {
-			return nil, err
+	stats, runErr := s.runLocalSyncIngestion(ctx, req, accountUUID, reportProgress)
+	if runErr != nil {
+		failErr := s.taskRepo.UpdateStatus(ctx, task.TenantUUID, task.TaskUUID, "failed", map[string]any{
+			"error_message": strings.TrimSpace(runErr.Error()),
+			"finished_at":   time.Now().UTC(),
+		})
+		if failErr != nil {
+			return failErr
 		}
-		stats, runErr := s.runLocalSyncIngestion(ctx, req, accountUUID)
-		if runErr != nil {
-			failErr := s.taskRepo.UpdateStatus(ctx, created.TenantUUID, created.TaskUUID, "failed", map[string]any{
-				"error_message": strings.TrimSpace(runErr.Error()),
-				"finished_at":   time.Now().UTC(),
-			})
-			if failErr != nil {
-				return nil, failErr
-			}
-			created.Status = "failed"
-			created.ErrorMessage = strings.TrimSpace(runErr.Error())
-		} else {
-			finishAt := time.Now().UTC()
-			okErr := s.taskRepo.UpdateStatus(ctx, created.TenantUUID, created.TaskUUID, "success", map[string]any{
-				"stats_total":   stats.Total,
-				"stats_created": stats.Created,
-				"stats_updated": stats.Updated,
-				"stats_merged":  stats.Merged,
-				"finished_at":   finishAt,
-			})
-			if okErr != nil {
-				return nil, okErr
-			}
-			created.Status = "success"
-			created.StatsTotal = stats.Total
-			created.StatsCreated = stats.Created
-			created.StatsUpdated = stats.Updated
-			created.StatsMerged = stats.Merged
-			created.FinishedAt = &finishAt
+		task.Status = "failed"
+		task.ErrorMessage = strings.TrimSpace(runErr.Error())
+		if s.metrics != nil {
+			s.metrics.RecordSyncTask(leadmodel.LeadSyncTaskProviderLocalFallback, "failed")
 		}
+		return nil
 	}
-
+	finishAt := time.Now().UTC()
+	okErr := s.taskRepo.UpdateStatus(ctx, task.TenantUUID, task.TaskUUID, "success", map[string]any{
+		"stats_total":      stats.Total,
+		"stats_created":    stats.Created,
+		"stats_updated":    stats.Updated,
+		"stats_merged":     stats.Merged,
+		"progress_total":   stats.Total,
+		"progress_current": stats.Total,
+		"progress_percent": 100,
+		"finished_at":      finishAt,
+	})
+	if okErr != nil {
+		return okErr
+	}
+	task.Status = "success"
+	task.StatsTotal = stats.Total
+	task.StatsCreated = stats.Created
+	task.StatsUpdated = stats.Updated
+	task.StatsMerged = stats.Merged
+	task.ProgressTotal = stats.Total
+	task.ProgressCurrent = stats.Total
+	task.ProgressPercent = 100
+	task.FinishedAt = &finishAt
 	if s.metrics != nil {
-		s.metrics.RecordSyncTask(submit.Provider, created.Status)
+		s.metrics.RecordSyncTask(leadmodel.LeadSyncTaskProviderLocalFallback, "success")
 	}
-	return created, nil
+	return nil
 }
 
 func (s *WeComSyncService) ListSyncTasks(ctx context.Context, tenantUUID, channelAccountUUID, status string, limit int) ([]*leadmodel.LeadSyncTask, error) {
@@ -181,16 +292,19 @@ func (s *WeComSyncService) RetryTask(ctx context.Context, tenantUUID, taskUUID s
 		return errors.New("tenant_uuid and task_uuid are required")
 	}
 	return s.taskRepo.UpdateStatus(ctx, tenantUUID, taskUUID, "queued", map[string]any{
-		"trigger_type":  "retry",
-		"error_message": "",
-		"error_code":    "",
-		"stats_total":   0,
-		"stats_created": 0,
-		"stats_updated": 0,
-		"stats_merged":  0,
-		"finished_at":   nil,
-		"started_at":    time.Now().UTC(),
-		"updated_at":    time.Now().UTC(),
+		"trigger_type":     "retry",
+		"error_message":    "",
+		"error_code":       "",
+		"stats_total":      0,
+		"stats_created":    0,
+		"stats_updated":    0,
+		"stats_merged":     0,
+		"progress_total":   0,
+		"progress_current": 0,
+		"progress_percent": 0,
+		"finished_at":      nil,
+		"started_at":       nil,
+		"updated_at":       time.Now().UTC(),
 	})
 }
 
@@ -200,26 +314,40 @@ func (s *WeComSyncService) updateTaskRunning(ctx context.Context, task *leadmode
 	}
 	startedAt := time.Now().UTC()
 	if err := s.taskRepo.UpdateStatus(ctx, task.TenantUUID, task.TaskUUID, "running", map[string]any{
-		"started_at": startedAt,
+		"started_at":       startedAt,
+		"progress_percent": 5,
 	}); err != nil {
 		return err
 	}
 	task.Status = "running"
 	task.StartedAt = &startedAt
+	task.ProgressPercent = 5
 	return nil
 }
 
-func (s *WeComSyncService) runLocalSyncIngestion(ctx context.Context, req TriggerSyncRequest, channelAccountUUID string) (SyncIngestStats, error) {
-	if s == nil || s.leadAdapter == nil || s.leadRepo == nil {
+func (s *WeComSyncService) runLocalSyncIngestion(
+	ctx context.Context,
+	req TriggerSyncRequest,
+	channelAccountUUID string,
+	onProgress func(current, total int),
+) (SyncIngestStats, error) {
+	if s == nil || s.leadRepo == nil {
 		return SyncIngestStats{}, nil
 	}
-	items, err := s.leadAdapter.FetchLeads(ctx, req, channelAccountUUID)
+	leadAdapter, err := s.resolveLeadAdapter(req.Channel, req.AppType)
+	if err != nil {
+		return SyncIngestStats{}, err
+	}
+	items, err := leadAdapter.FetchLeads(ctx, req, channelAccountUUID)
 	if err != nil {
 		return SyncIngestStats{}, err
 	}
 	stats := SyncIngestStats{Total: len(items)}
+	if onProgress != nil {
+		onProgress(0, len(items))
+	}
 	if s.leadService != nil {
-		for _, raw := range items {
+		for idx, raw := range items {
 			item := normalizeWeComLeadRecord(raw)
 			if item.DisplayName == "" && item.Phone == "" && item.Email == "" {
 				continue
@@ -246,6 +374,11 @@ func (s *WeComSyncService) runLocalSyncIngestion(ctx context.Context, req Trigge
 			if createErr != nil {
 				return SyncIngestStats{}, createErr
 			}
+			if created != nil {
+				if err := s.appendSyncTraceActivity(ctx, req, channelAccountUUID, created.LeadUUID, item, existsBefore); err != nil {
+					return SyncIngestStats{}, err
+				}
+			}
 			if existsBefore {
 				stats.Updated++
 				if created != nil && created.HasMerge {
@@ -254,12 +387,15 @@ func (s *WeComSyncService) runLocalSyncIngestion(ctx context.Context, req Trigge
 			} else {
 				stats.Created++
 			}
+			if onProgress != nil {
+				onProgress(idx+1, len(items))
+			}
 		}
 		return stats, nil
 	}
 
 	err = s.leadRepo.WithTenantTx(ctx, req.TenantUUID, func(tx *gorm.DB) error {
-		for _, raw := range items {
+		for idx, raw := range items {
 			item := normalizeWeComLeadRecord(raw)
 			if item.DisplayName == "" && item.Phone == "" && item.Email == "" {
 				continue
@@ -292,6 +428,9 @@ func (s *WeComSyncService) runLocalSyncIngestion(ctx context.Context, req Trigge
 					UpdatedAt:         time.Now().UTC(),
 				}
 				if err := tx.Create(lead).Error; err != nil {
+					return err
+				}
+				if err := appendSyncTraceActivityTx(ctx, tx, req, channelAccountUUID, lead.LeadUUID, item, false); err != nil {
 					return err
 				}
 				stats.Created++
@@ -330,6 +469,12 @@ func (s *WeComSyncService) runLocalSyncIngestion(ctx context.Context, req Trigge
 			if merged {
 				stats.Merged++
 			}
+			if err := appendSyncTraceActivityTx(ctx, tx, req, channelAccountUUID, existing.LeadUUID, item, true); err != nil {
+				return err
+			}
+			if onProgress != nil {
+				onProgress(idx+1, len(items))
+			}
 		}
 		return nil
 	})
@@ -337,6 +482,28 @@ func (s *WeComSyncService) runLocalSyncIngestion(ctx context.Context, req Trigge
 		return SyncIngestStats{}, err
 	}
 	return stats, nil
+}
+
+func (s *WeComSyncService) resolveLeadAdapter(channel, appType string) (WeComLeadAdapter, error) {
+	if s == nil || s.syncFactory == nil {
+		return nil, errors.New("channel sync factory unavailable")
+	}
+	adapter, err := s.syncFactory.ResolveLeadAdapter(channel, appType)
+	if err != nil {
+		return nil, fmt.Errorf("resolve lead adapter failed: %w", err)
+	}
+	return adapter, nil
+}
+
+func (s *WeComSyncService) resolveTaskProvider(channel, appType string) (SyncTaskProviderAdapter, error) {
+	if s == nil || s.syncFactory == nil {
+		return nil, errors.New("channel sync factory unavailable")
+	}
+	adapter, err := s.syncFactory.ResolveTaskProvider(channel, appType)
+	if err != nil {
+		return nil, fmt.Errorf("resolve task provider failed: %w", err)
+	}
+	return adapter, nil
 }
 
 func (s *WeComSyncService) findExistingLeadForSync(
@@ -372,4 +539,52 @@ func (s *WeComSyncService) findExistingLeadForSync(
 		return nil, fmt.Errorf("query existing lead failed: %w", err)
 	}
 	return &out, nil
+}
+
+func (s *WeComSyncService) appendSyncTraceActivity(
+	ctx context.Context,
+	req TriggerSyncRequest,
+	channelAccountUUID, leadUUID string,
+	item WeComLeadRecord,
+	existsBefore bool,
+) error {
+	if s == nil || s.leadRepo == nil {
+		return nil
+	}
+	return s.leadRepo.WithTenantTx(ctx, req.TenantUUID, func(tx *gorm.DB) error {
+		return appendSyncTraceActivityTx(ctx, tx, req, channelAccountUUID, leadUUID, item, existsBefore)
+	})
+}
+
+func appendSyncTraceActivityTx(
+	ctx context.Context,
+	tx *gorm.DB,
+	req TriggerSyncRequest,
+	channelAccountUUID, leadUUID string,
+	item WeComLeadRecord,
+	existsBefore bool,
+) error {
+	leadUUID = strings.TrimSpace(leadUUID)
+	if tx == nil || leadUUID == "" {
+		return nil
+	}
+	if !tx.Migrator().HasTable(leadmodel.LeadActivity{}.TableName()) {
+		return nil
+	}
+	payload := datatypes.JSONMap{
+		"trace_id":             strings.TrimSpace(req.TraceID),
+		"source_channel":       strings.ToLower(strings.TrimSpace(req.Channel)),
+		"source_app_type":      strings.ToLower(strings.TrimSpace(req.AppType)),
+		"source_account_uuid":  strings.TrimSpace(channelAccountUUID),
+		"external_lead_id":     strings.TrimSpace(item.ExternalLeadID),
+		"display_name":         strings.TrimSpace(item.DisplayName),
+		"phone":                strings.TrimSpace(item.Phone),
+		"email":                strings.ToLower(strings.TrimSpace(item.Email)),
+		"dedup_exists_before":  existsBefore,
+		"ingestion_entrypoint": "wecom_sync",
+	}
+	if !item.OccurredAt.IsZero() {
+		payload["occurred_at"] = item.OccurredAt.UTC().Format(time.RFC3339)
+	}
+	return createLeadActivity(ctx, tx, req.TenantUUID, leadUUID, leadmodel.LeadActivityTypeSyncTrace, payload)
 }
