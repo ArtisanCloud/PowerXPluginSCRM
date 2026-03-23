@@ -197,19 +197,7 @@ async function loadUsersForTenant(tenantUuid: string) {
 
 // 监听租户切换
 watch(selectedTenantUuid, async (newTenantUuid) => {
-  if (newTenantUuid && newTenantUuid !== currentTenantUuid.value) {
-    try {
-      isLoading.value = true;
-      await userStore.switchTenant(newTenantUuid);
-      await loadUsersForTenant(newTenantUuid);
-    } catch (error: any) {
-      console.error("切换租户失败:", error);
-      // 切换失败时恢复到原来的租户
-      selectedTenantUuid.value = currentTenantUuid.value;
-    } finally {
-      isLoading.value = false;
-    }
-  } else if (newTenantUuid) {
+  if (newTenantUuid) {
     await loadUsersForTenant(newTenantUuid);
   }
 });

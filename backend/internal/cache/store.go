@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/config"
+	runtimeswitch "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/runtime/switches"
 	"github.com/sirupsen/logrus"
 )
 
@@ -22,7 +23,7 @@ type Store interface {
 // NewStore builds cache store from config.
 func NewStore(cfg *config.Config, logger *logrus.Entry) Store {
 	cacheCfg := resolveCacheConfig(cfg)
-	driver := normalizeDriver(cacheCfg, cfg)
+	driver := runtimeswitch.Resolve(cfg).Cache
 	switch driver {
 	case "redis":
 		store, err := NewRedisStore(cacheCfg)
@@ -37,26 +38,6 @@ func NewStore(cfg *config.Config, logger *logrus.Entry) Store {
 		return NewNoopStore()
 	default:
 		return NewMemoryStore(cacheCfg)
-	}
-}
-
-func normalizeDriver(cacheCfg *config.CacheConfig, cfg *config.Config) string {
-	driver := ""
-	if cacheCfg != nil {
-		driver = strings.ToLower(strings.TrimSpace(cacheCfg.Driver))
-	}
-	if driver == "" {
-		if cfg != nil && cfg.Server != nil && cfg.Server.DevMode {
-			driver = "memory"
-		} else {
-			driver = "redis"
-		}
-	}
-	switch driver {
-	case "redis", "memory", "noop":
-		return driver
-	default:
-		return "memory"
 	}
 }
 

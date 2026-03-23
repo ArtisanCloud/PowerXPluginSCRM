@@ -1,0 +1,247 @@
+openapi: 3.0.3
+info:
+  title: WeCom Lead Management API
+  version: 1.0.0
+  description: 企业微信线索拉取与对话桥接（MVP）接口契约
+servers:
+  - url: /api/v1
+paths:
+  /admin/leads/wecom/sync:
+    post:
+      summary: 手动触发企业微信线索同步
+      tags: [LeadSync]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                channel_account_uuid:
+                  type: string
+                  format: uuid
+                trace_id:
+                  type: string
+      responses:
+        '200':
+          description: 同步任务已触发
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncTaskResponse'
+
+  /admin/leads/wecom/sync-tasks:
+    get:
+      summary: 查询线索同步任务列表
+      tags: [LeadSync]
+      parameters:
+        - in: query
+          name: channel_account_uuid
+          schema: { type: string, format: uuid }
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [queued, running, success, failed]
+        - in: query
+          name: limit
+          schema: { type: integer, default: 20 }
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SyncTask'
+
+  /webhooks/wecom/conversations:
+    post:
+      summary: 企业微信会话回调入站
+      tags: [ConversationWebhook]
+      parameters:
+        - in: header
+          name: X-WeCom-Signature
+          required: true
+          schema: { type: string }
+        - in: header
+          name: X-WeCom-Timestamp
+          required: true
+          schema: { type: string }
+        - in: header
+          name: X-WeCom-Nonce
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebhookEvent'
+      responses:
+        '200':
+          description: 入站处理成功（重复事件应幂等返回成功）
+        '400':
+          description: 验签失败或参数非法
+
+  /admin/leads/{lead_uuid}/conversations:
+    get:
+      summary: 查询线索会话摘要
+      tags: [LeadConversation]
+      parameters:
+        - in: path
+          name: lead_uuid
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  lead_uuid: { type: string, format: uuid }
+                  conversations:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ConversationSummary'
+
+  /admin/conversations/{conversation_id}/events:
+    get:
+      summary: 查询会话事件明细
+      tags: [LeadConversation]
+      parameters:
+        - in: path
+          name: conversation_id
+          required: true
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 50 }
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  conversation_id: { type: string }
+                  events:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ConversationEvent'
+
+  /admin/leads/{lead_uuid}/conversations/bind:
+    post:
+      summary: 手动绑定线索与会话
+      tags: [LeadConversation]
+      parameters:
+        - in: path
+          name: lead_uuid
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [conversation_id, channel_account_uuid]
+              properties:
+                conversation_id: { type: string }
+                channel_account_uuid: { type: string, format: uuid }
+      responses:
+        '200':
+          description: 绑定成功
+
+components:
+  schemas:
+    SyncTaskResponse:
+      type: object
+      properties:
+        task_uuid: { type: string, format: uuid }
+        channel_account_uuid: { type: string, format: uuid }
+        account_resolve_source:
+          type: string
+          enum: [explicit, default]
+        task_provider:
+          type: string
+          enum: [framework, local_fallback]
+        external_task_id:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [queued, running]
+
+    SyncTask:
+      type: object
+      properties:
+        task_uuid: { type: string, format: uuid }
+        channel_account_uuid: { type: string, format: uuid }
+        task_provider:
+          type: string
+          enum: [framework, local_fallback]
+        external_task_id:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [queued, running, success, failed]
+        stats_total: { type: integer }
+        stats_created: { type: integer }
+        stats_updated: { type: integer }
+        stats_merged: { type: integer }
+        error_message: { type: string }
+        started_at: { type: string, format: date-time }
+        finished_at: { type: string, format: date-time }
+
+    WebhookEvent:
+      type: object
+      required: [external_event_id, channel_account_uuid, conversation_id, actor_type, actor_id, message_type, occurred_at]
+      properties:
+        external_event_id: { type: string }
+        channel_account_uuid: { type: string, format: uuid }
+        conversation_id: { type: string }
+        actor_type:
+          type: string
+          enum: [staff, app, bot, customer, system]
+        actor_id: { type: string }
+        direction:
+          type: string
+          enum: [inbound, outbound]
+        message_type:
+          type: string
+          enum: [text, image, file, other]
+        content_text: { type: string }
+        occurred_at: { type: string, format: date-time }
+        raw_payload:
+          type: object
+          additionalProperties: true
+
+    ConversationSummary:
+      type: object
+      properties:
+        conversation_id: { type: string }
+        latest_message: { type: string }
+        latest_actor_type: { type: string }
+        latest_at: { type: string, format: date-time }
+        unread_count: { type: integer }
+
+    ConversationEvent:
+      type: object
+      properties:
+        event_uuid: { type: string, format: uuid }
+        external_event_id: { type: string }
+        actor_type: { type: string }
+        actor_id: { type: string }
+        direction: { type: string }
+        message_type: { type: string }
+        content_text: { type: string }
+        occurred_at: { type: string, format: date-time }

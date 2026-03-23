@@ -7,8 +7,6 @@ import {
   useTenantService,
   type Tenant,
 } from "~/composables/api/services/tenantService";
-import { useUserStore } from "~/stores/user";
-import { useToast } from "#imports";
 
 import {
   TenantStatus,
@@ -76,8 +74,6 @@ const planOptions = computed(() => [
 const paginatedTenants = computed(() => tenants.value);
 
 // 方法
-const userStore = useUserStore();
-const toast = useToast();
 
 async function loadTenants() {
   const params = {
@@ -116,17 +112,7 @@ async function loadTenants() {
 }
 
 async function selectTenant(tenant: DisplayTenant) {
-  try {
-    await userStore.switchTenant(tenant.uuid);
-    selectedTenant.value = tenant;
-  } catch (error: any) {
-    console.error("切换租户失败:", error);
-    toast.add({
-      color: "red",
-      title: t("common.error"),
-      description: error?.message || t("common.retry"),
-    });
-  }
+  selectedTenant.value = tenant;
 }
 
 function backToTenantList() {

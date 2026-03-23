@@ -2,7 +2,6 @@ package gateway
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,7 +20,7 @@ import (
 )
 
 const (
-	defaultRequestTimeout = 10 * time.Second
+	defaultRequestTimeout = 60 * time.Second
 )
 
 // InvokeParams 描述一次能力调用的输入。
@@ -117,11 +116,8 @@ func NewClient(cfg *config.Config, log *logrus.Entry) *Client {
 
 	gcfg := cfg.Gateway
 	baseURL := strings.TrimSpace(gcfg.BaseURL)
-	toolToken := strings.TrimSpace(gcfg.ToolToken)
-	tenantUUID := effectiveGatewayTenant(gcfg)
-
-	if baseURL == "" || toolToken == "" || tenantUUID == "" {
-		c.offlineReason = "PX_GATEWAY_BASE_URL/PX_TOOL_TOKEN 未配置，或 PX_TOOL_TOKEN 缺少 tid，请执行 `px-plugin login`"
+	if baseURL == "" || !hasGatewayCredential(gcfg) {
+		c.offlineReason = "PX_GATEWAY_BASE_URL 与鉴权凭证未配置（bearer 需要 PX_TOOL_TOKEN，apikey 需要 PX_GATEWAY_API_KEY）"
 		return c
 	}
 
@@ -202,12 +198,13 @@ func (c *Client) ListPlatformCapabilities(ctx context.Context, opts ListPlatform
 		return nil, fmt.Errorf("PX_GATEWAY_BASE_URL 未配置")
 	}
 	token := strings.TrimSpace(gcfg.ToolToken)
-	if token == "" {
-		return nil, fmt.Errorf("PX_TOOL_TOKEN 未配置")
+	apiKey := strings.TrimSpace(gcfg.APIKey)
+	authScheme := resolveGatewayAuthScheme(gcfg)
+	if authScheme == "apikey" && apiKey == "" {
+		return nil, fmt.Errorf("PX_GATEWAY_API_KEY 未配置")
 	}
-	tenant := effectiveGatewayTenant(gcfg)
-	if tenant == "" {
-		return nil, fmt.Errorf("PX_TOOL_TOKEN 缺少 tid，无法确定租户")
+	if authScheme != "apikey" && token == "" {
+		return nil, fmt.Errorf("PX_TOOL_TOKEN 未配置")
 	}
 
 	timeout := gcfg.Timeout
@@ -230,7 +227,7 @@ func (c *Client) ListPlatformCapabilities(ctx context.Context, opts ListPlatform
 	}
 	query.Set("page_size", strconv.Itoa(pageSize))
 
-	endpoint := baseURL + "/tenant/capabilities"
+	endpoint := buildGatewayEndpoint(gcfg, "/tenant/capabilities")
 	if encoded := query.Encode(); encoded != "" {
 		endpoint += "?" + encoded
 	}
@@ -243,8 +240,11 @@ func (c *Client) ListPlatformCapabilities(ctx context.Context, opts ListPlatform
 		return nil, err
 	}
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("X-PowerX-Tenant", tenant)
+	if authScheme == "apikey" {
+		req.Header.Set("Authorization", "ApiKey "+apiKey)
+	} else {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
 	req.Header.Set("X-Request-ID", uuid.NewString())
 
 	client := &http.Client{Timeout: timeout}
@@ -408,10 +408,8 @@ func ValidateConfig(cfg *config.Config) error {
 		return errors.New("gateway config missing")
 	}
 	base := strings.TrimSpace(cfg.Gateway.BaseURL)
-	token := strings.TrimSpace(cfg.Gateway.ToolToken)
-	tenant := effectiveGatewayTenant(cfg.Gateway)
-	if base == "" || token == "" || tenant == "" {
-		return errors.New("PX_GATEWAY_BASE_URL/PX_TOOL_TOKEN 未配置，或 PX_TOOL_TOKEN 缺少 tid")
+	if base == "" || !hasGatewayCredential(cfg.Gateway) {
+		return errors.New("PX_GATEWAY_BASE_URL 与鉴权凭证未配置")
 	}
 	return nil
 }
@@ -443,11 +441,8 @@ func (c *Client) reconnectTransport() error {
 	}
 	gcfg := c.cfg.Gateway
 	baseURL := strings.TrimSpace(gcfg.BaseURL)
-	toolToken := strings.TrimSpace(gcfg.ToolToken)
-	tenantUUID := effectiveGatewayTenant(gcfg)
-
-	if baseURL == "" || toolToken == "" || tenantUUID == "" {
-		return fmt.Errorf("PX_GATEWAY_BASE_URL/PX_TOOL_TOKEN 未配置，或 PX_TOOL_TOKEN 缺少 tid")
+	if baseURL == "" || !hasGatewayCredential(gcfg) {
+		return fmt.Errorf("PX_GATEWAY_BASE_URL 与鉴权凭证未配置")
 	}
 
 	timeout := gcfg.Timeout
@@ -457,8 +452,11 @@ func (c *Client) reconnectTransport() error {
 
 	client, err := frameworkgateway.NewClient(frameworkgateway.Config{
 		BaseURL:        baseURL,
-		ToolToken:      toolToken,
-		TenantUUID:     tenantUUID,
+		APIPrefix:      strings.TrimSpace(gcfg.APIPrefix),
+		AuthScheme:     strings.TrimSpace(gcfg.AuthScheme),
+		ToolToken:      strings.TrimSpace(gcfg.ToolToken),
+		APIKey:         strings.TrimSpace(gcfg.APIKey),
+		TenantUUID:     strings.TrimSpace(gcfg.TenantUUID),
 		RequestTimeout: timeout,
 		UserAgent:      strings.TrimSpace(gcfg.UserAgent),
 	})
@@ -480,33 +478,57 @@ type platformCapabilityResponse struct {
 	} `json:"data"`
 }
 
-func effectiveGatewayTenant(gcfg *config.GatewayConfig) string {
+func resolveGatewayAuthScheme(gcfg *config.GatewayConfig) string {
+	if gcfg == nil {
+		return "bearer"
+	}
+	scheme := strings.ToLower(strings.TrimSpace(gcfg.AuthScheme))
+	switch scheme {
+	case "apikey", "api_key", "api-key":
+		return "apikey"
+	case "bearer":
+		return "bearer"
+	}
+	if strings.TrimSpace(gcfg.APIKey) != "" {
+		return "apikey"
+	}
+	return "bearer"
+}
+
+func hasGatewayCredential(gcfg *config.GatewayConfig) bool {
+	if gcfg == nil {
+		return false
+	}
+	if resolveGatewayAuthScheme(gcfg) == "apikey" {
+		return strings.TrimSpace(gcfg.APIKey) != ""
+	}
+	return strings.TrimSpace(gcfg.ToolToken) != ""
+}
+
+func normalizeGatewayAPIPrefix(raw string) string {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return "/api/v1"
+	}
+	if !strings.HasPrefix(value, "/") {
+		value = "/" + value
+	}
+	value = "/" + strings.Trim(strings.TrimSpace(value), "/")
+	if value == "/" {
+		return "/api/v1"
+	}
+	return value
+}
+
+func buildGatewayEndpoint(gcfg *config.GatewayConfig, routePath string) string {
 	if gcfg == nil {
 		return ""
 	}
-	if tokenTenant := tenantUUIDFromJWT(strings.TrimSpace(gcfg.ToolToken)); tokenTenant != "" {
-		return tokenTenant
+	base := strings.TrimRight(strings.TrimSpace(gcfg.BaseURL), "/")
+	route := "/" + strings.TrimLeft(strings.TrimSpace(routePath), "/")
+	prefix := normalizeGatewayAPIPrefix(strings.TrimSpace(gcfg.APIPrefix))
+	if strings.HasSuffix(base, prefix) {
+		return base + route
 	}
-	return strings.TrimSpace(gcfg.TenantUUID)
-}
-
-func tenantUUIDFromJWT(token string) string {
-	token = strings.TrimSpace(token)
-	if token == "" {
-		return ""
-	}
-	parts := strings.Split(token, ".")
-	if len(parts) < 2 {
-		return ""
-	}
-	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
-	if err != nil {
-		return ""
-	}
-	var claims map[string]any
-	if err := json.Unmarshal(payload, &claims); err != nil {
-		return ""
-	}
-	tid, _ := claims["tid"].(string)
-	return strings.TrimSpace(tid)
+	return base + prefix + route
 }

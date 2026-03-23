@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 
+	fwwsbus "github.com/ArtisanCloud/PowerXPlugin/framework/backend/go/runtime/wsbus"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/capabilities"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/config"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/grpc/client"
@@ -11,11 +12,11 @@ import (
 	authx "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/middleware"
 	adminmetrics "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/admin_console"
 	capmetrics "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/capability"
+	leadmetrics "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/lead_capture"
 	opsmetrics "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/operations"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/services/authproxy"
 	iamservice "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/services/iam"
 	marketplacesvc "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/services/marketplace"
-	fwwsbus "github.com/ArtisanCloud/PowerXPlugin/framework/backend/go/runtime/wsbus"
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 
@@ -27,6 +28,7 @@ type DelegatedAuthProxy interface {
 	Refresh(ctx context.Context, refreshToken string) (*iamservice.AuthTokens, error)
 	Logout(ctx context.Context, refreshToken string) error
 	MeContext(ctx context.Context, accessToken string) (*authproxy.MeContext, error)
+	ProxyRequest(ctx context.Context, method, path string, payload any, out any, extraHeaders map[string]string) error
 }
 
 // Deps bundles shared infrastructure dependencies for handlers and services.
@@ -44,12 +46,18 @@ type Deps struct {
 	LicenseCache        marketplacesvc.LicenseCache
 	OperationsMetrics   *opsmetrics.Metrics
 	AdminConsoleMetrics *adminmetrics.Metrics
+	LeadCaptureMetrics  *leadmetrics.Metrics
 	EventEmitter        fweventbridge.Emitter
 	WSBusHub            fwwsbus.LocalHub
 	IAMMode             iamservice.IAMMode
 	IAMModeSource       string
 	AuthProxy           DelegatedAuthProxy
 	IAMDirectory        iamservice.IAMDirectory
+}
+
+type LeadSyncChannelIdentity struct {
+	Channel string
+	AppType string
 }
 
 type gatewayClient interface {
@@ -65,6 +73,15 @@ func (d *Deps) RuntimeDefaults() *config.RuntimeOpsDefaults {
 		return nil
 	}
 	return d.Config.RuntimeOps
+}
+
+// DefaultLeadSyncChannelIdentity defines the baseline channel/app pair for sync factory bootstrap.
+func (d *Deps) DefaultLeadSyncChannelIdentity() LeadSyncChannelIdentity {
+	_ = d
+	return LeadSyncChannelIdentity{
+		Channel: "wechat",
+		AppType: "wecom",
+	}
 }
 
 // RuntimeLogger provides a structured logger enriched with runtime metadata.

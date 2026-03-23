@@ -9,10 +9,13 @@ import (
 )
 
 const (
-	AuditEventLeadCreated      = "lead.created"
-	AuditEventLeadMerged       = "lead.merged"
-	AuditEventLeadAssigned     = "lead.assigned"
-	AuditEventLeadStatusChange = "lead.status.changed"
+	AuditEventLeadCreated          = "lead.created"
+	AuditEventLeadMerged           = "lead.merged"
+	AuditEventLeadAssigned         = "lead.assigned"
+	AuditEventLeadStatusChange     = "lead.status.changed"
+	AuditEventLeadSyncTriggered    = "lead.sync.triggered"
+	AuditEventConversationIngested = "lead.conversation.ingested"
+	AuditEventConversationBound    = "lead.conversation.bound"
 )
 
 type AuditEvent struct {
@@ -102,6 +105,36 @@ func EmitLeadStatusChanged(ctx context.Context, tenantUUID, leadUUID, actorUUID 
 		EventType:     AuditEventLeadStatusChange,
 		TenantUUID:    tenantUUID,
 		LeadUUID:      leadUUID,
+		ActorUserUUID: actorUUID,
+		OccurredAt:    time.Now().UTC(),
+		Metadata:      metadata,
+	})
+}
+
+func EmitLeadSyncTriggered(ctx context.Context, tenantUUID, actorUUID string, metadata map[string]any) {
+	EmitAuditEvent(ctx, AuditEvent{
+		EventType:     AuditEventLeadSyncTriggered,
+		TenantUUID:    tenantUUID,
+		ActorUserUUID: actorUUID,
+		OccurredAt:    time.Now().UTC(),
+		Metadata:      metadata,
+	})
+}
+
+func EmitConversationIngested(ctx context.Context, tenantUUID, actorUUID string, metadata map[string]any) {
+	EmitAuditEvent(ctx, AuditEvent{
+		EventType:     AuditEventConversationIngested,
+		TenantUUID:    tenantUUID,
+		ActorUserUUID: actorUUID,
+		OccurredAt:    time.Now().UTC(),
+		Metadata:      metadata,
+	})
+}
+
+func EmitConversationBound(ctx context.Context, tenantUUID, actorUUID string, metadata map[string]any) {
+	EmitAuditEvent(ctx, AuditEvent{
+		EventType:     AuditEventConversationBound,
+		TenantUUID:    tenantUUID,
 		ActorUserUUID: actorUUID,
 		OccurredAt:    time.Now().UTC(),
 		Metadata:      metadata,

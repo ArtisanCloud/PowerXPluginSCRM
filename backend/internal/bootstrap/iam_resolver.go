@@ -9,7 +9,7 @@ import (
 )
 
 // IAMResolver determines whether the plugin should rely on delegated (PowerX Core)
-// or local IAM. Priority: config.context.iam_mode > POWERX_RBAC_DELEGATE > POWERX_PROXY.
+// or local IAM. Priority: config.context.iam_mode > POWERX_PROXY.
 type IAMResolver struct {
 	mode   iamservice.IAMMode
 	source string
@@ -23,10 +23,6 @@ func NewIAMResolver(cfg *config.Config) *IAMResolver {
 		if parsed, ok := parseIAMMode(cfg.Context.IAMMode); ok {
 			return &IAMResolver{mode: parsed, source: "config"}
 		}
-	}
-
-	if truthy(os.Getenv("POWERX_RBAC_DELEGATE")) {
-		return &IAMResolver{mode: iamservice.IAMModeDelegated, source: "env:POWERX_RBAC_DELEGATE"}
 	}
 
 	if os.Getenv("POWERX_PROXY") == "1" {
@@ -68,14 +64,5 @@ func parseIAMMode(val string) (iamservice.IAMMode, bool) {
 		return iamservice.IAMModeLocal, true
 	default:
 		return iamservice.IAMMode(""), false
-	}
-}
-
-func truthy(value string) bool {
-	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "1", "true", "yes", "on":
-		return true
-	default:
-		return false
 	}
 }

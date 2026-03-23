@@ -113,11 +113,23 @@ const resolveInsidePowerX = (value: unknown) => {
   return false;
 };
 
+const resolveIAMMode = (value: unknown, insidePowerX: boolean) => {
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "delegated" || normalized === "local") {
+      return normalized;
+    }
+  }
+  return insidePowerX ? "delegated" : "local";
+};
+
 export const useAuth = () => {
   const runtimeConfig = useRuntimeConfig();
   const insidePowerX = resolveInsidePowerX(runtimeConfig.public?.insidePowerX);
+  const iamMode = resolveIAMMode(runtimeConfig.public?.iamMode, insidePowerX);
+  const isDelegatedMode = iamMode === "delegated";
   // Standalone 模式下宿主/脚手架可能只广播 access token（无 refresh token），允许继续维持会话。
-  const allowRefreshlessSession = !insidePowerX;
+  const allowRefreshlessSession = !isDelegatedMode;
 
   const isAuthenticated = useState("auth.isAuthenticated", () => false);
   const user = useState("auth.user", () => null);
@@ -127,8 +139,8 @@ export const useAuth = () => {
   const lastError = useState<string>("auth.lastError", () => "");
   const hasAuthenticated = useState("auth.hasAuthenticated", () => false);
   const delegatedAuthError = useState<string>("auth.delegatedError", () => "");
-  const localIAMEnabled = useState("auth.localIAMEnabled", () => !insidePowerX);
-  const delegatedIAM = useState("auth.delegatedIAM", () => insidePowerX);
+  const localIAMEnabled = useState("auth.localIAMEnabled", () => !isDelegatedMode);
+  const delegatedIAM = useState("auth.delegatedIAM", () => isDelegatedMode);
 
   const { refreshToken: refresh, logout: apiLogout } = useAuthService();
 
@@ -270,7 +282,7 @@ export const useAuth = () => {
       return;
     }
 
-    if (insidePowerX && !hasAuthenticated.value) {
+    if (isDelegatedMode && !hasAuthenticated.value) {
       clearAuth();
       return;
     }
@@ -370,7 +382,7 @@ export const useAuth = () => {
     } catch (err) {
       console.warn("[useAuth] failed to persist auth error", err);
     }
-    if (insidePowerX) {
+    if (isDelegatedMode) {
       delegatedAuthError.value = message;
     }
   };
@@ -394,13 +406,13 @@ export const useAuth = () => {
     clearAuth();
     const fallbackMessage =
       message ||
-      (insidePowerX
+      (isDelegatedMode
         ? "PowerX 会话已失效，请回到宿主重新登录"
         : "会话已失效，请重新登录");
     if (fallbackMessage) {
       rememberAuthError(fallbackMessage);
     }
-    if (insidePowerX) {
+    if (isDelegatedMode) {
       return;
     }
     if (

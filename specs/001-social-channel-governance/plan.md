@@ -1,6 +1,6 @@
 # Implementation Plan: Social Channel Governance
 
-**Branch**: `001-social-channel-governance` | **Date**: 2026-01-15 | **Spec**: /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/specs/001-social-channel-governance/spec.md
+**Branch**: `001-social-channel-governance` | **Date**: 2026-01-15 | **Spec**: /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugins.scrm/specs/001-social-channel-governance/spec.md
 **Input**: Feature specification from `/specs/001-social-channel-governance/spec.md`
 
 ## Summary
@@ -35,7 +35,7 @@ Deliver a social channel governance capability that lets admins onboard channel 
 ### Documentation (this feature)
 
 ```text
-/private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/specs/001-social-channel-governance/
+/private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugins.scrm/specs/001-social-channel-governance/
 ├── plan.md
 ├── research.md
 ├── data-model.md
@@ -47,13 +47,13 @@ Deliver a social channel governance capability that lets admins onboard channel 
 ### Source Code (repository root)
 
 ```text
-/private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/backend/
+/private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugins.scrm/backend/
 ├── internal/transport/http/social_channel_governance/
 ├── internal/services/social_channel_governance/
 ├── internal/domain/models/social_channel_governance/
 └── internal/domain/repository/social_channel_governance/
 
-/private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/web-admin/
+/private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugins.scrm/web-admin/
 ├── app/pages/scrm/social_channel_governance/
 ├── app/components/scrm/social_channel_governance/
 └── app/stores/scrm/social_channel_governance/
@@ -74,7 +74,7 @@ N/A
 - Produce `data-model.md` with entities, fields, and validation rules.
 - Produce `/contracts/openapi.yaml` describing REST endpoints under `/v1`.
 - Produce `quickstart.md` with local verification steps.
-- Run `/private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/.specify/scripts/bash/update-agent-context.sh codex`.
+- Run `/private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugins.scrm/.specify/scripts/bash/update-agent-context.sh codex`.
 
 ## Phase 2: Planning
 

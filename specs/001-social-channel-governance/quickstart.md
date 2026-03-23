@@ -8,14 +8,14 @@
 ## Run Backend
 
 ```bash
-cd /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/backend
+cd /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugins.scrm/backend
 go run ./cmd/plugin
 ```
 
 ## Run Web Admin
 
 ```bash
-cd /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/web-admin
+cd /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugins.scrm/web-admin
 npm run dev
 ```
 

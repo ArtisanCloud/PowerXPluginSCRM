@@ -163,9 +163,6 @@ func (h *WeComWebhookHandler) HandleOAuthCallback(c *gin.Context) {
 func newWeComWebhookApp(credentials map[string]string) (*work.Work, error) {
 	corpID := strings.TrimSpace(credentials["corp_id"])
 	secret := strings.TrimSpace(credentials["app_secret"])
-	if secret == "" {
-		secret = strings.TrimSpace(credentials["secret"])
-	}
 	token := strings.TrimSpace(credentials["token"])
 	aesKey := strings.TrimSpace(credentials["aes_key"])
 	agentID := strings.TrimSpace(credentials["agent_id"])
@@ -196,9 +193,6 @@ func newWeComWebhookApp(credentials map[string]string) (*work.Work, error) {
 func newWeComOAuthApp(credentials map[string]string, callback string) (*work.Work, error) {
 	corpID := strings.TrimSpace(credentials["corp_id"])
 	secret := strings.TrimSpace(credentials["app_secret"])
-	if secret == "" {
-		secret = strings.TrimSpace(credentials["secret"])
-	}
 	agentID := strings.TrimSpace(credentials["agent_id"])
 	agentIDInt := 0
 	if agentID != "" {

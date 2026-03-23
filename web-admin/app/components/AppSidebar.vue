@@ -221,6 +221,19 @@
             {{ t('navigation.iamRoles') }}
           </UButton>
           <UButton
+            to="/admin/iam/dictionaries"
+            variant="ghost"
+            color="neutral"
+            class="w-full justify-start"
+            :class="{
+              'bg-primary-50 text-primary-600 dark:bg-primary-950 dark:text-primary-400 is-active':
+                isExactActive('/admin/iam/dictionaries'),
+            }"
+          >
+            <UIcon name="i-heroicons-book-open" class="w-4 h-4 mr-3" />
+            {{ t('navigation.iamDictionaries') }}
+          </UButton>
+          <UButton
             to="/admin/iam/settings"
             variant="ghost"
             color="neutral"
@@ -282,6 +295,11 @@ const scrmSections = [
         to: "/scrm/lead_capture_entry",
         labelKey: "navigation.scrmLeadEntry",
         icon: "i-heroicons-inbox-arrow-down",
+      },
+      {
+        to: "/scrm/lead_capture?tab=conversation-binding",
+        labelKey: "navigation.scrmConversationBinding",
+        icon: "i-heroicons-chat-bubble-left-ellipsis",
       },
       {
         to: "/scrm/org_sync",
@@ -422,6 +440,7 @@ const navEntries = computed(() => {
       { path: "/admin/iam/overview", labelKey: "navigation.iamOverview", groupKey: "navigation.iam" },
       { path: "/admin/iam/members", labelKey: "navigation.iamMembers", groupKey: "navigation.iam" },
       { path: "/admin/iam/roles", labelKey: "navigation.iamRoles", groupKey: "navigation.iam" },
+      { path: "/admin/iam/dictionaries", labelKey: "navigation.iamDictionaries", groupKey: "navigation.iam" },
       { path: "/admin/iam/settings", labelKey: "navigation.iamSettings", groupKey: "navigation.iam" }
     );
   }

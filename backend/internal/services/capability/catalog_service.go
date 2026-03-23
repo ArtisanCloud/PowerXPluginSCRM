@@ -73,16 +73,72 @@ func (s *CatalogService) List(ctx context.Context, opts ListOptions) ([]capabili
 		return nil, fmt.Errorf("capability catalog service not configured")
 	}
 
-	if strings.EqualFold(strings.TrimSpace(opts.Source), "corex") {
+	source := normalizeCatalogSource(opts.Source)
+
+	if source == "corex" {
 		if entries, err := s.listPlatformCatalog(ctx, opts); err == nil {
 			return entries, nil
 		} else {
 			logger.WithError(err).WithField("component", "capability_catalog_service").
-				Warn("failed to load platform capability catalog, falling back to local manifest")
+				Warn("failed to load platform capability catalog")
+			return []capabilities.CatalogEntry{}, nil
 		}
 	}
 
+	if source == "all" {
+		platformEntries, platformErr := s.listPlatformCatalog(ctx, ListOptions{Source: "corex"})
+		if platformErr != nil {
+			logger.WithError(platformErr).WithField("component", "capability_catalog_service").
+				Warn("failed to load platform capability catalog for source=all, falling back to local manifest")
+		}
+		localEntries, localErr := s.listLocalCatalog(ctx)
+		if localErr != nil {
+			return nil, localErr
+		}
+		return mergeCatalogEntries(platformEntries, localEntries), nil
+	}
+
 	return s.listLocalCatalog(ctx)
+}
+
+func normalizeCatalogSource(source string) string {
+	normalized := strings.ToLower(strings.TrimSpace(source))
+	switch normalized {
+	case "", "all", "any":
+		return "all"
+	case "platform":
+		return "corex"
+	default:
+		return normalized
+	}
+}
+
+func mergeCatalogEntries(platformEntries, localEntries []capabilities.CatalogEntry) []capabilities.CatalogEntry {
+	if len(platformEntries) == 0 {
+		return localEntries
+	}
+	if len(localEntries) == 0 {
+		return platformEntries
+	}
+
+	merged := make([]capabilities.CatalogEntry, 0, len(platformEntries)+len(localEntries))
+	seen := make(map[string]struct{}, len(platformEntries)+len(localEntries))
+	appendUnique := func(entries []capabilities.CatalogEntry) {
+		for _, entry := range entries {
+			id := strings.TrimSpace(entry.ID)
+			if id == "" {
+				continue
+			}
+			if _, exists := seen[id]; exists {
+				continue
+			}
+			seen[id] = struct{}{}
+			merged = append(merged, entry)
+		}
+	}
+	appendUnique(platformEntries)
+	appendUnique(localEntries)
+	return merged
 }
 
 func (s *CatalogService) listLocalCatalog(ctx context.Context) ([]capabilities.CatalogEntry, error) {
@@ -111,25 +167,34 @@ func (s *CatalogService) listPlatformCatalogViaAdminAPI(ctx context.Context) ([]
 	if s.cfg == nil || s.cfg.Gateway == nil {
 		return nil, errors.New("gateway config missing")
 	}
-	base := strings.TrimRight(strings.TrimSpace(s.cfg.Gateway.BaseURL), "/")
+	base := strings.TrimSpace(s.cfg.Gateway.BaseURL)
 	if base == "" {
 		return nil, errors.New("PX_GATEWAY_BASE_URL 未配置")
 	}
+	base = strings.TrimRight(base, "/")
+	apiPrefix := normalizeGatewayAPIPrefix(s.cfg.Gateway.APIPrefix)
 	token := strings.TrimSpace(s.cfg.Gateway.ToolToken)
-	tenant := strings.TrimSpace(s.cfg.Gateway.TenantUUID)
+	apiKey := strings.TrimSpace(s.cfg.Gateway.APIKey)
+	authScheme := strings.ToLower(strings.TrimSpace(s.cfg.Gateway.AuthScheme))
+	if authScheme == "" {
+		if apiKey != "" {
+			authScheme = "apikey"
+		} else {
+			authScheme = "bearer"
+		}
+	}
 	client := &http.Client{Timeout: 10 * time.Second}
-	url := fmt.Sprintf("%s/admin/platform-capabilities?page=1&page_size=200", base)
+	url := fmt.Sprintf("%s/admin/platform-capabilities?page=1&page_size=200", joinGatewayBaseAndPrefix(base, apiPrefix))
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Accept", "application/json")
-	if token != "" {
+	if authScheme == "apikey" && apiKey != "" {
+		req.Header.Set("Authorization", "ApiKey "+apiKey)
+	} else if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
-	}
-	if tenant != "" {
-		req.Header.Set("X-Tenant-UUID", tenant)
 	}
 	req.Header.Set("X-Request-ID", fmt.Sprintf("cap-catalog-%d", time.Now().UnixNano()))
 
@@ -151,6 +216,36 @@ func (s *CatalogService) listPlatformCatalogViaAdminAPI(ctx context.Context) ([]
 		return nil, errors.New("platform capability catalog returned empty data")
 	}
 	return s.fromPlatformRecords(records), nil
+}
+
+func normalizeGatewayAPIPrefix(raw string) string {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return "/api/v1"
+	}
+	if !strings.HasPrefix(value, "/") {
+		value = "/" + value
+	}
+	value = "/" + strings.Trim(strings.TrimSpace(value), "/")
+	if value == "/" {
+		return "/api/v1"
+	}
+	return value
+}
+
+func joinGatewayBaseAndPrefix(base, apiPrefix string) string {
+	normalizedBase := strings.TrimRight(strings.TrimSpace(base), "/")
+	if normalizedBase == "" {
+		return ""
+	}
+	normalizedPrefix := normalizeGatewayAPIPrefix(apiPrefix)
+	if normalizedPrefix == "" || normalizedPrefix == "/" {
+		return normalizedBase
+	}
+	if strings.HasSuffix(normalizedBase, normalizedPrefix) {
+		return normalizedBase
+	}
+	return normalizedBase + normalizedPrefix
 }
 
 func (s *CatalogService) fromPlatformRecords(records []gateway.PlatformCapabilityRecord) []capabilities.CatalogEntry {

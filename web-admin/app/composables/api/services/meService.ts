@@ -8,8 +8,25 @@ export interface UserContextData {
   is_root: boolean;
   current_tenant_uuid: string;
   current_member_id?: number | null;
+  tenant?: {
+    uuid?: string;
+    key?: string;
+    name?: string;
+    legacy_id?: number;
+  };
   user: ContextUser;
   members: ContextMember[];
+  roles?: string[];
+  permissions?: string[];
+  capabilities?: {
+    templates?: {
+      can_create?: boolean;
+      can_update?: boolean;
+      can_delete?: boolean;
+    };
+  };
+  policy_version?: string;
+  plugin_id?: string;
 }
 
 export interface ContextUser {
@@ -219,6 +236,14 @@ export const useUserContext = () => {
       // 可以在这里触发页面刷新或路由跳转
       await navigateTo("/dashboard");
     } catch (err: any) {
+      const status = err?.response?.status ?? err?.status ?? err?.statusCode;
+      if (status === 404 && userContext.value) {
+        userContext.value = {
+          ...userContext.value,
+          current_tenant_uuid: tenantUuid,
+        };
+        return;
+      }
       error.value = err.message || "切换租户失败";
       console.error("Failed to switch tenant:", err);
     } finally {

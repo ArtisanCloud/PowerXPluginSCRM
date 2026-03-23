@@ -24,7 +24,7 @@ func CORS() gin.HandlerFunc {
 		c.Header("Access-Control-Allow-Headers",
 			"Content-Type, Content-Length, Accept-Encoding, "+
 				"X-CSRF-Token, Authorization, accept, origin, Cache-Control, "+
-				"X-Requested-With, X-Tenant-UUID, X-PowerX-CTX, X-PowerX-CTX-SIG, X-PowerX-CTX-JWT, X-Request-ID",
+				"X-Requested-With, X-PowerX-CTX, X-PowerX-CTX-SIG, X-PowerX-CTX-JWT, X-Request-ID",
 		)
 		c.Header("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE, PATCH")
 
@@ -122,6 +122,12 @@ func Recovery() gin.HandlerFunc {
 // Timeout 超时中间件
 func Timeout(timeout time.Duration) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// WebSocket 握手为长连接升级，请勿走普通 HTTP 超时逻辑。
+		if strings.EqualFold(strings.TrimSpace(c.GetHeader("Upgrade")), "websocket") {
+			c.Next()
+			return
+		}
+
 		// 简单的超时处理，实际使用中可能需要更复杂的实现
 		finish := make(chan struct{})
 		panicChan := make(chan interface{}, 1)

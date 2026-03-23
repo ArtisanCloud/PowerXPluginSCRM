@@ -7,7 +7,7 @@ type LeadCreateRequest struct {
 	Email             string `json:"email" binding:"omitempty" validate:"omitempty"`
 	SourceChannel     string `json:"source_channel" binding:"omitempty" validate:"omitempty"`
 	SourceAppType     string `json:"source_app_type" binding:"omitempty" validate:"omitempty"`
-	SourceAccountUUID string `json:"source_account_uuid" binding:"omitempty" validate:"omitempty"`
+	SourceAccountUUID string `json:"source_account_uuid" binding:"omitempty,uuid4" validate:"omitempty,uuid4"`
 	OwnerUserUUID     string `json:"owner_user_uuid" binding:"omitempty" validate:"omitempty"`
 }
 

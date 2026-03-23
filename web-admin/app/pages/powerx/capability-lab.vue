@@ -23,28 +23,30 @@
     />
 
     <UAlert
-      v-else-if="showPowerXAccessHint"
+      v-if="isAuthorized && showPowerXAccessHint"
       icon="i-heroicons-exclamation-triangle"
-      color="blue"
+      color="amber"
       variant="soft"
+      class="border border-amber-500/40 bg-amber-50/90 text-amber-900 dark:bg-amber-500/10 dark:text-amber-100"
       title="未配置 PowerX 底座访问（CoreX 能力列表可能为空）"
     >
       <template #description>
-        <div class="space-y-2 text-sm text-gray-600 dark:text-gray-300">
+        <div class="space-y-2 text-sm text-amber-800 dark:text-amber-200">
           <p>
-            当前会以 <code class="rounded bg-gray-100 px-1.5 py-0.5 text-gray-800 dark:bg-gray-800 dark:text-gray-100">{{ powerxCoreBase }}</code>
-            作为 PowerX Core 访问基址；若你本机未启动 Core，或未配置 Dev Gateway 凭证，则 `source=corex` 能力列表会返回空。
+            当前会以 <code class="rounded bg-amber-100 px-1.5 py-0.5 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">{{ powerxCoreBase }}</code>
+            作为 PowerX Core 访问基址；若本机未启动 Core，或未配置 Dev Gateway 凭证，则 `source=corex` 能力列表可能为空。
           </p>
           <ol class="list-decimal space-y-1 pl-5">
             <li>启动 PowerX Core（或设置 `NUXT_PUBLIC_POWERX_CORE_BASE` / `POWERX_CORE_ENDPOINT` 指向可访问的 Core）。</li>
-            <li>在 Skeleton/插件项目执行 `px-plugin login` 获取 Dev Gateway 的 Token，并写入后端 `.env.local`（`PX_GATEWAY_BASE_URL` / `PX_TOOL_TOKEN`）。</li>
+            <li>在 Skeleton/插件项目执行 `px-plugin login` 获取 Dev Gateway 凭证，并配置后端环境变量（`PX_GATEWAY_BASE_URL` / `PX_GATEWAY_API_PREFIX` / `PX_GATEWAY_AUTH_SCHEME` + `PX_TOOL_TOKEN` 或 `PX_GATEWAY_API_KEY`，建议补充 `PX_GATEWAY_TIMEOUT=60s`）。</li>
+            <li>注意：后端默认只读取“进程环境变量”，若你写在 `.env/.env.local`，需要在启动命令里显式加载该文件。</li>
             <li>重启插件后端后再刷新本页面。</li>
           </ol>
         </div>
       </template>
     </UAlert>
 
-    <div v-else class="grid gap-6 lg:grid-cols-2">
+    <div v-if="isAuthorized" class="grid gap-6 lg:grid-cols-2">
       <div class="space-y-6">
         <UCard>
           <template #header>
@@ -54,6 +56,21 @@
             </div>
           </template>
           <form class="space-y-4" @submit.prevent="handleInvoke">
+            <label class="flex flex-col gap-1 text-sm font-medium text-gray-700 dark:text-gray-200">
+              <span>能力来源（source）</span>
+              <USelect
+                v-model="selectedSource"
+                :items="sourceOptions"
+                option-attribute="label"
+                value-attribute="value"
+                :loading="sourceListLoading"
+                class="w-full"
+              />
+              <span class="text-xs text-gray-500 dark:text-gray-400">
+                当前 source：{{ selectedSource || 'all' }}，用于筛选 `GET /admin/capabilities` 来源。
+              </span>
+            </label>
+
             <label class="flex flex-col gap-1 text-sm font-medium text-gray-700 dark:text-gray-200">
               <span>Capability 模块</span>
               <USelect
@@ -166,22 +183,13 @@
               </span>
             </label>
 
-            <div class="grid gap-4 md:grid-cols-2">
-              <label class="flex flex-col gap-1 text-sm font-medium text-gray-700 dark:text-gray-200">
-                <span>自定义 Tenant UUID</span>
-                <UInput
-                  v-model="form.tenantUuid"
-                  placeholder="可选：覆盖 X-Tenant-UUID"
-                />
-              </label>
-              <label class="flex flex-col gap-1 text-sm font-medium text-gray-700 dark:text-gray-200">
-                <span>Mock 模块</span>
-                <UInput
-                  v-model="form.mockModule"
-                  placeholder="例如 media / event"
-                />
-              </label>
-            </div>
+            <label class="flex flex-col gap-1 text-sm font-medium text-gray-700 dark:text-gray-200">
+              <span>Mock 模块</span>
+              <UInput
+                v-model="form.mockModule"
+                placeholder="例如 media / event"
+              />
+            </label>
 
             <div class="grid gap-4 md:grid-cols-2">
               <label class="flex flex-col gap-1 text-sm font-medium text-gray-700 dark:text-gray-200">
@@ -390,7 +398,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
-import { useRuntimeConfig } from '#imports'
+import { useRoute, useRouter, useRuntimeConfig } from '#imports'
 import { useCapabilityLab } from '~/composables/useCapabilityLab'
 import { useCapabilityCatalogApi } from '~/composables/api/useCapabilityCatalog'
 import { useUserStore } from '~/stores/user'
@@ -400,6 +408,8 @@ definePageMeta({
 })
 
 const userStore = useUserStore()
+const route = useRoute()
+const router = useRouter()
 if (process.client && !userStore.context) {
   userStore.fetchUserContext().catch(() => {
     /* handled via store */
@@ -446,33 +456,116 @@ const capabilityOptions = ref<CapabilityOption[]>([])
 const capabilityListLoading = ref(false)
 const capabilityLoadError = ref('')
 const selectedModule = ref('')
+const sourceListLoading = ref(false)
+const selectedSource = ref('corex')
+const sourceOptions = ref([
+  { label: 'all · 全部来源', value: 'all' },
+  { label: 'corex · PowerX 底座', value: 'corex' },
+  { label: 'plugin · 插件能力', value: 'plugin' }
+])
+
+function normalizeSourceQuery(value?: string | null) {
+  const normalized = String(value || '').trim().toLowerCase()
+  if (!normalized) return 'all'
+  if (normalized === 'any') return 'all'
+  if (normalized === 'platform') return 'corex'
+  return normalized
+}
+
+function parseSourceFromRouteQuery(value: unknown): string | null {
+  const source = Array.isArray(value) ? value[0] : value
+  if (typeof source !== 'string') return null
+  const normalized = source.trim().toLowerCase()
+  if (!normalized) return null
+  if (normalized === 'platform') return 'corex'
+  if (normalized === 'any') return 'all'
+  return normalized
+}
+
+function ensureSelectedSourceInOptions(value: string) {
+  if (sourceOptions.value.some((item) => item.value === value)) {
+    return
+  }
+  sourceOptions.value = [
+    ...sourceOptions.value,
+    { value, label: value }
+  ]
+}
+
+function normalizeCapabilityOptions(entries: any[]) {
+  return (entries || [])
+    .filter((entry) => {
+      const id = String(entry?.id || '')
+      if (!id) return false
+      return true
+    })
+    .map((entry) => ({
+      label: entry?.kind ? `${entry.id} · ${entry.kind}` : entry.id,
+      value: entry.id,
+      module: entry?.module || deriveCapabilityModule(entry?.id),
+      protocols: entry?.protocols
+    }))
+}
+
 async function fetchCapabilityOptions() {
   capabilityListLoading.value = true
   capabilityLoadError.value = ''
   try {
-    const entries = await capabilityCatalogApi.list({ source: 'corex' })
-    const normalized = (entries || [])
-      .filter((entry) => entry?.id?.startsWith('com.corex.'))
-      .map((entry) => ({
-        label: entry?.kind ? `${entry.id} · ${entry.kind}` : entry.id,
-        value: entry.id,
-        module: entry?.module || deriveCapabilityModule(entry?.id),
-        protocols: entry?.protocols
-      }))
-    if (!normalized.length) {
-      capabilityOptions.value = []
-      capabilityLoadError.value = 'Gateway 返回的 `source=corex` 能力列表为空，请确认 PowerX dev API / px-plugin 登录配置是否正确。'
+    const sourceQuery = normalizeSourceQuery(selectedSource.value)
+    const entries = await capabilityCatalogApi.list({ source: sourceQuery })
+    const normalized = normalizeCapabilityOptions(entries)
+    if (normalized.length > 0) {
+      capabilityOptions.value = normalized
+      selectedModule.value = normalized[0].module || ''
+      ensureCapabilitySelection()
       return
     }
-    capabilityOptions.value = normalized
-    selectedModule.value = normalized[0].module || ''
-    ensureCapabilitySelection()
+    capabilityOptions.value = []
+    capabilityLoadError.value = `能力目录为空：source=${sourceQuery} 无可用能力。`
   } catch (err: any) {
     capabilityLoadError.value =
-      err?.message || '加载 CoreX 能力失败，请检查 Gateway 配置'
+      err?.message || `加载 source=${normalizeSourceQuery(selectedSource.value)} 能力失败，请检查 Gateway 配置`
     capabilityOptions.value = []
   } finally {
     capabilityListLoading.value = false
+  }
+}
+
+async function fetchCapabilitySources() {
+  sourceListLoading.value = true
+  try {
+    if (typeof capabilityCatalogApi.listSources === 'function') {
+      const response = await capabilityCatalogApi.listSources()
+      const rawSources = [
+        ...(response?.items || []),
+        ...((response?.sources || []).map((item: any) => ({
+          value: item?.id,
+          label: item?.label
+        })))
+      ]
+      if (rawSources.length) {
+        sourceOptions.value = rawSources
+          .map((item: any) => {
+            const value = String(item?.value || item?.id || '').trim().toLowerCase()
+            if (!value) return null
+            if (value === 'platform' || value === 'corex') {
+              return { value: 'corex', label: 'corex · PowerX 底座' }
+            }
+            if (value === 'plugin') {
+              return { value: 'plugin', label: 'plugin · 插件能力' }
+            }
+            if (value === 'all' || value === 'any') {
+              return { value: 'all', label: 'all · 全部来源' }
+            }
+            return { value, label: item?.label || value }
+          })
+          .filter((item: any): item is { label: string; value: string } => !!item)
+      }
+    }
+  } catch {
+    // noop: 保持默认 sourceOptions
+  } finally {
+    sourceListLoading.value = false
   }
 }
 
@@ -483,12 +576,26 @@ const defaultApiBase =
   ''
 
 const powerxCoreBase = computed(() => String(runtimeConfig.public?.powerxCoreBase || ''))
+const gatewayConfigErrorPatterns = [
+  'PX_GATEWAY_BASE_URL',
+  'PX_TOOL_TOKEN',
+  'PX_GATEWAY_API_KEY',
+  'gateway config',
+  'gateway 配置',
+  'dev gateway'
+]
 const showPowerXAccessHint = computed(() => {
   if (!isAuthorized.value) return false
   if (capabilityListLoading.value) return false
-  if (capabilityLoadError.value.includes('source=corex')) return true
-  // No explicit error yet, but we're still on the default core base in standalone mode.
-  return powerxCoreBase.value === 'http://localhost:8077' && !Boolean(runtimeConfig.public?.insidePowerX)
+  if (normalizeSourceQuery(selectedSource.value) !== 'corex') return false
+  const normalizedError = capabilityLoadError.value.toLowerCase()
+  if (gatewayConfigErrorPatterns.some((pattern) => normalizedError.includes(pattern.toLowerCase()))) {
+    return true
+  }
+  // Default core base with empty catalog usually means local Core is not running yet.
+  return Boolean(capabilityLoadError.value) &&
+    powerxCoreBase.value === 'http://localhost:8077' &&
+    !Boolean(runtimeConfig.public?.insidePowerX)
 })
 
 const DEFAULT_PAYLOAD_TEXT = '{\n  \n}'
@@ -500,7 +607,6 @@ const form = reactive({
   action: 'List',
   preferredProtocol: 'rest',
   payloadText: DEFAULT_PAYLOAD_TEXT,
-  tenantUuid: '00000000-0000-0000-0000-000000000001',
   mockModule: '',
   requestId: generateRequestId(),
   apiBase: defaultApiBase
@@ -549,8 +655,15 @@ const {
   errorDetails
 } = useCapabilityLab()
 
-onMounted(() => {
-  fetchCapabilityOptions()
+onMounted(async () => {
+  const querySource = parseSourceFromRouteQuery(route.query?.source)
+  if (querySource) {
+    ensureSelectedSourceInOptions(querySource)
+    selectedSource.value = querySource
+  }
+  await fetchCapabilitySources()
+  ensureSelectedSourceInOptions(selectedSource.value)
+  await fetchCapabilityOptions()
 })
 
 const moduleOptions = computed(() => {
@@ -949,9 +1062,6 @@ const requestPreview = computed(() => {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json'
   }
-  if (form.tenantUuid) {
-    headers['X-Tenant-UUID'] = form.tenantUuid.trim()
-  }
   if (form.mockModule) {
     headers['X-PX-Use-Mock'] = form.mockModule.trim()
   }
@@ -996,9 +1106,6 @@ async function handleInvoke() {
     return
   }
   const headers: Record<string, string> = {}
-  if (form.tenantUuid?.trim()) {
-    headers['X-Tenant-UUID'] = form.tenantUuid.trim()
-  }
   if (form.mockModule?.trim()) {
     headers['X-PX-Use-Mock'] = form.mockModule.trim()
   }
@@ -1147,6 +1254,36 @@ watch(
     if (!isAutoFillingPayload.value) {
       payloadTouched.value = true
     }
+  }
+)
+
+watch(
+  selectedSource,
+  () => {
+    selectedModule.value = ''
+    form.capabilityId = ''
+    const currentRouteSource = parseSourceFromRouteQuery(route.query?.source)
+    if (currentRouteSource !== selectedSource.value) {
+      router.replace({
+        query: {
+          ...route.query,
+          source: selectedSource.value
+        }
+      })
+    }
+    fetchCapabilityOptions()
+  }
+)
+
+watch(
+  () => route.query?.source,
+  (value) => {
+    const sourceFromRoute = parseSourceFromRouteQuery(value)
+    if (!sourceFromRoute || sourceFromRoute === selectedSource.value) {
+      return
+    }
+    ensureSelectedSourceInOptions(sourceFromRoute)
+    selectedSource.value = sourceFromRoute
   }
 )
 </script>

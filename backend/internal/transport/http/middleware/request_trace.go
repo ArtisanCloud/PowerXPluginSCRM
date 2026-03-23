@@ -96,10 +96,17 @@ func detectAuth(c *gin.Context) (mode, preview string) {
 }
 
 func iamModeFromEnv() string {
-	if truthy(os.Getenv("POWERX_RBAC_DELEGATE")) || strings.TrimSpace(os.Getenv("POWERX_PROXY")) == "1" {
+	switch strings.ToLower(strings.TrimSpace(resolveConfigValue(os.Getenv("IAM_MODE"), os.Getenv("IAMMode")))) {
+	case "delegated":
 		return "delegated"
+	case "local":
+		return "local"
+	default:
+		if strings.TrimSpace(os.Getenv("POWERX_PROXY")) == "1" {
+			return "delegated"
+		}
+		return "local"
 	}
-	return "local"
 }
 
 func traceIdentifier(c *gin.Context) string {
@@ -115,13 +122,13 @@ func traceIdentifier(c *gin.Context) string {
 	return ""
 }
 
-func truthy(value string) bool {
-	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "1", "true", "yes", "on":
-		return true
-	default:
-		return false
+func resolveConfigValue(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
 	}
+	return ""
 }
 
 func shorten(raw string, keep int) string {
