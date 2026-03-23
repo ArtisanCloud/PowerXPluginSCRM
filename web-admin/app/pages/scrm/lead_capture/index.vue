@@ -268,6 +268,12 @@
             <div class="text-xs text-gray-500 dark:text-gray-400">
               {{ row.original.source_app_type || '未知应用' }}
             </div>
+            <div class="text-xs text-gray-500 dark:text-gray-400">
+              外部联系人ID：{{ leadSyncExternalInfo(row.original.lead_uuid).externalLeadId || '未记录（需重跑同步）' }}
+            </div>
+            <div class="text-xs text-gray-500 dark:text-gray-400">
+              微信号：{{ leadSyncExternalInfo(row.original.lead_uuid).externalWechatId || '未记录（需重跑同步）' }}
+            </div>
           </div>
         </template>
         <template #actions-cell="{ row }">
@@ -578,6 +584,7 @@ import { useUserStore } from "~/stores/user";
 import ToastAlert from "~/components/ToastAlert.vue";
 import {
   useLeadCaptureService,
+  type LeadActivityRecord,
   type WeComSyncTaskRecord,
   type WeComCustomerDMRule,
 } from "~/composables/api/services/leadCapture";
@@ -638,6 +645,10 @@ const wecomCustomerDMAutoCreate = ref(false);
 const channelAccounts = ref<ChannelAccount[]>([]);
 const iamMembers = ref<MemberRecord[]>([]);
 const sourceCatalogs = ref<RuntimeDictionaryItem[]>([]);
+const leadSyncTraceMap = ref<Record<string, Record<string, any>>>({});
+const leadSyncTraceLoadingSet = ref<Set<string>>(new Set());
+const leadSyncTraceWarmRunning = ref(false);
+const leadSyncTraceWarmQueued = ref(false);
 const previewHeaders = ref<string[]>([]);
 const previewRows = ref<string[][]>([]);
 const mappingForm = reactive<Record<string, number>>({});
@@ -893,8 +904,80 @@ const statusMeta = (status?: string) => {
   }
 };
 
+const parseISOTime = (value?: string): number => {
+  if (!value) return 0;
+  const ts = Date.parse(value);
+  return Number.isNaN(ts) ? 0 : ts;
+};
+
+const pickLatestSyncTracePayload = (activities: LeadActivityRecord[]): Record<string, any> => {
+  const traces = activities.filter((item) => item.activity_type === "sync_trace");
+  if (!traces.length) return {};
+  const sorted = traces.slice().sort((a, b) => parseISOTime(b.created_at) - parseISOTime(a.created_at));
+  return (sorted[0]?.payload || {}) as Record<string, any>;
+};
+
+const ensureLeadSyncTrace = async (leadId?: string) => {
+  const key = (leadId || "").trim();
+  if (!key) return;
+  if (leadSyncTraceMap.value[key]) return;
+  if (leadSyncTraceLoadingSet.value.has(key)) return;
+  leadSyncTraceLoadingSet.value.add(key);
+  try {
+    const resp = await leadCaptureService.listActivities(key);
+    const items = (((resp as any)?.data?.items || []) as LeadActivityRecord[]);
+    leadSyncTraceMap.value[key] = pickLatestSyncTracePayload(items);
+  } catch {
+    leadSyncTraceMap.value[key] = {};
+  } finally {
+    leadSyncTraceLoadingSet.value.delete(key);
+  }
+};
+
+const warmPagedLeadSyncTrace = async () => {
+  if (leadSyncTraceWarmRunning.value) {
+    leadSyncTraceWarmQueued.value = true;
+    return;
+  }
+  leadSyncTraceWarmRunning.value = true;
+  try {
+    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+    let guard = 0;
+    while (guard < 5) {
+      guard += 1;
+      leadSyncTraceWarmQueued.value = false;
+      const ids = pagedLeads.value
+        .map((item) => item?.lead_uuid || "")
+        .filter((id) => id && !leadSyncTraceMap.value[id] && !leadSyncTraceLoadingSet.value.has(id));
+      if (!ids.length) {
+        break;
+      }
+      for (const id of ids) {
+        await ensureLeadSyncTrace(id);
+        await sleep(120);
+      }
+      if (!leadSyncTraceWarmQueued.value) {
+        break;
+      }
+    }
+  } finally {
+    leadSyncTraceWarmRunning.value = false;
+    leadSyncTraceWarmQueued.value = false;
+  }
+};
+
+const leadSyncExternalInfo = (leadId?: string) => {
+  const payload = leadId ? (leadSyncTraceMap.value[leadId] || {}) : {};
+  return {
+    externalLeadId: String(payload?.external_lead_id || "").trim(),
+    externalWechatId: String(payload?.external_wechat_id || "").trim(),
+  };
+};
+
 const refreshLeads = async () => {
   await store.fetchLeads();
+  leadSyncTraceMap.value = {};
+  void warmPagedLeadSyncTrace();
   if (store.error) {
     showToast(store.error, "error", "线索列表加载失败");
   }
@@ -1354,6 +1437,14 @@ watch([currentPage, pageSize], () => {
     currentPage.value = totalPages.value;
   }
 });
+
+watch(
+  () => pagedLeads.value.map((item) => item.lead_uuid).join(","),
+  () => {
+    void warmPagedLeadSyncTrace();
+  },
+  { immediate: true }
+);
 
 onMounted(async () => {
   await loadCreateLookupOptions();

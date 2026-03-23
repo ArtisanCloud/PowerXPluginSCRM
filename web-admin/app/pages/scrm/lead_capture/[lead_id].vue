@@ -158,6 +158,18 @@
             {{ lead.source_account_uuid || '未知' }}
           </div>
         </div>
+        <div>
+          <div class="text-xs text-gray-500">外部联系人 ID</div>
+          <div class="text-sm text-gray-900 dark:text-white">
+            {{ latestSyncTracePayload.external_lead_id || '未记录（需重跑同步）' }}
+          </div>
+        </div>
+        <div>
+          <div class="text-xs text-gray-500">外部联系人微信号</div>
+          <div class="text-sm text-gray-900 dark:text-white">
+            {{ latestSyncTracePayload.external_wechat_id || '未记录（需重跑同步）' }}
+          </div>
+        </div>
       </div>
       <div v-else class="py-6 text-center text-sm text-gray-500">
         暂无可用数据。
@@ -458,9 +470,24 @@ const activities = computed(() => store.activities);
 const mergeActivities = computed(() =>
   activities.value.filter((item) => item.activity_type === "merge")
 );
+const syncTraceActivities = computed(() =>
+  activities.value.filter((item) => item.activity_type === "sync_trace")
+);
 const botCommandActivities = computed(() =>
   activities.value.filter((item) => item.activity_type === "bot_command")
 );
+const parseISOTime = (value?: string): number => {
+  if (!value) return 0;
+  const ts = Date.parse(value);
+  return Number.isNaN(ts) ? 0 : ts;
+};
+const latestSyncTracePayload = computed(() => {
+  if (!syncTraceActivities.value.length) return {} as Record<string, any>;
+  const sorted = syncTraceActivities.value
+    .slice()
+    .sort((a, b) => parseISOTime(b.created_at) - parseISOTime(a.created_at));
+  return (sorted[0]?.payload || {}) as Record<string, any>;
+});
 const latestAssignmentReason = computed(() => assignments.value[0]?.reason || "");
 
 const members = ref<Member[]>([]);

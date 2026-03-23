@@ -568,8 +568,8 @@ func appendSyncTraceActivityTx(
 	if tx == nil || leadUUID == "" {
 		return nil
 	}
-	if !tx.Migrator().HasTable(leadmodel.LeadActivity{}.TableName()) {
-		return nil
+	if !tx.Migrator().HasTable(&leadmodel.LeadActivity{}) {
+		return fmt.Errorf("lead activity table missing: %s", leadmodel.LeadActivity{}.TableName())
 	}
 	payload := datatypes.JSONMap{
 		"trace_id":             strings.TrimSpace(req.TraceID),
@@ -577,6 +577,7 @@ func appendSyncTraceActivityTx(
 		"source_app_type":      strings.ToLower(strings.TrimSpace(req.AppType)),
 		"source_account_uuid":  strings.TrimSpace(channelAccountUUID),
 		"external_lead_id":     strings.TrimSpace(item.ExternalLeadID),
+		"external_wechat_id":   strings.TrimSpace(item.WechatID),
 		"display_name":         strings.TrimSpace(item.DisplayName),
 		"phone":                strings.TrimSpace(item.Phone),
 		"email":                strings.ToLower(strings.TrimSpace(item.Email)),
@@ -586,5 +587,91 @@ func appendSyncTraceActivityTx(
 	if !item.OccurredAt.IsZero() {
 		payload["occurred_at"] = item.OccurredAt.UTC().Format(time.RFC3339)
 	}
-	return createLeadActivity(ctx, tx, req.TenantUUID, leadUUID, leadmodel.LeadActivityTypeSyncTrace, payload)
+	return upsertSyncTraceActivityTx(ctx, tx, req.TenantUUID, leadUUID, payload)
+}
+
+func upsertSyncTraceActivityTx(
+	ctx context.Context,
+	tx *gorm.DB,
+	tenantUUID, leadUUID string,
+	payload datatypes.JSONMap,
+) error {
+	if tx == nil {
+		return errors.New("database transaction is nil")
+	}
+	tenantUUID = strings.TrimSpace(tenantUUID)
+	leadUUID = strings.TrimSpace(leadUUID)
+	if tenantUUID == "" || leadUUID == "" {
+		return nil
+	}
+	extLeadID := payloadString(payload, "external_lead_id")
+	wechatID := payloadString(payload, "external_wechat_id")
+	accountUUID := payloadString(payload, "source_account_uuid")
+	// 缺少稳定外部标识时退化为 append，避免误覆盖历史记录。
+	if extLeadID == "" && wechatID == "" {
+		return createLeadActivity(ctx, tx, tenantUUID, leadUUID, leadmodel.LeadActivityTypeSyncTrace, payload)
+	}
+	var candidates []*leadmodel.LeadActivity
+	if err := tx.WithContext(ctx).
+		Where("tenant_uuid = ? AND lead_uuid = ? AND activity_type = ?", tenantUUID, leadUUID, leadmodel.LeadActivityTypeSyncTrace).
+		Order("updated_at DESC").
+		Limit(30).
+		Find(&candidates).Error; err != nil {
+		return err
+	}
+	for _, item := range candidates {
+		if item == nil {
+			continue
+		}
+		existingPayload := datatypes.JSONMap{}
+		if item.Payload != nil {
+			existingPayload = item.Payload
+		}
+		if payloadString(existingPayload, "source_account_uuid") != accountUUID {
+			continue
+		}
+		if extLeadID != "" && payloadString(existingPayload, "external_lead_id") != extLeadID {
+			continue
+		}
+		if extLeadID == "" && wechatID != "" && payloadString(existingPayload, "external_wechat_id") != wechatID {
+			continue
+		}
+		return tx.WithContext(ctx).
+			Model(&leadmodel.LeadActivity{}).
+			Where("tenant_uuid = ? AND activity_uuid = ?", tenantUUID, item.ActivityUUID).
+			Updates(map[string]any{
+				"payload":    payload,
+				"updated_at": time.Now().UTC(),
+			}).Error
+	}
+	// 某些存储实现里 JSONMap 反序列化为非预期类型，会导致精确匹配失效；
+	// 若该 lead 仅存在一条 sync_trace，直接回退为更新该条，确保 sync_trace 行为为 upsert。
+	if len(candidates) == 1 && candidates[0] != nil {
+		return tx.WithContext(ctx).
+			Model(&leadmodel.LeadActivity{}).
+			Where("tenant_uuid = ? AND activity_uuid = ?", tenantUUID, candidates[0].ActivityUUID).
+			Updates(map[string]any{
+				"payload":    payload,
+				"updated_at": time.Now().UTC(),
+			}).Error
+	}
+	return createLeadActivity(ctx, tx, tenantUUID, leadUUID, leadmodel.LeadActivityTypeSyncTrace, payload)
+}
+
+func payloadString(payload datatypes.JSONMap, key string) string {
+	if payload == nil {
+		return ""
+	}
+	raw, ok := payload[key]
+	if !ok || raw == nil {
+		return ""
+	}
+	switch v := raw.(type) {
+	case string:
+		return strings.TrimSpace(v)
+	case fmt.Stringer:
+		return strings.TrimSpace(v.String())
+	default:
+		return strings.TrimSpace(fmt.Sprintf("%v", v))
+	}
 }
