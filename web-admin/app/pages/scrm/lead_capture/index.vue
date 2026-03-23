@@ -184,7 +184,17 @@
           </div>
         </div>
 
-        <UTable :columns="syncTaskColumns" :data="syncTasks" :loading="syncLoading">
+        <UTable :columns="syncTaskColumns" :data="pagedSyncTasks" :loading="syncLoading">
+          <template #task_uuid-cell="{ row }">
+            <button
+              type="button"
+              class="max-w-[180px] truncate text-left text-sm text-gray-300 hover:text-primary cursor-pointer"
+              :title="row.original.task_uuid"
+              @click="copyTaskUUID(row.original.task_uuid)"
+            >
+              {{ shortUUID(row.original.task_uuid) }}
+            </button>
+          </template>
           <template #channel_account_uuid-cell="{ row }">
             <span class="text-sm text-gray-700 dark:text-gray-200">
               {{ resolveSyncAccountLabel(row.original) }}
@@ -216,6 +226,28 @@
             <span class="text-xs text-amber-500">{{ row.original.error_message || "-" }}</span>
           </template>
         </UTable>
+        <div class="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
+          <div class="text-xs text-gray-500 dark:text-gray-400">
+            任务第 {{ syncTaskPage }} / {{ syncTaskTotalPages }} 页（共 {{ syncTasks.length }} 条）
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <USelectMenu
+              v-model="syncTaskPageSize"
+              :items="syncTaskPageSizeOptions"
+              value-key="value"
+              label-key="label"
+              class="w-24"
+              :portal="false"
+              :ui="{ content: 'z-[200]' }"
+            />
+            <UButton size="xs" variant="soft" :disabled="syncTaskPage <= 1" @click="syncTaskPrevPage">
+              上一页
+            </UButton>
+            <UButton size="xs" variant="soft" :disabled="syncTaskPage >= syncTaskTotalPages" @click="syncTaskNextPage">
+              下一页
+            </UButton>
+          </div>
+        </div>
       </div>
     </UCard>
 
@@ -636,6 +668,8 @@ const syncSubmitting = ref(false);
 const syncAccountUUID = ref("");
 const syncStatusFilter = ref<string>(ALL_OPTION_VALUE);
 const syncTasks = ref<WeComSyncTaskRecord[]>([]);
+const syncTaskPage = ref(1);
+const syncTaskPageSize = ref(5);
 let syncPollTimer: ReturnType<typeof setTimeout> | null = null;
 const lastLeadAutoRefreshTaskSignature = ref("");
 const syncLastResolveSource = ref("");
@@ -743,6 +777,12 @@ const syncStatusOptions = [
   { label: "失败", value: "failed" },
 ];
 
+const syncTaskPageSizeOptions = [
+  { label: "5/页", value: 5 },
+  { label: "10/页", value: 10 },
+  { label: "20/页", value: 20 },
+];
+
 const syncTaskColumns = [
   { accessorKey: "task_uuid", header: "任务 UUID" },
   { accessorKey: "channel_account_uuid", header: "同步账号" },
@@ -752,6 +792,24 @@ const syncTaskColumns = [
   { accessorKey: "stats", header: "统计" },
   { accessorKey: "error", header: "错误" },
 ] satisfies any;
+
+const syncTaskTotalPages = computed(() => {
+  const total = Math.ceil(syncTasks.value.length / syncTaskPageSize.value);
+  return total > 0 ? total : 1;
+});
+
+const pagedSyncTasks = computed(() => {
+  const start = (syncTaskPage.value - 1) * syncTaskPageSize.value;
+  return syncTasks.value.slice(start, start + syncTaskPageSize.value);
+});
+
+const syncTaskPrevPage = () => {
+  syncTaskPage.value = Math.max(1, syncTaskPage.value - 1);
+};
+
+const syncTaskNextPage = () => {
+  syncTaskPage.value = Math.min(syncTaskTotalPages.value, syncTaskPage.value + 1);
+};
 
 const channelOptions = computed(() => {
   const entries = new Set<string>();
@@ -1010,6 +1068,27 @@ const syncProgressPercent = (task?: WeComSyncTaskRecord) => {
   return 0;
 };
 
+const shortUUID = (value?: string) => {
+  const s = (value || "").trim();
+  if (!s) return "-";
+  if (s.length <= 12) return s;
+  return `${s.slice(0, 8)}...${s.slice(-4)}`;
+};
+
+const copyTaskUUID = async (value?: string) => {
+  const text = (value || "").trim();
+  if (!text) return;
+  try {
+    if (!process.client || !navigator?.clipboard?.writeText) {
+      throw new Error("clipboard unavailable");
+    }
+    await navigator.clipboard.writeText(text);
+    showToast(`任务 UUID 已复制：${text}`, "success");
+  } catch {
+    showToast("复制失败，请手动复制", "warning");
+  }
+};
+
 const resolveSyncAccountLabel = (task?: WeComSyncTaskRecord) => {
   const uuid = (task?.channel_account_uuid || "").trim();
   if (!uuid) return "-";
@@ -1022,9 +1101,12 @@ const refreshSyncTasks = async () => {
     const resp = await leadCaptureService.listWeComSyncTasks({
       channel_account_uuid: syncAccountUUID.value.trim() || undefined,
       status: (syncStatusFilter.value === ALL_OPTION_VALUE ? undefined : syncStatusFilter.value) as any,
-      limit: 20,
+      limit: 100,
     });
     syncTasks.value = ((resp as any)?.data?.items || []) as WeComSyncTaskRecord[];
+    if (syncTaskPage.value > syncTaskTotalPages.value) {
+      syncTaskPage.value = syncTaskTotalPages.value;
+    }
     const finishedSuccessTask = syncTasks.value.find((item) => item?.status === "success" && !!item?.finished_at);
     if (finishedSuccessTask) {
       const signature = `${finishedSuccessTask.task_uuid}:${finishedSuccessTask.finished_at}`;
@@ -1432,9 +1514,19 @@ watch([statusFilter, channelFilter, appTypeFilter, searchText], () => {
   currentPage.value = 1;
 });
 
+watch([syncAccountUUID, syncStatusFilter, syncTaskPageSize], () => {
+  syncTaskPage.value = 1;
+});
+
 watch([currentPage, pageSize], () => {
   if (currentPage.value > totalPages.value) {
     currentPage.value = totalPages.value;
+  }
+});
+
+watch([syncTaskPage, syncTaskPageSize], () => {
+  if (syncTaskPage.value > syncTaskTotalPages.value) {
+    syncTaskPage.value = syncTaskTotalPages.value;
   }
 });
 
