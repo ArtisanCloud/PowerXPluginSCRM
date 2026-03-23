@@ -92,10 +92,15 @@ func TestDefaultWeComLeadAdapter_FetchLeadsMappingAndCursor(t *testing.T) {
 								ExternalContact: &models.ExternalContact{
 									ExternalUserID: "ext-002",
 									Name:           "",
+									ExternalProfile: &models.ExternalProfile{
+										ExternalAttr: []*models.ExternalAttr{
+											{Name: "手机号", Text: &models.Text{Value: "13900000002"}},
+											{Name: "微信号", Text: &models.Text{Value: "wechat_bob_02"}},
+										},
+									},
 								},
 								FollowInfo: &models.FollowUser{
-									Remark:        "Bob From Remark",
-									RemarkMobiles: []string{"13800000002"},
+									Remark: "Bob From Remark",
 								},
 							},
 							{
@@ -125,4 +130,6 @@ func TestDefaultWeComLeadAdapter_FetchLeadsMappingAndCursor(t *testing.T) {
 	require.False(t, items[0].OccurredAt.IsZero())
 	require.Equal(t, "ext-002", items[1].ExternalLeadID)
 	require.Equal(t, "Bob From Remark", items[1].DisplayName)
+	require.Equal(t, "13900000002", items[1].Phone)
+	require.Equal(t, "wechat_bob_02", items[1].WechatID)
 }

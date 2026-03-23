@@ -178,6 +178,77 @@ func TestWeComSyncService_WriteExternalUserSourceTraceActivity(t *testing.T) {
 	require.Equal(t, traceID, syncTrace.Payload["trace_id"])
 }
 
+func TestWeComSyncService_UpsertSyncTraceActivity(t *testing.T) {
+	tenantUUID := "00000000-0000-0000-0000-000000000001"
+	accountUUID := "11111111-1111-4111-8111-111111111111"
+
+	db := openWeComSyncServiceTestDB(t, "wecom_sync_service_sync_trace_upsert")
+	require.NoError(t, db.Create(&socialmodel.ChannelAccount{
+		AccountUUID:     accountUUID,
+		TenantUuid:      tenantUUID,
+		ChannelCode:     "wechat",
+		AppType:         "wecom",
+		AccountID:       "wecom-main",
+		DisplayName:     "企微主账号",
+		Status:          socialmodel.ChannelAccountStatusConnected,
+		OrgSyncDefault:  true,
+		OwnerMemberUUID: "owner-001",
+	}).Error)
+
+	taskRepo := leadrepo.NewLeadSyncTaskRepository(db)
+	leadRepo := leadrepo.NewLeadRepository(db)
+	leadSvc := NewLeadService(leadRepo)
+	svc := NewWeComSyncService(taskRepo, nil, mockProviderAdapter{}).
+		WithLeadIngestion(leadRepo, mockWeComLeadAdapter{
+			items: []WeComLeadRecord{{
+				ExternalLeadID: "ext-user-upsert-001",
+				WechatID:       "wx-upsert-001",
+				DisplayName:    "Upsert User",
+				Phone:          "13800000029",
+				Email:          "upsert-user@example.com",
+				OccurredAt:     time.Date(2026, 3, 20, 0, 0, 0, 0, time.UTC),
+			}},
+		}).
+		WithLeadService(leadSvc)
+
+	_, err := svc.TriggerSync(context.Background(), TriggerSyncRequest{
+		TenantUUID: tenantUUID,
+		Channel:    "wechat",
+		AppType:    "wecom",
+		TraceID:    "trace-sync-upsert-1",
+	})
+	require.NoError(t, err)
+
+	_, err = svc.TriggerSync(context.Background(), TriggerSyncRequest{
+		TenantUUID: tenantUUID,
+		Channel:    "wechat",
+		AppType:    "wecom",
+		TraceID:    "trace-sync-upsert-2",
+	})
+	require.NoError(t, err)
+
+	lead, err := leadRepo.FindFirstByPhone(context.Background(), tenantUUID, "13800000029")
+	require.NoError(t, err)
+	require.NotNil(t, lead)
+
+	activities, err := leadSvc.ListActivities(context.Background(), tenantUUID, lead.LeadUUID)
+	require.NoError(t, err)
+	require.NotEmpty(t, activities)
+
+	syncCount := 0
+	var syncTrace *leadmodel.LeadActivity
+	for _, item := range activities {
+		if item != nil && item.ActivityType == leadmodel.LeadActivityTypeSyncTrace {
+			syncCount++
+			syncTrace = item
+		}
+	}
+	require.Equal(t, 1, syncCount)
+	require.NotNil(t, syncTrace)
+	require.Equal(t, "ext-user-upsert-001", syncTrace.Payload["external_lead_id"])
+	require.Equal(t, "wx-upsert-001", syncTrace.Payload["external_wechat_id"])
+}
+
 func TestWeComSyncService_TriggerSyncAsync_ReturnQueuedThenFinish(t *testing.T) {
 	tenantUUID := "00000000-0000-0000-0000-000000000001"
 	accountUUID := "11111111-1111-4111-8111-111111111111"

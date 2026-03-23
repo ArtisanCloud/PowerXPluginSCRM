@@ -20,6 +20,7 @@ import (
 // WeComLeadRecord is a normalized lead payload fetched from WeCom.
 type WeComLeadRecord struct {
 	ExternalLeadID string
+	WechatID       string
 	DisplayName    string
 	Phone          string
 	Email          string
@@ -195,13 +196,13 @@ func mapWeComExternalContactRecord(item *pwexternalresp.ResponseExternalContact)
 	if item.ExternalContact != nil {
 		record.ExternalLeadID = strings.TrimSpace(item.ExternalContact.ExternalUserID)
 		record.DisplayName = strings.TrimSpace(item.ExternalContact.Name)
-		record.Email = extractWeComExternalEmail(item.ExternalContact.ExternalProfile)
+		record.Email, record.Phone, record.WechatID = extractWeComExternalProfileAttrs(item.ExternalContact.ExternalProfile)
 	}
 	if item.FollowInfo != nil {
 		if record.DisplayName == "" {
 			record.DisplayName = strings.TrimSpace(item.FollowInfo.Remark)
 		}
-		record.Phone = firstNonEmpty(item.FollowInfo.RemarkMobiles...)
+		record.Phone = firstNonEmpty(append(item.FollowInfo.RemarkMobiles, record.Phone)...)
 		if item.FollowInfo.CreateTime > 0 {
 			record.OccurredAt = time.Unix(int64(item.FollowInfo.CreateTime), 0).UTC()
 		}
@@ -209,20 +210,35 @@ func mapWeComExternalContactRecord(item *pwexternalresp.ResponseExternalContact)
 	return record
 }
 
-func extractWeComExternalEmail(profile *models.ExternalProfile) string {
+func extractWeComExternalProfileAttrs(profile *models.ExternalProfile) (email string, phone string, wechatID string) {
 	if profile == nil || len(profile.ExternalAttr) == 0 {
-		return ""
+		return "", "", ""
 	}
 	for _, attr := range profile.ExternalAttr {
 		if attr == nil || attr.Text == nil {
 			continue
 		}
 		name := strings.ToLower(strings.TrimSpace(attr.Name))
-		if name == "email" || strings.Contains(name, "邮箱") {
-			return strings.ToLower(strings.TrimSpace(attr.Text.Value))
+		value := strings.TrimSpace(attr.Text.Value)
+		if value == "" {
+			continue
+		}
+		switch {
+		case name == "email" || strings.Contains(name, "邮箱"):
+			if email == "" {
+				email = strings.ToLower(value)
+			}
+		case strings.Contains(name, "phone") || strings.Contains(name, "mobile") || strings.Contains(name, "手机号") || strings.Contains(name, "电话"):
+			if phone == "" {
+				phone = value
+			}
+		case strings.Contains(name, "微信") || strings.Contains(name, "wechat") || strings.Contains(name, "weixin"):
+			if wechatID == "" {
+				wechatID = value
+			}
 		}
 	}
-	return ""
+	return email, phone, wechatID
 }
 
 func firstNonEmpty(values ...string) string {
