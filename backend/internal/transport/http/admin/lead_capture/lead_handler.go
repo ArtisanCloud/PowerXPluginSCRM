@@ -287,6 +287,8 @@ func (h *LeadHandler) Assign(c *gin.Context) {
 			contracts.ResponseError(c, http.StatusBadRequest, contracts.ErrCodeValidationFailed, "invalid assignee")
 		case errors.Is(err, leadsvc.ErrAssigneeNotFound):
 			contracts.ResponseError(c, http.StatusBadRequest, contracts.ErrCodeValidationFailed, "assignee not found")
+		case errors.Is(err, leadsvc.ErrAssigneeNotBound):
+			contracts.ResponseError(c, http.StatusBadRequest, contracts.ErrCodeValidationFailed, "assignee not bound to source member")
 		case errors.Is(err, leadrepo.ErrLeadNotFound):
 			contracts.ResponseNotFound(c, "lead not found")
 		case errors.Is(err, repository.ErrTenantUuidRequired):
@@ -384,6 +386,62 @@ func (h *LeadHandler) ListStatusHistory(c *gin.Context) {
 		return
 	}
 	items, err := h.svc.ListStatusHistory(c.Request.Context(), tenantUUID, leadUUID)
+	if err != nil {
+		switch {
+		case errors.Is(err, repository.ErrTenantUuidRequired):
+			contracts.ResponseBadRequest(c, "tenant_uuid is required")
+		default:
+			contracts.ResponseInternalError(c, err)
+		}
+		return
+	}
+	contracts.ResponseSuccess(c, gin.H{"items": items})
+}
+
+func (h *LeadHandler) ListActivities(c *gin.Context) {
+	if h.svc == nil {
+		contracts.ResponseServiceUnavailable(c, "lead service unavailable", nil)
+		return
+	}
+	leadUUID := strings.TrimSpace(c.Param("lead_id"))
+	if leadUUID == "" {
+		contracts.ResponseBadRequest(c, "lead_id is required")
+		return
+	}
+	tenantUUID, ok := middleware.TenantUUIDFromContext(c)
+	if !ok || tenantUUID == "" {
+		contracts.ResponseUnauthorized(c, "tenant context missing")
+		return
+	}
+	items, err := h.svc.ListActivities(c.Request.Context(), tenantUUID, leadUUID)
+	if err != nil {
+		switch {
+		case errors.Is(err, repository.ErrTenantUuidRequired):
+			contracts.ResponseBadRequest(c, "tenant_uuid is required")
+		default:
+			contracts.ResponseInternalError(c, err)
+		}
+		return
+	}
+	contracts.ResponseSuccess(c, gin.H{"items": items})
+}
+
+func (h *LeadHandler) ListSourceEvents(c *gin.Context) {
+	if h.svc == nil {
+		contracts.ResponseServiceUnavailable(c, "lead service unavailable", nil)
+		return
+	}
+	leadUUID := strings.TrimSpace(c.Param("lead_id"))
+	if leadUUID == "" {
+		contracts.ResponseBadRequest(c, "lead_id is required")
+		return
+	}
+	tenantUUID, ok := middleware.TenantUUIDFromContext(c)
+	if !ok || tenantUUID == "" {
+		contracts.ResponseUnauthorized(c, "tenant context missing")
+		return
+	}
+	items, err := h.svc.ListSourceEvents(c.Request.Context(), tenantUUID, leadUUID)
 	if err != nil {
 		switch {
 		case errors.Is(err, repository.ErrTenantUuidRequired):

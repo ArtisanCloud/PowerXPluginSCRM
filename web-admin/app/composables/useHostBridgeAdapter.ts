@@ -6,7 +6,11 @@ import { useAuth } from "~/composables/useAuth";
 import type { LoginResponse } from "~/composables/api/services/authService";
 import { useHostCtxStore } from "~/stores/hostCtx";
 
-type BridgeOptions = { pluginId?: string; instanceId?: string; debug?: boolean };
+type BridgeOptions = {
+  pluginId?: string;
+  instanceId?: string;
+  debug?: boolean;
+};
 
 /** 将宿主广播适配到项目内现有的语言/主题切换实现 */
 export function setupHostBridgeAdapter(opts: BridgeOptions = {}) {
@@ -32,8 +36,7 @@ export function setupHostBridgeAdapter(opts: BridgeOptions = {}) {
     typeof runtimeConfig.public?.bridgeDebug === "boolean"
       ? runtimeConfig.public.bridgeDebug
       : import.meta.dev;
-  const shouldLog =
-    typeof opts.debug === "boolean" ? opts.debug : defaultDebug;
+  const shouldLog = typeof opts.debug === "boolean" ? opts.debug : defaultDebug;
 
   if (shouldLog) {
     console.info("[Bridge][Plugin] debug mode enabled");
@@ -74,7 +77,7 @@ export function setupHostBridgeAdapter(opts: BridgeOptions = {}) {
     const pluginOrigin =
       typeof window !== "undefined" ? window.location.origin : "plugin";
     const storePluginId =
-      payload.pluginId || opts.pluginId || "com.powerx.plugin.scrm";
+      payload.pluginId || opts.pluginId || "com.powerx.plugins.scrm";
     const ctxKey = `${pluginOrigin}::${storePluginId}`;
     if (shouldLog) {
       console.info("[Bridge][Plugin] applyAuthToken storing ctx", {
@@ -130,7 +133,7 @@ export function setupHostBridgeAdapter(opts: BridgeOptions = {}) {
 
   const bridge = initPowerXBridge({
     debug: shouldLog,
-    pluginId: opts.pluginId ?? "com.powerx.plugin.scrm",
+    pluginId: opts.pluginId ?? "com.powerx.plugins.scrm",
     instanceId: opts.instanceId ?? "dev-bridge",
     allowedOrigins: ["*"],
     // allowedOrigins: import.meta.env.DEV ? ['*'] : ['https://admin.powerx.cloud'],

@@ -15,6 +15,7 @@ import (
 	leadrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/lead_capture"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/logger"
 	leadobs "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/lead_capture"
+	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -28,11 +29,24 @@ var ErrInvalidLeadStatusTransition = errors.New("invalid lead status transition"
 
 // LeadService orchestrates lead management operations.
 type LeadService struct {
-	repo *leadrepo.LeadRepository
+	repo             *leadrepo.LeadRepository
+	sourceEventRepo  *leadrepo.LeadSourceEventRepository
+	normalizationSvc *NormalizationService
+	dedupSvc         *DedupService
+	assignmentSvc    *AssignmentService
 }
 
 func NewLeadService(repo *leadrepo.LeadRepository) *LeadService {
-	return &LeadService{repo: repo}
+	svc := &LeadService{
+		repo:             repo,
+		normalizationSvc: NewNormalizationService(),
+		dedupSvc:         NewDedupService(),
+		assignmentSvc:    NewAssignmentService(),
+	}
+	if repo != nil && repo.DB != nil {
+		svc.sourceEventRepo = leadrepo.NewLeadSourceEventRepository(repo.DB)
+	}
+	return svc
 }
 
 type LeadCreateRequest struct {
@@ -55,6 +69,14 @@ type LeadStatusUpdateRequest struct {
 }
 
 func (s *LeadService) Create(ctx context.Context, tenantUUID string, req LeadCreateRequest) (*model.Lead, error) {
+	return s.createWithOptions(ctx, tenantUUID, req, leadCreateOptions{})
+}
+
+type leadCreateOptions struct {
+	preserveSourceScope bool
+}
+
+func (s *LeadService) createWithOptions(ctx context.Context, tenantUUID string, req LeadCreateRequest, opts leadCreateOptions) (*model.Lead, error) {
 	if s == nil || s.repo == nil {
 		return nil, errors.New("lead repository not configured")
 	}
@@ -62,14 +84,32 @@ func (s *LeadService) Create(ctx context.Context, tenantUUID string, req LeadCre
 	if tenantUUID == "" {
 		return nil, repository.ErrTenantUuidRequired
 	}
-	displayName := strings.TrimSpace(req.DisplayName)
-	phone := strings.TrimSpace(req.Phone)
-	email := strings.TrimSpace(req.Email)
-	if displayName == "" && phone == "" && email == "" {
+	normalized := req
+	if s.normalizationSvc != nil {
+		n := s.normalizationSvc.NormalizeLeadCreateRequest(req)
+		normalized = LeadCreateRequest{
+			DisplayName:       n.DisplayName,
+			Phone:             n.Phone,
+			Email:             n.Email,
+			SourceChannel:     n.SourceChannel,
+			SourceAppType:     n.SourceAppType,
+			SourceAccountUUID: n.SourceAccountUUID,
+			OwnerUserUUID:     n.OwnerUserUUID,
+		}
+	}
+	if opts.preserveSourceScope {
+		normalized.SourceChannel = strings.ToLower(strings.TrimSpace(req.SourceChannel))
+		normalized.SourceAppType = strings.ToLower(strings.TrimSpace(req.SourceAppType))
+		normalized.SourceAccountUUID = strings.ToLower(strings.TrimSpace(req.SourceAccountUUID))
+	}
+
+	if strings.TrimSpace(normalized.DisplayName) == "" &&
+		strings.TrimSpace(normalized.Phone) == "" &&
+		strings.TrimSpace(normalized.Email) == "" {
 		return nil, ErrInvalidLeadPayload
 	}
 	status := model.LeadStatusNew
-	sourceAccountUUID := strings.TrimSpace(req.SourceAccountUUID)
+	sourceAccountUUID := strings.TrimSpace(normalized.SourceAccountUUID)
 	var sourceAccountPtr *string
 	if sourceAccountUUID != "" {
 		sourceAccountPtr = &sourceAccountUUID
@@ -78,50 +118,53 @@ func (s *LeadService) Create(ctx context.Context, tenantUUID string, req LeadCre
 	var mergeMeta map[string]any
 	var merged bool
 	err := s.repo.WithTenantTx(ctx, tenantUUID, func(tx *gorm.DB) error {
-		existing, matchOn, err := findExistingLead(ctx, tx, tenantUUID, phone, email)
+		existing, matchOn, err := s.findExistingLead(
+			ctx,
+			tx,
+			tenantUUID,
+			normalized.Phone,
+			normalized.Email,
+			normalized.SourceChannel,
+			normalized.SourceAppType,
+			sourceAccountUUID,
+		)
 		if err != nil {
 			return err
 		}
 		if existing != nil {
-			updatedFields := make(map[string]interface{})
-			mergedFields := make([]string, 0)
-			if existing.DisplayName == "" && displayName != "" {
-				existing.DisplayName = displayName
-				updatedFields["display_name"] = displayName
-				mergedFields = append(mergedFields, "display_name")
-			}
-			if existing.Phone == "" && phone != "" {
-				existing.Phone = phone
-				updatedFields["phone"] = phone
-				mergedFields = append(mergedFields, "phone")
-			}
-			if existing.Email == "" && email != "" {
-				existing.Email = email
-				updatedFields["email"] = email
-				mergedFields = append(mergedFields, "email")
-			}
-			sourceChannel := strings.TrimSpace(req.SourceChannel)
-			if existing.SourceChannel == "" && sourceChannel != "" {
-				existing.SourceChannel = sourceChannel
-				updatedFields["source_channel"] = sourceChannel
-				mergedFields = append(mergedFields, "source_channel")
-			}
-			sourceAppType := strings.TrimSpace(req.SourceAppType)
-			if existing.SourceAppType == "" && sourceAppType != "" {
-				existing.SourceAppType = sourceAppType
-				updatedFields["source_app_type"] = sourceAppType
-				mergedFields = append(mergedFields, "source_app_type")
-			}
-			if existing.SourceAccountUUID == nil && sourceAccountPtr != nil {
-				existing.SourceAccountUUID = sourceAccountPtr
-				updatedFields["source_account_uuid"] = sourceAccountPtr
-				mergedFields = append(mergedFields, "source_account_uuid")
-			}
-			ownerUserUUID := strings.TrimSpace(req.OwnerUserUUID)
-			if existing.OwnerUserUUID == "" && ownerUserUUID != "" {
-				existing.OwnerUserUUID = ownerUserUUID
-				updatedFields["owner_user_uuid"] = ownerUserUUID
-				mergedFields = append(mergedFields, "owner_user_uuid")
+			updatedFields := map[string]interface{}{}
+			mergedFields := []string{}
+			if s.dedupSvc != nil {
+				updatedFields, mergedFields = s.dedupSvc.BuildMergeUpdates(existing, NormalizedLeadInput{
+					DisplayName:       normalized.DisplayName,
+					Phone:             normalized.Phone,
+					Email:             normalized.Email,
+					SourceChannel:     normalized.SourceChannel,
+					SourceAppType:     normalized.SourceAppType,
+					SourceAccountUUID: sourceAccountUUID,
+					OwnerUserUUID:     normalized.OwnerUserUUID,
+				})
+				if v, ok := updatedFields["display_name"].(string); ok {
+					existing.DisplayName = v
+				}
+				if v, ok := updatedFields["phone"].(string); ok {
+					existing.Phone = v
+				}
+				if v, ok := updatedFields["email"].(string); ok {
+					existing.Email = v
+				}
+				if v, ok := updatedFields["source_channel"].(string); ok {
+					existing.SourceChannel = v
+				}
+				if v, ok := updatedFields["source_app_type"].(string); ok {
+					existing.SourceAppType = v
+				}
+				if _, ok := updatedFields["source_account_uuid"]; ok {
+					existing.SourceAccountUUID = sourceAccountPtr
+				}
+				if v, ok := updatedFields["owner_user_uuid"].(string); ok {
+					existing.OwnerUserUUID = v
+				}
 			}
 			if len(updatedFields) > 0 {
 				existing.UpdatedAt = time.Now().UTC()
@@ -135,9 +178,12 @@ func (s *LeadService) Create(ctx context.Context, tenantUUID string, req LeadCre
 			mergeMeta = map[string]any{
 				"match_on":      matchOn,
 				"merged_fields": mergedFields,
-				"incoming":      buildIncomingPayload(displayName, phone, email, req.SourceChannel, req.SourceAppType, sourceAccountUUID, req.OwnerUserUUID),
+				"incoming":      buildIncomingPayload(normalized.DisplayName, normalized.Phone, normalized.Email, normalized.SourceChannel, normalized.SourceAppType, sourceAccountUUID, normalized.OwnerUserUUID),
 			}
 			if err := createLeadActivity(ctx, tx, tenantUUID, existing.LeadUUID, model.LeadActivityTypeMerge, datatypes.JSONMap(mergeMeta)); err != nil {
+				return err
+			}
+			if err := s.createSourceTrace(ctx, tx, tenantUUID, existing.LeadUUID, normalized); err != nil {
 				return err
 			}
 			existing.HasMerge = true
@@ -146,14 +192,15 @@ func (s *LeadService) Create(ctx context.Context, tenantUUID string, req LeadCre
 			return nil
 		}
 		lead := &model.Lead{
+			LeadUUID:          uuid.NewString(),
 			TenantUUID:        tenantUUID,
-			DisplayName:       displayName,
-			Phone:             phone,
-			Email:             email,
+			DisplayName:       normalized.DisplayName,
+			Phone:             normalized.Phone,
+			Email:             normalized.Email,
 			Status:            status,
-			OwnerUserUUID:     strings.TrimSpace(req.OwnerUserUUID),
-			SourceChannel:     strings.TrimSpace(req.SourceChannel),
-			SourceAppType:     strings.TrimSpace(req.SourceAppType),
+			OwnerUserUUID:     strings.TrimSpace(normalized.OwnerUserUUID),
+			SourceChannel:     strings.TrimSpace(normalized.SourceChannel),
+			SourceAppType:     strings.TrimSpace(normalized.SourceAppType),
 			SourceAccountUUID: sourceAccountPtr,
 			CreatedAt:         time.Now().UTC(),
 			UpdatedAt:         time.Now().UTC(),
@@ -167,6 +214,9 @@ func (s *LeadService) Create(ctx context.Context, tenantUUID string, req LeadCre
 			"source_account_uuid": sourceAccountUUID,
 		}
 		if err := createLeadActivity(ctx, tx, tenantUUID, lead.LeadUUID, model.LeadActivityTypeIntake, datatypes.JSONMap(intakeMeta)); err != nil {
+			return err
+		}
+		if err := s.createSourceTrace(ctx, tx, tenantUUID, lead.LeadUUID, normalized); err != nil {
 			return err
 		}
 		lead.HasMerge = false
@@ -262,6 +312,11 @@ func (s *LeadService) Assign(ctx context.Context, tenantUUID, leadUUID string, r
 		}
 		if err := ensureMemberExists(ctx, tx, tenantUUID, memberID); err != nil {
 			return err
+		}
+		if s.assignmentSvc != nil {
+			if err := s.assignmentSvc.EnsureMemberBound(ctx, tx, tenantUUID, memberID); err != nil {
+				return err
+			}
 		}
 		fromStatus := normalizeLeadStatus(lead.Status)
 		if fromStatus == "" {
@@ -445,6 +500,18 @@ func (s *LeadService) ListActivities(ctx context.Context, tenantUUID, leadUUID s
 	return out, nil
 }
 
+func (s *LeadService) ListSourceEvents(ctx context.Context, tenantUUID, leadUUID string) ([]*model.LeadSource, error) {
+	if s == nil || s.sourceEventRepo == nil {
+		return []*model.LeadSource{}, nil
+	}
+	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
+	leadUUID = strings.ToLower(strings.TrimSpace(leadUUID))
+	if tenantUUID == "" || leadUUID == "" {
+		return nil, repository.ErrTenantUuidRequired
+	}
+	return s.sourceEventRepo.ListByLead(ctx, tenantUUID, leadUUID)
+}
+
 type LeadImportError struct {
 	Row    int
 	Reason string
@@ -519,7 +586,7 @@ func (s *LeadService) ImportCSV(ctx context.Context, tenantUUID string, reader i
 			continue
 		}
 		result.Total++
-		if _, err := s.Create(ctx, tenantUUID, payload); err != nil {
+		if _, err := s.createWithOptions(ctx, tenantUUID, payload, leadCreateOptions{preserveSourceScope: true}); err != nil {
 			result.Failed++
 			result.Errors = append(result.Errors, LeadImportError{Row: rowIndex, Reason: err.Error()})
 			continue
@@ -634,7 +701,7 @@ func (s *LeadService) ImportCSVWithMapping(ctx context.Context, tenantUUID strin
 			continue
 		}
 		result.Total++
-		if _, err := s.Create(ctx, tenantUUID, payload); err != nil {
+		if _, err := s.createWithOptions(ctx, tenantUUID, payload, leadCreateOptions{preserveSourceScope: true}); err != nil {
 			result.Failed++
 			result.Errors = append(result.Errors, LeadImportError{Row: rowIndex, Reason: err.Error()})
 			continue
@@ -720,39 +787,42 @@ func isAllowedLeadStatusTransition(fromStatus, toStatus string) bool {
 	}
 }
 
-func findExistingLead(ctx context.Context, tx *gorm.DB, tenantUUID, phone, email string) (*model.Lead, string, error) {
+func (s *LeadService) findExistingLead(
+	ctx context.Context,
+	tx *gorm.DB,
+	tenantUUID, phone, email, sourceChannel, sourceAppType, sourceAccountUUID string,
+) (*model.Lead, string, error) {
+	if s != nil && s.dedupSvc != nil {
+		return s.dedupSvc.FindExistingLead(ctx, tx, tenantUUID, phone, email, sourceChannel, sourceAppType, sourceAccountUUID)
+	}
 	if tx == nil {
 		return nil, "", errors.New("database transaction is nil")
 	}
-	phone = strings.TrimSpace(phone)
-	email = strings.ToLower(strings.TrimSpace(email))
-	if phone != "" {
-		var lead model.Lead
-		err := tx.WithContext(ctx).
-			Where("tenant_uuid = ? AND phone = ?", tenantUUID, phone).
-			Order("created_at ASC").
-			First(&lead).Error
-		if err == nil {
-			return &lead, "phone", nil
-		}
-		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, "", err
-		}
+	return NewDedupService().FindExistingLead(ctx, tx, tenantUUID, phone, email, sourceChannel, sourceAppType, sourceAccountUUID)
+}
+
+func (s *LeadService) createSourceTrace(ctx context.Context, tx *gorm.DB, tenantUUID, leadUUID string, req LeadCreateRequest) error {
+	if s == nil || s.sourceEventRepo == nil {
+		return nil
 	}
-	if email != "" {
-		var lead model.Lead
-		err := tx.WithContext(ctx).
-			Where("tenant_uuid = ? AND email = ?", tenantUUID, email).
-			Order("created_at ASC").
-			First(&lead).Error
-		if err == nil {
-			return &lead, "email", nil
-		}
-		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, "", err
-		}
+	sourceAccountUUID := strings.TrimSpace(req.SourceAccountUUID)
+	var sourceAccountPtr *string
+	if sourceAccountUUID != "" {
+		sourceAccountPtr = &sourceAccountUUID
 	}
-	return nil, "", nil
+	returned := &model.LeadSource{
+		TenantUUID:  tenantUUID,
+		LeadUUID:    leadUUID,
+		ChannelCode: strings.TrimSpace(req.SourceChannel),
+		AppType:     strings.TrimSpace(req.SourceAppType),
+		AccountUUID: sourceAccountPtr,
+	}
+	if strings.EqualFold(strings.TrimSpace(req.SourceChannel), "wechat") &&
+		strings.EqualFold(strings.TrimSpace(req.SourceAppType), "wecom") {
+		returned.UTMSource = "wecom_sync"
+	}
+	_, err := s.sourceEventRepo.CreateEventTx(ctx, tx, returned)
+	return err
 }
 
 func createLeadActivity(ctx context.Context, tx *gorm.DB, tenantUUID, leadUUID, activityType string, payload datatypes.JSONMap) error {

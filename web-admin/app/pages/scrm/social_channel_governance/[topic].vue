@@ -587,7 +587,6 @@ const accountForm = reactive({
   owner_member_uuid: '',
   status: 'connected',
   agent_id: '',
-  secret: '',
   corp_id: '',
   callback_base_url: '',
   app_id: '',
@@ -806,16 +805,7 @@ const fieldConfig = (key: string): ChannelFieldSchema | null =>
 const credentialFields = computed(() => {
   const fields = currentAppSchema.value?.fields.filter((field) => !field.hidden) ?? []
   const filtered = isWeComForm.value
-    ? fields
-        .filter((field) => field.key !== 'secret' && field.key !== 'expires_at')
-        .map((field) =>
-          field.key === 'app_secret'
-            ? {
-                ...field,
-                hint: '应用 Secret（应用管理里查看）。请将该应用配置到人事助手，用于读取部门/成员信息。',
-              }
-            : field,
-        )
+    ? fields.filter((field) => field.key !== 'expires_at')
     : fields
   if (isWeComForm.value && !filtered.some((field) => field.key === 'http_debug')) {
     const debugField: ChannelFieldSchema = {
@@ -1320,15 +1310,17 @@ const testAppSecretConnection = async () => {
   accountModalTestingAppSecret.value = true
   try {
     const service = useSocialChannelGovernanceService()
+    const credentials = buildCredentialsPayload()
     const resp = await service.testChannelAccountContactSecret(editingAccountUuid.value, {
       http_debug: Boolean(accountForm.http_debug),
-      mode: 'quick',
+      mode: 'detail',
+      credentials,
     })
     const membersTotal = (resp as any)?.data?.members_total ?? 0
     const unitsTotal = (resp as any)?.data?.units_total ?? 0
     toast.add({
       title: '测试成功',
-      description: `部门接口可访问，部门数：${unitsTotal}`,
+      description: `部门数：${unitsTotal}，成员数：${membersTotal}`,
       color: 'success',
       duration: 5000,
     })

@@ -8,6 +8,7 @@ import (
 
 	fwwsbus "github.com/ArtisanCloud/PowerXPlugin/framework/backend/go/runtime/wsbus"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/contracts"
+	runtimeswitch "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/runtime/switches"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/shared/app"
 	"github.com/gin-gonic/gin"
 )
@@ -32,7 +33,11 @@ func WSBusPublishHandler(deps *app.Deps) gin.HandlerFunc {
 			return
 		}
 
-		tenantUUID := resolveGatewayTenantUUID(c, deps, req.TenantUUID)
+		tenantUUID, tenantMismatch := resolveGatewayTenantUUID(c, deps, req.TenantUUID)
+		if tenantMismatch {
+			contracts.ResponseError(c, http.StatusForbidden, contracts.ErrCodeTenantMismatch, "tenant mismatch")
+			return
+		}
 		traceID := strings.TrimSpace(req.TraceID)
 		if traceID == "" {
 			traceID = strings.TrimSpace(c.GetHeader("X-Request-ID"))
@@ -44,18 +49,21 @@ func WSBusPublishHandler(deps *app.Deps) gin.HandlerFunc {
 			nil,
 		)
 		outboundBearer := ""
-		if os.Getenv("POWERX_PROXY") == "1" && deps.Config != nil && deps.Config.Gateway != nil {
+		if runtimeswitch.IsHostDriver(runtimeswitch.Resolve(deps.Config).WSBus) && deps.Config != nil && deps.Config.Gateway != nil {
 			outboundBearer = resolveGatewayBearerToken(c, deps)
 			logGatewayAuthSelection(c, deps, outboundBearer, tenantUUID)
 
-			baseURL := strings.TrimSpace(deps.Config.Gateway.BaseURL)
-			if strings.HasSuffix(baseURL, "/api/v1") {
-				baseURL = strings.TrimSuffix(baseURL, "/api/v1")
+			hostTenantUUID := strings.TrimSpace(deps.Config.Gateway.TenantUUID)
+			if strings.TrimSpace(os.Getenv("POWERX_PROXY")) == "1" {
+				hostTenantUUID = ""
 			}
 			hostClient, err := fwwsbus.NewHostClient(fwwsbus.HostClientConfig{
-				BaseURL:    baseURL,
+				BaseURL:    strings.TrimSpace(deps.Config.Gateway.BaseURL),
+				APIPrefix:  strings.TrimSpace(deps.Config.Gateway.APIPrefix),
+				AuthScheme: strings.TrimSpace(deps.Config.Gateway.AuthScheme),
 				Token:      strings.TrimSpace(deps.Config.Gateway.ToolToken),
-				TenantUUID: strings.TrimSpace(deps.Config.Gateway.TenantUUID),
+				APIKey:     strings.TrimSpace(deps.Config.Gateway.APIKey),
+				TenantUUID: hostTenantUUID,
 				UserAgent:  strings.TrimSpace(deps.Config.Gateway.UserAgent),
 				Timeout:    deps.Config.Gateway.Timeout,
 			})

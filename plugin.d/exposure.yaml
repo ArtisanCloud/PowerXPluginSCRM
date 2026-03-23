@@ -1,0 +1,62 @@
+exposure:
+  channels:
+    - auth: jwt
+      capability: com.powerx.plugins.scrm.template.batch_clone
+      entrypoint: ${POWERX_PLUGIN_HTTP_BASE:-/api/v1}/templates/batch-clone
+      method: POST
+      rbac: template:create
+      type: rest
+    - auth: jwt
+      capability: com.powerx.plugins.scrm.template.create
+      entrypoint: ${POWERX_PLUGIN_HTTP_BASE:-/api/v1}/templates
+      method: POST
+      rbac: template:create
+      type: rest
+    - auth: jwt
+      capability: com.powerx.plugins.scrm.template.delete
+      entrypoint: ${POWERX_PLUGIN_HTTP_BASE:-/api/v1}/templates/{id}
+      method: DELETE
+      rbac: template:delete
+      type: rest
+    - auth: jwt
+      capability: com.powerx.plugins.scrm.template.list
+      entrypoint: ${POWERX_PLUGIN_HTTP_BASE:-/api/v1}/templates
+      method: GET
+      rbac: template:read
+      type: rest
+    - auth: jwt
+      capability: com.powerx.plugins.scrm.template.publish
+      entrypoint: ${POWERX_PLUGIN_HTTP_BASE:-/api/v1}/templates/{id}/publish
+      method: POST
+      rbac: template:update
+      type: rest
+    - auth: jwt
+      capability: com.powerx.plugins.scrm.template.read
+      entrypoint: ${POWERX_PLUGIN_HTTP_BASE:-/api/v1}/templates/{id}
+      method: GET
+      rbac: template:read
+      type: rest
+    - auth: jwt
+      capability: com.powerx.plugins.scrm.template.review
+      entrypoint: ${POWERX_PLUGIN_HTTP_BASE:-/api/v1}/templates/{id}/review
+      method: POST
+      rbac: template:update
+      type: rest
+    - auth: jwt
+      capability: com.powerx.plugins.scrm.template.update
+      entrypoint: ${POWERX_PLUGIN_HTTP_BASE:-/api/v1}/templates/{id}
+      method: PUT
+      rbac: template:update
+      type: rest
+    - auth: jwt
+      capability: com.powerx.plugins.scrm.template.validate
+      entrypoint: ${POWERX_PLUGIN_HTTP_BASE:-/api/v1}/templates/{id}/validate
+      method: POST
+      rbac: template:read
+      type: rest
+    - capability: com.powerx.plugins.scrm.template.audit
+      type: agent_tool
+    - capability: com.powerx.plugins.scrm.template.compose
+      type: agent_tool
+    - capability: com.powerx.plugins.scrm.template.quality_distribute
+      type: agent_tool

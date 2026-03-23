@@ -7,6 +7,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const (
+	wsAuthSourceContextKey = "ws_auth_source"
+)
+
 func b64urlDecode(s string) (string, error) {
 	s = strings.ReplaceAll(s, "-", "+")
 	s = strings.ReplaceAll(s, "_", "/")
@@ -26,9 +30,14 @@ func b64urlDecode(s string) (string, error) {
 // BearerShim promotes query/subprotocol token to Authorization.
 func BearerShim() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		source := "none"
+		if c.GetHeader("Authorization") != "" {
+			source = "header"
+		}
 		if c.GetHeader("Authorization") == "" {
 			if auth := c.Query("authorization"); strings.HasPrefix(strings.ToLower(auth), "bearer ") {
 				c.Request.Header.Set("Authorization", auth)
+				source = "query.authorization"
 			}
 
 			if c.GetHeader("Authorization") == "" {
@@ -46,6 +55,7 @@ func BearerShim() gin.HandlerFunc {
 							if tok, err := b64urlDecode(raw); err == nil && tok != "" {
 								c.Request.Header.Set("Authorization", "Bearer "+tok)
 								c.Writer.Header().Set("Sec-WebSocket-Protocol", pp)
+								source = "sec-websocket-protocol"
 								goto NEXT
 							}
 						}
@@ -54,6 +64,7 @@ func BearerShim() gin.HandlerFunc {
 			}
 		}
 	NEXT:
+		c.Set(wsAuthSourceContextKey, source)
 		c.Next()
 	}
 }

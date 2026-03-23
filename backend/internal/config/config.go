@@ -85,7 +85,7 @@ type Config struct {
 	DBDSN      string `yaml:"-" json:"db_dsn,omitempty"`
 	DBSchema   string `yaml:"-" json:"db_schema,omitempty"`
 	RunMigrate bool   `yaml:"-" json:"run_migrate,omitempty"`
-	ConfigDir string `yaml:"-" json:"-"`
+	ConfigDir  string `yaml:"-" json:"-"`
 }
 
 // EventBridgeConfig 控制事件桥接（本地 emitter / TaskBus emitter / 双写）的行为。
@@ -126,8 +126,15 @@ type ServerConfig struct {
 
 // RuntimeConfig 运行时配置
 type RuntimeConfig struct {
-	RunMigrate            bool `yaml:"run_migrate" json:"run_migrate"`
-	InternalRoutesEnabled bool `yaml:"internal_routes_enabled" json:"internal_routes_enabled"`
+	RunMigrate bool                  `yaml:"run_migrate" json:"run_migrate"`
+	Drivers    *RuntimeDriversConfig `yaml:"drivers" json:"drivers"`
+}
+
+type RuntimeDriversConfig struct {
+	WSBus      string `yaml:"wsbus" json:"wsbus"`
+	TaskBus    string `yaml:"taskbus" json:"taskbus"`
+	EventTopic string `yaml:"event_topic" json:"event_topic"`
+	Cache      string `yaml:"cache" json:"cache"`
 }
 
 // RuntimeOpsDefaults 定义 runtime ops 所需的默认限值与窗口
@@ -212,8 +219,11 @@ type SecurityConfig struct {
 
 // GatewayConfig 描述 Integration Gateway 所需配置。
 type GatewayConfig struct {
+	AuthScheme   string        `yaml:"auth_scheme" json:"auth_scheme"`
 	BaseURL      string        `yaml:"base_url" json:"base_url"`
+	APIPrefix    string        `yaml:"api_prefix" json:"api_prefix"`
 	ToolToken    string        `yaml:"tool_token" json:"tool_token"`
+	APIKey       string        `yaml:"api_key" json:"api_key"`
 	TenantUUID   string        `yaml:"tenant_uuid" json:"tenant_uuid"`
 	Timeout      time.Duration `yaml:"timeout" json:"timeout"`
 	UserAgent    string        `yaml:"user_agent" json:"user_agent"`
@@ -349,6 +359,7 @@ type ContextConfig struct {
 
 // Load 加载配置，优先级：YAML 文件 > 默认值（不再从环境变量覆盖）
 func Load() (*Config, error) {
+	loadEnvFiles()
 
 	// 设置默认配置
 	cfg := getDefaultConfig()
@@ -360,6 +371,7 @@ func Load() (*Config, error) {
 	}
 	if configDir != "" {
 		cfg.ConfigDir = configDir
+		loadEnvFiles(configDir, filepath.Dir(configDir))
 	}
 
 	loadSecurityBaselineConfig(cfg)
@@ -469,8 +481,13 @@ func getDefaultConfig() *Config {
 			Schema: "px_plugin_base",
 		},
 		Runtime: &RuntimeConfig{
-			RunMigrate:            false,
-			InternalRoutesEnabled: false,
+			RunMigrate: false,
+			Drivers: &RuntimeDriversConfig{
+				WSBus:      "auto",
+				TaskBus:    "auto",
+				EventTopic: "auto",
+				Cache:      "auto",
+			},
 		},
 		RuntimeOps: &RuntimeOpsDefaults{
 			HeartbeatSeconds:           15,
@@ -552,7 +569,10 @@ func getDefaultConfig() *Config {
 		},
 		SecurityBaseline: defaultSecurityBaselineConfig(),
 		Gateway: &GatewayConfig{
-			UseMock: []string{},
+			AuthScheme: "bearer",
+			APIPrefix:  "/api/v1",
+			Timeout:    60 * time.Second,
+			UseMock:    []string{},
 		},
 		CustomerAuth: &CustomerAuthConfig{
 			Mode:             "local",
@@ -906,6 +926,21 @@ func loadEnvConfig(cfg *Config) {
 	if runMigrate := resolveConfigValue(os.Getenv("POWERX_RUN_MIGRATE")); strings.EqualFold(runMigrate, "true") {
 		cfg.Runtime.RunMigrate = true
 	}
+	if cfg.Runtime.Drivers == nil {
+		cfg.Runtime.Drivers = &RuntimeDriversConfig{}
+	}
+	if v := resolveConfigValue(os.Getenv("POWERX_RUNTIME_WSBUS_DRIVER")); v != "" {
+		cfg.Runtime.Drivers.WSBus = strings.ToLower(strings.TrimSpace(v))
+	}
+	if v := resolveConfigValue(os.Getenv("POWERX_RUNTIME_TASKBUS_DRIVER")); v != "" {
+		cfg.Runtime.Drivers.TaskBus = strings.ToLower(strings.TrimSpace(v))
+	}
+	if v := resolveConfigValue(os.Getenv("POWERX_RUNTIME_EVENT_TOPIC_DRIVER")); v != "" {
+		cfg.Runtime.Drivers.EventTopic = strings.ToLower(strings.TrimSpace(v))
+	}
+	if v := resolveConfigValue(os.Getenv("POWERX_RUNTIME_CACHE_DRIVER")); v != "" {
+		cfg.Runtime.Drivers.Cache = strings.ToLower(strings.TrimSpace(v))
+	}
 
 	// 上下文配置
 	if hmacSecret := resolveConfigValue(os.Getenv("PLUGIN_CTX_HMAC_SECRET")); hmacSecret != "" {
@@ -1007,6 +1042,12 @@ func loadEnvConfig(cfg *Config) {
 	if baseURL := resolveConfigValue(os.Getenv("PX_GATEWAY_BASE_URL")); baseURL != "" {
 		cfg.Gateway.BaseURL = baseURL
 	}
+	if authScheme := resolveConfigValue(os.Getenv("PX_GATEWAY_AUTH_SCHEME")); authScheme != "" {
+		cfg.Gateway.AuthScheme = authScheme
+	}
+	if apiPrefix := resolveConfigValue(os.Getenv("PX_GATEWAY_API_PREFIX")); apiPrefix != "" {
+		cfg.Gateway.APIPrefix = apiPrefix
+	}
 	token := firstNonEmpty(
 		resolveConfigValue(os.Getenv("PX_PLUGIN_TOOL_TOKEN")),
 		resolveConfigValue(os.Getenv("PX_TOOL_TOKEN")),
@@ -1014,8 +1055,12 @@ func loadEnvConfig(cfg *Config) {
 	if token != "" {
 		cfg.Gateway.ToolToken = token
 	}
-	if tenant := resolveConfigValue(os.Getenv("PX_TENANT_UUID")); tenant != "" {
-		cfg.Gateway.TenantUUID = tenant
+	apiKey := firstNonEmpty(
+		resolveConfigValue(os.Getenv("PX_GATEWAY_API_KEY")),
+		resolveConfigValue(os.Getenv("PX_PLUGIN_API_KEY")),
+	)
+	if apiKey != "" {
+		cfg.Gateway.APIKey = apiKey
 	}
 	if timeout := resolveConfigValue(os.Getenv("PX_GATEWAY_TIMEOUT")); timeout != "" {
 		if d, err := time.ParseDuration(timeout); err == nil {
@@ -1028,14 +1073,23 @@ func loadEnvConfig(cfg *Config) {
 	if mockModules := resolveConfigValue(os.Getenv("PX_USE_MOCK")); mockModules != "" {
 		cfg.Gateway.UseMock = splitCSV(mockModules)
 	}
-	if internalRoutes := resolveConfigValue(os.Getenv("POWERX_INTERNAL_ROUTES")); internalRoutes != "" {
-		cfg.Runtime.InternalRoutesEnabled = (internalRoutes == "1" || strings.EqualFold(internalRoutes, "true"))
-	}
 	if refreshToken := resolveConfigValue(os.Getenv("PX_TOOL_REFRESH_TOKEN")); refreshToken != "" {
 		cfg.Gateway.RefreshToken = refreshToken
 	}
 	if authBase := resolveConfigValue(os.Getenv("PX_AUTH_BASE_URL")); authBase != "" {
 		cfg.Gateway.AuthBaseURL = authBase
+	}
+
+	// Customer auth secret: allow host-injected runtime secret to satisfy
+	// production validation during migrate/setup commands.
+	if cfg.CustomerAuth == nil {
+		cfg.CustomerAuth = &CustomerAuthConfig{}
+	}
+	if v := firstNonEmpty(
+		resolveConfigValue(os.Getenv("POWERX_AUTH_JWTSECRET")),
+		resolveConfigValue(os.Getenv("POWERX_SECURITY_JWT_SECRET")),
+	); v != "" {
+		cfg.CustomerAuth.JWTSecret = v
 	}
 }
 
@@ -1091,8 +1145,11 @@ func normalizeConfig(cfg *Config) {
 		cfg.Server.LogLevel = strings.ToLower(resolveConfigValue(cfg.Server.LogLevel))
 	}
 	if cfg.Gateway != nil {
+		cfg.Gateway.AuthScheme = strings.ToLower(resolveConfigValue(cfg.Gateway.AuthScheme))
 		cfg.Gateway.BaseURL = resolveConfigValue(cfg.Gateway.BaseURL)
+		cfg.Gateway.APIPrefix = normalizeGatewayAPIPrefix(resolveConfigValue(cfg.Gateway.APIPrefix))
 		cfg.Gateway.ToolToken = resolveConfigValue(cfg.Gateway.ToolToken)
+		cfg.Gateway.APIKey = resolveConfigValue(cfg.Gateway.APIKey)
 		cfg.Gateway.TenantUUID = strings.ToLower(resolveConfigValue(cfg.Gateway.TenantUUID))
 		cfg.Gateway.AuthBaseURL = resolveConfigValue(cfg.Gateway.AuthBaseURL)
 
@@ -1101,20 +1158,29 @@ func normalizeConfig(cfg *Config) {
 		if cfg.Server != nil && cfg.Server.DevMode {
 			baseURL := strings.TrimSpace(cfg.Gateway.BaseURL)
 			toolToken := strings.TrimSpace(cfg.Gateway.ToolToken)
+			apiKey := strings.TrimSpace(cfg.Gateway.APIKey)
 			tenantUUID := strings.TrimSpace(cfg.Gateway.TenantUUID)
 
-			hasAny := baseURL != "" || toolToken != "" || tenantUUID != ""
-			incomplete := baseURL == "" || toolToken == ""
+			hasAny := baseURL != "" || toolToken != "" || apiKey != "" || tenantUUID != ""
+			authScheme := normalizeGatewayAuthScheme(cfg.Gateway.AuthScheme)
+			if authScheme == "" {
+				authScheme = inferGatewayAuthScheme(toolToken, apiKey)
+			}
+			incomplete := baseURL == "" || (authScheme == "apikey" && apiKey == "") || (authScheme != "apikey" && toolToken == "")
 
 			if hasAny && incomplete {
 				logrus.WithFields(logrus.Fields{
 					"gateway.base_url":    baseURL,
+					"gateway.auth_scheme": authScheme,
 					"gateway.tool_token":  toolToken != "",
+					"gateway.api_key":     apiKey != "",
 					"gateway.tenant_uuid": tenantUUID,
 				}).Warn("Gateway config is incomplete; gateway disabled in dev mode (set gateway.base_url/tool_token to enable)")
 
+				cfg.Gateway.AuthScheme = ""
 				cfg.Gateway.BaseURL = ""
 				cfg.Gateway.ToolToken = ""
+				cfg.Gateway.APIKey = ""
 				cfg.Gateway.TenantUUID = ""
 			}
 		}
@@ -1129,6 +1195,12 @@ func normalizeConfig(cfg *Config) {
 		cfg.Cache.Host = resolveConfigValue(cfg.Cache.Host)
 		cfg.Cache.RedisURL = resolveConfigValue(cfg.Cache.RedisURL)
 		cfg.Cache.Prefix = resolveConfigValue(cfg.Cache.Prefix)
+	}
+	if cfg.Runtime != nil && cfg.Runtime.Drivers != nil {
+		cfg.Runtime.Drivers.WSBus = strings.ToLower(resolveConfigValue(cfg.Runtime.Drivers.WSBus))
+		cfg.Runtime.Drivers.TaskBus = strings.ToLower(resolveConfigValue(cfg.Runtime.Drivers.TaskBus))
+		cfg.Runtime.Drivers.EventTopic = strings.ToLower(resolveConfigValue(cfg.Runtime.Drivers.EventTopic))
+		cfg.Runtime.Drivers.Cache = strings.ToLower(resolveConfigValue(cfg.Runtime.Drivers.Cache))
 	}
 	if cfg.GRPCUpstream != nil {
 		cfg.GRPCUpstream.Address = resolveConfigValue(cfg.GRPCUpstream.Address)
@@ -1150,6 +1222,22 @@ func normalizeConfig(cfg *Config) {
 		cfg.CustomerAuth.JWTIssuer = resolveConfigValue(cfg.CustomerAuth.JWTIssuer)
 		cfg.CustomerAuth.JWTAudience = resolveConfigValue(cfg.CustomerAuth.JWTAudience)
 		cfg.CustomerAuth.JWTSecret = resolveConfigValue(cfg.CustomerAuth.JWTSecret)
+		if strings.TrimSpace(cfg.CustomerAuth.JWTSecret) == "" {
+			fallbackJWT := firstNonEmpty(
+				resolveConfigValue(os.Getenv("POWERX_AUTH_JWTSECRET")),
+				resolveConfigValue(os.Getenv("POWERX_SECURITY_JWT_SECRET")),
+			)
+			if fallbackJWT == "" && cfg.Context != nil {
+				fallbackJWT = strings.TrimSpace(cfg.Context.HMACSecret)
+			}
+			cfg.CustomerAuth.JWTSecret = fallbackJWT
+		}
+		if strings.TrimSpace(cfg.CustomerAuth.JWTIssuer) == "" && cfg.Context != nil {
+			cfg.CustomerAuth.JWTIssuer = strings.TrimSpace(cfg.Context.Issuer)
+		}
+		if strings.TrimSpace(cfg.CustomerAuth.JWTAudience) == "" && cfg.Context != nil {
+			cfg.CustomerAuth.JWTAudience = strings.TrimSpace(cfg.Context.Audience)
+		}
 	}
 }
 
@@ -1267,6 +1355,62 @@ func splitCSV(input string) []string {
 	return result
 }
 
+func isAllowedValue(value string, allowed ...string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	for _, item := range allowed {
+		if normalized == strings.ToLower(strings.TrimSpace(item)) {
+			return true
+		}
+	}
+	return false
+}
+
+func normalizeGatewayAuthScheme(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "apikey", "api_key", "api-key":
+		return "apikey"
+	case "bearer":
+		return "bearer"
+	default:
+		return ""
+	}
+}
+
+func inferGatewayAuthScheme(toolToken, apiKey string) string {
+	if strings.TrimSpace(apiKey) != "" {
+		return "apikey"
+	}
+	if strings.TrimSpace(toolToken) != "" {
+		return "bearer"
+	}
+	return "bearer"
+}
+
+func hasGatewayCredential(gateway *GatewayConfig) bool {
+	if gateway == nil {
+		return false
+	}
+	if normalizeGatewayAuthScheme(gateway.AuthScheme) == "apikey" {
+		return strings.TrimSpace(gateway.APIKey) != ""
+	}
+	return strings.TrimSpace(gateway.ToolToken) != ""
+}
+
+func normalizeGatewayAPIPrefix(raw string) string {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return "/api/v1"
+	}
+	if !strings.HasPrefix(value, "/") {
+		value = "/" + value
+	}
+	value = "/" + strings.Trim(strings.TrimSpace(value), "/")
+	if value == "/" {
+		return "/api/v1"
+	}
+	return value
+}
+
 // GetString 获取字符串配置，支持默认值
 func GetString(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
@@ -1376,9 +1520,18 @@ func (c *Config) Validate() error {
 
 	if c.CustomerAuth.Mode == "local" && c.IsProduction() {
 		if strings.TrimSpace(c.CustomerAuth.JWTSecret) == "" {
+			if strings.TrimSpace(os.Getenv("POWERX_ALLOW_EMPTY_CUSTOMER_AUTH_JWT")) == "1" {
+				goto skipCustomerAuthSecretCheck
+			}
+			if isMigrationCommand() {
+				// 数据库迁移阶段不走 customer 登录链路，允许使用迁移流程兜底密钥。
+				// 运行时 plugin 进程仍会按生产规则要求显式 jwt_secret。
+				goto skipCustomerAuthSecretCheck
+			}
 			return NewConfigError("customer_auth.jwt_secret is required in production when mode=local")
 		}
 	}
+skipCustomerAuthSecretCheck:
 
 	// EventBridge 配置默认值与验证
 	if c.EventBridge == nil {
@@ -1413,6 +1566,30 @@ func (c *Config) Validate() error {
 	}
 	if !c.EventBridge.Enabled && c.EventBridge.Mode != "local" {
 		c.EventBridge.Mode = "local"
+	}
+
+	if c.Runtime == nil {
+		c.Runtime = &RuntimeConfig{}
+	}
+	if c.Runtime.Drivers == nil {
+		c.Runtime.Drivers = &RuntimeDriversConfig{
+			WSBus:      "auto",
+			TaskBus:    "auto",
+			EventTopic: "auto",
+			Cache:      "auto",
+		}
+	}
+	if !isAllowedValue(c.Runtime.Drivers.WSBus, "auto", "local", "host") {
+		return NewConfigError("runtime.drivers.wsbus must be one of: auto, local, host")
+	}
+	if !isAllowedValue(c.Runtime.Drivers.TaskBus, "auto", "local", "host") {
+		return NewConfigError("runtime.drivers.taskbus must be one of: auto, local, host")
+	}
+	if !isAllowedValue(c.Runtime.Drivers.EventTopic, "auto", "local", "host") {
+		return NewConfigError("runtime.drivers.event_topic must be one of: auto, local, host")
+	}
+	if !isAllowedValue(c.Runtime.Drivers.Cache, "auto", "memory", "redis", "noop") {
+		return NewConfigError("runtime.drivers.cache must be one of: auto, memory, redis, noop")
 	}
 
 	// 安全配置验证
@@ -1477,14 +1654,19 @@ func (c *Config) Validate() error {
 	if c.Gateway != nil {
 		hasGatewayFields := strings.TrimSpace(c.Gateway.BaseURL) != "" ||
 			strings.TrimSpace(c.Gateway.ToolToken) != "" ||
-			strings.TrimSpace(c.Gateway.TenantUUID) != ""
+			strings.TrimSpace(c.Gateway.APIKey) != ""
 		if hasGatewayFields {
-			if strings.TrimSpace(c.Gateway.BaseURL) == "" ||
-				strings.TrimSpace(c.Gateway.ToolToken) == "" {
-				return NewConfigError("gateway config requires base_url and tool_token when enabled")
+			c.Gateway.AuthScheme = normalizeGatewayAuthScheme(c.Gateway.AuthScheme)
+			c.Gateway.APIPrefix = normalizeGatewayAPIPrefix(c.Gateway.APIPrefix)
+			if c.Gateway.AuthScheme == "" {
+				c.Gateway.AuthScheme = inferGatewayAuthScheme(c.Gateway.ToolToken, c.Gateway.APIKey)
 			}
-			if tenant := strings.TrimSpace(c.Gateway.TenantUUID); tenant != "" {
-				if _, err := uuid.Parse(tenant); err != nil {
+			if strings.TrimSpace(c.Gateway.BaseURL) == "" || !hasGatewayCredential(c.Gateway) {
+				return NewConfigError("gateway config requires base_url and matching credential (bearer: tool_token, apikey: api_key)")
+			}
+
+			if tenantUUID := strings.TrimSpace(c.Gateway.TenantUUID); tenantUUID != "" {
+				if _, err := uuid.Parse(tenantUUID); err != nil {
 					return NewConfigError("gateway.tenant_uuid must be a valid UUID string")
 				}
 			}
@@ -1505,4 +1687,21 @@ func (e *ConfigError) Error() string {
 
 func NewConfigError(message string) *ConfigError {
 	return &ConfigError{Message: message}
+}
+
+func isMigrationCommand() bool {
+	if len(os.Args) == 0 {
+		return false
+	}
+	bin := strings.ToLower(filepath.Base(os.Args[0]))
+	if strings.Contains(bin, "migrate") || strings.Contains(bin, "database") {
+		return true
+	}
+	if len(os.Args) > 1 {
+		switch strings.ToLower(strings.TrimSpace(os.Args[1])) {
+		case "migrate", "setup", "refresh":
+			return true
+		}
+	}
+	return false
 }

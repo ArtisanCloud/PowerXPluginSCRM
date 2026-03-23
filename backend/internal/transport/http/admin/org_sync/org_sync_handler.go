@@ -1,14 +1,15 @@
 package org_sync
 
 import (
+	"context"
 	"errors"
 	"strconv"
 	"strings"
 
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/contracts"
 	repository "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository"
-	orgrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/org_sync"
 	socialrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/social_channel_governance"
+	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/logger"
 	orgsvc "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/services/admin/org_sync"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/transport/http/middleware"
 	"github.com/gin-gonic/gin"
@@ -47,19 +48,23 @@ func (h *OrgSyncHandler) TriggerSync(c *gin.Context) {
 		contracts.ResponseUnauthorized(c, "tenant context missing")
 		return
 	}
-	account, err := h.syncSvc.TriggerSync(c.Request.Context(), tenantUUID, sourceAccountUUID)
-	if err != nil {
-		switch {
-		case errors.Is(err, orgrepo.ErrSourceAccountNotFound):
-			contracts.ResponseNotFound(c, "source account not found")
-		case errors.Is(err, repository.ErrTenantUuidRequired):
-			contracts.ResponseBadRequest(c, "tenant_uuid is required")
-		default:
-			contracts.ResponseInternalError(c, err)
+	traceID := strings.TrimSpace(c.GetString("trace_id"))
+	go func(tenant, source, trace string) {
+		ctx := context.Background()
+		if _, err := h.syncSvc.TriggerSync(ctx, tenant, source); err != nil {
+			logger.WithFields(logger.Fields{
+				"component":           "org_sync",
+				"tenant_uuid":         tenant,
+				"source_account_uuid": source,
+				"trace_id":            trace,
+			}).WithError(err).Error("org sync async trigger failed")
 		}
-		return
-	}
-	contracts.ResponseSuccess(c, account)
+	}(tenantUUID, sourceAccountUUID, traceID)
+
+	contracts.ResponseSuccess(c, gin.H{
+		"source_account_uuid": sourceAccountUUID,
+		"status":              "queued",
+	})
 }
 
 func (h *OrgSyncHandler) ListSourceUnits(c *gin.Context) {

@@ -1,0 +1,88 @@
+capabilities:
+  imports:
+    - contracts/capabilities/com.powerx.plugins.scrm.template.audit.yaml
+    - contracts/capabilities/com.powerx.plugins.scrm.template.batch_clone.yaml
+    - contracts/capabilities/com.powerx.plugins.scrm.template.compose.yaml
+    - contracts/capabilities/com.powerx.plugins.scrm.template.create.yaml
+    - contracts/capabilities/com.powerx.plugins.scrm.template.delete.yaml
+    - contracts/capabilities/com.powerx.plugins.scrm.template.list.yaml
+    - contracts/capabilities/com.powerx.plugins.scrm.template.publish.yaml
+    - contracts/capabilities/com.powerx.plugins.scrm.template.quality_distribute.yaml
+    - contracts/capabilities/com.powerx.plugins.scrm.template.read.yaml
+    - contracts/capabilities/com.powerx.plugins.scrm.template.review.yaml
+    - contracts/capabilities/com.powerx.plugins.scrm.template.update.yaml
+    - contracts/capabilities/com.powerx.plugins.scrm.template.validate.yaml
+  provides:
+    - descriptor: contracts/capabilities/com.powerx.plugins.scrm.template.audit.yaml
+      id: com.powerx.plugins.scrm.template.audit
+      schemas:
+        input: contracts/schema/input/com.powerx.plugins.scrm.template.audit.json
+        output: contracts/schema/output/com.powerx.plugins.scrm.template.audit.json
+      version: 1.0.0
+    - descriptor: contracts/capabilities/com.powerx.plugins.scrm.template.batch_clone.yaml
+      id: com.powerx.plugins.scrm.template.batch_clone
+      schemas:
+        input: contracts/schema/input/com.powerx.plugins.scrm.template.batch_clone.json
+        output: contracts/schema/output/com.powerx.plugins.scrm.template.batch_clone.json
+      version: 1.0.0
+    - descriptor: contracts/capabilities/com.powerx.plugins.scrm.template.compose.yaml
+      id: com.powerx.plugins.scrm.template.compose
+      schemas:
+        input: contracts/schema/input/com.powerx.plugins.scrm.template.compose.json
+        output: contracts/schema/output/com.powerx.plugins.scrm.template.compose.json
+      version: 1.0.0
+    - descriptor: contracts/capabilities/com.powerx.plugins.scrm.template.create.yaml
+      id: com.powerx.plugins.scrm.template.create
+      schemas:
+        input: contracts/schema/input/com.powerx.plugins.scrm.template.create.json
+        output: contracts/schema/output/com.powerx.plugins.scrm.template.create.json
+      version: 1.0.0
+    - descriptor: contracts/capabilities/com.powerx.plugins.scrm.template.delete.yaml
+      id: com.powerx.plugins.scrm.template.delete
+      schemas:
+        input: contracts/schema/input/com.powerx.plugins.scrm.template.delete.json
+        output: contracts/schema/output/com.powerx.plugins.scrm.template.delete.json
+      version: 1.0.0
+    - descriptor: contracts/capabilities/com.powerx.plugins.scrm.template.list.yaml
+      id: com.powerx.plugins.scrm.template.list
+      schemas:
+        input: contracts/schema/input/com.powerx.plugins.scrm.template.list.json
+        output: contracts/schema/output/com.powerx.plugins.scrm.template.list.json
+      version: 1.0.0
+    - descriptor: contracts/capabilities/com.powerx.plugins.scrm.template.publish.yaml
+      id: com.powerx.plugins.scrm.template.publish
+      schemas:
+        input: contracts/schema/input/com.powerx.plugins.scrm.template.publish.json
+        output: contracts/schema/output/com.powerx.plugins.scrm.template.publish.json
+      version: 1.0.0
+    - descriptor: contracts/capabilities/com.powerx.plugins.scrm.template.quality_distribute.yaml
+      id: com.powerx.plugins.scrm.template.quality_distribute
+      schemas:
+        input: contracts/schema/input/com.powerx.plugins.scrm.template.quality_distribute.json
+        output: contracts/schema/output/com.powerx.plugins.scrm.template.quality_distribute.json
+      version: 1.0.0
+    - descriptor: contracts/capabilities/com.powerx.plugins.scrm.template.read.yaml
+      id: com.powerx.plugins.scrm.template.read
+      schemas:
+        input: contracts/schema/input/com.powerx.plugins.scrm.template.read.json
+        output: contracts/schema/output/com.powerx.plugins.scrm.template.read.json
+      version: 1.0.0
+    - descriptor: contracts/capabilities/com.powerx.plugins.scrm.template.review.yaml
+      id: com.powerx.plugins.scrm.template.review
+      schemas:
+        input: contracts/schema/input/com.powerx.plugins.scrm.template.review.json
+        output: contracts/schema/output/com.powerx.plugins.scrm.template.review.json
+      version: 1.0.0
+    - descriptor: contracts/capabilities/com.powerx.plugins.scrm.template.update.yaml
+      id: com.powerx.plugins.scrm.template.update
+      schemas:
+        input: contracts/schema/input/com.powerx.plugins.scrm.template.update.json
+        output: contracts/schema/output/com.powerx.plugins.scrm.template.update.json
+      version: 1.0.0
+    - descriptor: contracts/capabilities/com.powerx.plugins.scrm.template.validate.yaml
+      id: com.powerx.plugins.scrm.template.validate
+      schemas:
+        input: contracts/schema/input/com.powerx.plugins.scrm.template.validate.json
+        output: contracts/schema/output/com.powerx.plugins.scrm.template.validate.json
+      version: 1.0.0
+  required: []

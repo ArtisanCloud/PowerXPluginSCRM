@@ -10,9 +10,9 @@ import (
 	"time"
 
 	fwbootstrap "github.com/ArtisanCloud/PowerXPlugin/framework/backend/go/bootstrap"
-	fwwsbus "github.com/ArtisanCloud/PowerXPlugin/framework/backend/go/runtime/wsbus"
 	"github.com/ArtisanCloud/PowerXPlugin/framework/backend/go/manifest"
 	fwrouter "github.com/ArtisanCloud/PowerXPlugin/framework/backend/go/router"
+	fwwsbus "github.com/ArtisanCloud/PowerXPlugin/framework/backend/go/runtime/wsbus"
 	runtimecap "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/cmd/plugin/runtime"
 	pluginbootstrap "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/bootstrap"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/capabilities"
@@ -31,6 +31,7 @@ import (
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/auth"
 	capmetrics "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/capability"
 	ebmetrics "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/event_bridge"
+	leadmetrics "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/lead_capture"
 	opsmetrics "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/operations"
 	pluginrouter "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/router"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/security"
@@ -105,12 +106,26 @@ func main() {
 	// ★ 在这里把 HTTP/GRPC 的占位符先解析掉（一定要在起服务之前）
 	//   - HTTP 用 PORT（由 PowerX 的 supervisor 注入）
 	cfg.Server.BindAddr = utils.ResolveDynamicAddr(cfg.Server.BindAddr, "PORT")
+	// 宿主优先：明确注入的监听地址/端口应覆盖默认 bind_addr，避免健康检查端口漂移。
+	if v := strings.TrimSpace(os.Getenv("POWERX_HTTP_ADDR")); v != "" {
+		cfg.Server.BindAddr = v
+	} else if v := strings.TrimSpace(os.Getenv("POWERX_DYNAMIC_PORT")); v != "" {
+		cfg.Server.BindAddr = ":" + v
+	} else if v := strings.TrimSpace(os.Getenv("PORT")); v != "" {
+		cfg.Server.BindAddr = ":" + v
+	}
 
 	//   - gRPC 用 POWERX_GRPC_PORT（由 PowerX 的 Enable 阶段注入）
 	if cfg.GRPCServer != nil {
 		// 如果你的字段叫 Addr，就把下一行改成：cfg.GRPCServer.Addr = resolveDynamicAddr(cfg.GRPCServer.Addr, "POWERX_GRPC_PORT")
 		cfg.GRPCServer.Addr = utils.ResolveDynamicAddr(cfg.GRPCServer.Addr, "POWERX_GRPC_PORT")
 	}
+	logger.WithFields(logger.Fields{
+		"bind_addr":           cfg.Server.BindAddr,
+		"powerx_http_addr":    strings.TrimSpace(os.Getenv("POWERX_HTTP_ADDR")),
+		"powerx_dynamic_port": strings.TrimSpace(os.Getenv("POWERX_DYNAMIC_PORT")),
+		"port_env":            strings.TrimSpace(os.Getenv("PORT")),
+	}).Info("Resolved HTTP bind address")
 
 	// 初始化插件
 	queryDB, err := pluginbootstrap.BootstrapPlugin(ctx, cfg)
@@ -214,6 +229,7 @@ func main() {
 			bridgeEmitter = fweventbridge.NewLocalEmitter(1024)
 		} else {
 			factory.WithMetrics(bridgeRecorder{})
+			factory.WithTaskBusProvider(fweventbridge.NewTaskBusEmitterAdapter(resolveTaskBusProvider(cfg, eventLogger)))
 			bridgeEmitter, err = factory.NewEmitter()
 			if err != nil {
 				eventLogger.WithError(err).Warn("Failed to initialize event bridge emitter; falling back to local emitter")
@@ -246,6 +262,7 @@ func main() {
 		LicenseCache:        licenseCache,
 		OperationsMetrics:   opsmetrics.NewMetrics(),
 		AdminConsoleMetrics: adminmetrics.NewMetrics(),
+		LeadCaptureMetrics:  leadmetrics.NewMetrics(),
 		EventEmitter:        bridgeEmitter,
 		WSBusHub:            wsHub,
 		IAMMode:             iamResolver.Mode(),
@@ -291,6 +308,8 @@ func main() {
 	fwrouter.RegisterPluginRoutes(fwApp, func(r fwbootstrap.Router) {
 		httpserver.RegisterGinRoutes(r, engine)
 	})
+	// WS endpoint lives outside /api/v1; bridge it explicitly at framework root.
+	httpserver.RegisterGinWebsocketRoute(fwApp.Router, engine, cfg.Server.WSPrefix)
 
 	if err := manifest.Register(fwApp, manifestx.Plugin()); err != nil {
 		logger.WithError(err).Fatal("Failed to register manifest")

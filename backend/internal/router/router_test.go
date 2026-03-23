@@ -14,7 +14,7 @@ func TestBuildJWTInProxyMode(t *testing.T) {
 
 	t.Setenv("POWERX_PROXY", "1")
 	t.Setenv("POWERX_SECURITY_JWT_ISSUER", "powerx-auth")
-	t.Setenv("POWERX_SECURITY_JWT_AUDIENCE", "plugin:com.powerx.plugins.base")
+	t.Setenv("POWERX_SECURITY_JWT_AUDIENCE", "plugin:com.powerx.plugins.scrm")
 	t.Setenv("POWERX_SECURITY_JWT_SECRET", "secret")
 	t.Setenv("POWERX_SECURITY_CTX_HMAC_SECRET", "ctx-secret")
 

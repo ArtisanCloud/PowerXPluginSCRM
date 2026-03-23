@@ -103,7 +103,11 @@ export const useSocialChannelGovernanceService = () => {
     },
     testChannelAccountContactSecret: (
       accountUuid: string,
-      payload?: { http_debug?: boolean; mode?: string }
+      payload?: {
+        http_debug?: boolean;
+        mode?: string;
+        credentials?: Record<string, string>;
+      }
     ) => {
       return apiClient.post<ApiResponse<{ members_total: number; units_total: number }>>(
         `${baseUrl}/${accountUuid}/test-contact-secret`,

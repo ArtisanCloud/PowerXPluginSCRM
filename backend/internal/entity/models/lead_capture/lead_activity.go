@@ -12,6 +12,8 @@ const (
 	LeadActivityTypeMerge        = "merge"
 	LeadActivityTypeStatusChange = "status_change"
 	LeadActivityTypeAssign       = "assign"
+	LeadActivityTypeBotCommand   = "bot_command"
+	LeadActivityTypeSyncTrace    = "sync_trace"
 )
 
 // LeadActivity records lead lifecycle actions for audit tracking.

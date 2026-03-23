@@ -18,13 +18,6 @@ channels:
             span: 1
             placeholder: 企业微信企业 ID
             hint: 企业微信企业 ID（CorpID）。
-          - key: secret
-            label: 通讯录管理 Secret
-            required: false
-            span: 1
-            placeholder: 通讯录管理 Secret
-            hint: 通讯录管理 Secret（管理工具-通讯录同步）。留空会导致同步/测试失败。
-            input_type: password
           - key: app_secret
             label: 应用 Secret
             required: false
