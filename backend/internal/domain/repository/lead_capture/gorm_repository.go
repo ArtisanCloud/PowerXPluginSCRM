@@ -86,6 +86,32 @@ func (r *channelCodeRepository) GetByCodeUUID(ctx context.Context, tenantUUID, c
 	return &out, nil
 }
 
+func (r *channelCodeRepository) GetByCodeKey(ctx context.Context, tenantUUID, channel, codeKey string) (*leadmodel.ChannelCode, error) {
+	if r == nil || r.db == nil {
+		return nil, ErrRepositoryDBNotReady
+	}
+	tenantUUID, err := normalizeTenant(tenantUUID)
+	if err != nil {
+		return nil, err
+	}
+	channel = strings.ToLower(strings.TrimSpace(channel))
+	codeKey = strings.TrimSpace(codeKey)
+	if channel == "" || codeKey == "" {
+		return nil, errors.New("channel and code_key are required")
+	}
+	var out leadmodel.ChannelCode
+	q := r.db.WithContext(ctx).
+		Where("tenant_uuid = ? AND channel = ? AND code_key = ?", tenantUUID, channel, codeKey).
+		First(&out)
+	if q.Error != nil {
+		if errors.Is(q.Error, gorm.ErrRecordNotFound) {
+			return nil, ErrRecordNotFound
+		}
+		return nil, q.Error
+	}
+	return &out, nil
+}
+
 func (r *channelCodeRepository) List(ctx context.Context, tenantUUID string, filter ChannelCodeListFilter) ([]*leadmodel.ChannelCode, error) {
 	if r == nil || r.db == nil {
 		return nil, ErrRepositoryDBNotReady
@@ -300,6 +326,51 @@ func (r *channelCodeEventRepository) GetByIdempotencyKey(ctx context.Context, te
 	return &out, nil
 }
 
+func (r *channelCodeEventRepository) ListByCodeUUID(ctx context.Context, tenantUUID, codeUUID string, limit int) ([]*leadmodel.ChannelCodeEvent, error) {
+	if r == nil || r.db == nil {
+		return nil, ErrRepositoryDBNotReady
+	}
+	tenantUUID, err := normalizeTenant(tenantUUID)
+	if err != nil {
+		return nil, err
+	}
+	codeUUID, err = normalizeCodeUUID(codeUUID)
+	if err != nil {
+		return nil, err
+	}
+	limit = ensureLimit(limit, 50)
+	var out []*leadmodel.ChannelCodeEvent
+	err = r.db.WithContext(ctx).
+		Where("tenant_uuid = ? AND code_uuid = ?", tenantUUID, codeUUID).
+		Order("occurred_at desc").
+		Limit(limit).
+		Find(&out).Error
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (r *channelCodeEventRepository) CountByCodeUUID(ctx context.Context, tenantUUID, codeUUID string) (int64, error) {
+	if r == nil || r.db == nil {
+		return 0, ErrRepositoryDBNotReady
+	}
+	tenantUUID, err := normalizeTenant(tenantUUID)
+	if err != nil {
+		return 0, err
+	}
+	codeUUID, err = normalizeCodeUUID(codeUUID)
+	if err != nil {
+		return 0, err
+	}
+	var count int64
+	err = r.db.WithContext(ctx).
+		Model(&leadmodel.ChannelCodeEvent{}).
+		Where("tenant_uuid = ? AND code_uuid = ?", tenantUUID, codeUUID).
+		Count(&count).Error
+	return count, err
+}
+
 func (r *leadAttributionRepository) Create(ctx context.Context, item *leadmodel.LeadAttributionRecord) error {
 	if r == nil || r.db == nil {
 		return ErrRepositoryDBNotReady
@@ -341,6 +412,49 @@ func (r *leadAttributionRepository) ListByLeadUUID(ctx context.Context, tenantUU
 		return nil, err
 	}
 	return out, nil
+}
+
+func (r *leadAttributionRepository) ListByEventUUID(ctx context.Context, tenantUUID, eventUUID string) ([]*leadmodel.LeadAttributionRecord, error) {
+	if r == nil || r.db == nil {
+		return nil, ErrRepositoryDBNotReady
+	}
+	tenantUUID, err := normalizeTenant(tenantUUID)
+	if err != nil {
+		return nil, err
+	}
+	eventUUID = strings.ToLower(strings.TrimSpace(eventUUID))
+	if eventUUID == "" {
+		return nil, errors.New("event_uuid is required")
+	}
+	var out []*leadmodel.LeadAttributionRecord
+	err = r.db.WithContext(ctx).
+		Where("tenant_uuid = ? AND event_uuid = ?", tenantUUID, eventUUID).
+		Order("created_at asc").
+		Find(&out).Error
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (r *leadAttributionRepository) CountByCodeUUID(ctx context.Context, tenantUUID, codeUUID string) (int64, error) {
+	if r == nil || r.db == nil {
+		return 0, ErrRepositoryDBNotReady
+	}
+	tenantUUID, err := normalizeTenant(tenantUUID)
+	if err != nil {
+		return 0, err
+	}
+	codeUUID, err = normalizeCodeUUID(codeUUID)
+	if err != nil {
+		return 0, err
+	}
+	var count int64
+	err = r.db.WithContext(ctx).
+		Model(&leadmodel.LeadAttributionRecord{}).
+		Where("tenant_uuid = ? AND code_uuid = ?", tenantUUID, codeUUID).
+		Count(&count).Error
+	return count, err
 }
 
 func (r *codeConfigChangeLogRepository) Create(ctx context.Context, item *leadmodel.CodeConfigChangeLog) error {

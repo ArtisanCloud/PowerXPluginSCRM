@@ -1,25 +1,46 @@
 # Lead Capture Observability Checklist
 
-## Scope (Phase 6 / T049)
+## 范围（Phase 6 / T050）
 
-This module exposes cross-cutting metrics for US1~US3 verification:
+本模块用于覆盖 004 与 005 的跨故事观测口径，重点分为四类：
 
+### 1) 线索同步与会话桥接（004）
 - `powerx_lead_capture_sync_task_total{provider,status}`
-  - Check task provider dimension (`framework|local_fallback`) and status flow.
+  - 关注 `provider`（`framework|local_fallback`）与状态流转是否一致。
 - `powerx_lead_capture_conversation_event_total{provider,result}`
-  - Check idempotent ingestion counters (`ingest_created`, `ingest_duplicate`, `ingest_failed`, etc.).
+  - 关注会话事件入站结果（创建、重复、失败等）。
 - `powerx_lead_capture_conversation_duplicate_rate{provider}`
-  - Derived duplicate drop rate = `ingest_duplicate / (ingest_created + ingest_duplicate)`.
+  - 口径：`ingest_duplicate / (ingest_created + ingest_duplicate)`。
 - `powerx_lead_capture_conversation_latency_ms{provider}`
-  - Latest webhook ingestion latency (ms).
 - `powerx_lead_capture_conversation_latency_p95_ms{provider}`
-  - Rolling p95 latency (window: 200 samples).
+  - 关注 webhook 入站延迟与 p95 抖动。
 
-## Runtime Validation
+### 2) 渠道码与欢迎语（005）
+- `powerx_lead_capture_channel_code_config_change_total{channel,app_type}`
+  - 记录渠道码欢迎语配置变更次数。
+- `powerx_lead_capture_channel_code_event_ingest_total{channel,app_type,result}`
+  - 记录渠道码事件入站结果（例如 `success`、`failed`）。
+- `powerx_lead_capture_welcome_sync_attempt_total{channel,app_type,trigger,result,error_code}`
+  - 记录欢迎语发布尝试次数、触发来源、结果与标准错误码。
+  - 用于核对“自动重试最多 3 次 -> manual_required”是否按预期执行。
 
-1. Trigger US1 sync in both provider modes (`framework` and `local_fallback`).
-2. Replay the same webhook payload (`external_event_id` unchanged) twice.
-3. Check exported metrics:
-   - Provider labels are present.
-   - Duplicate rate rises above 0 after replay.
-   - p95 latency is emitted and within expected range.
+### 3) 幂等命中与归因统计（运营查询口径）
+- 幂等命中：通过管理端渠道码事件查询返回 `dedup_total`（服务内累计计数）。
+- 触达总量：`touch_total`（事件表计数）。
+- 入池总量：`intake_total`（归因记录计数，首触与跟随触达均保留映射）。
+- 排障建议：`touch_total` 持续增长但 `intake_total` 不增长时，优先排查归因链路与线索匹配条件。
+
+### 4) 审计事件
+- 渠道码事件入站与欢迎语发布均会产生日志/审计事件，可用于串联：
+  - 请求 trace
+  - 事件幂等键
+  - 发布错误分类
+
+## 运行时校验建议
+
+1. 分别在 `POWERX_PROXY=0` 与 `POWERX_PROXY=1` 下执行欢迎语发布（含失败重试场景）。
+2. 重放相同 `external_event_id` 的渠道码事件，核对 `dedup_total` 是否增加。
+3. 检查指标导出：
+   - 渠道码相关 metric 标签齐全（`channel/app_type/result/error_code`）。
+   - 欢迎语发布失败时 `powerx_lead_capture_welcome_sync_attempt_total` 中失败计数增长。
+4. 管理端查询事件统计，确认 `touch_total/intake_total/dedup_total` 与预期一致。

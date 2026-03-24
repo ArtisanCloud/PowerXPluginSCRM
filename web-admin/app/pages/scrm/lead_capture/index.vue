@@ -317,15 +317,38 @@
             </UFormField>
             <div class="flex items-center justify-between gap-3">
               <USwitch v-model="channelCodeWelcomeEnabled" label="启用欢迎语" />
-              <UButton
-                size="sm"
-                color="primary"
-                :disabled="!selectedChannelCodeUUID"
-                :loading="channelCodeStore.saving"
-                @click="saveSelectedChannelCodeWelcomeConfig"
-              >
-                保存欢迎语（不发布）
-              </UButton>
+              <div class="flex items-center gap-2">
+                <UButton
+                  size="sm"
+                  color="primary"
+                  :disabled="!selectedChannelCodeUUID"
+                  :loading="channelCodeStore.saving"
+                  @click="saveSelectedChannelCodeWelcomeConfig"
+                >
+                  保存欢迎语（不发布）
+                </UButton>
+                <UButton
+                  size="sm"
+                  variant="soft"
+                  :disabled="!selectedChannelCodeUUID"
+                  :loading="channelCodeWelcomeSyncLoading"
+                  @click="triggerSelectedChannelCodeWelcomeSync"
+                >
+                  发布到渠道
+                </UButton>
+              </div>
+            </div>
+            <div
+              class="rounded-lg border border-gray-200/80 bg-gray-50/70 px-3 py-2 text-xs text-gray-600 dark:border-gray-700/80 dark:bg-gray-900/40 dark:text-gray-300"
+            >
+              <div class="flex flex-wrap items-center gap-3">
+                <span>同步状态：<span class="font-medium">{{ channelCodeWelcomeSyncStatus?.sync_status || "pending" }}</span></span>
+                <span>最新尝试：<span class="font-medium">{{ channelCodeWelcomeSyncStatus?.latest_attempt_no ?? 0 }}</span></span>
+                <span>最近同步：<span class="font-medium">{{ channelCodeWelcomeSyncStatus?.last_synced_at || "-" }}</span></span>
+              </div>
+              <div v-if="channelCodeWelcomeSyncStatus?.last_sync_error" class="mt-1 text-amber-600 dark:text-amber-300">
+                错误信息：{{ channelCodeWelcomeSyncStatus.last_sync_error }}
+              </div>
             </div>
             <div class="rounded-lg border border-gray-200/80 p-3 dark:border-gray-700/80">
               <div class="mb-2 text-xs text-gray-500 dark:text-gray-400">配置变更摘要（最近 20 条）</div>
@@ -340,6 +363,52 @@
                 >
                   <div class="font-medium text-gray-800 dark:text-gray-100">{{ item.summary }}</div>
                   <div class="text-gray-500 dark:text-gray-400">v{{ item.version }} · {{ item.created_at || "-" }}</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="rounded-lg border border-gray-200/80 p-3 dark:border-gray-700/80">
+              <div class="mb-3 flex items-center justify-between">
+                <div class="text-xs text-gray-500 dark:text-gray-400">事件入池与来源追溯</div>
+                <UButton
+                  size="xs"
+                  variant="soft"
+                  :disabled="!selectedChannelCodeUUID"
+                  :loading="channelCodeEventsLoading"
+                  @click="loadSelectedChannelCodeEvents"
+                >
+                  刷新事件
+                </UButton>
+              </div>
+              <div class="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <div class="rounded border border-gray-200/70 px-2 py-2 text-xs dark:border-gray-700/70">
+                  触达量：<span class="font-medium">{{ channelCodeEventStats.touch_total }}</span>
+                </div>
+                <div class="rounded border border-gray-200/70 px-2 py-2 text-xs dark:border-gray-700/70">
+                  入池量：<span class="font-medium">{{ channelCodeEventStats.intake_total }}</span>
+                </div>
+                <div class="rounded border border-gray-200/70 px-2 py-2 text-xs dark:border-gray-700/70">
+                  去重量：<span class="font-medium">{{ channelCodeEventStats.dedup_total }}</span>
+                </div>
+              </div>
+              <div v-if="channelCodeEvents.length === 0" class="text-xs text-gray-500 dark:text-gray-400">
+                暂无事件记录
+              </div>
+              <div v-else class="space-y-2">
+                <div
+                  v-for="event in channelCodeEvents"
+                  :key="event.event_uuid"
+                  class="rounded border border-gray-200/70 px-2 py-2 text-xs dark:border-gray-700/70"
+                >
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="font-medium text-gray-800 dark:text-gray-100">
+                      {{ event.event_type }} · {{ event.external_event_id }}
+                    </span>
+                    <span class="text-gray-500 dark:text-gray-400">{{ event.occurred_at || "-" }}</span>
+                  </div>
+                  <div class="mt-1 text-gray-500 dark:text-gray-400">
+                    event_uuid: {{ event.event_uuid }}
+                  </div>
                 </div>
               </div>
             </div>
@@ -764,6 +833,9 @@ import { useUserStore } from "~/stores/user";
 import ToastAlert from "~/components/ToastAlert.vue";
 import {
   useLeadCaptureService,
+  type ChannelCodeEventRecord,
+  type ChannelCodeEventStats,
+  type ChannelCodeWelcomeSyncStatus,
   type LeadActivityRecord,
   type WeComSyncTaskRecord,
   type WeComCustomerDMRule,
@@ -816,6 +888,15 @@ const channelCodeCreateOpen = ref(false);
 const selectedChannelCodeUUID = ref("");
 const channelCodeWelcomeEnabled = ref(false);
 const channelCodeWelcomeContentText = ref('{"text":"欢迎添加企业微信"}');
+const channelCodeWelcomeSyncLoading = ref(false);
+const channelCodeWelcomeSyncStatus = ref<ChannelCodeWelcomeSyncStatus | null>(null);
+const channelCodeEventsLoading = ref(false);
+const channelCodeEvents = ref<ChannelCodeEventRecord[]>([]);
+const channelCodeEventStats = ref<ChannelCodeEventStats>({
+  touch_total: 0,
+  intake_total: 0,
+  dedup_total: 0,
+});
 const syncLoading = ref(false);
 const syncSubmitting = ref(false);
 const syncAccountUUID = ref("");
@@ -1673,6 +1754,45 @@ const refreshChannelCodePanel = async () => {
   }
   if (selectedChannelCodeUUID.value) {
     await channelCodeStore.fetchChangeLogs(selectedChannelCodeUUID.value);
+    await loadSelectedChannelCodeWelcomeSyncStatus();
+    await loadSelectedChannelCodeEvents();
+  }
+};
+
+const loadSelectedChannelCodeWelcomeSyncStatus = async () => {
+  if (!selectedChannelCodeUUID.value) {
+    channelCodeWelcomeSyncStatus.value = null;
+    return;
+  }
+  try {
+    const resp = await leadCaptureService.getChannelCodeWelcomeSyncStatus(selectedChannelCodeUUID.value);
+    channelCodeWelcomeSyncStatus.value = ((resp as any)?.data || null) as ChannelCodeWelcomeSyncStatus | null;
+  } catch {
+    channelCodeWelcomeSyncStatus.value = null;
+  }
+};
+
+const loadSelectedChannelCodeEvents = async () => {
+  if (!selectedChannelCodeUUID.value) {
+    channelCodeEvents.value = [];
+    channelCodeEventStats.value = { touch_total: 0, intake_total: 0, dedup_total: 0 };
+    return;
+  }
+  channelCodeEventsLoading.value = true;
+  try {
+    const resp = await leadCaptureService.listChannelCodeEvents(selectedChannelCodeUUID.value, 50);
+    channelCodeEvents.value = ((resp as any)?.data?.events || []) as ChannelCodeEventRecord[];
+    channelCodeEventStats.value = ((resp as any)?.data?.stats || {
+      touch_total: 0,
+      intake_total: 0,
+      dedup_total: 0,
+    }) as ChannelCodeEventStats;
+  } catch (err: any) {
+    channelCodeEvents.value = [];
+    channelCodeEventStats.value = { touch_total: 0, intake_total: 0, dedup_total: 0 };
+    showToast(err?.message || "加载渠道码事件失败", "error");
+  } finally {
+    channelCodeEventsLoading.value = false;
   }
 };
 
@@ -1721,8 +1841,35 @@ const saveSelectedChannelCodeWelcomeConfig = async () => {
       message_content: parsed,
     });
     showToast("欢迎语已保存（待发布）", "success");
+    await loadSelectedChannelCodeWelcomeSyncStatus();
   } catch (err: any) {
     showToast(err?.message || "保存欢迎语失败", "error");
+  }
+};
+
+const triggerSelectedChannelCodeWelcomeSync = async () => {
+  if (!selectedChannelCodeUUID.value) {
+    showToast("请先选择渠道码", "warning");
+    return;
+  }
+  channelCodeWelcomeSyncLoading.value = true;
+  try {
+    const resp = await leadCaptureService.triggerChannelCodeWelcomeSync(selectedChannelCodeUUID.value);
+    const result = (resp as any)?.data || {};
+    await loadSelectedChannelCodeWelcomeSyncStatus();
+    if (result?.sync_status === "success") {
+      showToast("欢迎语已同步成功", "success");
+      return;
+    }
+    if (result?.sync_status === "manual_required") {
+      showToast(`同步失败：${result?.error_code || "请人工重试"}`, "warning");
+      return;
+    }
+    showToast("欢迎语同步任务已触发", "success");
+  } catch (err: any) {
+    showToast(err?.message || "发布欢迎语失败", "error");
+  } finally {
+    channelCodeWelcomeSyncLoading.value = false;
   }
 };
 
@@ -1772,8 +1919,15 @@ watch([syncTaskPage, syncTaskPageSize], () => {
 
 watch(selectedChannelCodeUUID, async (value) => {
   channelCodeStore.setSelectedCode(value || "");
-  if (!value) return;
+  if (!value) {
+    channelCodeWelcomeSyncStatus.value = null;
+    channelCodeEvents.value = [];
+    channelCodeEventStats.value = { touch_total: 0, intake_total: 0, dedup_total: 0 };
+    return;
+  }
   await channelCodeStore.fetchChangeLogs(value);
+  await loadSelectedChannelCodeWelcomeSyncStatus();
+  await loadSelectedChannelCodeEvents();
 });
 
 watch(

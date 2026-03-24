@@ -99,3 +99,37 @@
 ## 与后续模块关系
 - 本文档是“群管理前置能力”规划依据。
 - 下阶段群管理应以本期沉淀数据为输入，不再做纯占位管理。
+
+## 实现进度回写（2026-03-24）
+
+### 交付状态
+- US1（渠道码配置与欢迎语保存）：已完成
+- US2（事件入池与来源追溯）：已完成
+- US3（欢迎语同步与状态可见）：已完成
+
+### 已落地接口（与 spec 对齐后的最终路径）
+- 管理端：
+  - `POST /api/v1/admin/leads/channel-codes`
+  - `GET /api/v1/admin/leads/channel-codes`
+  - `PATCH /api/v1/admin/leads/channel-codes/:code_uuid/status`
+  - `GET /api/v1/admin/leads/channel-codes/:code_uuid/events`
+  - `PUT /api/v1/admin/leads/channel-codes/:code_uuid/welcome-config`
+  - `GET /api/v1/admin/leads/channel-codes/:code_uuid/welcome-config/history`
+  - `POST /api/v1/admin/leads/channel-codes/:code_uuid/welcome-config/sync`
+  - `GET /api/v1/admin/leads/channel-codes/:code_uuid/welcome-config/sync-status`
+- webhook：
+  - `POST /api/v1/webhooks/channels/:channel/code-events`
+
+### 已完成能力点
+- 渠道码创建/查询/启停，租户隔离与唯一键校验。
+- 按渠道码保存欢迎语配置，保存与发布分离，配置历史可追溯。
+- 渠道触达事件幂等入库（`tenant_uuid + channel + channel_account_uuid + external_event_id`）。
+- 线索归因遵循“首触主归因 + 多映射保留”。
+- 欢迎语发布权限控制（管理员/渠道运营），失败自动重试 3 次后转 `manual_required`。
+- WeCom 欢迎语适配器已打通，支持标准错误码回传。
+
+### 测试完成情况
+- 合同测试：US1/US2/US3 对应 API 契约用例已补齐并通过。
+- 服务单测：渠道码服务、归因服务、欢迎语同步状态机用例已补齐并通过。
+- 集成测试：事件幂等、欢迎语失败重试与恢复发布用例已补齐并通过。
+- 一致性回归：新增 standalone 与 host/proxy 模式行为一致性测试（T051）。

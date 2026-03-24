@@ -77,21 +77,21 @@
 
 ### Tests for User Story 2
 
-- [ ] T026 [P] [US2] 新增合同测试：渠道码事件 webhook 入站到 `backend/tests/contract/channel_code_webhook_contract_test.go`
-- [ ] T027 [P] [US2] 新增合同测试：渠道码事件列表与统计查询到 `backend/tests/contract/channel_code_events_query_contract_test.go`
-- [ ] T028 [P] [US2] 新增服务单测：首触主归因与多映射规则到 `backend/internal/services/admin/lead_capture/attribution_service_test.go`
-- [ ] T029 [US2] 新增集成测试：重复事件幂等与线索来源追溯到 `backend/tests/integration/channel_code_event_idempotency_integration_test.go`
+- [X] T026 [P] [US2] 新增合同测试：渠道码事件 webhook 入站到 `backend/tests/contract/channel_code_webhook_contract_test.go`
+- [X] T027 [P] [US2] 新增合同测试：渠道码事件列表与统计查询到 `backend/tests/contract/channel_code_events_query_contract_test.go`
+- [X] T028 [P] [US2] 新增服务单测：首触主归因与多映射规则到 `backend/internal/services/admin/lead_capture/attribution_service_test.go`
+- [X] T029 [US2] 新增集成测试：重复事件幂等与线索来源追溯到 `backend/tests/integration/channel_code_event_idempotency_integration_test.go`
 
 ### Implementation for User Story 2
 
-- [ ] T030 [P] [US2] 实现事件标准化 DTO 到 `backend/internal/dto/lead_capture/channel_code_event.go`
-- [ ] T031 [US2] 实现事件入站服务（幂等键与事件落库）到 `backend/internal/services/admin/lead_capture/channel_code_event_service.go`
-- [ ] T032 [US2] 实现来源追溯与主归因服务到 `backend/internal/services/admin/lead_capture/attribution_service.go`
-- [ ] T033 [US2] 实现 webhook handler：渠道码触达事件入站到 `backend/internal/transport/http/webhooks/channel_code_events_handler.go`
-- [ ] T034 [US2] 实现 admin handler：渠道码事件列表与统计查询到 `backend/internal/transport/http/admin/lead_capture/channel_code_events_handler.go`
-- [ ] T035 [US2] 注册 webhook 路由到 `backend/internal/transport/http/webhooks/routes.go`
-- [ ] T036 [P] [US2] 扩展前端 API client（事件列表查询）到 `web-admin/app/composables/api/services/leadCapture.ts`
-- [ ] T037 [US2] 在线索页增加事件流、来源追溯与统计展示（触达量/入池量/去重量）到 `web-admin/app/pages/scrm/lead_capture/index.vue`
+- [X] T030 [P] [US2] 实现事件标准化 DTO 到 `backend/internal/dto/lead_capture/channel_code_event.go`
+- [X] T031 [US2] 实现事件入站服务（幂等键与事件落库）到 `backend/internal/services/admin/lead_capture/channel_code_event_service.go`
+- [X] T032 [US2] 实现来源追溯与主归因服务到 `backend/internal/services/admin/lead_capture/attribution_service.go`
+- [X] T033 [US2] 实现 webhook handler：渠道码触达事件入站到 `backend/internal/transport/http/webhooks/channel_code_events_handler.go`
+- [X] T034 [US2] 实现 admin handler：渠道码事件列表与统计查询到 `backend/internal/transport/http/admin/lead_capture/channel_code_events_handler.go`
+- [X] T035 [US2] 注册 webhook 路由到 `backend/internal/transport/http/webhooks/routes.go`
+- [X] T036 [P] [US2] 扩展前端 API client（事件列表查询）到 `web-admin/app/composables/api/services/leadCapture.ts`
+- [X] T037 [US2] 在线索页增加事件流、来源追溯与统计展示（触达量/入池量/去重量）到 `web-admin/app/pages/scrm/lead_capture/index.vue`
 
 **Checkpoint**: US2 完成后，可独立验证引流事件入池与归因闭环
 
@@ -104,19 +104,19 @@
 
 ### Tests for User Story 3
 
-- [ ] T038 [P] [US3] 新增合同测试：欢迎语发布与状态查询接口（含标准错误码）到 `backend/tests/contract/channel_code_welcome_sync_contract_test.go`
-- [ ] T039 [P] [US3] 新增服务单测：重试上限与 `manual_required` 状态流转到 `backend/internal/services/admin/lead_capture/welcome_sync_service_test.go`
-- [ ] T040 [US3] 新增集成测试：发布失败 3 次后转人工与恢复发布到 `backend/tests/integration/channel_code_welcome_retry_integration_test.go`
+- [X] T038 [P] [US3] 新增合同测试：欢迎语发布与状态查询接口（含标准错误码）到 `backend/tests/contract/channel_code_welcome_sync_contract_test.go`
+- [X] T039 [P] [US3] 新增服务单测：重试上限与 `manual_required` 状态流转到 `backend/internal/services/admin/lead_capture/welcome_sync_service_test.go`
+- [X] T040 [US3] 新增集成测试：发布失败 3 次后转人工与恢复发布到 `backend/tests/integration/channel_code_welcome_retry_integration_test.go`
 
 ### Implementation for User Story 3
 
-- [ ] T041 [US3] 实现欢迎语发布服务（人工触发 + 自动重试）到 `backend/internal/services/admin/lead_capture/welcome_sync_service.go`
-- [ ] T042 [US3] 实现 WeCom 欢迎语适配器到 `backend/internal/services/admin/lead_capture/wecom_welcome_adapter.go`
-- [ ] T043 [US3] 实现发布权限校验（管理员/渠道运营）到 `backend/internal/services/admin/lead_capture/welcome_sync_authz.go`
-- [ ] T044 [US3] 实现 admin handler：发布与状态查询（返回标准错误码）到 `backend/internal/transport/http/admin/lead_capture/welcome_sync_handler.go`
-- [ ] T045 [US3] 注册 US3 路由与权限到 `backend/internal/transport/http/admin/lead_capture/routes.go`
-- [ ] T046 [P] [US3] 扩展前端 API client（发布与状态）到 `web-admin/app/composables/api/services/leadCapture.ts`
-- [ ] T047 [US3] 前端接入发布按钮、状态与错误分类提示到 `web-admin/app/pages/scrm/lead_capture/index.vue`
+- [X] T041 [US3] 实现欢迎语发布服务（人工触发 + 自动重试）到 `backend/internal/services/admin/lead_capture/welcome_sync_service.go`
+- [X] T042 [US3] 实现 WeCom 欢迎语适配器到 `backend/internal/services/admin/lead_capture/wecom_welcome_adapter.go`
+- [X] T043 [US3] 实现发布权限校验（管理员/渠道运营）到 `backend/internal/services/admin/lead_capture/welcome_sync_authz.go`
+- [X] T044 [US3] 实现 admin handler：发布与状态查询（返回标准错误码）到 `backend/internal/transport/http/admin/lead_capture/welcome_sync_handler.go`
+- [X] T045 [US3] 注册 US3 路由与权限到 `backend/internal/transport/http/admin/lead_capture/routes.go`
+- [X] T046 [P] [US3] 扩展前端 API client（发布与状态）到 `web-admin/app/composables/api/services/leadCapture.ts`
+- [X] T047 [US3] 前端接入发布按钮、状态与错误分类提示到 `web-admin/app/pages/scrm/lead_capture/index.vue`
 
 **Checkpoint**: US3 完成后，欢迎语发布链路可独立运维
 
@@ -126,11 +126,11 @@
 
 **Purpose**: 跨故事收敛、回归与文档同步
 
-- [ ] T048 [P] 更新运营验收说明到 `docs/guides/lead-capture/README.md`
-- [ ] T049 [P] 回写 005 进度到 `docs/plan/lead_capture/intake/channel_code_acquisition.md`
-- [ ] T050 补充观测文档（同步重试、幂等命中、归因统计）到 `backend/internal/observability/lead_capture/README.md`
-- [ ] T051 新增 standalone 与 host/proxy 一致性回归到 `backend/tests/integration/channel_code_runtime_mode_consistency_test.go`
-- [ ] T052 执行 quickstart 回归并记录到 `specs/005-channel-code-acquisition/research.md`
+- [X] T048 [P] 更新运营验收说明到 `docs/guides/lead-capture/README.md`
+- [X] T049 [P] 回写 005 进度到 `docs/plan/lead_capture/intake/channel_code_acquisition.md`
+- [X] T050 补充观测文档（同步重试、幂等命中、归因统计）到 `backend/internal/observability/lead_capture/README.md`
+- [X] T051 新增 standalone 与 host/proxy 一致性回归到 `backend/tests/integration/channel_code_runtime_mode_consistency_test.go`
+- [X] T052 执行 quickstart 回归并记录到 `specs/005-channel-code-acquisition/research.md`
 
 ---
 

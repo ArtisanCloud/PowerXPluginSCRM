@@ -18,7 +18,7 @@ func NewChannelCodeFeature(repos *leadrepo.Bundle, metrics *leadobs.Metrics) *Ch
 	}
 	return &ChannelCodeFeature{
 		ChannelCodeService:      NewChannelCodeService(repos.ChannelCodes, metrics),
-		ChannelCodeEventService: NewChannelCodeEventService(repos.ChannelCodeEvents, metrics),
-		WelcomeSyncService:      NewWelcomeSyncService(repos.WelcomeConfigs, repos.WelcomeSyncAttempt, metrics),
+		ChannelCodeEventService: NewChannelCodeEventService(repos.ChannelCodeEvents, repos.ChannelCodes, nil, nil, metrics),
+		WelcomeSyncService:      NewWelcomeSyncService(repos.ChannelCodes, repos.WelcomeConfigs, repos.WelcomeSyncAttempt, NewWeComWelcomeAdapter(), metrics),
 	}
 }

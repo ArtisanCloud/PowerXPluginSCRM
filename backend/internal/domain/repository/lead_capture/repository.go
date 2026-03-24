@@ -20,6 +20,7 @@ var (
 type ChannelCodeRepository interface {
 	Create(ctx context.Context, item *leadmodel.ChannelCode) error
 	GetByCodeUUID(ctx context.Context, tenantUUID, codeUUID string) (*leadmodel.ChannelCode, error)
+	GetByCodeKey(ctx context.Context, tenantUUID, channel, codeKey string) (*leadmodel.ChannelCode, error)
 	List(ctx context.Context, tenantUUID string, filter ChannelCodeListFilter) ([]*leadmodel.ChannelCode, error)
 	UpdateStatus(ctx context.Context, tenantUUID, codeUUID, status, updatedBy string) (*leadmodel.ChannelCode, error)
 }
@@ -37,11 +38,15 @@ type CodeWelcomeSyncAttemptRepository interface {
 type ChannelCodeEventRepository interface {
 	Create(ctx context.Context, item *leadmodel.ChannelCodeEvent) error
 	GetByIdempotencyKey(ctx context.Context, tenantUUID, idempotencyKey string) (*leadmodel.ChannelCodeEvent, error)
+	ListByCodeUUID(ctx context.Context, tenantUUID, codeUUID string, limit int) ([]*leadmodel.ChannelCodeEvent, error)
+	CountByCodeUUID(ctx context.Context, tenantUUID, codeUUID string) (int64, error)
 }
 
 type LeadAttributionRepository interface {
 	Create(ctx context.Context, item *leadmodel.LeadAttributionRecord) error
 	ListByLeadUUID(ctx context.Context, tenantUUID, leadUUID string) ([]*leadmodel.LeadAttributionRecord, error)
+	ListByEventUUID(ctx context.Context, tenantUUID, eventUUID string) ([]*leadmodel.LeadAttributionRecord, error)
+	CountByCodeUUID(ctx context.Context, tenantUUID, codeUUID string) (int64, error)
 }
 
 type CodeConfigChangeLogRepository interface {
