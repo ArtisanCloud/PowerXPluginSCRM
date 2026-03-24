@@ -25,6 +25,7 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 	if metrics == nil {
 		metrics = leadobs.NewMetrics()
 	}
+	domainRepos := deps.EnsureLeadCaptureRepos()
 	conversationSvc := leadsvc.NewConversationService(
 		leadrepo.NewConversationEventRepository(deps.DB),
 		leadrepo.NewLeadConversationBindingRepository(deps.DB),
@@ -46,6 +47,15 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		leadsvc.NewLeadService(leadRepository),
 	)
 	botCommandHandler := NewWeComBotCommandHandler(botCommandSvc, repo)
+	attributionSvc := leadsvc.NewAttributionService(domainRepos.Attributions, leadRepository, leadsvc.NewLeadService(leadRepository))
+	channelCodeEventSvc := leadsvc.NewChannelCodeEventService(
+		domainRepos.ChannelCodeEvents,
+		domainRepos.ChannelCodes,
+		repo,
+		attributionSvc,
+		metrics,
+	)
+	channelCodeEventHandler := NewChannelCodeEventsWebhookHandler(channelCodeEventSvc)
 
 	group := rg.Group("/webhooks")
 	{
@@ -55,5 +65,6 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		group.GET("/wechat/wecom/:account_uuid/oauth/callback", wecomHandler.HandleOAuthCallback)
 		group.POST("/wecom/conversations", conversationHandler.Ingest)
 		group.POST("/wecom/bot/commands", botCommandHandler.Ingest)
+		group.POST("/channels/:channel/code-events", channelCodeEventHandler.Ingest)
 	}
 }

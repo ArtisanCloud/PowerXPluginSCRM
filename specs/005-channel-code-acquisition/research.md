@@ -48,3 +48,17 @@
 - **Alternatives considered**:
   - 同时实现多渠道：周期和风险过大。
   - 仅做 WeCom 私有接口：短期快但后续扩展成本高。
+
+## Quickstart 回归记录（2026-03-24）
+
+### 回归批次 A（Phase 6 收敛）
+- 执行时间：2026-03-24
+- 目标：验证 005 在文档口径下的关键自动化回归可执行，且补齐 runtime mode 一致性用例。
+- 执行命令：
+  - `.specify/scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks`
+  - `ls -la specs/005-channel-code-acquisition/contracts/`
+  - `cd backend && GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test ./tests/integration -run 'ChannelCodeRuntimeModeConsistency' -count=1`
+- 结果记录：
+  - 前置检查脚本返回 feature 目录与任务文件状态，满足 quickstart 前置要求。
+  - `contracts/` 目录包含渠道码契约文件，结构符合预期。
+  - `ChannelCodeRuntimeModeConsistency` 用例通过，`POWERX_PROXY=0/1` 两种模式下欢迎语同步失败重试后的状态一致（均可收敛至 `manual_required`）。
