@@ -26,6 +26,8 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		conversationSvc  *leadsvc.ConversationService
 		sourceCatalogSvc *leadsvc.LeadSourceCatalogService
 		channelRuleSvc   *leadsvc.ChannelRuleService
+		channelCodeSvc   *leadsvc.ChannelCodeService
+		welcomeConfigSvc *leadsvc.WelcomeConfigService
 	)
 	if deps.DB != nil {
 		leadRepository := leadrepo.NewLeadRepository(deps.DB)
@@ -33,10 +35,15 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		sourceCatalogSvc = leadsvc.NewLeadSourceCatalogService(leadrepo.NewLeadSourceCatalogRepository(deps.DB))
 		channelRuleRepo := leadrepo.NewChannelRuleRepository(deps.DB)
 		channelRuleSvc = leadsvc.NewChannelRuleService(channelRuleRepo)
+		domainRepos := deps.EnsureLeadCaptureRepos()
 
 		metrics := deps.LeadCaptureMetrics
 		if metrics == nil {
 			metrics = leadobs.NewMetrics()
+		}
+		if domainRepos != nil {
+			channelCodeSvc = leadsvc.NewChannelCodeService(domainRepos.ChannelCodes, metrics)
+			welcomeConfigSvc = leadsvc.NewWelcomeConfigService(domainRepos.WelcomeConfigs, domainRepos.ConfigChangeLogs, metrics)
 		}
 		taskRepo := leadrepo.NewLeadSyncTaskRepository(deps.DB)
 		channelAccountRepo := socialrepo.NewAccountRepository(deps.DB)
@@ -94,6 +101,8 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 	conversationHandler := NewConversationHandler(conversationSvc)
 	sourceCatalogHandler := NewSourceCatalogHandler(sourceCatalogSvc)
 	channelRuleHandler := NewChannelRuleHandler(channelRuleSvc)
+	channelCodeHandler := NewChannelCodeHandler(channelCodeSvc)
+	welcomeConfigHandler := NewWelcomeConfigHandler(welcomeConfigSvc)
 	group := rg.Group("/leads", httpmw.EnsureTenant())
 	{
 		group.GET("", handler.List)
@@ -117,6 +126,11 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		group.GET("/wecom/sync-tasks", wecomSyncHandler.ListSyncTasks)
 		group.GET("/channel-rules/wecom/customer-dm", channelRuleHandler.GetWeComCustomerDMRule)
 		group.PUT("/channel-rules/wecom/customer-dm", channelRuleHandler.UpdateWeComCustomerDMRule)
+		group.POST("/channel-codes", channelCodeHandler.Create)
+		group.GET("/channel-codes", channelCodeHandler.List)
+		group.PATCH("/channel-codes/:code_uuid/status", channelCodeHandler.UpdateStatus)
+		group.PUT("/channel-codes/:code_uuid/welcome-config", welcomeConfigHandler.Save)
+		group.GET("/channel-codes/:code_uuid/welcome-config/history", welcomeConfigHandler.ListHistory)
 		group.GET("/:lead_id/conversations", conversationHandler.ListLeadConversations)
 		group.POST("/:lead_id/conversations/bind", conversationHandler.BindConversation)
 	}

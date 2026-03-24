@@ -49,22 +49,22 @@
 
 ### Tests for User Story 1
 
-- [ ] T013 [P] [US1] 新增合同测试：渠道码创建与列表接口到 `backend/tests/contract/channel_code_admin_contract_test.go`
-- [ ] T014 [P] [US1] 新增合同测试：渠道码状态切换、欢迎语保存与配置历史查询接口到 `backend/tests/contract/channel_code_welcome_config_contract_test.go`
-- [ ] T015 [P] [US1] 新增服务单测：渠道码租户隔离、唯一约束与配置变更摘要记录到 `backend/internal/services/admin/lead_capture/channel_code_service_test.go`
-- [ ] T016 [US1] 新增集成测试：欢迎语“保存不发布”状态流转到 `backend/tests/integration/channel_code_welcome_pending_integration_test.go`
+- [X] T013 [P] [US1] 新增合同测试：渠道码创建与列表接口到 `backend/tests/contract/channel_code_admin_contract_test.go`
+- [X] T014 [P] [US1] 新增合同测试：渠道码状态切换、欢迎语保存与配置历史查询接口到 `backend/tests/contract/channel_code_welcome_config_contract_test.go`
+- [X] T015 [P] [US1] 新增服务单测：渠道码租户隔离、唯一约束与配置变更摘要记录到 `backend/internal/services/admin/lead_capture/channel_code_service_test.go`
+- [X] T016 [US1] 新增集成测试：欢迎语“保存不发布”状态流转到 `backend/tests/integration/channel_code_welcome_pending_integration_test.go`
 
 ### Implementation for User Story 1
 
-- [ ] T017 [P] [US1] 实现 DTO 与校验（channel code / welcome config）到 `backend/internal/dto/lead_capture/channel_code.go`
-- [ ] T018 [US1] 实现渠道码服务（create/list/status）到 `backend/internal/services/admin/lead_capture/channel_code_service.go`
-- [ ] T019 [US1] 实现欢迎语配置服务（save only + 变更摘要落库）到 `backend/internal/services/admin/lead_capture/welcome_config_service.go`
-- [ ] T020 [US1] 实现 admin handler：渠道码管理接口到 `backend/internal/transport/http/admin/lead_capture/channel_code_handler.go`
-- [ ] T021 [US1] 实现 admin handler：欢迎语保存与配置历史查询接口到 `backend/internal/transport/http/admin/lead_capture/welcome_config_handler.go`
-- [ ] T022 [US1] 注册 US1 路由与权限到 `backend/internal/transport/http/admin/lead_capture/routes.go`
-- [ ] T023 [P] [US1] 扩展前端 API client（渠道码与欢迎语保存）到 `web-admin/app/composables/api/services/leadCapture.ts`
-- [ ] T024 [US1] 新增前端 store（渠道码配置状态）到 `web-admin/app/stores/scrm/lead_capture/channel_code_store.ts`
-- [ ] T025 [US1] 在线索页接入渠道码与欢迎语配置面板（含配置变更摘要）到 `web-admin/app/pages/scrm/lead_capture/index.vue`
+- [X] T017 [P] [US1] 实现 DTO 与校验（channel code / welcome config）到 `backend/internal/dto/lead_capture/channel_code.go`
+- [X] T018 [US1] 实现渠道码服务（create/list/status）到 `backend/internal/services/admin/lead_capture/channel_code_service.go`
+- [X] T019 [US1] 实现欢迎语配置服务（save only + 变更摘要落库）到 `backend/internal/services/admin/lead_capture/welcome_config_service.go`
+- [X] T020 [US1] 实现 admin handler：渠道码管理接口到 `backend/internal/transport/http/admin/lead_capture/channel_code_handler.go`
+- [X] T021 [US1] 实现 admin handler：欢迎语保存与配置历史查询接口到 `backend/internal/transport/http/admin/lead_capture/welcome_config_handler.go`
+- [X] T022 [US1] 注册 US1 路由与权限到 `backend/internal/transport/http/admin/lead_capture/routes.go`
+- [X] T023 [P] [US1] 扩展前端 API client（渠道码与欢迎语保存）到 `web-admin/app/composables/api/services/leadCapture.ts`
+- [X] T024 [US1] 新增前端 store（渠道码配置状态）到 `web-admin/app/stores/scrm/lead_capture/channel_code_store.ts`
+- [X] T025 [US1] 在线索页接入渠道码与欢迎语配置面板（含配置变更摘要）到 `web-admin/app/pages/scrm/lead_capture/index.vue`
 
 **Checkpoint**: US1 完成后，运营可独立完成渠道码配置闭环
 
