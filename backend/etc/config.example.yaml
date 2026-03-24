@@ -238,6 +238,11 @@ operations:
 #    不在 config/.env 中按账号写死；
 # 2) 此处仅保留流程级默认值（批量大小、重试、请求体上限等）。
 lead_capture:
+  channel_code:
+    enabled: true
+    event_webhook_enabled: true
+    event_idempotency_ttl_hours: 72
+    stats_window_minutes: 60
   wecom_sync:
     enabled: true
     cron: "*/10 * * * *"
@@ -252,6 +257,13 @@ lead_capture:
     verify_signature: true
     idempotency_ttl_hours: 72
     max_body_bytes: 1048576
+  welcome_sync:
+    enabled: true
+    # 保存与发布分离：保存配置不会自动同步，必须人工触发发布
+    auto_publish_on_save: false
+    # 三次退避重试（与 spec 默认值对齐）
+    retry_backoff_seconds: [5, 15, 30]
+    max_retries: 3
 
 # 如需切换到 Postgres，可以将 driver 设置为 postgres 并提供 dsn，例如：
 # database:

@@ -5,6 +5,7 @@
 
 ## 子功能计划
 - 线索采集：`docs/plan/lead_capture/intake/README.md`
+  - 005 渠道活码引流：`docs/plan/lead_capture/intake/channel_code_acquisition.md`
 - 批量导入：`docs/plan/lead_capture/batch_import/README.md`
 - 线索标准化：`docs/plan/lead_capture/normalization/README.md`
 - 去重与合并：`docs/plan/lead_capture/dedup/README.md`

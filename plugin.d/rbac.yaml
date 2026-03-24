@@ -5,6 +5,15 @@ permissions:
       - read
       - update
     resource: template
+  - actions:
+      - create
+      - read
+      - update
+    resource: channel_code
+  - actions:
+      - read
+      - publish
+    resource: channel_welcome_sync
 rbac:
   resources:
     - actions:
@@ -13,6 +22,15 @@ rbac:
         - read
         - update
       resource: template
+    - actions:
+        - create
+        - read
+        - update
+      resource: channel_code
+    - actions:
+        - read
+        - publish
+      resource: channel_welcome_sync
 routes:
   adminManifest: /api/v1/admin/manifest
   basePath: /api/v1

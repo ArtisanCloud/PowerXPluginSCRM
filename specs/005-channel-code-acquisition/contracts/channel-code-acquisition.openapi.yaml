@@ -1,0 +1,299 @@
+openapi: 3.0.3
+info:
+  title: Channel Code Acquisition API
+  version: 1.0.0
+  description: 渠道活码引流与渠道码欢迎语（MVP）接口契约
+servers:
+  - url: /api/v1
+paths:
+  /admin/channel-codes:
+    post:
+      summary: 创建渠道码
+      tags: [ChannelCode]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChannelCodeCreateRequest'
+      responses:
+        '200':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelCode'
+    get:
+      summary: 查询渠道码列表
+      tags: [ChannelCode]
+      parameters:
+        - in: query
+          name: channel
+          schema: { type: string }
+        - in: query
+          name: app_type
+          schema: { type: string }
+        - in: query
+          name: channel_account_uuid
+          schema: { type: string, format: uuid }
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [draft, active, disabled]
+        - in: query
+          name: limit
+          schema: { type: integer, default: 20 }
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ChannelCode'
+
+  /admin/channel-codes/{code_uuid}/status:
+    patch:
+      summary: 更新渠道码状态（启用/停用）
+      tags: [ChannelCode]
+      parameters:
+        - in: path
+          name: code_uuid
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [active, disabled]
+      responses:
+        '200':
+          description: 状态更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelCode'
+
+  /admin/channel-codes/{code_uuid}/events:
+    get:
+      summary: 查询渠道码触达事件
+      tags: [ChannelCodeEvent]
+      parameters:
+        - in: path
+          name: code_uuid
+          required: true
+          schema: { type: string, format: uuid }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 50 }
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code_uuid: { type: string, format: uuid }
+                  events:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ChannelCodeEvent'
+
+  /admin/channel-codes/{code_uuid}/welcome-config:
+    put:
+      summary: 保存渠道码欢迎语配置（仅保存，不发布）
+      tags: [WelcomeConfig]
+      parameters:
+        - in: path
+          name: code_uuid
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WelcomeConfigSaveRequest'
+      responses:
+        '200':
+          description: 保存成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WelcomeConfig'
+
+  /admin/channel-codes/{code_uuid}/welcome-config/sync:
+    post:
+      summary: 人工触发渠道码欢迎语发布同步
+      tags: [WelcomeSync]
+      parameters:
+        - in: path
+          name: code_uuid
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: 同步已触发
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WelcomeSyncResult'
+        '403':
+          description: 无发布权限
+
+  /admin/channel-codes/{code_uuid}/welcome-config/sync-status:
+    get:
+      summary: 查询欢迎语同步状态
+      tags: [WelcomeSync]
+      parameters:
+        - in: path
+          name: code_uuid
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WelcomeSyncStatus'
+
+  /webhooks/channels/{channel}/code-events:
+    post:
+      summary: 渠道码触达事件回调入站
+      tags: [Webhook]
+      parameters:
+        - in: path
+          name: channel
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CodeEventWebhookRequest'
+      responses:
+        '200':
+          description: 处理成功（重复事件幂等返回成功）
+        '400':
+          description: 参数非法或验签失败
+
+components:
+  schemas:
+    ChannelCodeCreateRequest:
+      type: object
+      required: [channel, app_type, channel_account_uuid, code_key, display_name, target_type, target_id]
+      properties:
+        channel: { type: string }
+        app_type: { type: string }
+        channel_account_uuid: { type: string, format: uuid }
+        code_key: { type: string }
+        display_name: { type: string }
+        target_type:
+          type: string
+          enum: [group, dm, entry]
+        target_id: { type: string }
+
+    ChannelCode:
+      type: object
+      properties:
+        code_uuid: { type: string, format: uuid }
+        channel: { type: string }
+        app_type: { type: string }
+        channel_account_uuid: { type: string, format: uuid }
+        code_key: { type: string }
+        display_name: { type: string }
+        target_type: { type: string }
+        target_id: { type: string }
+        status:
+          type: string
+          enum: [draft, active, disabled]
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    WelcomeConfigSaveRequest:
+      type: object
+      required: [welcome_enabled, message_content]
+      properties:
+        welcome_enabled: { type: boolean }
+        message_content:
+          type: object
+          additionalProperties: true
+
+    WelcomeConfig:
+      type: object
+      properties:
+        code_uuid: { type: string, format: uuid }
+        welcome_enabled: { type: boolean }
+        message_content:
+          type: object
+          additionalProperties: true
+        sync_status:
+          type: string
+          enum: [pending, syncing, success, failed, manual_required]
+        last_sync_error: { type: string, nullable: true }
+        last_synced_at: { type: string, format: date-time, nullable: true }
+        updated_at: { type: string, format: date-time }
+
+    WelcomeSyncResult:
+      type: object
+      properties:
+        code_uuid: { type: string, format: uuid }
+        sync_status:
+          type: string
+          enum: [syncing, success, failed, manual_required]
+        attempt_no: { type: integer }
+        message: { type: string }
+
+    WelcomeSyncStatus:
+      type: object
+      properties:
+        code_uuid: { type: string, format: uuid }
+        sync_status:
+          type: string
+          enum: [pending, syncing, success, failed, manual_required]
+        last_sync_error: { type: string, nullable: true }
+        last_synced_at: { type: string, format: date-time, nullable: true }
+        latest_attempt_no: { type: integer }
+
+    ChannelCodeEvent:
+      type: object
+      properties:
+        event_uuid: { type: string, format: uuid }
+        code_uuid: { type: string, format: uuid }
+        external_event_id: { type: string }
+        event_type:
+          type: string
+          enum: [scan, join, message, other]
+        occurred_at: { type: string, format: date-time }
+        payload:
+          type: object
+          additionalProperties: true
+
+    CodeEventWebhookRequest:
+      type: object
+      required: [channel_account_uuid, code_key, external_event_id, event_type, occurred_at]
+      properties:
+        channel_account_uuid: { type: string, format: uuid }
+        code_key: { type: string }
+        external_event_id: { type: string }
+        event_type:
+          type: string
+          enum: [scan, join, message, other]
+        occurred_at: { type: string, format: date-time }
+        payload:
+          type: object
+          additionalProperties: true

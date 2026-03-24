@@ -47,6 +47,7 @@ func NewRegistry(engine *gin.Engine, deps *app.Deps) *Registry {
 
 // RegisterRoutes 注册所有路由
 func (r *Registry) RegisterAPIRoutes(gApi *gin.RouterGroup) {
+	r.ensureChannelCodeFoundation()
 	admin.RegisterAPIRoutes(gApi, r.deps)
 	agentapi.RegisterAPIRoutes(gApi, r.deps)
 	templates.RegisterAPIRoutes(gApi, r.deps)
@@ -70,6 +71,14 @@ func (r *Registry) RegisterAPIRoutes(gApi *gin.RouterGroup) {
 	r.mergeRBAC(templates.RBACEntries(r.apiPrefix()))
 	r.mergeRBAC(integrationRBACEntries(r.apiPrefix()))
 	r.mergeRBAC(marketplacePublicRBACEntries(r.apiPrefix()))
+}
+
+func (r *Registry) ensureChannelCodeFoundation() {
+	if r == nil || r.deps == nil {
+		return
+	}
+	// Prepare Phase-2 foundational dependencies before admin/webhook routes are mounted.
+	r.deps.EnsureLeadCaptureRepos()
 }
 
 func (r *Registry) PrintRegisteredRoutes() {
