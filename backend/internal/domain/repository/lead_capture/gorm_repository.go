@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	leadmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/domain/models/lead_capture"
 	"gorm.io/gorm"
@@ -83,6 +84,72 @@ func (r *channelCodeRepository) GetByCodeUUID(ctx context.Context, tenantUUID, c
 		return nil, q.Error
 	}
 	return &out, nil
+}
+
+func (r *channelCodeRepository) List(ctx context.Context, tenantUUID string, filter ChannelCodeListFilter) ([]*leadmodel.ChannelCode, error) {
+	if r == nil || r.db == nil {
+		return nil, ErrRepositoryDBNotReady
+	}
+	tenantUUID, err := normalizeTenant(tenantUUID)
+	if err != nil {
+		return nil, err
+	}
+	q := r.db.WithContext(ctx).Where("tenant_uuid = ?", tenantUUID)
+	if v := strings.TrimSpace(filter.Channel); v != "" {
+		q = q.Where("channel = ?", strings.ToLower(v))
+	}
+	if v := strings.TrimSpace(filter.AppType); v != "" {
+		q = q.Where("app_type = ?", strings.ToLower(v))
+	}
+	if v := strings.TrimSpace(filter.ChannelAccountUUID); v != "" {
+		q = q.Where("channel_account_uuid = ?", strings.ToLower(v))
+	}
+	if v := strings.TrimSpace(filter.Status); v != "" {
+		q = q.Where("status = ?", strings.ToLower(v))
+	}
+	limit := ensureLimit(filter.Limit, 20)
+	var out []*leadmodel.ChannelCode
+	if err := q.Order("created_at desc").Limit(limit).Find(&out).Error; err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (r *channelCodeRepository) UpdateStatus(ctx context.Context, tenantUUID, codeUUID, status, updatedBy string) (*leadmodel.ChannelCode, error) {
+	if r == nil || r.db == nil {
+		return nil, ErrRepositoryDBNotReady
+	}
+	tenantUUID, err := normalizeTenant(tenantUUID)
+	if err != nil {
+		return nil, err
+	}
+	codeUUID, err = normalizeCodeUUID(codeUUID)
+	if err != nil {
+		return nil, err
+	}
+	status = strings.ToLower(strings.TrimSpace(status))
+	if status == "" {
+		return nil, errors.New("status is required")
+	}
+	updatedBy = strings.TrimSpace(updatedBy)
+	if updatedBy == "" {
+		updatedBy = "system"
+	}
+	now := time.Now().UTC()
+	q := r.db.WithContext(ctx).Model(&leadmodel.ChannelCode{}).
+		Where("tenant_uuid = ? AND code_uuid = ?", tenantUUID, codeUUID).
+		Updates(map[string]any{
+			"status":     status,
+			"updated_by": updatedBy,
+			"updated_at": now,
+		})
+	if q.Error != nil {
+		return nil, q.Error
+	}
+	if q.RowsAffected == 0 {
+		return nil, ErrRecordNotFound
+	}
+	return r.GetByCodeUUID(ctx, tenantUUID, codeUUID)
 }
 
 func (r *codeWelcomeConfigRepository) Save(ctx context.Context, item *leadmodel.CodeWelcomeConfig) error {

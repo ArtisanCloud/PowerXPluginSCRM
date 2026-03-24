@@ -20,6 +20,8 @@ var (
 type ChannelCodeRepository interface {
 	Create(ctx context.Context, item *leadmodel.ChannelCode) error
 	GetByCodeUUID(ctx context.Context, tenantUUID, codeUUID string) (*leadmodel.ChannelCode, error)
+	List(ctx context.Context, tenantUUID string, filter ChannelCodeListFilter) ([]*leadmodel.ChannelCode, error)
+	UpdateStatus(ctx context.Context, tenantUUID, codeUUID, status, updatedBy string) (*leadmodel.ChannelCode, error)
 }
 
 type CodeWelcomeConfigRepository interface {
@@ -45,6 +47,14 @@ type LeadAttributionRepository interface {
 type CodeConfigChangeLogRepository interface {
 	Create(ctx context.Context, item *leadmodel.CodeConfigChangeLog) error
 	ListByCodeUUID(ctx context.Context, tenantUUID, codeUUID string, limit int) ([]*leadmodel.CodeConfigChangeLog, error)
+}
+
+type ChannelCodeListFilter struct {
+	Channel            string
+	AppType            string
+	ChannelAccountUUID string
+	Status             string
+	Limit              int
 }
 
 type Bundle struct {
