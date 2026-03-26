@@ -115,3 +115,104 @@ curl "http://127.0.0.1:8092/api/v1/admin/channel-codes/<code_uuid>/events?limit=
 - 只有租户管理员/渠道运营角色可触发发布。
 - 同步失败自动重试 3 次后进入人工处理。
 - 线索可追溯到渠道码来源；主归因为首触，后续触达保留映射。
+
+---
+
+## 11. V2 引流获客（员工活码独立域）
+
+> 说明：本节为 2026-03-25 新增对齐内容。V1 quickstart 保留，用于兼容存量。
+
+### 11.1 创建员工活码
+
+```bash
+curl -X POST "http://127.0.0.1:8092/api/v1/admin/leads/acquisition/staff-codes" \
+  -H "Authorization: Bearer $USER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "channel":"wechat",
+    "app_type":"wecom",
+    "channel_account_uuid":"<your-channel-account-uuid>",
+    "activity_name":"春季员工活码活动A",
+    "code_key":"staff_campaign_001",
+    "member_uuids":["<confirmed-mapping-member-uuid-1>"],
+    "corp_tag_ids":["tag-a","tag-b"],
+    "new_customer_remark_enabled":true
+  }'
+```
+
+预期：
+- 返回 `staff_code_uuid`；
+- 非 confirmed mapping 成员提交被拒绝。
+
+### 11.2 保存员工欢迎语（结构化）
+
+```bash
+curl -X PUT "http://127.0.0.1:8092/api/v1/admin/leads/acquisition/staff-codes/<staff_code_uuid>/welcome-config" \
+  -H "Authorization: Bearer $USER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "welcome_mode":"send",
+    "content_blocks":[
+      {"type":"text","text":"欢迎添加，我们将为你提供专属服务"}
+    ]
+  }'
+```
+
+预期：
+- 返回 `sync_status=pending`；
+- 响应可见 `payload_preview`。
+
+### 11.3 人工发布员工欢迎语（Phase 7 当前行为）
+
+```bash
+curl -X POST "http://127.0.0.1:8092/api/v1/admin/leads/acquisition/staff-codes/<staff_code_uuid>/welcome-config/sync" \
+  -H "Authorization: Bearer $USER_TOKEN"
+
+curl "http://127.0.0.1:8092/api/v1/admin/leads/acquisition/staff-codes/<staff_code_uuid>/welcome-config/sync-status" \
+  -H "Authorization: Bearer $USER_TOKEN"
+```
+
+预期：
+- 当前实现会执行 3 次失败重试并进入 `manual_required`；
+- `latest_attempt_no=3`；
+- `last_sync_error` 包含 `not implemented`（渠道适配器骨架阶段）。
+
+### 11.4 群活码/群欢迎语骨架验收
+
+```bash
+curl "http://127.0.0.1:8092/api/v1/admin/leads/acquisition/group-codes" \
+  -H "Authorization: Bearer $USER_TOKEN"
+```
+
+预期：
+- 接口可访问；
+- 返回包含能力状态标记（当前为 `capability_status=not_implemented`）。
+
+### 11.5 V2 webhook 骨架验收
+
+```bash
+curl -X POST "http://127.0.0.1:8092/api/v1/webhooks/channels/wechat/staff-code-events" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "channel_account_uuid":"<your-channel-account-uuid>",
+    "code_key":"staff_campaign_001",
+    "external_event_id":"evt-staff-1001",
+    "event_type":"join",
+    "occurred_at":"2026-03-25T10:00:00Z",
+    "payload":{"external_userid":"woAJ2GCAAAXXX"}
+  }'
+
+curl -X POST "http://127.0.0.1:8092/api/v1/webhooks/channels/wechat/group-code-events" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "channel_account_uuid":"<your-channel-account-uuid>",
+    "code_key":"group_campaign_001",
+    "external_event_id":"evt-group-1001",
+    "event_type":"join",
+    "occurred_at":"2026-03-25T10:00:00Z"
+  }'
+```
+
+预期：
+- 两个接口均返回成功；
+- 响应包含 `status=not_implemented`，用于标识骨架阶段。

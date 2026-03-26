@@ -292,3 +292,69 @@ curl "http://127.0.0.1:8092/api/v1/admin/leads/channel-codes/<code_uuid>/welcome
 - 失败自动重试 3 次后 `sync_status=manual_required`
 - `last_sync_error` 带标准错误分类（如 `CHANNEL_AUTH_INVALID`）
 - 人工再次触发可恢复到 `success`
+
+---
+
+## 12. 005 V2 引流获客验收（员工全量 + 群骨架）
+
+### 12.1 员工活码（独立域）
+
+```bash
+curl -X POST "http://127.0.0.1:8092/api/v1/admin/leads/acquisition/staff-codes" \
+  -H "Authorization: Bearer $USER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "channel":"wechat",
+    "app_type":"wecom",
+    "channel_account_uuid":"<your-channel-account-uuid>",
+    "activity_name":"员工引流活动A",
+    "code_key":"staff_campaign_001",
+    "member_uuids":["<confirmed-mapping-member-uuid>"]
+  }'
+```
+
+验收点：
+- 创建成功返回 `staff_code_uuid`；
+- 非 confirmed mapping 成员创建被拒绝；
+- 支持 `list + status(active/disabled)`。
+
+### 12.2 员工欢迎语（结构化 + 预览）
+
+```bash
+curl -X PUT "http://127.0.0.1:8092/api/v1/admin/leads/acquisition/staff-codes/<staff_code_uuid>/welcome-config" \
+  -H "Authorization: Bearer $USER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "welcome_mode":"send",
+    "content_blocks":[{"type":"text","text":"欢迎添加企业微信"}]
+  }'
+```
+
+验收点：
+- 返回 `sync_status=pending`；
+- 返回 `payload_preview`；
+- 同步接口失败重试 3 次后转 `manual_required`，`latest_attempt_no=3`。
+
+### 12.3 群活码/群欢迎语骨架
+
+```bash
+curl "http://127.0.0.1:8092/api/v1/admin/leads/acquisition/group-codes" \
+  -H "Authorization: Bearer $USER_TOKEN"
+```
+
+验收点：
+- 页面非空白；
+- 接口可用并返回 `capability_status=not_implemented`；
+- 群欢迎语目前为骨架说明页（非可编辑态）。
+
+### 12.4 V2 webhook 骨架
+
+```bash
+curl -X POST "http://127.0.0.1:8092/api/v1/webhooks/channels/wechat/staff-code-events" \
+  -H "Content-Type: application/json" \
+  -d '{"channel_account_uuid":"<uuid>","code_key":"staff_campaign_001","external_event_id":"evt-1","event_type":"join","occurred_at":"2026-03-25T10:00:00Z"}'
+```
+
+验收点：
+- `staff-code-events` / `group-code-events` 路由可达；
+- 返回 `status=not_implemented`（骨架阶段）。

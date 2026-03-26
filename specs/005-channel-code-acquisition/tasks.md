@@ -134,6 +134,43 @@
 
 ---
 
+## Phase 7: V2 Refactor - 引流获客独立域（员工全量 + 群骨架）
+
+**Purpose**: 在 005 内追加独立域重构，保留 V1 兼容能力
+
+### Tests for V2
+
+- [X] T053 [P] [V2] 新增合同测试：员工活码 CRUD 与状态切换到 `backend/tests/contract/staff_live_code_contract_test.go`
+- [X] T054 [P] [V2] 新增合同测试：员工欢迎语保存/发布/状态查询到 `backend/tests/contract/staff_welcome_contract_test.go`
+- [X] T055 [P] [V2] 新增服务单测：成员来源仅允许 confirmed mapping 到 `backend/internal/services/admin/acquisition/staff_live_code_service_test.go`
+- [X] T056 [V2] 新增集成测试：员工欢迎语发布失败重试与 manual_required 到 `backend/tests/integration/staff_welcome_sync_retry_integration_test.go`
+- [X] T057 [P] [V2] 新增合同测试：群活码/群欢迎语骨架接口到 `backend/tests/contract/group_live_code_skeleton_contract_test.go`
+
+### Implementation for V2 Backend
+
+- [X] T058 [V2] 新增 acquisition 域模型与迁移（staff/group）到 `backend/internal/domain/models/acquisition/` 与 `backend/cmd/database/migrate/migrate.go`
+- [X] T059 [V2] 新增 acquisition 仓储接口与实现到 `backend/internal/domain/repository/acquisition/`
+- [X] T060 [V2] 实现员工活码服务（create/list/get/update/status）到 `backend/internal/services/admin/acquisition/staff_live_code_service.go`
+- [X] T061 [V2] 实现员工欢迎语服务（structured save + payload preview + sync status）到 `backend/internal/services/admin/acquisition/staff_welcome_service.go`
+- [X] T062 [V2] 实现群活码与群欢迎语骨架服务到 `backend/internal/services/admin/acquisition/group_live_code_service.go`
+- [X] T063 [V2] 注册 acquisition admin/webhook 路由到 `backend/internal/transport/http/admin/acquisition/routes.go` 与 `backend/internal/transport/http/webhooks/routes.go`
+
+### Implementation for V2 Frontend
+
+- [X] T064 [V2] 新增引流获客 API client 到 `web-admin/app/composables/api/services/acquisition.ts`
+- [X] T065 [V2] 新增员工活码页面（列表+设置）到 `web-admin/app/pages/scrm/acquisition_staff_code.vue`
+- [X] T066 [V2] 新增员工欢迎语页面（结构化编辑+JSON预览）到 `web-admin/app/pages/scrm/acquisition_staff_welcome.vue`
+- [X] T067 [V2] 新增群活码骨架页面到 `web-admin/app/pages/scrm/acquisition_group_code.vue`
+- [X] T068 [V2] 新增群欢迎语骨架页面到 `web-admin/app/pages/scrm/acquisition_group_welcome.vue`
+- [X] T069 [V2] 补充导航映射与 i18n 文案，确保四子页均非占位到 `web-admin/app/components/AppSidebar.vue` 与 `web-admin/app/pages/scrm/[module].vue`
+
+### Polish for V2
+
+- [X] T070 [V2] 更新 quickstart 与验收指南（员工全量+群骨架）到 `specs/005-channel-code-acquisition/quickstart.md` 与 `docs/guides/lead-capture/README.md`
+- [X] T071 [V2] 补充观测指标文档（staff/group 域）到 `backend/internal/observability/lead_capture/README.md`
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies

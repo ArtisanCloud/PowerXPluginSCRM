@@ -191,6 +191,123 @@ paths:
         '400':
           description: 参数非法或验签失败
 
+  /admin/leads/acquisition/staff-codes:
+    post:
+      summary: 创建员工活码（V2）
+      tags: [StaffLiveCode]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StaffLiveCodeCreateRequest'
+      responses:
+        '200':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffLiveCode'
+    get:
+      summary: 查询员工活码列表（V2）
+      tags: [StaffLiveCode]
+      parameters:
+        - in: query
+          name: activity_name
+          schema: { type: string }
+        - in: query
+          name: status
+          schema: { type: string, enum: [draft, active, disabled] }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 20 }
+      responses:
+        '200':
+          description: 查询成功
+
+  /admin/leads/acquisition/staff-codes/{staff_code_uuid}/status:
+    patch:
+      summary: 更新员工活码状态（V2）
+      tags: [StaffLiveCode]
+      parameters:
+        - in: path
+          name: staff_code_uuid
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [active, disabled]
+      responses:
+        '200':
+          description: 更新成功
+
+  /admin/leads/acquisition/staff-codes/{staff_code_uuid}/welcome-config:
+    put:
+      summary: 保存员工欢迎语配置（V2）
+      tags: [StaffWelcome]
+      parameters:
+        - in: path
+          name: staff_code_uuid
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StaffWelcomeSaveRequest'
+      responses:
+        '200':
+          description: 保存成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffWelcomeConfig'
+
+  /admin/leads/acquisition/staff-codes/{staff_code_uuid}/welcome-config/sync:
+    post:
+      summary: 发布员工欢迎语到渠道（V2）
+      tags: [StaffWelcome]
+      parameters:
+        - in: path
+          name: staff_code_uuid
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: 发布任务触发成功
+        '403':
+          description: 无发布权限
+
+  /admin/leads/acquisition/staff-codes/{staff_code_uuid}/welcome-config/sync-status:
+    get:
+      summary: 查询员工欢迎语发布状态（V2）
+      tags: [StaffWelcome]
+      parameters:
+        - in: path
+          name: staff_code_uuid
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: 查询成功
+
+  /admin/leads/acquisition/group-codes:
+    get:
+      summary: 查询群活码骨架列表（V2）
+      tags: [GroupLiveCode]
+      responses:
+        '200':
+          description: 查询成功（含 capability_status）
+
 components:
   schemas:
     ChannelCodeCreateRequest:
@@ -257,6 +374,65 @@ components:
           enum: [syncing, success, failed, manual_required]
         attempt_no: { type: integer }
         message: { type: string }
+
+    StaffLiveCodeCreateRequest:
+      type: object
+      required: [channel, app_type, channel_account_uuid, activity_name, code_key, member_uuids]
+      properties:
+        channel: { type: string, example: wechat }
+        app_type: { type: string, example: wecom }
+        channel_account_uuid: { type: string, format: uuid }
+        activity_name: { type: string }
+        code_key: { type: string }
+        member_uuids:
+          type: array
+          items: { type: string, format: uuid }
+        corp_tag_ids:
+          type: array
+          items: { type: string }
+        new_customer_remark_enabled: { type: boolean, default: false }
+
+    StaffLiveCode:
+      type: object
+      properties:
+        staff_code_uuid: { type: string, format: uuid }
+        channel: { type: string }
+        app_type: { type: string }
+        channel_account_uuid: { type: string, format: uuid }
+        activity_name: { type: string }
+        code_key: { type: string }
+        status: { type: string, enum: [draft, active, disabled] }
+        member_uuids:
+          type: array
+          items: { type: string, format: uuid }
+
+    StaffWelcomeSaveRequest:
+      type: object
+      required: [welcome_mode, content_blocks]
+      properties:
+        welcome_mode: { type: string, enum: [send, silent] }
+        content_blocks:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+
+    StaffWelcomeConfig:
+      type: object
+      properties:
+        staff_code_uuid: { type: string, format: uuid }
+        welcome_mode: { type: string, enum: [send, silent] }
+        content_blocks:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        payload_preview:
+          type: object
+          additionalProperties: true
+        sync_status:
+          type: string
+          enum: [pending, syncing, success, failed, manual_required, not_implemented]
 
     WelcomeSyncStatus:
       type: object

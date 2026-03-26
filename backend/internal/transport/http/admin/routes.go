@@ -3,6 +3,7 @@ package admin
 import (
 	iamservice "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/services/iam"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/shared/app"
+	adminacquisition "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/transport/http/admin/acquisition"
 	admincapability "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/transport/http/admin/capability"
 	adminconsole "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/transport/http/admin/console"
 	adminiam "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/transport/http/admin/iam"
@@ -38,6 +39,7 @@ func RegisterAPIRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		adminsecurity.RegisterRoutes(adminTenantGroup(admin, deps), deps)
 		AdminSocial.RegisterRoutes(adminTenantGroup(admin, deps), deps)
 		adminlead.RegisterRoutes(adminTenantGroup(admin, deps), deps)
+		adminacquisition.RegisterRoutes(adminTenantGroup(admin, deps), deps)
 		adminorgsync.RegisterRoutes(adminTenantGroup(admin, deps), deps)
 		adminiam.RegisterRoutes(admin, deps)
 	}

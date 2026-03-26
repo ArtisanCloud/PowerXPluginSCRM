@@ -43,6 +43,22 @@ const moduleMap: Record<string, { labelKey: string; planPath: string }> = {
     labelKey: "navigation.scrmLeadEntry",
     planPath: "docs/plan/lead_capture/intake/README.md",
   },
+  acquisition_staff_code: {
+    labelKey: "navigation.scrmAcquisitionStaffCode",
+    planPath: "docs/plan/lead_capture/intake/channel_code_acquisition.md",
+  },
+  acquisition_staff_welcome: {
+    labelKey: "navigation.scrmAcquisitionStaffWelcome",
+    planPath: "docs/plan/lead_capture/intake/channel_code_acquisition.md",
+  },
+  acquisition_group_code: {
+    labelKey: "navigation.scrmAcquisitionGroupCode",
+    planPath: "docs/plan/lead_capture/intake/channel_code_acquisition.md",
+  },
+  acquisition_group_welcome: {
+    labelKey: "navigation.scrmAcquisitionGroupWelcome",
+    planPath: "docs/plan/lead_capture/intake/channel_code_acquisition.md",
+  },
   community_customer_engagement: {
     labelKey: "navigation.scrmCommunityCustomerEngagement",
     planPath: "docs/plan/community_customer_engagement/README.md",
