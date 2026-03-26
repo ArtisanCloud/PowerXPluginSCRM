@@ -56,6 +56,7 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		metrics,
 	)
 	channelCodeEventHandler := NewChannelCodeEventsWebhookHandler(channelCodeEventSvc)
+	acquisitionCodeEventHandler := NewAcquisitionCodeEventsWebhookHandler()
 
 	group := rg.Group("/webhooks")
 	{
@@ -66,5 +67,7 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		group.POST("/wecom/conversations", conversationHandler.Ingest)
 		group.POST("/wecom/bot/commands", botCommandHandler.Ingest)
 		group.POST("/channels/:channel/code-events", channelCodeEventHandler.Ingest)
+		group.POST("/channels/:channel/staff-code-events", acquisitionCodeEventHandler.IngestStaff)
+		group.POST("/channels/:channel/group-code-events", acquisitionCodeEventHandler.IngestGroup)
 	}
 }

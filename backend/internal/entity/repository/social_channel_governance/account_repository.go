@@ -154,6 +154,32 @@ func (r *AccountRepository) GetByAccountUUID(ctx context.Context, tenantUUID, ac
 	return &out, nil
 }
 
+func (r *AccountRepository) ResolveDefaultAccountUUID(ctx context.Context, tenantUUID, channelCode, appType string) (string, error) {
+	if r == nil || r.DB == nil {
+		return "", errors.New("repository database is not initialized")
+	}
+	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
+	channelCode = strings.ToLower(strings.TrimSpace(channelCode))
+	appType = strings.ToLower(strings.TrimSpace(appType))
+	if tenantUUID == "" || channelCode == "" || appType == "" {
+		return "", ErrAccountNotFound
+	}
+
+	var out model.ChannelAccount
+	err := r.DB.WithContext(ctx).
+		Where("tenant_uuid = ? AND channel_code = ? AND app_type = ? AND org_sync_default = TRUE", tenantUUID, channelCode, appType).
+		Where("deleted_at IS NULL").
+		Order("updated_at DESC").
+		First(&out).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", ErrAccountNotFound
+		}
+		return "", err
+	}
+	return out.AccountUUID, nil
+}
+
 func (r *AccountRepository) FindByUUID(ctx context.Context, accountUUID string) (*model.ChannelAccount, error) {
 	if r == nil || r.DB == nil {
 		return nil, errors.New("repository database is not initialized")

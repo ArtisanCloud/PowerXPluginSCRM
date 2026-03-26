@@ -78,7 +78,7 @@ web-admin/
 └── tests/
 ```
 
-**Structure Decision**: 继续沿用现有 `lead_capture` 领域分层，渠道码与欢迎语作为该领域子能力增量落地，不新增平行业务域目录。
+**Structure Decision**: V1 保留 `lead_capture` 子能力；V2 在同一 feature 内新增 `acquisition` 独立域（staff/group）并逐步切流。
 
 ## Phase 0: Research Output
 
@@ -125,3 +125,45 @@ web-admin/
 | Violation | Why Needed | Simpler Alternative Rejected Because |
 |-----------|------------|-------------------------------------|
 | N/A | N/A | N/A |
+
+---
+
+## V2 Implementation Alignment (2026-03-25)
+
+### Scope
+
+- 员工活码 + 员工欢迎语：全量交付（独立模型、独立 API、独立页面）。
+- 群活码 + 群欢迎语：骨架交付（模型/API/页面可访问，能力状态可见）。
+- 引流获客四子菜单均落真实页面，不得回退占位页。
+
+### Backend Changes
+
+1. 新增 staff 独立模型与仓储：
+   - `staff_live_codes`
+   - `staff_welcome_configs`
+   - `staff_live_code_sync_attempts`
+   - `staff_live_code_events`
+2. 新增 group 骨架模型与仓储：
+   - `group_live_codes`
+   - `group_welcome_configs`
+3. 新增 acquisition API 族（建议前缀：`/api/v1/admin/leads/acquisition/**`）。
+4. 新增员工/群 webhook 入站骨架路由（`/webhooks/channels/wechat/*-code-events`）。
+5. 员工选择成员来源固定为 `org_sync` confirmed mapping。
+
+### Frontend Changes
+
+1. 实装四个子路由页面：
+   - `/scrm/acquisition_staff_code`
+   - `/scrm/acquisition_staff_welcome`
+   - `/scrm/acquisition_group_code`
+   - `/scrm/acquisition_group_welcome`
+2. 员工活码页面结构对齐参考图：
+   - 列表页：活动名称搜索 + 创建活码 + 列表状态
+   - 设置页：基础设置、回复设置、右侧手机预览
+3. 员工欢迎语采用结构化编辑 + JSON 预览。
+4. 群两个页面提供完整骨架与“能力待实装”状态提示，不出现空白页。
+
+### Compatibility & Rollout
+
+- V1 通用 `channel-codes` 能力维持可用，不做本期强制迁移。
+- V2 页面作为新运营入口，后续再执行数据迁移与切流。

@@ -309,6 +309,31 @@ const scrmSections = [
     ],
   },
   {
+    titleKey: "navigation.scrmSectionAcquisition",
+    items: [
+      {
+        to: "/scrm/acquisition_staff_code",
+        labelKey: "navigation.scrmAcquisitionStaffCode",
+        icon: "i-heroicons-qr-code",
+      },
+      {
+        to: "/scrm/acquisition_staff_welcome",
+        labelKey: "navigation.scrmAcquisitionStaffWelcome",
+        icon: "i-heroicons-chat-bubble-oval-left-ellipsis",
+      },
+      {
+        to: "/scrm/acquisition_group_code",
+        labelKey: "navigation.scrmAcquisitionGroupCode",
+        icon: "i-heroicons-user-group",
+      },
+      {
+        to: "/scrm/acquisition_group_welcome",
+        labelKey: "navigation.scrmAcquisitionGroupWelcome",
+        icon: "i-heroicons-megaphone",
+      },
+    ],
+  },
+  {
     titleKey: "navigation.scrmSectionOperations",
     items: [
       {

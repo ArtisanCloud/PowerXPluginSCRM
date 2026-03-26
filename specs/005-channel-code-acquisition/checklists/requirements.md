@@ -32,3 +32,4 @@
 ## Notes
 
 - 本次规范从 `docs/plan/lead_capture/intake/channel_code_acquisition.md` 收敛，未保留阻断性交互澄清项，可直接进入 `/speckit.plan`。
+- 2026-03-25 新增 V2（员工活码独立域）对齐补充，建议在进入实现前对 V2 段落再执行一次 checklist 复核。

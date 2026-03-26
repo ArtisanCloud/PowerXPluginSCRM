@@ -62,3 +62,23 @@
   - 前置检查脚本返回 feature 目录与任务文件状态，满足 quickstart 前置要求。
   - `contracts/` 目录包含渠道码契约文件，结构符合预期。
   - `ChannelCodeRuntimeModeConsistency` 用例通过，`POWERX_PROXY=0/1` 两种模式下欢迎语同步失败重试后的状态一致（均可收敛至 `manual_required`）。
+
+## V2 决策补充（2026-03-25）
+
+## Decision 8: 员工活码与群活码采用独立模型
+- **Decision**: V2 不继续复用 V1 `ChannelCode` 主模型，拆分 staff/group 独立域。
+- **Rationale**: 员工活码与群活码生命周期、配置字段与后续能力演进差异明显，独立建模更可控。
+- **Alternatives considered**:
+  - 继续复用通用模型：短期改动少，但后续字段膨胀与语义冲突风险高。
+
+## Decision 9: 交付节奏采用“员工全量 + 群骨架”
+- **Decision**: 本迭代先完成员工活码与员工欢迎语全量，群侧先交付骨架。
+- **Rationale**: 可优先满足运营上线诉求，同时为企业微信群活码真实接入预留接口与页面位置。
+- **Alternatives considered**:
+  - 员工群全部一次性全量：周期和联调风险过高。
+
+## Decision 10: 欢迎语编辑采用结构化编辑 + JSON 预览
+- **Decision**: 页面使用结构化块编辑，服务端保存可发布 payload 预览。
+- **Rationale**: 兼顾运营可用性与渠道协议可控性，降低纯 JSON 误配概率。
+- **Alternatives considered**:
+  - 纯 JSON 编辑：实现快但运营门槛高、错误率高。

@@ -9,6 +9,7 @@ import (
 
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/config"
 	domainmodels "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/domain/models"
+	domainAcquisitionModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/domain/models/acquisition"
 	domainLeadCaptureModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/domain/models/lead_capture"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models"
 	adminconsoleModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/admin_console"
@@ -92,6 +93,10 @@ var businessTables = []interface{}{
 	&domainLeadCaptureModel.ChannelCodeEvent{},
 	&domainLeadCaptureModel.LeadAttributionRecord{},
 	&domainLeadCaptureModel.CodeConfigChangeLog{},
+	&domainAcquisitionModel.StaffLiveCode{},
+	&domainAcquisitionModel.StaffWelcomeConfig{},
+	&domainAcquisitionModel.StaffWelcomeSyncAttempt{},
+	&domainAcquisitionModel.GroupLiveCode{},
 }
 
 var iamTables = []interface{}{

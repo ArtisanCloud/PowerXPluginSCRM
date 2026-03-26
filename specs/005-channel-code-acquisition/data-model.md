@@ -130,3 +130,124 @@
 - `syncing -> failed -> syncing`（重试）
 - `failed -> manual_required`（重试超过阈值）
 - `manual_required -> syncing`（人工再次发布）
+
+---
+
+## V2 独立域模型（员工活码/群活码）
+
+> 本节为 2026-03-25 对齐新增，V1 模型继续保留用于兼容存量功能。
+
+## 6. StaffLiveCode
+
+### Purpose
+员工活码主实体，面向“选择成员 + 引流配置 + 状态管理”。
+
+### Fields
+- `staff_code_uuid` (UUID, PK)
+- `tenant_uuid` (UUID, required, indexed)
+- `channel` (string, required, default `wechat`)
+- `app_type` (string, required, default `wecom`)
+- `channel_account_uuid` (UUID, required, indexed)
+- `activity_name` (string, required)
+- `code_key` (string, required, unique within tenant + channel)
+- `status` (enum: `draft|active|disabled`)
+- `member_uuids` (jsonb array, required, from org_sync confirmed mapping)
+- `corp_tag_ids` (jsonb array, optional)
+- `new_customer_remark_enabled` (bool, default false)
+- `created_by` / `updated_by` (string)
+- `created_at` / `updated_at` (timestamp)
+
+### Rules
+- `member_uuids` 至少 1 人，且必须是 confirmed mapping 成员。
+- `status=disabled` 后不得继续进入有效引流流程。
+
+## 7. StaffWelcomeConfig
+
+### Purpose
+员工活码专属欢迎语配置（结构化编辑存储 + JSON 预览发布）。
+
+### Fields
+- `staff_welcome_config_uuid` (UUID, PK)
+- `tenant_uuid` (UUID, required, indexed)
+- `staff_code_uuid` (UUID, required, unique)
+- `welcome_mode` (enum: `send|silent`)
+- `content_blocks` (jsonb, required, structured blocks)
+- `payload_preview` (jsonb, required, computed)
+- `sync_status` (enum: `pending|syncing|success|failed|manual_required`)
+- `last_sync_error` (string, nullable)
+- `last_synced_at` (timestamp, nullable)
+- `version` (int, required)
+- `created_by` / `updated_by` (string)
+- `created_at` / `updated_at` (timestamp)
+
+### Rules
+- 保存后默认 `sync_status=pending`。
+- 发布失败保留 `content_blocks/payload_preview` 原值，不回滚为空。
+
+## 8. StaffLiveCodeSyncAttempt
+
+### Purpose
+记录员工欢迎语发布尝试与重试链路。
+
+### Fields
+- `attempt_uuid` (UUID, PK)
+- `tenant_uuid` (UUID, required, indexed)
+- `staff_code_uuid` (UUID, required, indexed)
+- `config_version` (int, required)
+- `trigger_source` (enum: `manual|auto_retry`)
+- `attempt_no` (int, required)
+- `result` (enum: `success|failed`)
+- `error_code` / `error_message` (nullable)
+- `started_at` / `finished_at` / `created_at` (timestamp)
+
+### Rules
+- 自动重试最多 3 次，超限后转 `manual_required`。
+
+## 9. StaffLiveCodeEvent
+
+### Purpose
+员工活码触达事件表（入站幂等 + 统计）。
+
+### Fields
+- `event_uuid` (UUID, PK)
+- `tenant_uuid` (UUID, required, indexed)
+- `staff_code_uuid` (UUID, required, indexed)
+- `channel_account_uuid` (UUID, required, indexed)
+- `external_event_id` (string, required)
+- `event_type` (enum: `scan|add_friend|message|other`)
+- `idempotency_key` (string, required, unique)
+- `occurred_at` (timestamp)
+- `payload` (jsonb, required)
+- `created_at` (timestamp)
+
+### Rules
+- 幂等键口径：`tenant_uuid + channel + channel_account_uuid + external_event_id`。
+
+## 10. GroupLiveCode（Skeleton）
+
+### Purpose
+群活码骨架实体，为后续企业微信群活码实装预留。
+
+### Fields
+- `group_code_uuid` (UUID, PK)
+- `tenant_uuid` (UUID, required)
+- `channel` / `app_type` / `channel_account_uuid` (required)
+- `activity_name` (string, required)
+- `status` (enum: `draft|active|disabled`)
+- `capability_status` (enum: `skeleton|ready`)
+- `created_by` / `updated_by` / `created_at` / `updated_at`
+
+## 11. GroupWelcomeConfig（Skeleton）
+
+### Purpose
+群欢迎语骨架配置，先支持保存和状态展示，后续接群能力发布。
+
+### Fields
+- `group_welcome_config_uuid` (UUID, PK)
+- `tenant_uuid` (UUID, required)
+- `group_code_uuid` (UUID, required, unique)
+- `welcome_mode` (enum: `send|silent`)
+- `content_blocks` (jsonb, required)
+- `sync_status` (enum: `pending|not_implemented`)
+- `capability_status` (enum: `skeleton|ready`)
+- `created_by` / `updated_by` / `created_at` / `updated_at`

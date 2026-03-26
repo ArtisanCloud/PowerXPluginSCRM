@@ -44,3 +44,41 @@
    - 渠道码相关 metric 标签齐全（`channel/app_type/result/error_code`）。
    - 欢迎语发布失败时 `powerx_lead_capture_welcome_sync_attempt_total` 中失败计数增长。
 4. 管理端查询事件统计，确认 `touch_total/intake_total/dedup_total` 与预期一致。
+
+---
+
+## V2（T071）引流获客独立域观测补充
+
+### 1) 员工活码域
+- 关键业务口径：
+  - 员工活码创建总数（按 `channel/app_type/status` 维度）
+  - 成员映射校验拒绝次数（`mapping_not_confirmed`）
+  - 活码状态变更次数（`draft -> active/disabled`）
+- 当前阶段（Phase 7）建议优先以接口日志 + 审计事件核对：
+  - `POST /admin/leads/acquisition/staff-codes`
+  - `PATCH /admin/leads/acquisition/staff-codes/:staff_code_uuid/status`
+
+### 2) 员工欢迎语域
+- 关键业务口径：
+  - 欢迎语保存次数（结构化 `content_blocks` 保存）
+  - 同步尝试次数（attempt_no）
+  - 失败重试次数与最终人工介入次数（`manual_required`）
+- 当前阶段实现口径：
+  - 每次触发同步固定重试 3 次；
+  - 最终状态 `manual_required`；
+  - `last_sync_error` 包含 `not implemented`（适配器骨架）。
+
+### 3) 群域骨架
+- 关键业务口径：
+  - 群活码列表访问次数；
+  - 能力状态分布（当前 `capability_status=not_implemented`）。
+- webhook 骨架：
+  - `POST /webhooks/channels/:channel/staff-code-events`
+  - `POST /webhooks/channels/:channel/group-code-events`
+  - 响应包含 `status=not_implemented`，用于链路探活。
+
+### 4) 建议新增指标（下一阶段）
+- `powerx_acquisition_staff_code_create_total{channel,app_type,result}`
+- `powerx_acquisition_staff_mapping_validation_total{result}`
+- `powerx_acquisition_staff_welcome_sync_attempt_total{result,error_code}`
+- `powerx_acquisition_group_code_capability_status_total{capability_status}`
