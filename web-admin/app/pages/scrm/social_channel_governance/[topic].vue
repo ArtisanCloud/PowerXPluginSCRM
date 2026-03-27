@@ -16,6 +16,15 @@
           </UButton>
           <UButton
             v-if="isUnifiedAccessTopic"
+            icon="i-heroicons-shield-check"
+            color="primary"
+            variant="soft"
+            @click="openOpenWorkFoundation"
+          >
+            企微代开发
+          </UButton>
+          <UButton
+            v-if="isUnifiedAccessTopic"
             icon="i-heroicons-link"
             color="primary"
             @click="openCreateAccountModal"
@@ -1392,6 +1401,10 @@ const openConfigModal = (account: ChannelAccountSummary) => {
       ? capabilityEntries.map(([key, enabled]) => ({ key, enabled: Boolean(enabled) }))
       : [{ key: '', enabled: false }]
   configModalOpen.value = true
+}
+
+const openOpenWorkFoundation = async () => {
+  await navigateTo('/scrm/social_channel_governance/openwork-foundation')
 }
 
 onMounted(async () => {

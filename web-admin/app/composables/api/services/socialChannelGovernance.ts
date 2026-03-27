@@ -74,10 +74,57 @@ export interface ChannelSchemaDocument {
   channels: ChannelSchema[];
 }
 
+export interface OpenWorkBinding {
+  binding_uuid: string;
+  tenant_uuid: string;
+  channel_account_uuid?: string;
+  suite_id: string;
+  corp_id: string;
+  corp_name: string;
+  agent_id: string;
+  status: string;
+  is_default: boolean;
+  updated_at?: string;
+}
+
+export interface OpenWorkStartAuthorizePayload {
+  suite_id: string;
+  suite_secret: string;
+  suite_ticket?: string;
+  redirect_uri?: string;
+  state?: string;
+}
+
+export interface OpenWorkCompleteAuthorizePayload {
+  suite_id: string;
+  suite_secret: string;
+  suite_ticket?: string;
+  auth_code: string;
+  channel_account_uuid?: string;
+  set_default?: boolean;
+}
+
+export interface OpenWorkAuthorizeStatusQuery {
+  suite_id: string;
+  state?: string;
+  started_at?: number;
+}
+
+export interface SyncBaselineCreatePayload {
+  binding_uuid?: string;
+  domain: "tags" | "org" | "external_contacts";
+  mode: "bootstrap" | "incremental" | "pushback";
+  idempotency_key?: string;
+  max_retries?: number;
+  write_back_fields?: Record<string, any>;
+  context?: Record<string, any>;
+}
+
 export const useSocialChannelGovernanceService = () => {
   const apiClient = useApiClient();
   const baseUrl = "/admin/social/channel-accounts";
   const schemaUrl = "/admin/social/channel-schema";
+  const openworkBase = "/admin/social/openwork/wecom";
 
   return {
     getChannelSchema: () => {
@@ -136,6 +183,63 @@ export const useSocialChannelGovernanceService = () => {
         `${baseUrl}/${accountUuid}/capabilities`,
         payload
       );
+    },
+    startOpenWorkAuthorization: (payload: OpenWorkStartAuthorizePayload) => {
+      return apiClient.post<ApiResponse<{
+        suite_id: string;
+        pre_auth_code: string;
+        expires_in: number;
+        authorize_url: string;
+        state: string;
+      }>>(`${openworkBase}/authorize/start`, payload);
+    },
+    completeOpenWorkAuthorization: (payload: OpenWorkCompleteAuthorizePayload) => {
+      return apiClient.post<ApiResponse<OpenWorkBinding>>(
+        `${openworkBase}/authorize/complete`,
+        payload
+      );
+    },
+    getOpenWorkAuthorizationStatus: (params: OpenWorkAuthorizeStatusQuery) => {
+      return apiClient.get<ApiResponse<{
+        suite_id: string;
+        state?: string;
+        status: "pending" | "authorized" | "failed" | "expired";
+        message: string;
+        checked_at: string;
+        binding?: OpenWorkBinding;
+      }>>(`${openworkBase}/authorize/status`, { params });
+    },
+    listOpenWorkBindings: () => {
+      return apiClient.get<ApiResponse<{ items: OpenWorkBinding[] }>>(
+        `${openworkBase}/bindings`
+      );
+    },
+    setDefaultOpenWorkBinding: (bindingUuid: string, payload?: { channel_account_uuid?: string }) => {
+      return apiClient.post<ApiResponse<OpenWorkBinding>>(
+        `${openworkBase}/bindings/${bindingUuid}/default`,
+        payload ?? {}
+      );
+    },
+    createSyncBaselineJob: (payload: SyncBaselineCreatePayload) => {
+      return apiClient.post<ApiResponse<any>>(`${openworkBase}/sync/jobs`, payload);
+    },
+    listSyncBaselineJobs: (params?: { status?: string; limit?: number }) => {
+      return apiClient.get<ApiResponse<{ items: any[] }>>(`${openworkBase}/sync/jobs`, { params });
+    },
+    getSyncDashboard: () => {
+      return apiClient.get<ApiResponse<any>>(`${openworkBase}/sync/dashboard`);
+    },
+    listSyncConflicts: (params?: { status?: string; limit?: number }) => {
+      return apiClient.get<ApiResponse<{ items: any[] }>>(`${openworkBase}/sync/conflicts`, { params });
+    },
+    replaySyncConflict: (conflictUuid: string, payload?: { note?: string }) => {
+      return apiClient.post<ApiResponse<any>>(
+        `${openworkBase}/sync/conflicts/${conflictUuid}/replay`,
+        payload ?? {}
+      );
+    },
+    getOpenWorkGoLiveGates: () => {
+      return apiClient.get<ApiResponse<any>>(`${openworkBase}/go-live-gates`);
     },
   };
 };
