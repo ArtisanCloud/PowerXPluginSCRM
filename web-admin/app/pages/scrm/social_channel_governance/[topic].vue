@@ -467,6 +467,23 @@
           </div>
         </template>
       </UModal>
+
+      <UModal
+        v-if="isUnifiedAccessTopic"
+        v-model:open="openWorkModalOpen"
+        :dismissible="true"
+        :modal="true"
+        :portal="true"
+        title="企微代开发"
+        description="扫码优先授权，手动 auth_code 作为回退模式"
+        :ui="{ content: 'max-w-6xl w-[92vw] mx-auto' }"
+      >
+        <template #body>
+          <div class="p-4 sm:p-5">
+            <OpenWorkFoundationContent in-modal />
+          </div>
+        </template>
+      </UModal>
     </div>
 
     <div v-else class="space-y-6">
@@ -500,6 +517,7 @@
 <script setup lang="ts">
 import { nextTick } from 'vue'
 import { storeToRefs } from 'pinia'
+import OpenWorkFoundationContent from '~/components/scrm/social_channel_governance/OpenWorkFoundationContent.vue'
 import {
   type ChannelAccountSummary,
   useSocialChannelAccountStore,
@@ -557,6 +575,7 @@ const channelSchema = ref<ChannelSchemaDocument | null>(null)
 const channelSchemaLoading = ref(false)
 const channelSchemaError = ref('')
 const accountModalOpen = ref(false)
+const openWorkModalOpen = ref(false)
 const accountModalMode = ref<'create' | 'edit'>('create')
 const accountModalSaving = ref(false)
 const accountModalMessage = ref('')
@@ -1403,9 +1422,18 @@ const openConfigModal = (account: ChannelAccountSummary) => {
   configModalOpen.value = true
 }
 
-const openOpenWorkFoundation = async () => {
-  await navigateTo('/scrm/social_channel_governance/openwork-foundation')
+const openOpenWorkFoundation = () => {
+  openWorkModalOpen.value = true
 }
+
+watch(
+  () => openWorkModalOpen.value,
+  (open) => {
+    if (!open && process.client) {
+      ;(document.activeElement as HTMLElement | null)?.blur?.()
+    }
+  },
+)
 
 onMounted(async () => {
   if (topicKey.value === 'account-permission') {

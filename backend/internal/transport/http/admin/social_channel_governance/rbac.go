@@ -10,6 +10,7 @@ import (
 func RBACEntries(prefix string) map[string]authx.Permission {
 	base := strings.TrimRight(prefix, "/") + "/admin/social/channel-accounts"
 	openworkBase := strings.TrimRight(prefix, "/") + "/admin/social/openwork/wecom"
+	platformBase := strings.TrimRight(prefix, "/") + "/admin/social/channel-platform/wecom/openwork"
 	return map[string]authx.Permission{
 		"GET:" + base:                                                    {Resource: "scrm.social_channel_accounts", Action: "read"},
 		"POST:" + base:                                                   {Resource: "scrm.social_channel_accounts", Action: "write"},
@@ -35,5 +36,14 @@ func RBACEntries(prefix string) map[string]authx.Permission {
 		"POST:" + openworkBase + "/sync/conflicts/:conflict_uuid/replay": {Resource: "scrm.social_channel_accounts", Action: "write"},
 		"GET:" + openworkBase + "/sync/dashboard":                        {Resource: "scrm.social_channel_accounts", Action: "read"},
 		"GET:" + openworkBase + "/go-live-gates":                         {Resource: "scrm.social_channel_accounts", Action: "read"},
+		"GET:" + platformBase:                                            {Resource: "scrm.social_channel_accounts", Action: "read"},
+		"PUT:" + platformBase:                                            {Resource: "scrm.social_channel_accounts", Action: "write"},
+		"GET:" + platformBase + "/templates":                             {Resource: "scrm.social_channel_accounts", Action: "read"},
+		"POST:" + platformBase + "/templates":                            {Resource: "scrm.social_channel_accounts", Action: "write"},
+		"PUT:" + platformBase + "/templates/:template_id":                {Resource: "scrm.social_channel_accounts", Action: "write"},
+		"DELETE:" + platformBase + "/templates/:template_id":             {Resource: "scrm.social_channel_accounts", Action: "write"},
+		"POST:" + platformBase + "/templates/:template_id/default":       {Resource: "scrm.social_channel_accounts", Action: "write"},
+		"POST:" + platformBase + "/suite-ticket/refresh":                 {Resource: "scrm.social_channel_accounts", Action: "write"},
+		"POST:" + platformBase + "/suite-ticket/verify":                  {Resource: "scrm.social_channel_accounts", Action: "write"},
 	}
 }

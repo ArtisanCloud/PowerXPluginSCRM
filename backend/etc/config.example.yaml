@@ -143,6 +143,8 @@ monitoring:
   health_check:
     enabled: true
     path: "/healthz"
+    app_name: "com.powerx.plugins.scrm"
+    version: "dev"
 
 logging:
   level: "debug"

@@ -30,10 +30,12 @@ func (httpFakeRoundTripper) RoundTrip(req *http.Request) (*http.Response, error)
 	query := req.URL.RawQuery
 	body := `{"errcode":40001,"errmsg":"unknown endpoint"}`
 	switch {
+	case strings.HasSuffix(path, "/get_provider_token"):
+		body = `{"errcode":0,"errmsg":"ok","provider_access_token":"provider-token-001","expires_in":7200}`
+	case strings.HasSuffix(path, "/get_customized_auth_url") && strings.Contains(query, "provider_access_token=provider-token-001"):
+		body = `{"errcode":0,"errmsg":"ok","qrcode_url":"https://open.work.weixin.qq.com/3rdapp/install?suite_id=dk001"}`
 	case strings.HasSuffix(path, "/get_suite_token"):
 		body = `{"errcode":0,"errmsg":"ok","suite_access_token":"suite-token-001","expires_in":7200}`
-	case strings.HasSuffix(path, "/get_pre_auth_code") && strings.Contains(query, "suite_access_token=suite-token-001"):
-		body = `{"errcode":0,"errmsg":"ok","pre_auth_code":"pre-auth-001","expires_in":1200}`
 	case strings.HasSuffix(path, "/get_permanent_code") && strings.Contains(query, "suite_access_token=suite-token-001"):
 		body = `{
 			"errcode":0,
@@ -58,16 +60,19 @@ func TestOpenWorkFoundationHandler_StartAuthorization(t *testing.T) {
 	tenantUUID := "00000000-0000-0000-0000-000000000101"
 
 	payload := map[string]any{
-		"suite_id":     "suite-001",
-		"suite_secret": "suite-secret-001",
-		"suite_ticket": "ticket-001",
-		"state":        "state-001",
+		"template_id":     "dk001",
+		"template_secret": "suite-secret-001",
+		"template_ticket": "ticket-001",
+		"provider_corpid": "ww-provider-001",
+		"provider_secret": "provider-secret-001",
+		"state":           "state-001",
 	}
 	resp := doJSON(t, router, http.MethodPost, "/admin/social/openwork/wecom/authorize/start?tenant_uuid="+tenantUUID, payload)
 	require.Equal(t, http.StatusOK, resp.Code)
 	data := mustDataMap(t, resp.Body.Bytes())
-	require.Equal(t, "pre-auth-001", data["pre_auth_code"])
-	require.Contains(t, data["authorize_url"].(string), "pre_auth_code=pre-auth-001")
+	require.Equal(t, "delegated_template", data["auth_mode"])
+	require.Equal(t, "dk001", data["template_id"])
+	require.Equal(t, "https://open.work.weixin.qq.com/3rdapp/install?suite_id=dk001", data["authorize_url"])
 }
 
 func TestOpenWorkFoundationHandler_CompleteAuthorizationAndListBindings(t *testing.T) {
@@ -88,9 +93,11 @@ func TestOpenWorkFoundationHandler_CompleteAuthorizationAndListBindings(t *testi
 	}).Error)
 
 	payload := map[string]any{
-		"suite_id":             "suite-001",
-		"suite_secret":         "suite-secret-001",
-		"suite_ticket":         "ticket-001",
+		"template_id":          "dk001",
+		"template_secret":      "suite-secret-001",
+		"template_ticket":      "ticket-001",
+		"provider_corpid":      "ww-provider-001",
+		"provider_secret":      "provider-secret-001",
 		"auth_code":            "auth-code-001",
 		"channel_account_uuid": accountUUID,
 		"set_default":          true,
@@ -170,7 +177,7 @@ func TestOpenWorkFoundationHandler_GetAuthorizationStatus(t *testing.T) {
 
 	req := httptest.NewRequest(
 		http.MethodGet,
-		"/admin/social/openwork/wecom/authorize/status?tenant_uuid="+tenantUUID+"&suite_id=suite-001&state=state-001&started_at="+strconv.FormatInt(time.Now().Add(-60*time.Second).Unix(), 10),
+		"/admin/social/openwork/wecom/authorize/status?tenant_uuid="+tenantUUID+"&template_id=suite-001&state=state-001&started_at="+strconv.FormatInt(time.Now().Add(-60*time.Second).Unix(), 10),
 		nil,
 	)
 	rec := httptest.NewRecorder()
@@ -231,9 +238,9 @@ func TestOpenWorkFoundationHandler_ReplayConflictAndDashboard(t *testing.T) {
 func TestOpenWorkFoundationHandler_MissingTenantUnauthorized(t *testing.T) {
 	router, _ := newOpenWorkHandlerTestRouter(t, "openwork_handler_no_tenant")
 	resp := doJSON(t, router, http.MethodPost, "/admin/social/openwork/wecom/authorize/start", map[string]any{
-		"suite_id":     "suite-001",
-		"suite_secret": "suite-secret-001",
-		"suite_ticket": "ticket-001",
+		"template_id":     "suite-001",
+		"template_secret": "suite-secret-001",
+		"template_ticket": "ticket-001",
 	})
 	require.Equal(t, http.StatusUnauthorized, resp.Code)
 }
