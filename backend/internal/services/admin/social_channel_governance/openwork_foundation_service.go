@@ -9,15 +9,22 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 
 	model "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/social_channel_governance"
 	repository "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/social_channel_governance"
+	"github.com/sirupsen/logrus"
 	"gorm.io/datatypes"
+	"gorm.io/gorm"
 )
 
 const wecomAPIBase = "https://qyapi.weixin.qq.com/cgi-bin/service"
+
+const openWorkAuthModeDelegatedTemplate = "delegated_template"
+
+var openWorkTemplateIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{3,128}$`)
 
 type OpenWorkFoundationService struct {
 	repo        *repository.OpenWorkFoundationRepository
@@ -55,19 +62,22 @@ type OpenWorkEventIngestInput struct {
 }
 
 type OpenWorkAuthorizeStartInput struct {
-	TenantUUID  string
-	SuiteID     string
-	SuiteSecret string
-	SuiteTicket string
-	RedirectURI string
-	State       string
+	TenantUUID     string
+	TemplateID     string
+	TemplateSecret string
+	TemplateTicket string
+	ProviderCorpID string
+	ProviderSecret string
+	State          string
 }
 
 type OpenWorkAuthorizeCompleteInput struct {
 	TenantUUID         string
-	SuiteID            string
-	SuiteSecret        string
-	SuiteTicket        string
+	TemplateID         string
+	TemplateSecret     string
+	TemplateTicket     string
+	ProviderCorpID     string
+	ProviderSecret     string
 	AuthCode           string
 	ChannelAccountUUID string
 	SetDefault         bool
@@ -75,9 +85,19 @@ type OpenWorkAuthorizeCompleteInput struct {
 
 type OpenWorkAuthorizeStatusInput struct {
 	TenantUUID string
-	SuiteID    string
+	TemplateID string
 	State      string
 	StartedAt  int64
+}
+
+type openWorkAuthCredentials struct {
+	AuthMode       string
+	AppID          string
+	TemplateSecret string
+	TemplateTicket string
+	ProviderCorpID string
+	ProviderSecret string
+	HTTPDebug      bool
 }
 
 type SyncBaselineJobCreateInput struct {
@@ -105,7 +125,7 @@ func (s *OpenWorkFoundationService) IngestEvent(ctx context.Context, in OpenWork
 		return nil, nil, errors.New("tenant_uuid is required")
 	}
 	if in.SuiteID == "" || in.EventType == "" {
-		return nil, nil, errors.New("suite_id and event_type are required")
+		return nil, nil, errors.New("template_id and event_type are required")
 	}
 	if in.Payload == nil {
 		in.Payload = map[string]any{}
@@ -167,50 +187,39 @@ func (s *OpenWorkFoundationService) StartAuthorization(ctx context.Context, in O
 		return nil, errors.New("openwork foundation service unavailable")
 	}
 	in.TenantUUID = strings.ToLower(strings.TrimSpace(in.TenantUUID))
-	in.SuiteID = strings.TrimSpace(in.SuiteID)
-	in.SuiteSecret = strings.TrimSpace(in.SuiteSecret)
-	in.SuiteTicket = strings.TrimSpace(in.SuiteTicket)
-	in.RedirectURI = strings.TrimSpace(in.RedirectURI)
+	in.TemplateID = strings.TrimSpace(in.TemplateID)
+	in.TemplateSecret = strings.TrimSpace(in.TemplateSecret)
+	in.TemplateTicket = strings.TrimSpace(in.TemplateTicket)
+	in.ProviderCorpID = strings.TrimSpace(in.ProviderCorpID)
+	in.ProviderSecret = strings.TrimSpace(in.ProviderSecret)
 	in.State = strings.TrimSpace(in.State)
 	if in.TenantUUID == "" {
 		return nil, errors.New("tenant_uuid is required")
 	}
-	if in.SuiteID == "" || in.SuiteSecret == "" {
-		return nil, errors.New("suite_id and suite_secret are required")
-	}
-	if in.SuiteTicket == "" {
-		latest, err := s.repo.GetLatestSuiteTicket(ctx, in.TenantUUID, in.SuiteID)
-		if err != nil {
-			return nil, err
-		}
-		in.SuiteTicket = strings.TrimSpace(latest)
-	}
-	if in.SuiteTicket == "" {
-		return nil, errors.New("suite_ticket is required (回调未入库或未手动提供)")
-	}
-	tokenResp, err := s.fetchSuiteToken(ctx, in.SuiteID, in.SuiteSecret, in.SuiteTicket)
+	creds, err := s.resolveOpenWorkCredentials(ctx, in.TenantUUID, in.TemplateID, in.TemplateSecret, in.TemplateTicket, in.ProviderCorpID, in.ProviderSecret)
 	if err != nil {
 		return nil, err
-	}
-	preAuthResp, err := s.fetchPreAuthCode(ctx, tokenResp.SuiteAccessToken, in.SuiteID)
-	if err != nil {
-		return nil, err
-	}
-	redirectURI := in.RedirectURI
-	if redirectURI == "" {
-		redirectURI = "https://example.com/scrm/social_channel_governance/openwork-foundation"
 	}
 	state := in.State
 	if state == "" {
-		state = fmt.Sprintf("tenant:%s:%d", in.TenantUUID, time.Now().Unix())
+		state = fmt.Sprintf("tenant_%d", time.Now().Unix())
 	}
-	authURL := buildWeComAuthURL(in.SuiteID, preAuthResp.PreAuthCode, redirectURI, state)
+	state = sanitizeOpenWorkState(state, in.TenantUUID)
+	providerTokenResp, err := s.fetchProviderAccessToken(ctx, creds.ProviderCorpID, creds.ProviderSecret, creds.HTTPDebug)
+	if err != nil {
+		return nil, err
+	}
+	customizedAuthResp, err := s.fetchCustomizedAuthURL(ctx, providerTokenResp.ProviderAccessToken, state, []string{creds.AppID}, creds.HTTPDebug)
+	if err != nil {
+		return nil, err
+	}
 	return map[string]any{
-		"suite_id":      in.SuiteID,
-		"pre_auth_code": preAuthResp.PreAuthCode,
-		"expires_in":    preAuthResp.ExpiresIn,
-		"authorize_url": authURL,
-		"state":         state,
+		"auth_mode":      creds.AuthMode,
+		"template_id":    creds.AppID,
+		"expires_in":     1200,
+		"authorize_url":  customizedAuthResp.QRCodeURL,
+		"state":          state,
+		"provider_ready": true,
 	}, nil
 }
 
@@ -219,32 +228,32 @@ func (s *OpenWorkFoundationService) CompleteAuthorization(ctx context.Context, i
 		return nil, errors.New("openwork foundation service unavailable")
 	}
 	in.TenantUUID = strings.ToLower(strings.TrimSpace(in.TenantUUID))
-	in.SuiteID = strings.TrimSpace(in.SuiteID)
-	in.SuiteSecret = strings.TrimSpace(in.SuiteSecret)
-	in.SuiteTicket = strings.TrimSpace(in.SuiteTicket)
+	in.TemplateID = strings.TrimSpace(in.TemplateID)
+	in.TemplateSecret = strings.TrimSpace(in.TemplateSecret)
+	in.TemplateTicket = strings.TrimSpace(in.TemplateTicket)
+	in.ProviderCorpID = strings.TrimSpace(in.ProviderCorpID)
+	in.ProviderSecret = strings.TrimSpace(in.ProviderSecret)
 	in.AuthCode = strings.TrimSpace(in.AuthCode)
 	in.ChannelAccountUUID = strings.ToLower(strings.TrimSpace(in.ChannelAccountUUID))
 	if in.TenantUUID == "" {
 		return nil, errors.New("tenant_uuid is required")
 	}
-	if in.SuiteID == "" || in.SuiteSecret == "" || in.AuthCode == "" {
-		return nil, errors.New("suite_id, suite_secret and auth_code are required")
+	if in.AuthCode == "" {
+		return nil, errors.New("auth_code is required")
 	}
-	if in.SuiteTicket == "" {
-		latest, err := s.repo.GetLatestSuiteTicket(ctx, in.TenantUUID, in.SuiteID)
-		if err != nil {
-			return nil, err
-		}
-		in.SuiteTicket = strings.TrimSpace(latest)
-	}
-	if in.SuiteTicket == "" {
-		return nil, errors.New("suite_ticket is required (回调未入库或未手动提供)")
-	}
-	tokenResp, err := s.fetchSuiteToken(ctx, in.SuiteID, in.SuiteSecret, in.SuiteTicket)
+	creds, err := s.resolveOpenWorkCredentials(ctx, in.TenantUUID, in.TemplateID, in.TemplateSecret, in.TemplateTicket, in.ProviderCorpID, in.ProviderSecret)
 	if err != nil {
 		return nil, err
 	}
-	permResp, err := s.fetchPermanentCode(ctx, tokenResp.SuiteAccessToken, in.AuthCode)
+
+	tokenResp, err := s.fetchSuiteToken(ctx, creds.AppID, creds.TemplateSecret, creds.TemplateTicket, creds.HTTPDebug)
+	if err != nil {
+		return nil, err
+	}
+	permResp, err := s.fetchPermanentCodeV2(ctx, tokenResp.SuiteAccessToken, in.AuthCode, creds.HTTPDebug)
+	if err != nil {
+		permResp, err = s.fetchPermanentCode(ctx, tokenResp.SuiteAccessToken, in.AuthCode, creds.HTTPDebug)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -254,19 +263,21 @@ func (s *OpenWorkFoundationService) CompleteAuthorization(ctx context.Context, i
 		ChannelAccountUUID: in.ChannelAccountUUID,
 		ChannelCode:        "wechat",
 		AppType:            "wecom",
-		SuiteID:            in.SuiteID,
+		SuiteID:            creds.AppID,
 		CorpID:             strings.TrimSpace(permResp.AuthCorpInfo.CorpID),
 		CorpName:           strings.TrimSpace(permResp.AuthCorpInfo.CorpName),
 		AgentID:            agentID,
 		PermanentCode:      strings.TrimSpace(permResp.PermanentCode),
 		SuiteAccessToken:   tokenResp.SuiteAccessToken,
-		SuiteTicket:        in.SuiteTicket,
+		SuiteTicket:        creds.TemplateTicket,
 		Status:             model.WeComAuthBindingStatusActive,
 		LastEventType:      "auth_complete",
 		LastEventAt:        ptrTime(time.Now().UTC()),
 		AuthScope:          mapToJSONMap(permResp.AuthInfo),
 		Metadata: datatypes.JSONMap{
 			"authorization_info": mapToJSONMap(permResp.AuthorizationInfo),
+			"auth_mode":          creds.AuthMode,
+			"template_id":        creds.AppID,
 		},
 	}
 	setDefault := in.SetDefault
@@ -287,11 +298,18 @@ func (s *OpenWorkFoundationService) CompleteAuthorization(ctx context.Context, i
 		account, err := s.accountRepo.GetByAccountUUID(ctx, in.TenantUUID, in.ChannelAccountUUID)
 		if err == nil && account != nil {
 			existing := mergeCredentials(account.Credentials, nil)
-			existing["suite_id"] = in.SuiteID
-			existing["suite_ticket"] = in.SuiteTicket
+			existing["template_id"] = creds.AppID
+			existing["template_ticket"] = creds.TemplateTicket
 			existing["suite_access_token"] = tokenResp.SuiteAccessToken
 			existing["permanent_code"] = strings.TrimSpace(permResp.PermanentCode)
 			existing["corp_id"] = strings.TrimSpace(permResp.AuthCorpInfo.CorpID)
+			existing["auth_mode"] = creds.AuthMode
+			if creds.ProviderCorpID != "" {
+				existing["provider_corpid"] = creds.ProviderCorpID
+			}
+			if creds.ProviderSecret != "" {
+				existing["provider_secret"] = creds.ProviderSecret
+			}
 			if agentID != "" {
 				existing["agent_id"] = agentID
 			}
@@ -315,13 +333,14 @@ func (s *OpenWorkFoundationService) AuthorizationStatus(ctx context.Context, in 
 		return nil, errors.New("openwork foundation service unavailable")
 	}
 	in.TenantUUID = strings.ToLower(strings.TrimSpace(in.TenantUUID))
-	in.SuiteID = strings.TrimSpace(in.SuiteID)
+	in.TemplateID = strings.TrimSpace(in.TemplateID)
 	in.State = strings.TrimSpace(in.State)
 	if in.TenantUUID == "" {
 		return nil, errors.New("tenant_uuid is required")
 	}
-	if in.SuiteID == "" {
-		return nil, errors.New("suite_id is required")
+	appID := strings.TrimSpace(in.TemplateID)
+	if appID == "" {
+		return nil, errors.New("template_id is required")
 	}
 
 	startedAt := time.Time{}
@@ -330,18 +349,18 @@ func (s *OpenWorkFoundationService) AuthorizationStatus(ctx context.Context, in 
 	}
 	now := time.Now().UTC()
 	result := map[string]any{
-		"suite_id":   in.SuiteID,
-		"state":      in.State,
-		"status":     "pending",
-		"message":    "waiting_callback",
-		"checked_at": now,
+		"template_id": appID,
+		"state":       in.State,
+		"status":      "pending",
+		"message":     "waiting_callback",
+		"checked_at":  now,
 	}
 	if !startedAt.IsZero() {
 		result["started_at"] = startedAt
 		result["expires_at"] = startedAt.Add(20 * time.Minute)
 	}
 
-	bindings, err := s.repo.ListBindingsBySuite(ctx, in.TenantUUID, in.SuiteID, 10)
+	bindings, err := s.repo.ListBindingsBySuite(ctx, in.TenantUUID, appID, 10)
 	if err != nil {
 		return nil, err
 	}
@@ -361,7 +380,7 @@ func (s *OpenWorkFoundationService) AuthorizationStatus(ctx context.Context, in 
 		}
 	}
 
-	latestEvent, err := s.repo.GetLatestAuthEventBySuite(ctx, in.TenantUUID, in.SuiteID)
+	latestEvent, err := s.repo.GetLatestAuthEventBySuite(ctx, in.TenantUUID, appID)
 	if err != nil {
 		return nil, err
 	}
@@ -376,7 +395,7 @@ func (s *OpenWorkFoundationService) AuthorizationStatus(ctx context.Context, in 
 
 	if !startedAt.IsZero() && now.After(startedAt.Add(20*time.Minute)) {
 		result["status"] = "expired"
-		result["message"] = "pre_auth_code_expired"
+		result["message"] = "authorization_expired"
 	}
 	return result, nil
 }
@@ -553,11 +572,17 @@ type suiteTokenResponse struct {
 	ExpiresIn        int    `json:"expires_in"`
 }
 
-type preAuthCodeResponse struct {
-	ErrCode     int    `json:"errcode"`
-	ErrMsg      string `json:"errmsg"`
-	PreAuthCode string `json:"pre_auth_code"`
-	ExpiresIn   int    `json:"expires_in"`
+type providerTokenResponse struct {
+	ErrCode             int    `json:"errcode"`
+	ErrMsg              string `json:"errmsg"`
+	ProviderAccessToken string `json:"provider_access_token"`
+	ExpiresIn           int    `json:"expires_in"`
+}
+
+type customizedAuthURLResponse struct {
+	ErrCode   int    `json:"errcode"`
+	ErrMsg    string `json:"errmsg"`
+	QRCodeURL string `json:"qrcode_url"`
 }
 
 type permanentCodeResponse struct {
@@ -575,13 +600,13 @@ type authCorpInfo struct {
 	CorpName string `json:"corp_name"`
 }
 
-func (s *OpenWorkFoundationService) fetchSuiteToken(ctx context.Context, suiteID, suiteSecret, suiteTicket string) (*suiteTokenResponse, error) {
+func (s *OpenWorkFoundationService) fetchSuiteToken(ctx context.Context, suiteID, suiteSecret, suiteTicket string, httpDebug bool) (*suiteTokenResponse, error) {
 	resp := &suiteTokenResponse{}
 	err := s.postWeComJSON(ctx, wecomAPIBase+"/get_suite_token", map[string]any{
 		"suite_id":     suiteID,
 		"suite_secret": suiteSecret,
 		"suite_ticket": suiteTicket,
-	}, resp)
+	}, resp, httpDebug)
 	if err != nil {
 		return nil, err
 	}
@@ -591,27 +616,49 @@ func (s *OpenWorkFoundationService) fetchSuiteToken(ctx context.Context, suiteID
 	return resp, nil
 }
 
-func (s *OpenWorkFoundationService) fetchPreAuthCode(ctx context.Context, suiteAccessToken, suiteID string) (*preAuthCodeResponse, error) {
-	resp := &preAuthCodeResponse{}
-	urlWithToken := fmt.Sprintf("%s/get_pre_auth_code?suite_access_token=%s", wecomAPIBase, url.QueryEscape(suiteAccessToken))
-	err := s.postWeComJSON(ctx, urlWithToken, map[string]any{
-		"suite_id": suiteID,
-	}, resp)
+func (s *OpenWorkFoundationService) fetchProviderAccessToken(ctx context.Context, providerCorpID, providerSecret string, httpDebug bool) (*providerTokenResponse, error) {
+	resp := &providerTokenResponse{}
+	err := s.postWeComJSON(ctx, wecomAPIBase+"/get_provider_token", map[string]any{
+		"corpid":          providerCorpID,
+		"provider_secret": providerSecret,
+	}, resp, httpDebug)
 	if err != nil {
 		return nil, err
 	}
-	if resp.ErrCode != 0 || strings.TrimSpace(resp.PreAuthCode) == "" {
-		return nil, fmt.Errorf("get_pre_auth_code failed: %d %s", resp.ErrCode, resp.ErrMsg)
+	if resp.ErrCode != 0 || strings.TrimSpace(resp.ProviderAccessToken) == "" {
+		return nil, fmt.Errorf("get_provider_token failed: %d %s", resp.ErrCode, resp.ErrMsg)
 	}
 	return resp, nil
 }
 
-func (s *OpenWorkFoundationService) fetchPermanentCode(ctx context.Context, suiteAccessToken, authCode string) (*permanentCodeResponse, error) {
+func (s *OpenWorkFoundationService) fetchCustomizedAuthURL(ctx context.Context, providerAccessToken, state string, templateIDs []string, httpDebug bool) (*customizedAuthURLResponse, error) {
+	resp := &customizedAuthURLResponse{}
+	urlWithToken := fmt.Sprintf("%s/get_customized_auth_url?provider_access_token=%s", wecomAPIBase, url.QueryEscape(providerAccessToken))
+	err := s.postWeComJSON(ctx, urlWithToken, map[string]any{
+		"state":           strings.TrimSpace(state),
+		"templateid_list": templateIDs,
+	}, resp, httpDebug)
+	if err != nil {
+		return nil, err
+	}
+	if resp.ErrCode != 0 || strings.TrimSpace(resp.QRCodeURL) == "" {
+		if resp.ErrCode == 40058 {
+			return nil, fmt.Errorf(
+				"get_customized_auth_url failed: %d %s (请检查 template_id 是否已完成“代开发应用上线”，并确认 state 仅包含字母/数字/_/-)",
+				resp.ErrCode, resp.ErrMsg,
+			)
+		}
+		return nil, fmt.Errorf("get_customized_auth_url failed: %d %s", resp.ErrCode, resp.ErrMsg)
+	}
+	return resp, nil
+}
+
+func (s *OpenWorkFoundationService) fetchPermanentCode(ctx context.Context, suiteAccessToken, authCode string, httpDebug bool) (*permanentCodeResponse, error) {
 	resp := &permanentCodeResponse{}
 	urlWithToken := fmt.Sprintf("%s/get_permanent_code?suite_access_token=%s", wecomAPIBase, url.QueryEscape(suiteAccessToken))
 	err := s.postWeComJSON(ctx, urlWithToken, map[string]any{
 		"auth_code": authCode,
-	}, resp)
+	}, resp, httpDebug)
 	if err != nil {
 		return nil, err
 	}
@@ -624,13 +671,38 @@ func (s *OpenWorkFoundationService) fetchPermanentCode(ctx context.Context, suit
 	return resp, nil
 }
 
-func (s *OpenWorkFoundationService) postWeComJSON(ctx context.Context, endpoint string, payload any, out any) error {
+func (s *OpenWorkFoundationService) fetchPermanentCodeV2(ctx context.Context, suiteAccessToken, authCode string, httpDebug bool) (*permanentCodeResponse, error) {
+	resp := &permanentCodeResponse{}
+	urlWithToken := fmt.Sprintf("%s/v2/get_permanent_code?suite_access_token=%s", wecomAPIBase, url.QueryEscape(suiteAccessToken))
+	err := s.postWeComJSON(ctx, urlWithToken, map[string]any{
+		"auth_code": authCode,
+	}, resp, httpDebug)
+	if err != nil {
+		return nil, err
+	}
+	if resp.ErrCode != 0 || strings.TrimSpace(resp.PermanentCode) == "" {
+		return nil, fmt.Errorf("get_permanent_code_v2 failed: %d %s", resp.ErrCode, resp.ErrMsg)
+	}
+	if strings.TrimSpace(resp.AuthCorpInfo.CorpID) == "" {
+		resp.AuthCorpInfo.CorpID = strings.TrimSpace(resp.CorpID)
+	}
+	return resp, nil
+}
+
+func (s *OpenWorkFoundationService) postWeComJSON(ctx context.Context, endpoint string, payload any, out any, httpDebug bool) error {
 	if s.httpClient == nil {
 		s.httpClient = &http.Client{Timeout: 15 * time.Second}
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return err
+	}
+	if httpDebug {
+		logrus.WithFields(logrus.Fields{
+			"module":   "openwork_http_debug",
+			"endpoint": endpoint,
+			"payload":  sanitizeDebugPayload(payload),
+		}).Info("wecom request")
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
@@ -646,6 +718,14 @@ func (s *OpenWorkFoundationService) postWeComJSON(ctx context.Context, endpoint 
 	if err != nil {
 		return err
 	}
+	if httpDebug {
+		logrus.WithFields(logrus.Fields{
+			"module":      "openwork_http_debug",
+			"endpoint":    endpoint,
+			"status_code": resp.StatusCode,
+			"response":    compactDebugBody(raw),
+		}).Info("wecom response")
+	}
 	if resp.StatusCode >= 400 {
 		return fmt.Errorf("wecom api %s failed: %s", endpoint, strings.TrimSpace(string(raw)))
 	}
@@ -653,16 +733,6 @@ func (s *OpenWorkFoundationService) postWeComJSON(ctx context.Context, endpoint 
 		return fmt.Errorf("parse wecom response failed: %w", err)
 	}
 	return nil
-}
-
-func buildWeComAuthURL(suiteID, preAuthCode, redirectURI, state string) string {
-	return fmt.Sprintf(
-		"https://open.work.weixin.qq.com/3rdapp/install?suite_id=%s&pre_auth_code=%s&redirect_uri=%s&state=%s",
-		url.QueryEscape(strings.TrimSpace(suiteID)),
-		url.QueryEscape(strings.TrimSpace(preAuthCode)),
-		url.QueryEscape(strings.TrimSpace(redirectURI)),
-		url.QueryEscape(strings.TrimSpace(state)),
-	)
 }
 
 func extractAgentID(authInfo map[string]any) string {
@@ -717,6 +787,306 @@ func mapToJSONMap(input map[string]any) datatypes.JSONMap {
 	return out
 }
 
+func (s *OpenWorkFoundationService) resolveOpenWorkCredentials(
+	ctx context.Context,
+	tenantUUID, templateID, templateSecret, templateTicket, providerCorpID, providerSecret string,
+) (*openWorkAuthCredentials, error) {
+	templateID = strings.TrimSpace(templateID)
+	templateSecret = strings.TrimSpace(templateSecret)
+	templateTicket = strings.TrimSpace(templateTicket)
+	providerCorpID = strings.TrimSpace(providerCorpID)
+	providerSecret = strings.TrimSpace(providerSecret)
+
+	appID := templateID
+	if appID != "" && !isValidOpenWorkTemplateID(appID) {
+		appID = ""
+	}
+	httpDebug := false
+	var globalCfg *model.ChannelPlatformSetting
+
+	globalCfg, err := s.loadGlobalOpenWorkConfig(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if globalCfg != nil {
+		httpDebug = isTruthy(globalCfg.Config["http_debug"])
+	}
+
+	if appID == "" || templateSecret == "" || providerCorpID == "" || providerSecret == "" {
+		if globalCfg != nil && globalCfg.Enabled {
+			globalMap := jsonMapToStringMap(globalCfg.Config)
+			globalTemplateMap := resolveGlobalTemplateCredentialMap(globalCfg.Config, globalMap)
+			if appID == "" {
+				appID = strings.TrimSpace(globalTemplateMap["template_id"])
+			}
+			if templateSecret == "" {
+				templateSecret = strings.TrimSpace(globalTemplateMap["template_secret"])
+			}
+			if templateTicket == "" {
+				templateTicket = strings.TrimSpace(globalTemplateMap["template_ticket"])
+			}
+			if providerCorpID == "" {
+				providerCorpID = strings.TrimSpace(globalTemplateMap["provider_corpid"])
+			}
+			if providerSecret == "" {
+				providerSecret = strings.TrimSpace(globalTemplateMap["provider_secret"])
+			}
+		}
+	}
+
+	if (appID == "" || templateSecret == "" || providerCorpID == "" || providerSecret == "") && s.accountRepo != nil {
+		defaultAccountUUID, err := s.accountRepo.ResolveDefaultAccountUUID(ctx, tenantUUID, "wechat", "wecom")
+		if err == nil {
+			defaultAccount, accountErr := s.accountRepo.GetByAccountUUID(ctx, tenantUUID, defaultAccountUUID)
+			if accountErr == nil && defaultAccount != nil {
+				credentials := jsonMapToStringMap(defaultAccount.Credentials)
+				if appID == "" {
+					appID = strings.TrimSpace(credentials["template_id"])
+				}
+				if templateSecret == "" {
+					templateSecret = strings.TrimSpace(credentials["template_secret"])
+				}
+				if templateTicket == "" {
+					templateTicket = strings.TrimSpace(credentials["template_ticket"])
+				}
+				if providerCorpID == "" {
+					providerCorpID = strings.TrimSpace(credentials["provider_corpid"])
+				}
+				if providerSecret == "" {
+					providerSecret = strings.TrimSpace(credentials["provider_secret"])
+				}
+				if !httpDebug {
+					httpDebug = parseCredentialBool(credentials["http_debug"])
+				}
+			}
+		}
+	}
+
+	if appID == "" || templateSecret == "" {
+		return nil, errors.New("缺少 template_id/template_secret，请在平台配置（并确认已启用）或默认账号凭证中配置")
+	}
+	if !isValidOpenWorkTemplateID(appID) {
+		return nil, fmt.Errorf("template_id 格式非法：%s（仅允许字母/数字/_/-）", appID)
+	}
+	if templateTicket == "" {
+		latest, err := s.repo.GetLatestSuiteTicket(ctx, tenantUUID, appID)
+		if err != nil {
+			return nil, err
+		}
+		templateTicket = strings.TrimSpace(latest)
+	}
+	if templateTicket == "" {
+		return nil, errors.New("template_ticket is required (回调未入库或未手动提供)")
+	}
+
+	if providerCorpID == "" || providerSecret == "" {
+		return nil, errors.New("代开发模板授权缺少 provider_corpid/provider_secret")
+	}
+	return &openWorkAuthCredentials{
+		AuthMode:       openWorkAuthModeDelegatedTemplate,
+		AppID:          appID,
+		TemplateSecret: templateSecret,
+		TemplateTicket: templateTicket,
+		ProviderCorpID: providerCorpID,
+		ProviderSecret: providerSecret,
+		HTTPDebug:      httpDebug,
+	}, nil
+}
+
+func sanitizeDebugPayload(payload any) any {
+	m, ok := payload.(map[string]any)
+	if !ok || m == nil {
+		return payload
+	}
+	out := map[string]any{}
+	for k, v := range m {
+		lk := strings.ToLower(strings.TrimSpace(k))
+		if strings.Contains(lk, "secret") || strings.Contains(lk, "token") || strings.Contains(lk, "ticket") || strings.Contains(lk, "code") {
+			out[k] = "***"
+			continue
+		}
+		out[k] = v
+	}
+	return out
+}
+
+func compactDebugBody(raw []byte) string {
+	text := strings.TrimSpace(string(raw))
+	if len(text) > 1200 {
+		return text[:1200] + "...(truncated)"
+	}
+	return text
+}
+
+func parseCredentialBool(raw string) bool {
+	v := strings.TrimSpace(strings.ToLower(raw))
+	return v == "1" || v == "true" || v == "yes" || v == "on"
+}
+
+func (s *OpenWorkFoundationService) loadGlobalOpenWorkConfig(ctx context.Context) (*model.ChannelPlatformSetting, error) {
+	if s == nil || s.repo == nil || s.repo.DB == nil {
+		return nil, nil
+	}
+	var out model.ChannelPlatformSetting
+	if err := s.repo.DB.WithContext(ctx).
+		Where("channel_code = ? AND provider_code = ? AND enabled = TRUE", "wechat", "openwork").
+		Order("updated_at DESC").
+		First(&out).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		if strings.Contains(strings.ToLower(err.Error()), "no such table") {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &out, nil
+}
+
+func jsonMapToStringMap(input datatypes.JSONMap) map[string]string {
+	out := map[string]string{}
+	for key, raw := range input {
+		k := strings.TrimSpace(key)
+		if k == "" || raw == nil {
+			continue
+		}
+		v := strings.TrimSpace(fmt.Sprintf("%v", raw))
+		if v == "" {
+			continue
+		}
+		out[k] = v
+	}
+	return out
+}
+
+func resolveGlobalTemplateCredentialMap(cfg datatypes.JSONMap, globalMap map[string]string) map[string]string {
+	out := map[string]string{}
+	for _, key := range []string{
+		"template_id",
+		"template_secret",
+		"template_ticket",
+		"provider_corpid",
+		"provider_secret",
+	} {
+		out[key] = strings.TrimSpace(globalMap[key])
+	}
+	defaultTemplateID := strings.TrimSpace(globalMap["default_template_id"])
+	if defaultTemplateID == "" {
+		defaultTemplateID = strings.TrimSpace(globalMap["template_id"])
+	}
+	selected := pickTemplateRow(cfg, defaultTemplateID, strings.TrimSpace(globalMap["template_id"]))
+	if len(selected) == 0 {
+		return out
+	}
+	for _, key := range []string{
+		"template_id",
+		"template_secret",
+		"template_ticket",
+		"provider_corpid",
+		"provider_secret",
+	} {
+		val := strings.TrimSpace(fmt.Sprintf("%v", selected[key]))
+		if val != "" {
+			out[key] = val
+		}
+	}
+	return out
+}
+
+func pickTemplateRow(cfg datatypes.JSONMap, defaultTemplateID, fallbackTemplateID string) map[string]any {
+	if cfg == nil {
+		return nil
+	}
+	raw, ok := cfg["templates"]
+	if !ok || raw == nil {
+		return nil
+	}
+	list, ok := raw.([]any)
+	if !ok {
+		return nil
+	}
+	var first map[string]any
+	var fallback map[string]any
+	for _, item := range list {
+		row, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		if first == nil {
+			first = row
+		}
+		templateID := strings.TrimSpace(fmt.Sprintf("%v", row["template_id"]))
+		if defaultTemplateID != "" && templateID == defaultTemplateID {
+			return row
+		}
+		if fallbackTemplateID != "" && templateID == fallbackTemplateID {
+			fallback = row
+		}
+		if isTruthy(row["is_default"]) {
+			fallback = row
+		}
+	}
+	if fallback != nil {
+		return fallback
+	}
+	return first
+}
+
+func isTruthy(raw any) bool {
+	switch v := raw.(type) {
+	case bool:
+		return v
+	case string:
+		val := strings.TrimSpace(strings.ToLower(v))
+		return val == "1" || val == "true" || val == "yes"
+	default:
+		return false
+	}
+}
+
 func ptrTime(t time.Time) *time.Time {
 	return &t
+}
+
+func sanitizeOpenWorkState(raw, tenantUUID string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		raw = fmt.Sprintf("tenant%d", time.Now().Unix())
+	}
+	var b strings.Builder
+	for _, r := range raw {
+		switch {
+		case r >= 'a' && r <= 'z':
+			b.WriteRune(r)
+		case r >= 'A' && r <= 'Z':
+			b.WriteRune(r)
+		case r >= '0' && r <= '9':
+			b.WriteRune(r)
+		default:
+			continue
+		}
+		if b.Len() >= 96 {
+			break
+		}
+	}
+	out := strings.TrimSpace(b.String())
+	if out == "" {
+		tid := strings.ReplaceAll(strings.ToLower(strings.TrimSpace(tenantUUID)), "-", "")
+		if tid == "" {
+			tid = "tenant"
+		}
+		out = fmt.Sprintf("%s%d", tid, time.Now().Unix())
+	}
+	if len(out) > 96 {
+		out = out[:96]
+	}
+	return out
+}
+
+func isValidOpenWorkTemplateID(templateID string) bool {
+	templateID = strings.TrimSpace(templateID)
+	if templateID == "" {
+		return false
+	}
+	return openWorkTemplateIDPattern.MatchString(templateID)
 }

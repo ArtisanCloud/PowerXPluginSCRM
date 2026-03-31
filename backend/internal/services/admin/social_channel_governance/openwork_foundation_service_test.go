@@ -24,10 +24,12 @@ func (fakeRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	query := req.URL.RawQuery
 	var body string
 	switch {
+	case strings.HasSuffix(path, "/get_provider_token"):
+		body = `{"errcode":0,"errmsg":"ok","provider_access_token":"provider-token-001","expires_in":7200}`
+	case strings.HasSuffix(path, "/get_customized_auth_url") && strings.Contains(query, "provider_access_token=provider-token-001"):
+		body = `{"errcode":0,"errmsg":"ok","qrcode_url":"https://open.work.weixin.qq.com/3rdapp/install?suite_id=dk001"}`
 	case strings.HasSuffix(path, "/get_suite_token"):
 		body = `{"errcode":0,"errmsg":"ok","suite_access_token":"suite-token-001","expires_in":7200}`
-	case strings.HasSuffix(path, "/get_pre_auth_code") && strings.Contains(query, "suite_access_token=suite-token-001"):
-		body = `{"errcode":0,"errmsg":"ok","pre_auth_code":"pre-auth-001","expires_in":1200}`
 	case strings.HasSuffix(path, "/get_permanent_code") && strings.Contains(query, "suite_access_token=suite-token-001"):
 		body = `{
 			"errcode":0,
@@ -56,19 +58,18 @@ func TestOpenWorkFoundationService_StartAuthorization(t *testing.T) {
 	svc.httpClient = &http.Client{Transport: fakeRoundTripper{}, Timeout: 5 * time.Second}
 
 	resp, err := svc.StartAuthorization(context.Background(), OpenWorkAuthorizeStartInput{
-		TenantUUID:  "00000000-0000-0000-0000-000000000001",
-		SuiteID:     "suite-001",
-		SuiteSecret: "suite-secret-001",
-		SuiteTicket: "ticket-001",
-		RedirectURI: "https://example.com/callback",
-		State:       "state-001",
+		TenantUUID:     "00000000-0000-0000-0000-000000000001",
+		TemplateID:     "dk001",
+		TemplateSecret: "suite-secret-001",
+		TemplateTicket: "ticket-001",
+		ProviderCorpID: "ww-provider-001",
+		ProviderSecret: "provider-secret-001",
+		State:          "state-001",
 	})
 	require.NoError(t, err)
-	require.Equal(t, "pre-auth-001", resp["pre_auth_code"])
-	urlVal := resp["authorize_url"].(string)
-	require.Contains(t, urlVal, "suite_id=suite-001")
-	require.Contains(t, urlVal, "pre_auth_code=pre-auth-001")
-	require.Contains(t, urlVal, "state=state-001")
+	require.Equal(t, "delegated_template", resp["auth_mode"])
+	require.Equal(t, "dk001", resp["template_id"])
+	require.Equal(t, "https://open.work.weixin.qq.com/3rdapp/install?suite_id=dk001", resp["authorize_url"])
 }
 
 func TestOpenWorkFoundationService_CompleteAuthorizationAndSwitchDefault(t *testing.T) {
@@ -112,9 +113,11 @@ func TestOpenWorkFoundationService_CompleteAuthorizationAndSwitchDefault(t *test
 
 	binding, err := svc.CompleteAuthorization(context.Background(), OpenWorkAuthorizeCompleteInput{
 		TenantUUID:         tenantUUID,
-		SuiteID:            "suite-001",
-		SuiteSecret:        "suite-secret-001",
-		SuiteTicket:        "ticket-001",
+		TemplateID:         "dk001",
+		TemplateSecret:     "suite-secret-001",
+		TemplateTicket:     "ticket-001",
+		ProviderCorpID:     "ww-provider-001",
+		ProviderSecret:     "provider-secret-001",
 		AuthCode:           "auth-code-001",
 		ChannelAccountUUID: accountA.AccountUUID,
 		SetDefault:         true,
@@ -126,7 +129,7 @@ func TestOpenWorkFoundationService_CompleteAuthorizationAndSwitchDefault(t *test
 	updatedA, err := accountRepo.GetByAccountUUID(context.Background(), tenantUUID, accountA.AccountUUID)
 	require.NoError(t, err)
 	require.True(t, updatedA.OrgSyncDefault)
-	require.Equal(t, "suite-001", strings.TrimSpace(updatedA.Credentials["suite_id"].(string)))
+	require.Equal(t, "dk001", strings.TrimSpace(updatedA.Credentials["template_id"].(string)))
 	require.Equal(t, "perm-code-001", strings.TrimSpace(updatedA.Credentials["permanent_code"].(string)))
 
 	updatedB, err := accountRepo.GetByAccountUUID(context.Background(), tenantUUID, accountB.AccountUUID)
@@ -250,7 +253,7 @@ func TestOpenWorkFoundationService_AuthorizationStatus(t *testing.T) {
 	startedAt := time.Now().UTC().Add(-30 * time.Second).Unix()
 	pending, err := svc.AuthorizationStatus(context.Background(), OpenWorkAuthorizeStatusInput{
 		TenantUUID: tenantUUID,
-		SuiteID:    "suite-001",
+		TemplateID: "suite-001",
 		State:      "state-001",
 		StartedAt:  startedAt,
 	})
@@ -270,7 +273,7 @@ func TestOpenWorkFoundationService_AuthorizationStatus(t *testing.T) {
 	}).Error)
 	success, err := svc.AuthorizationStatus(context.Background(), OpenWorkAuthorizeStatusInput{
 		TenantUUID: tenantUUID,
-		SuiteID:    "suite-001",
+		TemplateID: "suite-001",
 		StartedAt:  startedAt,
 	})
 	require.NoError(t, err)
@@ -290,7 +293,7 @@ func TestOpenWorkFoundationService_AuthorizationStatus(t *testing.T) {
 	}).Error)
 	failed, err := svc.AuthorizationStatus(context.Background(), OpenWorkAuthorizeStatusInput{
 		TenantUUID: failedTenantUUID,
-		SuiteID:    "suite-001",
+		TemplateID: "suite-001",
 		StartedAt:  startedAt,
 	})
 	require.NoError(t, err)

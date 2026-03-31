@@ -67,6 +67,7 @@ var businessTables = []interface{}{
 	&adminconsoleModel.JobRun{},
 	&socialModel.ChannelAccount{},
 	&socialModel.AuditEvent{},
+	&socialModel.ChannelPlatformSetting{},
 	&socialModel.ChannelAuthBinding{},
 	&socialModel.ChannelAuthEvent{},
 	&socialModel.WeComOpenAuthBinding{},

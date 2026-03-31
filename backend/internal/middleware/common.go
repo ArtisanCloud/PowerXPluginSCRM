@@ -225,10 +225,19 @@ func SecurityHeaders() gin.HandlerFunc {
 func HealthCheck(endpoint string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if c.Request.Method == "GET" && c.Request.URL.Path == endpoint {
+			appName := strings.TrimSpace(os.Getenv("POWERX_PLUGIN_APP_NAME"))
+			if appName == "" {
+				appName = "com.powerx.plugins.scrm"
+			}
+			version := strings.TrimSpace(os.Getenv("POWERX_PLUGIN_VERSION"))
+			if version == "" {
+				version = "dev"
+			}
 			c.JSON(http.StatusOK, gin.H{
-				"status":    "healthy",
+				"status":    "ok",
+				"app_name":  appName,
+				"version":   version,
 				"timestamp": time.Now().UTC(),
-				"service":   "powerx-plugin-base",
 			})
 			c.Abort()
 			return

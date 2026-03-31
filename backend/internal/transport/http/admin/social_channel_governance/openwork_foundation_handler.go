@@ -40,9 +40,9 @@ func (h *OpenWorkFoundationHandler) IngestEvent(c *gin.Context) {
 	}
 	event, binding, err := h.svc.IngestEvent(c.Request.Context(), socialsvc.OpenWorkEventIngestInput{
 		TenantUUID:  tenantUUID,
-		SuiteID:     req.SuiteID,
+		SuiteID:     req.TemplateID,
 		EventType:   req.EventType,
-		SuiteTicket: req.SuiteTicket,
+		SuiteTicket: req.TemplateTicket,
 		CorpID:      req.CorpID,
 		AgentID:     req.AgentID,
 		EventTime:   req.EventTime,
@@ -74,12 +74,13 @@ func (h *OpenWorkFoundationHandler) StartAuthorization(c *gin.Context) {
 		return
 	}
 	result, err := h.svc.StartAuthorization(c.Request.Context(), socialsvc.OpenWorkAuthorizeStartInput{
-		TenantUUID:  tenantUUID,
-		SuiteID:     req.SuiteID,
-		SuiteSecret: req.SuiteSecret,
-		SuiteTicket: req.SuiteTicket,
-		RedirectURI: req.RedirectURI,
-		State:       req.State,
+		TenantUUID:     tenantUUID,
+		TemplateID:     req.TemplateID,
+		TemplateSecret: req.TemplateSecret,
+		TemplateTicket: req.TemplateTicket,
+		ProviderCorpID: req.ProviderCorpID,
+		ProviderSecret: req.ProviderSecret,
+		State:          req.State,
 	})
 	if err != nil {
 		h.handleError(c, err)
@@ -105,9 +106,11 @@ func (h *OpenWorkFoundationHandler) CompleteAuthorization(c *gin.Context) {
 	}
 	binding, err := h.svc.CompleteAuthorization(c.Request.Context(), socialsvc.OpenWorkAuthorizeCompleteInput{
 		TenantUUID:         tenantUUID,
-		SuiteID:            req.SuiteID,
-		SuiteSecret:        req.SuiteSecret,
-		SuiteTicket:        req.SuiteTicket,
+		TemplateID:         req.TemplateID,
+		TemplateSecret:     req.TemplateSecret,
+		TemplateTicket:     req.TemplateTicket,
+		ProviderCorpID:     req.ProviderCorpID,
+		ProviderSecret:     req.ProviderSecret,
 		AuthCode:           req.AuthCode,
 		ChannelAccountUUID: req.ChannelAccountUUID,
 		SetDefault:         req.SetDefault,
@@ -147,12 +150,12 @@ func (h *OpenWorkFoundationHandler) GetAuthorizationStatus(c *gin.Context) {
 		contracts.ResponseUnauthorized(c, "tenant context missing")
 		return
 	}
-	suiteID := strings.TrimSpace(c.Query("suite_id"))
+	templateID := strings.TrimSpace(c.Query("template_id"))
 	state := strings.TrimSpace(c.Query("state"))
 	startedAt, _ := strconv.ParseInt(strings.TrimSpace(c.Query("started_at")), 10, 64)
 	data, err := h.svc.AuthorizationStatus(c.Request.Context(), socialsvc.OpenWorkAuthorizeStatusInput{
 		TenantUUID: tenantUUID,
-		SuiteID:    suiteID,
+		TemplateID: templateID,
 		State:      state,
 		StartedAt:  startedAt,
 	})

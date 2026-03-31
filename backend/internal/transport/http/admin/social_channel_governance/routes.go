@@ -23,12 +23,14 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 	var memberSvc *SocialService.ChannelAccountMemberService
 	var capabilitySvc *SocialService.ChannelAccountCapabilityService
 	var openworkHandler *OpenWorkFoundationHandler
+	var platformSettingHandler *ChannelPlatformSettingHandler
 	schemaLoader := SocialService.NewChannelSchemaLoader(SocialService.ChannelSchemaLoaderOptions{
 		Logger: logrus.WithField("module", "social_channel_governance"),
 	})
 	if deps.DB != nil {
 		repo := SocialRepo.NewAccountRepository(deps.DB)
 		openworkRepo := SocialRepo.NewOpenWorkFoundationRepository(deps.DB)
+		platformSettingRepo := SocialRepo.NewChannelPlatformSettingRepository(deps.DB)
 		accountStatus := orgsync.NewAccountStatusService(
 			orgrepo.NewMemberMappingRepository(deps.DB),
 			orgrepo.NewUnitMappingRepository(deps.DB),
@@ -37,6 +39,7 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		memberSvc = SocialService.NewChannelAccountMemberService(repo)
 		capabilitySvc = SocialService.NewChannelAccountCapabilityService(repo)
 		openworkHandler = NewOpenWorkFoundationHandler(SocialService.NewOpenWorkFoundationService(openworkRepo, repo))
+		platformSettingHandler = NewChannelPlatformSettingHandler(SocialService.NewChannelPlatformSettingService(platformSettingRepo))
 	}
 	accountHandler := NewAccountHandler(accountSvc)
 	schemaHandler := NewChannelSchemaHandler(schemaLoader, deps.Config)
@@ -72,6 +75,17 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 			group.POST("/openwork/wecom/sync/conflicts/:conflict_uuid/replay", openworkHandler.ReplaySyncConflict)
 			group.GET("/openwork/wecom/sync/dashboard", openworkHandler.GetDashboard)
 			group.GET("/openwork/wecom/go-live-gates", openworkHandler.GetGoLiveGates)
+		}
+		if platformSettingHandler != nil {
+			group.GET("/channel-platform/wecom/openwork", platformSettingHandler.GetWeComOpenWork)
+			group.PUT("/channel-platform/wecom/openwork", platformSettingHandler.SaveWeComOpenWork)
+			group.GET("/channel-platform/wecom/openwork/templates", platformSettingHandler.ListWeComOpenWorkTemplates)
+			group.POST("/channel-platform/wecom/openwork/templates", platformSettingHandler.CreateWeComOpenWorkTemplate)
+			group.PUT("/channel-platform/wecom/openwork/templates/:template_id", platformSettingHandler.UpdateWeComOpenWorkTemplate)
+			group.DELETE("/channel-platform/wecom/openwork/templates/:template_id", platformSettingHandler.DeleteWeComOpenWorkTemplate)
+			group.POST("/channel-platform/wecom/openwork/templates/:template_id/default", platformSettingHandler.SetDefaultWeComOpenWorkTemplate)
+			group.POST("/channel-platform/wecom/openwork/suite-ticket/refresh", platformSettingHandler.RefreshWeComSuiteTicket)
+			group.POST("/channel-platform/wecom/openwork/suite-ticket/verify", platformSettingHandler.VerifyWeComSuiteTicket)
 		}
 	}
 }

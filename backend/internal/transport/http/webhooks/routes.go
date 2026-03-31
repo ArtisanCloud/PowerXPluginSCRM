@@ -71,3 +71,18 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		group.POST("/channels/:channel/group-code-events", acquisitionCodeEventHandler.IngestGroup)
 	}
 }
+
+// RegisterPublicRoutes registers webhook endpoints that must be reachable without admin JWT.
+func RegisterPublicRoutes(rg *gin.RouterGroup, deps *app.Deps) {
+	if rg == nil || deps == nil || deps.DB == nil {
+		return
+	}
+	platformRepo := socialrepo.NewChannelPlatformSettingRepository(deps.DB)
+	openWorkHandler := NewOpenWorkCallbackHandler(platformRepo)
+
+	group := rg.Group("/webhooks")
+	{
+		group.GET("/wecom/openwork", openWorkHandler.Handle)
+		group.POST("/wecom/openwork", openWorkHandler.Handle)
+	}
+}
