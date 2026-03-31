@@ -1,6 +1,10 @@
 package webhooks
 
 import (
+	"os"
+	"strings"
+
+	fwwsbus "github.com/ArtisanCloud/PowerXPlugin/framework/backend/go/runtime/wsbus"
 	leadrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/lead_capture"
 	orgrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/org_sync"
 	socialrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/social_channel_governance"
@@ -78,7 +82,30 @@ func RegisterPublicRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		return
 	}
 	platformRepo := socialrepo.NewChannelPlatformSettingRepository(deps.DB)
-	openWorkHandler := NewOpenWorkCallbackHandler(platformRepo)
+	publisher := fwwsbus.NewAdapter(
+		fwwsbus.NewLocalPublisher(deps.WSBusHub, nil),
+		"",
+		nil,
+	)
+	if deps.Config != nil && deps.Config.Gateway != nil && strings.TrimSpace(os.Getenv("POWERX_PROXY")) == "1" {
+		hostTenantUUID := strings.TrimSpace(deps.Config.Gateway.TenantUUID)
+		if strings.TrimSpace(os.Getenv("POWERX_PROXY")) == "1" {
+			hostTenantUUID = ""
+		}
+		if hostClient, err := fwwsbus.NewHostClient(fwwsbus.HostClientConfig{
+			BaseURL:    strings.TrimSpace(deps.Config.Gateway.BaseURL),
+			APIPrefix:  strings.TrimSpace(deps.Config.Gateway.APIPrefix),
+			AuthScheme: strings.TrimSpace(deps.Config.Gateway.AuthScheme),
+			Token:      strings.TrimSpace(deps.Config.Gateway.ToolToken),
+			APIKey:     strings.TrimSpace(deps.Config.Gateway.APIKey),
+			TenantUUID: hostTenantUUID,
+			UserAgent:  strings.TrimSpace(deps.Config.Gateway.UserAgent),
+			Timeout:    deps.Config.Gateway.Timeout,
+		}); err == nil {
+			publisher = fwwsbus.NewAdapter(hostClient, "", nil)
+		}
+	}
+	openWorkHandler := NewOpenWorkCallbackHandler(platformRepo, deps, publisher)
 
 	group := rg.Group("/webhooks")
 	{
