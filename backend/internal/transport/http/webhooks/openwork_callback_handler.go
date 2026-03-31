@@ -11,17 +11,30 @@ import (
 	kernelmodels "github.com/ArtisanCloud/PowerWeChat/v3/src/kernel/models"
 	openwork "github.com/ArtisanCloud/PowerWeChat/v3/src/openWork"
 	openworkmodel "github.com/ArtisanCloud/PowerWeChat/v3/src/openWork/server/models"
+	fwwsbus "github.com/ArtisanCloud/PowerXPlugin/framework/backend/go/runtime/wsbus"
 	repository "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/social_channel_governance"
+	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/shared/app"
 	"github.com/gin-gonic/gin"
+	"github.com/sirupsen/logrus"
 	"gorm.io/datatypes"
 )
 
 type OpenWorkCallbackHandler struct {
 	platformRepo *repository.ChannelPlatformSettingRepository
+	deps         *app.Deps
+	publisher    fwwsbus.Publisher
 }
 
-func NewOpenWorkCallbackHandler(platformRepo *repository.ChannelPlatformSettingRepository) *OpenWorkCallbackHandler {
-	return &OpenWorkCallbackHandler{platformRepo: platformRepo}
+const (
+	TopicOpenWorkAuthStatus = "openwork.auth.status"
+)
+
+func NewOpenWorkCallbackHandler(platformRepo *repository.ChannelPlatformSettingRepository, deps *app.Deps, publisher fwwsbus.Publisher) *OpenWorkCallbackHandler {
+	return &OpenWorkCallbackHandler{
+		platformRepo: platformRepo,
+		deps:         deps,
+		publisher:    publisher,
+	}
 }
 
 func (h *OpenWorkCallbackHandler) Handle(c *gin.Context) {
@@ -31,6 +44,15 @@ func (h *OpenWorkCallbackHandler) Handle(c *gin.Context) {
 	}
 
 	templateID := strings.TrimSpace(c.Param("suite_id"))
+	logrus.WithFields(logrus.Fields{
+		"module":        "openwork_callback",
+		"method":        c.Request.Method,
+		"path":          c.Request.URL.Path,
+		"query":         c.Request.URL.RawQuery,
+		"msg_signature": strings.TrimSpace(c.Query("msg_signature")) != "",
+		"timestamp":     strings.TrimSpace(c.Query("timestamp")),
+		"nonce":         strings.TrimSpace(c.Query("nonce")) != "",
+	}).Info("openwork callback received")
 
 	record, err := h.platformRepo.GetByChannelProvider(c.Request.Context(), "wechat", "openwork")
 	if err != nil {
@@ -74,11 +96,18 @@ func (h *OpenWorkCallbackHandler) Handle(c *gin.Context) {
 	}
 
 	httpResp, err := app.Server.Notify(c.Request, func(_ *kernelmodels.Callback, ev openworkmodel.IEvent, _ interface{}) interface{} {
+		infoType := strings.ToLower(strings.TrimSpace(ev.GetInfoType()))
+		eventTemplateID := strings.TrimSpace(ev.GetSuiteID())
+		if eventTemplateID == "" {
+			eventTemplateID = cfgTemplateID
+		}
+		logrus.WithFields(logrus.Fields{
+			"module":     "openwork_callback",
+			"event_type": infoType,
+			"suite_id":   eventTemplateID,
+		}).Info("openwork callback event parsed")
+		h.publishAuthStatus(c.Request.Context(), eventTemplateID, infoType)
 		if ticketEvent, ok := ev.(*openworkmodel.EventSuiteTicket); ok {
-			eventTemplateID := strings.TrimSpace(ev.GetSuiteID())
-			if eventTemplateID == "" {
-				eventTemplateID = cfgTemplateID
-			}
 			_ = h.saveSuiteTicket(c.Request.Context(), eventTemplateID, strings.TrimSpace(ticketEvent.SuiteTicket))
 		}
 		return "success"
@@ -154,8 +183,65 @@ func (h *OpenWorkCallbackHandler) saveSuiteTicket(ctx context.Context, templateI
 	}
 	cfg["default_template_id"] = defaultTemplateID
 	cfg["templates"] = templates
+	logrus.WithFields(logrus.Fields{
+		"module":      "openwork_callback",
+		"template_id": templateID,
+		"ticket_len":  len(suiteTicket),
+	}).Info("openwork callback suite_ticket persisted")
 	_, err = h.platformRepo.UpsertByChannelProvider(ctx, "wechat", "openwork", record.Enabled, cfg)
 	return err
+}
+
+func (h *OpenWorkCallbackHandler) publishAuthStatus(ctx context.Context, templateID, infoType string) {
+	if h == nil || h.publisher == nil {
+		return
+	}
+	templateID = strings.TrimSpace(templateID)
+	infoType = strings.ToLower(strings.TrimSpace(infoType))
+	if templateID == "" || infoType == "" {
+		return
+	}
+	status := "pending"
+	message := "waiting_callback"
+	switch infoType {
+	case "create_auth", "change_auth", "reset_permanent_code":
+		status = "authorized"
+		message = "authorization_completed"
+	case "cancel_auth":
+		status = "failed"
+		message = "authorization_canceled"
+	}
+	tenantUUID := "00000000-0000-0000-0000-000000000001"
+	if h.deps != nil && h.deps.Config != nil && h.deps.Config.GRPCUpstream != nil {
+		if candidate := strings.TrimSpace(h.deps.Config.GRPCUpstream.TenantUUID); candidate != "" {
+			tenantUUID = candidate
+		}
+	}
+	payload := map[string]any{
+		"template_id": templateID,
+		"status":      status,
+		"message":     message,
+		"event_type":  infoType,
+		"checked_at":  time.Now().UTC().Format(time.RFC3339Nano),
+	}
+	result := h.publisher.Publish(ctx, TopicOpenWorkAuthStatus, payload, fwwsbus.PublishOptions{
+		TenantUUID: tenantUUID,
+	})
+	logFields := logrus.Fields{
+		"module":      "openwork_callback",
+		"topic":       TopicOpenWorkAuthStatus,
+		"tenant_uuid": tenantUUID,
+		"template_id": templateID,
+		"event_type":  infoType,
+		"status":      status,
+	}
+	if !result.OK {
+		logFields["error_code"] = result.ErrorCode
+		logFields["error_message"] = result.ErrorMessage
+		logrus.WithFields(logFields).Warn("openwork callback ws publish failed")
+		return
+	}
+	logrus.WithFields(logFields).Info("openwork callback ws published")
 }
 
 func readTemplatesFromConfig(cfg datatypes.JSONMap) []map[string]any {

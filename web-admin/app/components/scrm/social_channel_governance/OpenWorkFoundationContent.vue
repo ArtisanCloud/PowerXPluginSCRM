@@ -43,16 +43,6 @@
                 v-if="authorizeUrl"
                 color="neutral"
                 variant="soft"
-                icon="i-heroicons-arrow-top-right-on-square"
-                @click="openAuthorizeUrl"
-              >
-                打开授权链接
-              </UButton>
-              <UButton
-                type="button"
-                v-if="authorizeUrl"
-                color="neutral"
-                variant="soft"
                 icon="i-heroicons-clipboard-document"
                 @click="copyAuthorizeUrl"
               >
@@ -215,6 +205,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useSocialChannelGovernanceService } from '~/composables/api/services/socialChannelGovernance'
+import { useWsBusClient } from '~/composables/useWsBusClient'
 import { buildOpenWorkQrCodeUrl, normalizeOpenWorkAuthStatus } from '~/utils/openworkAuth'
 
 const props = withDefaults(
@@ -227,6 +218,7 @@ const props = withDefaults(
 )
 
 const service = useSocialChannelGovernanceService()
+const wsBus = useWsBusClient()
 const loading = ref(false)
 const starting = ref(false)
 const completing = ref(false)
@@ -278,6 +270,8 @@ const authStartedAt = ref(0)
 const authExpiresIn = ref(0)
 const nowTs = ref(Date.now())
 let authPollTimer: ReturnType<typeof setInterval> | null = null
+let wsUnsubscribe: (() => void) | null = null
+const wsTopics = ['openwork.auth.status', 'powerx.openwork.auth.status.v1']
 
 const domainOptions = [
   { label: 'Tags', value: 'tags' },
@@ -511,6 +505,30 @@ const startAuthPolling = () => {
   }, 3000)
 }
 
+const ensureWsSubscription = () => {
+  if (wsUnsubscribe) {
+    return
+  }
+  const unsubscribers = wsTopics.map((topic) => wsBus.client.subscribe(topic, (payload: any) => {
+    const templateID = String(payload?.template_id || '').trim()
+    if (!templateID || !currentTemplateID.value || templateID !== currentTemplateID.value) {
+      return
+    }
+    const status = normalizeOpenWorkAuthStatus(String(payload?.status || '').trim())
+    authStatus.value = status
+    authMessage.value = String(payload?.message || payload?.event_type || authMessage.value || 'waiting_callback')
+    if (status === 'authorized' || status === 'failed' || status === 'expired') {
+      stopAuthPolling()
+      if (status === 'authorized') {
+        refreshAll()
+      }
+    }
+  }))
+  wsUnsubscribe = () => {
+    unsubscribers.forEach((unsub) => unsub())
+  }
+}
+
 const startAuthorize = async () => {
   if (starting.value) {
     return
@@ -622,13 +640,6 @@ const replayConflict = async (conflictUUID: string) => {
   }
 }
 
-const openAuthorizeUrl = () => {
-  if (!authorizeUrl.value || !process.client) {
-    return
-  }
-  window.open(authorizeUrl.value, '_blank', 'noopener,noreferrer')
-}
-
 const copyAuthorizeUrl = async () => {
   if (!authorizeUrl.value || !process.client || !navigator?.clipboard) {
     return
@@ -643,9 +654,14 @@ const copyAuthorizeUrl = async () => {
 
 onBeforeUnmount(() => {
   stopAuthPolling()
+  if (wsUnsubscribe) {
+    wsUnsubscribe()
+    wsUnsubscribe = null
+  }
 })
 
 onMounted(async () => {
+  ensureWsSubscription()
   if (!authorizeUrl.value && authStatus.value === 'idle') {
     await startAuthorize()
   }
