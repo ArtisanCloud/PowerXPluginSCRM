@@ -7,9 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -54,6 +56,7 @@ type OpenWorkEventIngestInput struct {
 	TenantUUID  string
 	SuiteID     string
 	EventType   string
+	EventKey    string
 	SuiteTicket string
 	CorpID      string
 	AgentID     string
@@ -118,6 +121,7 @@ func (s *OpenWorkFoundationService) IngestEvent(ctx context.Context, in OpenWork
 	in.TenantUUID = strings.ToLower(strings.TrimSpace(in.TenantUUID))
 	in.SuiteID = strings.TrimSpace(in.SuiteID)
 	in.EventType = strings.ToLower(strings.TrimSpace(in.EventType))
+	in.EventKey = strings.TrimSpace(in.EventKey)
 	in.CorpID = strings.TrimSpace(in.CorpID)
 	in.AgentID = strings.TrimSpace(in.AgentID)
 	in.SuiteTicket = strings.TrimSpace(in.SuiteTicket)
@@ -134,7 +138,10 @@ func (s *OpenWorkFoundationService) IngestEvent(ctx context.Context, in OpenWork
 	if in.EventTime > 0 {
 		eventAt = time.Unix(in.EventTime, 0).UTC()
 	}
-	eventKey := fmt.Sprintf("%s:%s:%s:%s:%d", in.TenantUUID, in.SuiteID, in.EventType, in.CorpID, eventAt.Unix())
+	eventKey := in.EventKey
+	if eventKey == "" {
+		eventKey = fmt.Sprintf("%s:%s:%s:%s:%d", in.TenantUUID, in.SuiteID, in.EventType, in.CorpID, eventAt.Unix())
+	}
 	event := &model.WeComOpenAuthEvent{
 		TenantUUID: in.TenantUUID,
 		SuiteID:    in.SuiteID,
@@ -178,6 +185,63 @@ func (s *OpenWorkFoundationService) IngestEvent(ctx context.Context, in OpenWork
 	upserted, err := s.repo.UpsertBinding(ctx, binding, false)
 	if err != nil {
 		return saved, nil, err
+	}
+	if in.EventType == "cancel_auth" && s.accountRepo != nil {
+		targetAccountUUID := strings.TrimSpace(upserted.ChannelAccountUUID)
+		matchedBy := "binding.channel_account_uuid"
+		if targetAccountUUID == "" && in.CorpID != "" {
+			if candidate, findErr := s.accountRepo.FindByWeComCorpID(ctx, in.TenantUUID, in.CorpID); findErr == nil && candidate != nil {
+				targetAccountUUID = strings.TrimSpace(candidate.AccountUUID)
+				matchedBy = "corp_id_lookup"
+			}
+		}
+		// cancel_auth 应该对该企业在当前租户下的所有渠道账号生效，避免历史重复账号残留为“已连接”。
+		if in.CorpID != "" {
+			disableErr := s.accountRepo.DisableOtherWeComAccountsByCorp(ctx, in.TenantUUID, in.CorpID, "")
+			logFields := logrus.Fields{
+				"module":       "openwork_callback",
+				"event_type":   in.EventType,
+				"tenant_uuid":  in.TenantUUID,
+				"suite_id":     in.SuiteID,
+				"corp_id":      in.CorpID,
+				"binding_uuid": upserted.BindingUUID,
+				"account_uuid": targetAccountUUID,
+				"matched_by":   matchedBy,
+			}
+			if disableErr != nil {
+				logFields["error"] = disableErr.Error()
+				logrus.WithFields(logFields).Warn("openwork cancel_auth disable accounts by corp failed")
+			} else {
+				logrus.WithFields(logFields).Info("openwork cancel_auth accounts disabled and org_sync_default cleared")
+			}
+		} else if targetAccountUUID != "" {
+			_, disableErr := s.accountRepo.DisableAccount(ctx, in.TenantUUID, targetAccountUUID)
+			logFields := logrus.Fields{
+				"module":       "openwork_callback",
+				"event_type":   in.EventType,
+				"tenant_uuid":  in.TenantUUID,
+				"suite_id":     in.SuiteID,
+				"corp_id":      in.CorpID,
+				"binding_uuid": upserted.BindingUUID,
+				"account_uuid": targetAccountUUID,
+				"matched_by":   matchedBy,
+			}
+			if disableErr != nil {
+				logFields["error"] = disableErr.Error()
+				logrus.WithFields(logFields).Warn("openwork cancel_auth disable account failed")
+			} else {
+				logrus.WithFields(logFields).Info("openwork cancel_auth account disabled and org_sync_default cleared")
+			}
+		} else {
+			logrus.WithFields(logrus.Fields{
+				"module":       "openwork_callback",
+				"event_type":   in.EventType,
+				"tenant_uuid":  in.TenantUUID,
+				"suite_id":     in.SuiteID,
+				"corp_id":      in.CorpID,
+				"binding_uuid": upserted.BindingUUID,
+			}).Warn("openwork cancel_auth no channel account matched")
+		}
 	}
 	return saved, upserted, nil
 }
@@ -258,13 +322,51 @@ func (s *OpenWorkFoundationService) CompleteAuthorization(ctx context.Context, i
 		return nil, err
 	}
 	agentID := extractAgentID(permResp.AuthInfo)
+	if agentID == "" {
+		agentID = extractAgentID(permResp.AuthorizationInfo)
+	}
+	corpID := strings.TrimSpace(permResp.AuthCorpInfo.CorpID)
+	if agentID == "" && corpID != "" && strings.TrimSpace(permResp.PermanentCode) != "" {
+		authInfoResp, authInfoErr := s.fetchAuthInfo(ctx, tokenResp.SuiteAccessToken, corpID, strings.TrimSpace(permResp.PermanentCode), creds.HTTPDebug)
+		if authInfoErr != nil {
+			logrus.WithFields(logrus.Fields{
+				"module":      "openwork_callback",
+				"suite_id":    creds.AppID,
+				"tenant_uuid": in.TenantUUID,
+				"corp_id":     corpID,
+				"error":       authInfoErr.Error(),
+			}).Warn("openwork complete authorization fetch_auth_info failed")
+		} else {
+			if id := extractAgentID(authInfoResp.AuthInfo); id != "" {
+				agentID = id
+			} else if id := extractAgentID(authInfoResp.AuthorizationInfo); id != "" {
+				agentID = id
+			}
+			if len(authInfoResp.AuthInfo) > 0 {
+				permResp.AuthInfo = authInfoResp.AuthInfo
+			}
+			if len(authInfoResp.AuthorizationInfo) > 0 {
+				permResp.AuthorizationInfo = authInfoResp.AuthorizationInfo
+			}
+		}
+	}
+	resolvedChannelAccountUUID := strings.ToLower(strings.TrimSpace(in.ChannelAccountUUID))
+	if resolvedChannelAccountUUID == "" && s.accountRepo != nil {
+		account, ensureErr := s.ensureAuthorizedChannelAccount(ctx, in.TenantUUID, corpID, agentID, strings.TrimSpace(permResp.AuthCorpInfo.CorpName), permResp.AuthUserInfo)
+		if ensureErr != nil {
+			return nil, ensureErr
+		}
+		if account != nil {
+			resolvedChannelAccountUUID = strings.ToLower(strings.TrimSpace(account.AccountUUID))
+		}
+	}
 	binding := &model.WeComOpenAuthBinding{
 		TenantUUID:         in.TenantUUID,
-		ChannelAccountUUID: in.ChannelAccountUUID,
+		ChannelAccountUUID: resolvedChannelAccountUUID,
 		ChannelCode:        "wechat",
 		AppType:            "wecom",
 		SuiteID:            creds.AppID,
-		CorpID:             strings.TrimSpace(permResp.AuthCorpInfo.CorpID),
+		CorpID:             corpID,
 		CorpName:           strings.TrimSpace(permResp.AuthCorpInfo.CorpName),
 		AgentID:            agentID,
 		PermanentCode:      strings.TrimSpace(permResp.PermanentCode),
@@ -289,13 +391,13 @@ func (s *OpenWorkFoundationService) CompleteAuthorization(ctx context.Context, i
 	if err != nil {
 		return nil, err
 	}
-	if setDefault && strings.TrimSpace(in.ChannelAccountUUID) != "" && s.accountRepo != nil {
-		if _, err := s.accountRepo.SetOrgSyncDefault(ctx, in.TenantUUID, in.ChannelAccountUUID); err != nil {
+	if setDefault && strings.TrimSpace(resolvedChannelAccountUUID) != "" && s.accountRepo != nil {
+		if _, err := s.accountRepo.SetOrgSyncDefault(ctx, in.TenantUUID, resolvedChannelAccountUUID); err != nil {
 			return nil, err
 		}
 	}
-	if strings.TrimSpace(in.ChannelAccountUUID) != "" && s.accountRepo != nil {
-		account, err := s.accountRepo.GetByAccountUUID(ctx, in.TenantUUID, in.ChannelAccountUUID)
+	if strings.TrimSpace(resolvedChannelAccountUUID) != "" && s.accountRepo != nil {
+		account, err := s.accountRepo.GetByAccountUUID(ctx, in.TenantUUID, resolvedChannelAccountUUID)
 		if err == nil && account != nil {
 			existing := mergeCredentials(account.Credentials, nil)
 			existing["template_id"] = creds.AppID
@@ -313,7 +415,7 @@ func (s *OpenWorkFoundationService) CompleteAuthorization(ctx context.Context, i
 			if agentID != "" {
 				existing["agent_id"] = agentID
 			}
-			if _, err := s.accountRepo.UpdateAccountCredentials(ctx, in.TenantUUID, in.ChannelAccountUUID, credentialsToJSON(existing)); err != nil {
+			if _, err := s.accountRepo.UpdateAccountCredentials(ctx, in.TenantUUID, resolvedChannelAccountUUID, credentialsToJSON(existing)); err != nil {
 				return nil, err
 			}
 		}
@@ -368,11 +470,35 @@ func (s *OpenWorkFoundationService) AuthorizationStatus(ctx context.Context, in 
 		latest := bindings[0]
 		result["binding"] = latest
 		result["last_event_type"] = latest.LastEventType
-		switch latest.Status {
-		case model.WeComAuthBindingStatusActive:
+		// 如果同模板下存在任一 active 绑定，整体状态应视为已授权；
+		// 不能被一条较新的 canceled/disabled 记录覆盖。
+		for _, binding := range bindings {
+			if binding == nil || strings.TrimSpace(binding.Status) != model.WeComAuthBindingStatusActive {
+				continue
+			}
+			accountUUID := strings.ToLower(strings.TrimSpace(binding.ChannelAccountUUID))
+			// 仅当 active 绑定关联的账号仍然存在且处于 connected，才视为有效授权。
+			// 这样可以避免“账号已删除/停用但历史绑定仍为 active”导致的误报。
+			if accountUUID == "" || s.accountRepo == nil {
+				continue
+			}
+			account, accountErr := s.accountRepo.GetByAccountUUID(ctx, in.TenantUUID, accountUUID)
+			if accountErr != nil {
+				if errors.Is(accountErr, repository.ErrAccountNotFound) {
+					continue
+				}
+				return nil, accountErr
+			}
+			if account == nil || strings.TrimSpace(account.Status) != model.ChannelAccountStatusConnected {
+				continue
+			}
+			result["binding"] = binding
+			result["last_event_type"] = binding.LastEventType
 			result["status"] = "authorized"
 			result["message"] = "authorization_completed"
 			return result, nil
+		}
+		switch latest.Status {
 		case model.WeComAuthBindingStatusCanceled, model.WeComAuthBindingStatusDisabled:
 			result["status"] = "failed"
 			result["message"] = "authorization_canceled"
@@ -592,6 +718,14 @@ type permanentCodeResponse struct {
 	PermanentCode     string         `json:"permanent_code"`
 	AuthCorpInfo      authCorpInfo   `json:"auth_corp_info"`
 	AuthInfo          map[string]any `json:"auth_info"`
+	AuthUserInfo      map[string]any `json:"auth_user_info"`
+	AuthorizationInfo map[string]any `json:"authorization_info"`
+}
+
+type authInfoResponse struct {
+	ErrCode           int            `json:"errcode"`
+	ErrMsg            string         `json:"errmsg"`
+	AuthInfo          map[string]any `json:"auth_info"`
 	AuthorizationInfo map[string]any `json:"authorization_info"`
 }
 
@@ -689,6 +823,22 @@ func (s *OpenWorkFoundationService) fetchPermanentCodeV2(ctx context.Context, su
 	return resp, nil
 }
 
+func (s *OpenWorkFoundationService) fetchAuthInfo(ctx context.Context, suiteAccessToken, authCorpID, permanentCode string, httpDebug bool) (*authInfoResponse, error) {
+	resp := &authInfoResponse{}
+	urlWithToken := fmt.Sprintf("%s/get_auth_info?suite_access_token=%s", wecomAPIBase, url.QueryEscape(suiteAccessToken))
+	err := s.postWeComJSON(ctx, urlWithToken, map[string]any{
+		"auth_corpid":    strings.TrimSpace(authCorpID),
+		"permanent_code": strings.TrimSpace(permanentCode),
+	}, resp, httpDebug)
+	if err != nil {
+		return nil, err
+	}
+	if resp.ErrCode != 0 {
+		return nil, fmt.Errorf("get_auth_info failed: %d %s", resp.ErrCode, resp.ErrMsg)
+	}
+	return resp, nil
+}
+
 func (s *OpenWorkFoundationService) postWeComJSON(ctx context.Context, endpoint string, payload any, out any, httpDebug bool) error {
 	if s.httpClient == nil {
 		s.httpClient = &http.Client{Timeout: 15 * time.Second}
@@ -735,26 +885,241 @@ func (s *OpenWorkFoundationService) postWeComJSON(ctx context.Context, endpoint 
 	return nil
 }
 
+func (s *OpenWorkFoundationService) ensureAuthorizedChannelAccount(
+	ctx context.Context,
+	tenantUUID, corpID, agentID, corpName string,
+	authUserInfo map[string]any,
+) (*model.ChannelAccount, error) {
+	if s == nil || s.accountRepo == nil {
+		return nil, nil
+	}
+	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
+	corpID = strings.TrimSpace(corpID)
+	agentID = strings.TrimSpace(agentID)
+	corpName = strings.TrimSpace(corpName)
+	if tenantUUID == "" || corpID == "" {
+		return nil, nil
+	}
+	ownerMemberUUID := normalizeOwnerMemberUUID(authUserInfo)
+	if corpName == "" {
+		corpName = corpID
+	}
+
+	// 同一企业优先复用已有渠道账号，避免重复创建。
+	if existingByCorp, err := s.accountRepo.FindByWeComCorpID(ctx, tenantUUID, corpID); err == nil && existingByCorp != nil {
+		accountID := strings.TrimSpace(existingByCorp.AccountID)
+		if accountID == "" {
+			accountID = strings.TrimSpace(agentID)
+		}
+		if accountID == "" {
+			accountID = corpID
+		}
+		updated, updateErr := s.accountRepo.UpdateAccount(
+			ctx,
+			tenantUUID,
+			existingByCorp.AccountUUID,
+			corpName,
+			existingByCorp.OwnerMemberUUID,
+			model.ChannelAccountStatusConnected,
+			accountID,
+		)
+		if updateErr != nil {
+			return nil, updateErr
+		}
+		existing := mergeCredentials(updated.Credentials, nil)
+		existing["app_id"] = corpID
+		existing["corp_id"] = corpID
+		existing["agent_id"] = agentID
+		updated, updateErr = s.accountRepo.UpdateAccountCredentials(ctx, tenantUUID, updated.AccountUUID, credentialsToJSON(existing))
+		if updateErr != nil {
+			return nil, updateErr
+		}
+		_ = s.accountRepo.DisableOtherWeComAccountsByCorp(ctx, tenantUUID, corpID, updated.AccountUUID)
+		return updated, nil
+	} else if err != nil && !errors.Is(err, repository.ErrAccountNotFound) {
+		return nil, err
+	}
+
+	// 优先按 agent_id 标识账号；缺失时回退 corp_id，保证授权成功后主表可见。
+	accountID := agentID
+	if accountID == "" {
+		accountID = corpID
+	}
+
+	if existingByIdentity, err := s.accountRepo.FindByIdentity(ctx, tenantUUID, "wechat", "wecom", accountID); err == nil && existingByIdentity != nil {
+		return existingByIdentity, nil
+	} else if err != nil && !errors.Is(err, repository.ErrAccountNotFound) {
+		return nil, err
+	}
+
+	if agentID != "" {
+		if existingByWeCom, err := s.accountRepo.FindByWeComIdentity(ctx, tenantUUID, corpID, agentID); err == nil && existingByWeCom != nil {
+			return existingByWeCom, nil
+		} else if err != nil && !errors.Is(err, repository.ErrAccountNotFound) {
+			return nil, err
+		}
+	}
+
+	upserted, err := s.accountRepo.UpsertByIdentity(ctx, &model.ChannelAccount{
+		TenantUuid:      tenantUUID,
+		ChannelCode:     "wechat",
+		AppType:         "wecom",
+		AccountID:       accountID,
+		DisplayName:     corpName,
+		Status:          model.ChannelAccountStatusConnected,
+		OwnerMemberUUID: ownerMemberUUID,
+		MemberUserUUIDs: []string{},
+		Capabilities:    datatypes.JSONMap{},
+		Credentials: credentialsToJSON(map[string]string{
+			"app_id":   corpID,
+			"corp_id":  corpID,
+			"agent_id": agentID,
+		}),
+	})
+	if err != nil {
+		return nil, err
+	}
+	_ = s.accountRepo.DisableOtherWeComAccountsByCorp(ctx, tenantUUID, corpID, upserted.AccountUUID)
+	return upserted, nil
+}
+
 func extractAgentID(authInfo map[string]any) string {
 	if authInfo == nil {
 		return ""
 	}
-	agentsAny, ok := authInfo["agent"]
-	if !ok {
-		return ""
+	if v := extractAgentIDFromAny(authInfo["agent"]); v != "" {
+		return v
 	}
-	agents, ok := agentsAny.([]any)
-	if !ok || len(agents) == 0 {
-		return ""
+	if nestedAny, ok := authInfo["auth_info"]; ok {
+		if v := extractAgentIDFromAny(nestedAny); v != "" {
+			return v
+		}
 	}
-	first, ok := agents[0].(map[string]any)
-	if !ok {
-		return ""
+	return extractAgentIDFromAny(authInfo)
+}
+
+func normalizeOwnerMemberUUID(authUserInfo map[string]any) string {
+	if authUserInfo != nil {
+		if raw := strings.TrimSpace(fmt.Sprintf("%v", authUserInfo["userid"])); raw != "" {
+			numeric := true
+			for _, ch := range raw {
+				if ch < '0' || ch > '9' {
+					numeric = false
+					break
+				}
+			}
+			if numeric {
+				return raw
+			}
+		}
 	}
-	if v, ok := first["agentid"]; ok {
-		return strings.TrimSpace(fmt.Sprintf("%v", v))
+	// 自动创建账号时，负责人无法可靠映射到本地 IAM 成员，统一回退为占位值。
+	return "0"
+}
+
+func extractAgentIDFromAny(input any) string {
+	switch v := input.(type) {
+	case map[string]any:
+		if idAny, ok := v["agent_id"]; ok {
+			if id := normalizeAgentIDValue(idAny); id != "" {
+				return id
+			}
+		}
+		if idAny, ok := v["agentid"]; ok {
+			if id := normalizeAgentIDValue(idAny); id != "" {
+				return id
+			}
+		}
+		if nestedAny, ok := v["agents"]; ok {
+			if id := extractAgentIDFromAny(nestedAny); id != "" {
+				return id
+			}
+		}
+		if nestedAny, ok := v["agent"]; ok {
+			if id := extractAgentIDFromAny(nestedAny); id != "" {
+				return id
+			}
+		}
+		if nestedAny, ok := v["auth_info"]; ok {
+			if id := extractAgentIDFromAny(nestedAny); id != "" {
+				return id
+			}
+		}
+		for _, nested := range v {
+			if id := extractAgentIDFromAny(nested); id != "" {
+				return id
+			}
+		}
+	case []any:
+		for _, item := range v {
+			if id := extractAgentIDFromAny(item); id != "" {
+				return id
+			}
+		}
 	}
 	return ""
+}
+
+func normalizeAgentIDValue(raw any) string {
+	switch vv := raw.(type) {
+	case nil:
+		return ""
+	case string:
+		return strings.TrimSpace(vv)
+	case int:
+		return strconv.Itoa(vv)
+	case int8:
+		return strconv.FormatInt(int64(vv), 10)
+	case int16:
+		return strconv.FormatInt(int64(vv), 10)
+	case int32:
+		return strconv.FormatInt(int64(vv), 10)
+	case int64:
+		return strconv.FormatInt(vv, 10)
+	case uint:
+		return strconv.FormatUint(uint64(vv), 10)
+	case uint8:
+		return strconv.FormatUint(uint64(vv), 10)
+	case uint16:
+		return strconv.FormatUint(uint64(vv), 10)
+	case uint32:
+		return strconv.FormatUint(uint64(vv), 10)
+	case uint64:
+		return strconv.FormatUint(vv, 10)
+	case float32:
+		f := float64(vv)
+		if !math.IsNaN(f) && !math.IsInf(f, 0) {
+			if f == math.Trunc(f) {
+				return strconv.FormatInt(int64(f), 10)
+			}
+			return strings.TrimSpace(strconv.FormatFloat(f, 'f', -1, 64))
+		}
+	case float64:
+		if !math.IsNaN(vv) && !math.IsInf(vv, 0) {
+			if vv == math.Trunc(vv) {
+				return strconv.FormatInt(int64(vv), 10)
+			}
+			return strings.TrimSpace(strconv.FormatFloat(vv, 'f', -1, 64))
+		}
+	case json.Number:
+		s := strings.TrimSpace(vv.String())
+		if s == "" {
+			return ""
+		}
+		if i, err := vv.Int64(); err == nil {
+			return strconv.FormatInt(i, 10)
+		}
+		if f, err := vv.Float64(); err == nil {
+			if !math.IsNaN(f) && !math.IsInf(f, 0) {
+				if f == math.Trunc(f) {
+					return strconv.FormatInt(int64(f), 10)
+				}
+				return strings.TrimSpace(strconv.FormatFloat(f, 'f', -1, 64))
+			}
+		}
+		return s
+	}
+	return strings.TrimSpace(fmt.Sprintf("%v", raw))
 }
 
 func isAllowedSyncDomain(domain string) bool {

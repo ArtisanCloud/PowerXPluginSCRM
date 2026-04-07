@@ -23,6 +23,12 @@ type OrgSyncHandler struct {
 	defaultSvc *orgsvc.DefaultSourceAccountService
 }
 
+type delegatedSetScopeRequest struct {
+	AllowUser  []string `json:"allow_user"`
+	AllowParty []int    `json:"allow_party"`
+	AllowTag   []int    `json:"allow_tag"`
+}
+
 func NewOrgSyncHandler(syncSvc *orgsvc.SyncService, unitSvc *orgsvc.SourceUnitService, memberSvc *orgsvc.SourceMemberService, syncLogSvc *orgsvc.SyncLogService, defaultSvc *orgsvc.DefaultSourceAccountService) *OrgSyncHandler {
 	return &OrgSyncHandler{
 		syncSvc:    syncSvc,
@@ -31,6 +37,64 @@ func NewOrgSyncHandler(syncSvc *orgsvc.SyncService, unitSvc *orgsvc.SourceUnitSe
 		syncLogSvc: syncLogSvc,
 		defaultSvc: defaultSvc,
 	}
+}
+
+func (h *OrgSyncHandler) SetDelegatedScope(c *gin.Context) {
+	if h.syncSvc == nil {
+		contracts.ResponseServiceUnavailable(c, "org sync service unavailable", nil)
+		return
+	}
+	sourceAccountUUID := strings.TrimSpace(c.Param("source_account_uuid"))
+	if sourceAccountUUID == "" {
+		contracts.ResponseBadRequest(c, "source_account_uuid is required")
+		return
+	}
+	tenantUUID, ok := middleware.TenantUUIDFromContext(c)
+	if !ok || tenantUUID == "" {
+		contracts.ResponseUnauthorized(c, "tenant context missing")
+		return
+	}
+	var req delegatedSetScopeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		contracts.ResponseBadRequest(c, "invalid body: "+err.Error())
+		return
+	}
+	result, err := h.syncSvc.SetDelegatedScope(c.Request.Context(), tenantUUID, sourceAccountUUID, req.AllowUser, req.AllowParty, req.AllowTag)
+	if err != nil {
+		switch {
+		case errors.Is(err, repository.ErrTenantUuidRequired):
+			contracts.ResponseBadRequest(c, "tenant_uuid is required")
+		case errors.Is(err, socialrepo.ErrAccountNotFound), errors.Is(err, socialrepo.ErrBindingNotFound):
+			contracts.ResponseNotFound(c, err.Error())
+		default:
+			contracts.ResponseBadRequest(c, err.Error())
+		}
+		return
+	}
+	contracts.ResponseSuccess(c, result)
+}
+
+func (h *OrgSyncHandler) ListDelegatedScopeCandidates(c *gin.Context) {
+	if h.syncSvc == nil {
+		contracts.ResponseServiceUnavailable(c, "org sync service unavailable", nil)
+		return
+	}
+	tenantUUID, ok := middleware.TenantUUIDFromContext(c)
+	if !ok || tenantUUID == "" {
+		contracts.ResponseUnauthorized(c, "tenant context missing")
+		return
+	}
+	items, err := h.syncSvc.ListDelegatedScopeCandidates(c.Request.Context(), tenantUUID)
+	if err != nil {
+		switch {
+		case errors.Is(err, repository.ErrTenantUuidRequired):
+			contracts.ResponseBadRequest(c, "tenant_uuid is required")
+		default:
+			contracts.ResponseInternalError(c, err)
+		}
+		return
+	}
+	contracts.ResponseSuccess(c, gin.H{"items": items})
 }
 
 func (h *OrgSyncHandler) TriggerSync(c *gin.Context) {
@@ -49,8 +113,14 @@ func (h *OrgSyncHandler) TriggerSync(c *gin.Context) {
 		return
 	}
 	traceID := strings.TrimSpace(c.GetString("trace_id"))
+	if traceID == "" {
+		traceID = strings.TrimSpace(c.GetHeader("X-Request-ID"))
+	}
+	if traceID == "" {
+		traceID = strings.TrimSpace(c.GetHeader("Request-ID"))
+	}
 	go func(tenant, source, trace string) {
-		ctx := context.Background()
+		ctx := orgsvc.WithTraceID(context.Background(), trace)
 		if _, err := h.syncSvc.TriggerSync(ctx, tenant, source); err != nil {
 			logger.WithFields(logger.Fields{
 				"component":           "org_sync",

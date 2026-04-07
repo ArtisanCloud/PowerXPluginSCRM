@@ -71,6 +71,19 @@
 - [X] T037 [US4] Keep manual `auth_code` as advanced fallback section (collapsed by default), remove it from primary onboarding path.
 - [X] T038 [US4] Add/extend frontend + backend tests for QR-first flow, including pending timeout, callback success, and fallback path.
 
+## Phase 9: OpenWork Callback Idempotency Hardening (P0 Blocker, SaaS)
+**Goal**: 在 SaaS 多实例与高并发回调场景下，保证 `auth_code` 一次性语义与授权完成链路稳定，不因重复投递造成误失败或状态漂移。  
+**Independent Test**: 同一 `create_auth` 事件在 2+ 实例并发投递时，仅一次真实兑换 `auth_code`，其余请求被幂等吸收，最终绑定状态一致且可追溯。
+
+- [X] T039 [US4] 为 OpenWork 回调建立跨实例幂等存储（建议 `tenant_uuid + suite_id + auth_code` 唯一键），状态机覆盖 `received/processing/succeeded/failed`。
+- [X] T040 [US4] 将回调处理改为“快速确认 + 异步执行”：主链路仅验签/落幂等记录/入队并在 1s 内返回 `success`，授权兑换在后台 Worker 执行。
+- [X] T041 [US4] 为授权完成链路增加分布式互斥（Redis/DB 锁），防止多实例同时调用 `get_permanent_code`。
+- [X] T042 [US4] 增加 `40078 invalid auth_code` 语义兜底：若幂等记录或绑定结果已成功则按幂等成功收敛，否则标记为需重新授权并暴露可观测原因。
+- [X] T043 [US4] 强化事件唯一键策略：`create_auth/change_auth` 优先使用 `auth_code`，其余事件使用 `msg_signature + timestamp + nonce`（或等价摘要）避免秒级碰撞。
+- [X] T044 [US4] 补齐并发与重复投递测试（单实例 + 多实例模拟），覆盖 `context canceled`、重复回调、乱序回调、网络抖动下的最终一致性。
+- [X] T045 [US8] 增加回调与授权完成指标/告警：重复投递率、幂等命中率、`40078` 发生率、授权完成耗时 P95/P99、回调 ACK 耗时。
+- [X] T046 [US8] 更新运行手册：`invalid auth_code` 处置流程、重放策略、人工补偿与租户侧重授权 SOP。
+
 ## Dependencies
 
 - User Story 1 must complete before User Story 2 and 3.

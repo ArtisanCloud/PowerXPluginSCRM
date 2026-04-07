@@ -3,6 +3,7 @@ package social_channel_governance
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -39,6 +40,41 @@ func (fakeRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 			"auth_corp_info":{"corpid":"wwcorp001","corp_name":"Demo Corp"},
 			"auth_info":{"agent":[{"agentid":1000002}]},
 			"authorization_info":{"auth_user_info":{"userid":"admin001"}}
+		}`
+	default:
+		body = `{"errcode":40001,"errmsg":"unknown endpoint"}`
+	}
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     make(http.Header),
+		Body:       io.NopCloser(strings.NewReader(body)),
+		Request:    req,
+	}, nil
+}
+
+type fakeRoundTripperV2NoAgent struct{}
+
+func (fakeRoundTripperV2NoAgent) RoundTrip(req *http.Request) (*http.Response, error) {
+	path := req.URL.Path
+	query := req.URL.RawQuery
+	var body string
+	switch {
+	case strings.HasSuffix(path, "/get_suite_token"):
+		body = `{"errcode":0,"errmsg":"ok","suite_access_token":"suite-token-002","expires_in":7200}`
+	case strings.HasSuffix(path, "/v2/get_permanent_code") && strings.Contains(query, "suite_access_token=suite-token-002"):
+		body = `{
+			"errcode":0,
+			"errmsg":"ok",
+			"corpid":"wwcorp002",
+			"permanent_code":"perm-code-002",
+			"auth_corp_info":{"corpid":"wwcorp002","corp_name":"Demo Corp 2"},
+			"authorization_info":{"auth_user_info":{"userid":"admin002"}}
+		}`
+	case strings.HasSuffix(path, "/get_auth_info") && strings.Contains(query, "suite_access_token=suite-token-002"):
+		body = `{
+			"errcode":0,
+			"errmsg":"ok",
+			"auth_info":{"agent":[{"agentid":1000999}]}
 		}`
 	default:
 		body = `{"errcode":40001,"errmsg":"unknown endpoint"}`
@@ -200,6 +236,49 @@ func TestOpenWorkFoundationService_DefaultSwitchPolicyForNewJobsOnly(t *testing.
 	require.Equal(t, bindingA.BindingUUID, stillOld.BindingUUID)
 }
 
+func TestOpenWorkFoundationService_CompleteAuthorization_FetchAuthInfoWhenAgentMissing(t *testing.T) {
+	db := openOpenWorkServiceTestDB(t, "openwork_complete_authorize_fetch_auth_info")
+	repo := socialrepo.NewOpenWorkFoundationRepository(db)
+	accountRepo := socialrepo.NewAccountRepository(db)
+	svc := NewOpenWorkFoundationService(repo, accountRepo)
+	svc.httpClient = &http.Client{Transport: fakeRoundTripperV2NoAgent{}, Timeout: 5 * time.Second}
+
+	tenantUUID := "00000000-0000-0000-0000-000000000007"
+	account := &model.ChannelAccount{
+		AccountUUID:     "77777777-7777-4777-8777-777777777777",
+		TenantUuid:      tenantUUID,
+		ChannelCode:     "wechat",
+		AppType:         "wecom",
+		AccountID:       "wwcorp002",
+		DisplayName:     "WeCom C",
+		Status:          model.ChannelAccountStatusConnected,
+		OwnerMemberUUID: "owner-007",
+		MemberUserUUIDs: []string{},
+		OrgSyncDefault:  false,
+		Capabilities:    map[string]any{},
+		Credentials:     map[string]any{},
+	}
+	require.NoError(t, db.Create(account).Error)
+
+	binding, err := svc.CompleteAuthorization(context.Background(), OpenWorkAuthorizeCompleteInput{
+		TenantUUID:         tenantUUID,
+		TemplateID:         "dk002",
+		TemplateSecret:     "suite-secret-002",
+		TemplateTicket:     "ticket-002",
+		ProviderCorpID:     "ww-provider-002",
+		ProviderSecret:     "provider-secret-002",
+		AuthCode:           "auth-code-002",
+		ChannelAccountUUID: account.AccountUUID,
+		SetDefault:         true,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "1000999", strings.TrimSpace(binding.AgentID))
+
+	updated, err := accountRepo.GetByAccountUUID(context.Background(), tenantUUID, account.AccountUUID)
+	require.NoError(t, err)
+	require.Equal(t, "1000999", strings.TrimSpace(fmt.Sprintf("%v", updated.Credentials["agent_id"])))
+}
+
 func TestOpenWorkFoundationService_DeadLetterDashboardAndReplay(t *testing.T) {
 	db := openOpenWorkServiceTestDB(t, "openwork_deadletter_replay")
 	repo := socialrepo.NewOpenWorkFoundationRepository(db)
@@ -263,6 +342,7 @@ func TestOpenWorkFoundationService_AuthorizationStatus(t *testing.T) {
 	require.NoError(t, db.Create(&model.WeComOpenAuthBinding{
 		BindingUUID: "4f091f47-e3a5-4ce8-a03f-4493e26f0036",
 		TenantUUID:  tenantUUID,
+		ChannelAccountUUID: "acc-006",
 		ChannelCode: "wechat",
 		AppType:     "wecom",
 		SuiteID:     "suite-001",
@@ -271,6 +351,11 @@ func TestOpenWorkFoundationService_AuthorizationStatus(t *testing.T) {
 		Status:      model.WeComAuthBindingStatusActive,
 		IsDefault:   true,
 	}).Error)
+	require.NoError(t, db.Exec(`
+		INSERT INTO social_channel_accounts (
+			account_uuid, tenant_uuid, channel_code, app_type, account_id, display_name, status, owner_member_uuid
+		) VALUES (?, ?, 'wechat', 'wecom', ?, ?, 'connected', ?)
+	`, "acc-006", tenantUUID, "corp-f", "Corp F", "1001").Error)
 	success, err := svc.AuthorizationStatus(context.Background(), OpenWorkAuthorizeStatusInput{
 		TenantUUID: tenantUUID,
 		TemplateID: "suite-001",
@@ -461,6 +546,64 @@ func TestOpenWorkFoundationService_IngestEvent_Idempotent(t *testing.T) {
 	var payloadMap map[string]any
 	require.NoError(t, json.Unmarshal(mustJSONMarshal(t, second.Payload), &payloadMap))
 	require.Equal(t, "corp-e", payloadMap["auth_corp_id"])
+}
+
+func TestOpenWorkFoundationService_IngestEvent_CancelAuthDisablesAccount(t *testing.T) {
+	db := openOpenWorkServiceTestDB(t, "openwork_ingest_event_cancel_auth_disable")
+	repo := socialrepo.NewOpenWorkFoundationRepository(db)
+	accountRepo := socialrepo.NewAccountRepository(db)
+	svc := NewOpenWorkFoundationService(repo, accountRepo)
+
+	tenantUUID := "00000000-0000-0000-0000-000000000006"
+	account := &model.ChannelAccount{
+		AccountUUID:     "66666666-6666-4666-8666-666666666666",
+		TenantUuid:      tenantUUID,
+		ChannelCode:     "wechat",
+		AppType:         "wecom",
+		AccountID:       "wpsdnEDAAAs8RhkTKsPI2gO0PZxKHaag",
+		DisplayName:     "Cancel Auth Corp",
+		Status:          model.ChannelAccountStatusConnected,
+		OwnerMemberUUID: "owner-006",
+		MemberUserUUIDs: []string{},
+		OrgSyncDefault:  true,
+		Capabilities:    map[string]any{},
+		Credentials: map[string]any{
+			"corp_id": "wpsdnEDAAAs8RhkTKsPI2gO0PZxKHaag",
+		},
+	}
+	require.NoError(t, db.Create(account).Error)
+
+	binding := &model.WeComOpenAuthBinding{
+		BindingUUID:         "bbbb6666-bbbb-4666-8666-bbbbbbbbbbbb",
+		TenantUUID:          tenantUUID,
+		ChannelAccountUUID:  account.AccountUUID,
+		ChannelCode:         "wechat",
+		AppType:             "wecom",
+		SuiteID:             "dk06f3e65a405ed02b",
+		CorpID:              "wpsdnEDAAAs8RhkTKsPI2gO0PZxKHaag",
+		AgentID:             "",
+		Status:              model.WeComAuthBindingStatusActive,
+		LastEventType:       "create_auth",
+	}
+	require.NoError(t, db.Create(binding).Error)
+
+	saved, updatedBinding, err := svc.IngestEvent(context.Background(), OpenWorkEventIngestInput{
+		TenantUUID: tenantUUID,
+		SuiteID:    "dk06f3e65a405ed02b",
+		EventType:  "cancel_auth",
+		CorpID:     "wpsdnEDAAAs8RhkTKsPI2gO0PZxKHaag",
+		EventTime:  time.Now().UTC().Unix(),
+		Payload:    map[string]any{"auth_corp_id": "wpsdnEDAAAs8RhkTKsPI2gO0PZxKHaag"},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, saved)
+	require.NotNil(t, updatedBinding)
+	require.Equal(t, model.WeComAuthBindingStatusCanceled, updatedBinding.Status)
+
+	updatedAccount, err := accountRepo.GetByAccountUUID(context.Background(), tenantUUID, account.AccountUUID)
+	require.NoError(t, err)
+	require.Equal(t, model.ChannelAccountStatusDisabled, updatedAccount.Status)
+	require.False(t, updatedAccount.OrgSyncDefault)
 }
 
 func mustJSONMarshal(t *testing.T, v any) []byte {

@@ -19,6 +19,7 @@ var (
 	ErrBindingNotFound      = errors.New("wecom auth binding not found")
 	ErrSyncJobNotFound      = errors.New("sync baseline job not found")
 	ErrSyncConflictNotFound = errors.New("sync conflict record not found")
+	ErrCallbackTaskNotFound = errors.New("wecom callback task not found")
 )
 
 type OpenWorkFoundationRepository struct {
@@ -69,6 +70,187 @@ func (r *OpenWorkFoundationRepository) SaveAuthEvent(ctx context.Context, event 
 	return event, created, nil
 }
 
+func (r *OpenWorkFoundationRepository) EnqueueCallbackTask(ctx context.Context, task *model.WeComOpenCallbackTask) (*model.WeComOpenCallbackTask, bool, error) {
+	if r == nil || r.DB == nil {
+		return nil, false, errors.New("repository database is not initialized")
+	}
+	if task == nil {
+		return nil, false, errors.New("task is required")
+	}
+	task.TenantUUID = strings.ToLower(strings.TrimSpace(task.TenantUUID))
+	task.SuiteID = strings.TrimSpace(task.SuiteID)
+	task.EventType = strings.ToLower(strings.TrimSpace(task.EventType))
+	task.CallbackKey = strings.TrimSpace(task.CallbackKey)
+	task.EventKey = strings.TrimSpace(task.EventKey)
+	task.AuthCode = strings.TrimSpace(task.AuthCode)
+	task.CorpID = strings.TrimSpace(task.CorpID)
+	task.AgentID = strings.TrimSpace(task.AgentID)
+	task.SuiteTicket = strings.TrimSpace(task.SuiteTicket)
+	task.State = strings.TrimSpace(task.State)
+	task.MsgSignature = strings.TrimSpace(task.MsgSignature)
+	task.Nonce = strings.TrimSpace(task.Nonce)
+	if strings.TrimSpace(task.TaskUUID) == "" {
+		task.TaskUUID = uuid.NewString()
+	}
+	if task.TenantUUID == "" {
+		return nil, false, repository.ErrTenantUuidRequired
+	}
+	if task.SuiteID == "" || task.EventType == "" {
+		return nil, false, errors.New("suite_id and event_type are required")
+	}
+	if task.CallbackKey == "" {
+		return nil, false, errors.New("callback_key is required")
+	}
+	if task.Status == "" {
+		task.Status = model.OpenWorkCallbackTaskReceived
+	}
+	if task.MaxAttempts <= 0 {
+		task.MaxAttempts = 3
+	}
+	if task.Payload == nil {
+		task.Payload = datatypes.JSONMap{}
+	}
+	created := true
+	err := r.WithTenantTx(ctx, task.TenantUUID, func(tx *gorm.DB) error {
+		res := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(task)
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected > 0 {
+			return nil
+		}
+		created = false
+		var existing model.WeComOpenCallbackTask
+		if err := tx.Where("tenant_uuid = ? AND suite_id = ? AND callback_key = ?", task.TenantUUID, task.SuiteID, task.CallbackKey).First(&existing).Error; err != nil {
+			return err
+		}
+		*task = existing
+		return nil
+	})
+	if err != nil {
+		return nil, false, err
+	}
+	return task, created, nil
+}
+
+func (r *OpenWorkFoundationRepository) ClaimNextCallbackTask(ctx context.Context) (*model.WeComOpenCallbackTask, bool, error) {
+	if r == nil || r.DB == nil {
+		return nil, false, errors.New("repository database is not initialized")
+	}
+	now := time.Now().UTC()
+	var claimed *model.WeComOpenCallbackTask
+	err := r.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var candidate model.WeComOpenCallbackTask
+		findErr := tx.
+			Where("(status = ?) OR (status = ? AND attempt_count < max_attempts AND (next_retry_at IS NULL OR next_retry_at <= ?))",
+				model.OpenWorkCallbackTaskReceived,
+				model.OpenWorkCallbackTaskFailed,
+				now,
+			).
+			Order("created_at ASC").
+			First(&candidate).Error
+		if errors.Is(findErr, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		if findErr != nil {
+			return findErr
+		}
+		updates := map[string]any{
+			"status":                model.OpenWorkCallbackTaskProcessing,
+			"attempt_count":         candidate.AttemptCount + 1,
+			"processing_started_at": now,
+			"updated_at":            now,
+		}
+		res := tx.Model(&model.WeComOpenCallbackTask{}).
+			Where("task_uuid = ? AND status = ? AND attempt_count = ?", candidate.TaskUUID, candidate.Status, candidate.AttemptCount).
+			Updates(updates)
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return nil
+		}
+		candidate.Status = model.OpenWorkCallbackTaskProcessing
+		candidate.AttemptCount++
+		candidate.ProcessingStartedAt = &now
+		claimed = &candidate
+		return nil
+	})
+	if err != nil {
+		return nil, false, err
+	}
+	if claimed == nil {
+		return nil, false, nil
+	}
+	return claimed, true, nil
+}
+
+func (r *OpenWorkFoundationRepository) MarkCallbackTaskSucceeded(ctx context.Context, taskUUID, corpID, agentID string, idempotentHit bool) error {
+	if r == nil || r.DB == nil {
+		return errors.New("repository database is not initialized")
+	}
+	taskUUID = strings.ToLower(strings.TrimSpace(taskUUID))
+	if taskUUID == "" {
+		return errors.New("task_uuid is required")
+	}
+	now := time.Now().UTC()
+	updates := map[string]any{
+		"status":         model.OpenWorkCallbackTaskSucceeded,
+		"idempotent_hit": idempotentHit,
+		"corp_id":        strings.TrimSpace(corpID),
+		"agent_id":       strings.TrimSpace(agentID),
+		"last_error":     "",
+		"next_retry_at":  nil,
+		"finished_at":    now,
+		"updated_at":     now,
+	}
+	res := r.DB.WithContext(ctx).
+		Model(&model.WeComOpenCallbackTask{}).
+		Where("task_uuid = ?", taskUUID).
+		Updates(updates)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return ErrCallbackTaskNotFound
+	}
+	return nil
+}
+
+func (r *OpenWorkFoundationRepository) MarkCallbackTaskFailed(ctx context.Context, taskUUID, lastError string, nextRetryAt *time.Time, forceReauthorize bool) error {
+	if r == nil || r.DB == nil {
+		return errors.New("repository database is not initialized")
+	}
+	taskUUID = strings.ToLower(strings.TrimSpace(taskUUID))
+	if taskUUID == "" {
+		return errors.New("task_uuid is required")
+	}
+	now := time.Now().UTC()
+	status := model.OpenWorkCallbackTaskFailed
+	if forceReauthorize {
+		status = model.OpenWorkCallbackTaskReauth
+		nextRetryAt = nil
+	}
+	updates := map[string]any{
+		"status":        status,
+		"last_error":    strings.TrimSpace(lastError),
+		"next_retry_at": nextRetryAt,
+		"finished_at":   now,
+		"updated_at":    now,
+	}
+	res := r.DB.WithContext(ctx).
+		Model(&model.WeComOpenCallbackTask{}).
+		Where("task_uuid = ?", taskUUID).
+		Updates(updates)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return ErrCallbackTaskNotFound
+	}
+	return nil
+}
+
 func (r *OpenWorkFoundationRepository) UpsertBinding(ctx context.Context, binding *model.WeComOpenAuthBinding, setDefault bool) (*model.WeComOpenAuthBinding, error) {
 	if r == nil || r.DB == nil {
 		return nil, errors.New("repository database is not initialized")
@@ -104,6 +286,19 @@ func (r *OpenWorkFoundationRepository) UpsertBinding(ctx context.Context, bindin
 	now := time.Now().UTC()
 	var out model.WeComOpenAuthBinding
 	err := r.WithTenantTx(ctx, binding.TenantUUID, func(tx *gorm.DB) error {
+		if strings.TrimSpace(binding.ChannelAccountUUID) == "" && binding.CorpID != "" {
+			var existing model.WeComOpenAuthBinding
+			findErr := tx.Where("tenant_uuid = ? AND corp_id = ? AND agent_id = ?", binding.TenantUUID, binding.CorpID, binding.AgentID).First(&existing).Error
+			if findErr == nil {
+				binding.ChannelAccountUUID = strings.TrimSpace(existing.ChannelAccountUUID)
+			} else if !errors.Is(findErr, gorm.ErrRecordNotFound) {
+				return findErr
+			}
+		}
+		var channelAccountUUID any
+		if strings.TrimSpace(binding.ChannelAccountUUID) != "" {
+			channelAccountUUID = binding.ChannelAccountUUID
+		}
 		if setDefault {
 			if err := tx.Model(&model.WeComOpenAuthBinding{}).
 				Where("tenant_uuid = ? AND channel_code = ? AND app_type = ? AND is_default = TRUE", binding.TenantUUID, binding.ChannelCode, binding.AppType).
@@ -115,10 +310,10 @@ func (r *OpenWorkFoundationRepository) UpsertBinding(ctx context.Context, bindin
 		}
 
 		if binding.CorpID != "" {
-			upsert := tx.Clauses(clause.OnConflict{
+			upsert := tx.Model(&model.WeComOpenAuthBinding{}).Clauses(clause.OnConflict{
 				Columns: []clause.Column{{Name: "tenant_uuid"}, {Name: "corp_id"}, {Name: "agent_id"}},
 				DoUpdates: clause.Assignments(map[string]any{
-					"channel_account_uuid": binding.ChannelAccountUUID,
+					"channel_account_uuid": channelAccountUUID,
 					"suite_id":             binding.SuiteID,
 					"corp_name":            binding.CorpName,
 					"permanent_code":       binding.PermanentCode,
@@ -133,7 +328,28 @@ func (r *OpenWorkFoundationRepository) UpsertBinding(ctx context.Context, bindin
 					"metadata":             binding.Metadata,
 					"updated_at":           now,
 				}),
-			}).Create(binding)
+			}).Create(map[string]any{
+				"tenant_uuid":          binding.TenantUUID,
+				"channel_account_uuid": channelAccountUUID,
+				"channel_code":         binding.ChannelCode,
+				"app_type":             binding.AppType,
+				"suite_id":             binding.SuiteID,
+				"corp_id":              binding.CorpID,
+				"agent_id":             binding.AgentID,
+				"corp_name":            binding.CorpName,
+				"permanent_code":       binding.PermanentCode,
+				"suite_access_token":   binding.SuiteAccessToken,
+				"suite_ticket":         binding.SuiteTicket,
+				"status":               binding.Status,
+				"is_default":           binding.IsDefault,
+				"default_switched_at":  binding.DefaultSwitchedAt,
+				"last_event_type":      binding.LastEventType,
+				"last_event_at":        binding.LastEventAt,
+				"auth_scope":           binding.AuthScope,
+				"metadata":             binding.Metadata,
+				"created_at":           now,
+				"updated_at":           now,
+			})
 			if upsert.Error != nil {
 				return upsert.Error
 			}
@@ -216,6 +432,33 @@ func (r *OpenWorkFoundationRepository) ListBindingsBySuite(ctx context.Context, 
 		return nil, err
 	}
 	return out, nil
+}
+
+func (r *OpenWorkFoundationRepository) GetActiveBindingBySuiteAndCorp(ctx context.Context, tenantUUID, suiteID, corpID string) (*model.WeComOpenAuthBinding, error) {
+	if r == nil || r.DB == nil {
+		return nil, errors.New("repository database is not initialized")
+	}
+	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
+	suiteID = strings.TrimSpace(suiteID)
+	corpID = strings.TrimSpace(corpID)
+	if tenantUUID == "" {
+		return nil, repository.ErrTenantUuidRequired
+	}
+	if suiteID == "" || corpID == "" {
+		return nil, errors.New("suite_id and corp_id are required")
+	}
+	var out model.WeComOpenAuthBinding
+	err := r.DB.WithContext(ctx).
+		Where("tenant_uuid = ? AND suite_id = ? AND corp_id = ? AND status = ?", tenantUUID, suiteID, corpID, model.WeComAuthBindingStatusActive).
+		Order("updated_at DESC").
+		First(&out).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
 }
 
 func (r *OpenWorkFoundationRepository) GetLatestAuthEventBySuite(ctx context.Context, tenantUUID, suiteID string) (*model.WeComOpenAuthEvent, error) {
@@ -317,6 +560,66 @@ func (r *OpenWorkFoundationRepository) ResolveBinding(ctx context.Context, tenan
 	return &out, "default", nil
 }
 
+func (r *OpenWorkFoundationRepository) ResolveBindingByChannelAccount(ctx context.Context, tenantUUID, channelAccountUUID string) (*model.WeComOpenAuthBinding, error) {
+	if r == nil || r.DB == nil {
+		return nil, errors.New("repository database is not initialized")
+	}
+	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
+	channelAccountUUID = strings.ToLower(strings.TrimSpace(channelAccountUUID))
+	if tenantUUID == "" {
+		return nil, repository.ErrTenantUuidRequired
+	}
+	if channelAccountUUID == "" {
+		return nil, ErrBindingNotFound
+	}
+	var out model.WeComOpenAuthBinding
+	err := r.DB.WithContext(ctx).
+		Where("tenant_uuid = ? AND channel_account_uuid = ?", tenantUUID, channelAccountUUID).
+		Order("is_default DESC, default_switched_at DESC NULLS LAST, updated_at DESC").
+		First(&out).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrBindingNotFound
+		}
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (r *OpenWorkFoundationRepository) DisableBindingsByChannelAccount(ctx context.Context, tenantUUID, channelAccountUUID, eventType string) error {
+	if r == nil || r.DB == nil {
+		return errors.New("repository database is not initialized")
+	}
+	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
+	channelAccountUUID = strings.ToLower(strings.TrimSpace(channelAccountUUID))
+	eventType = strings.TrimSpace(eventType)
+	if tenantUUID == "" {
+		return repository.ErrTenantUuidRequired
+	}
+	if channelAccountUUID == "" {
+		return ErrBindingNotFound
+	}
+	if eventType == "" {
+		eventType = "channel_account_disabled"
+	}
+	now := time.Now().UTC()
+	res := r.DB.WithContext(ctx).
+		Model(&model.WeComOpenAuthBinding{}).
+		Where("tenant_uuid = ? AND channel_account_uuid = ?", tenantUUID, channelAccountUUID).
+		Updates(map[string]any{
+			"status":              model.WeComAuthBindingStatusDisabled,
+			"is_default":          false,
+			"default_switched_at": now,
+			"last_event_type":     eventType,
+			"last_event_at":       now,
+			"updated_at":          now,
+		})
+	if res.Error != nil {
+		return res.Error
+	}
+	return nil
+}
+
 func (r *OpenWorkFoundationRepository) GetLatestSuiteTicket(ctx context.Context, tenantUUID, suiteID string) (string, error) {
 	if r == nil || r.DB == nil {
 		return "", errors.New("repository database is not initialized")
@@ -329,8 +632,21 @@ func (r *OpenWorkFoundationRepository) GetLatestSuiteTicket(ctx context.Context,
 	if suiteID == "" {
 		return "", errors.New("suite_id is required")
 	}
-	var rec model.WeComOpenAuthBinding
+	var task model.WeComOpenCallbackTask
 	err := r.DB.WithContext(ctx).
+		Where("tenant_uuid = ? AND suite_id = ? AND event_type = ? AND suite_ticket <> ''", tenantUUID, suiteID, "suite_ticket").
+		Order("event_time DESC NULLS LAST, created_at DESC").
+		First(&task).Error
+	if err == nil {
+		return strings.TrimSpace(task.SuiteTicket), nil
+	}
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return "", err
+	}
+
+	// 兼容历史数据：若回调任务表暂无记录，则退回绑定表最近票据。
+	var rec model.WeComOpenAuthBinding
+	err = r.DB.WithContext(ctx).
 		Where("tenant_uuid = ? AND suite_id = ? AND suite_ticket <> ''", tenantUUID, suiteID).
 		Order("updated_at DESC").
 		First(&rec).Error
@@ -566,7 +882,7 @@ func (r *OpenWorkFoundationRepository) SyncDashboard(ctx context.Context, tenant
 	if err := r.DB.WithContext(ctx).Model(&model.SyncConflictRecord{}).Where("tenant_uuid = ? AND status = ?", tenantUUID, model.SyncConflictStatusOpen).Count(&openConflicts).Error; err != nil {
 		return nil, err
 	}
-	var maxLagMins int64
+	var maxLagMins float64
 	query := fmt.Sprintf(
 		`SELECT COALESCE(MAX(EXTRACT(EPOCH FROM (now() - created_at)) / 60), 0) FROM %s WHERE tenant_uuid = ? AND status IN (?, ?)`,
 		model.SyncBaselineJob{}.TableName(),
@@ -590,6 +906,6 @@ func (r *OpenWorkFoundationRepository) SyncDashboard(ctx context.Context, tenant
 			"dead_letter": statusCount[model.SyncJobStatusDeadLetter],
 		},
 		"open_conflicts":  openConflicts,
-		"max_lag_minutes": maxLagMins,
+		"max_lag_minutes": int64(maxLagMins),
 	}, nil
 }

@@ -27,6 +27,11 @@ const (
 	SyncModeBootstrap              = "bootstrap"
 	SyncModeIncremental            = "incremental"
 	SyncModePushback               = "pushback"
+	OpenWorkCallbackTaskReceived   = "received"
+	OpenWorkCallbackTaskProcessing = "processing"
+	OpenWorkCallbackTaskSucceeded  = "succeeded"
+	OpenWorkCallbackTaskFailed     = "failed"
+	OpenWorkCallbackTaskReauth     = "reauthorize_required"
 )
 
 // ChannelAuthBinding stores channel-level authorization binding in a provider-agnostic form.
@@ -81,7 +86,7 @@ func (ChannelAuthEvent) TableName() string {
 // WeComOpenAuthBinding stores tenant<->corp authorization relationship for OpenWork flow.
 type WeComOpenAuthBinding struct {
 	BindingUUID        string            `gorm:"column:binding_uuid;type:uuid;default:gen_random_uuid();primaryKey" json:"binding_uuid"`
-	TenantUUID         string            `gorm:"column:tenant_uuid;type:uuid;not null;index:idx_social_wecom_auth_bindings_tenant" json:"tenant_uuid"`
+	TenantUUID         string            `gorm:"column:tenant_uuid;type:uuid;not null;index:idx_social_wecom_auth_bindings_tenant;uniqueIndex:uq_social_wecom_auth_binding_identity,priority:0" json:"tenant_uuid"`
 	ChannelAccountUUID string            `gorm:"column:channel_account_uuid;type:uuid;index:idx_social_wecom_auth_bindings_channel_account" json:"channel_account_uuid,omitempty"`
 	ChannelCode        string            `gorm:"column:channel_code;type:varchar(32);not null;default:'wechat';index:idx_social_wecom_auth_bindings_channel" json:"channel_code"`
 	AppType            string            `gorm:"column:app_type;type:varchar(32);not null;default:'wecom';index:idx_social_wecom_auth_bindings_app" json:"app_type"`
@@ -124,6 +129,40 @@ type WeComOpenAuthEvent struct {
 
 func (WeComOpenAuthEvent) TableName() string {
 	return models.S(models.TableSocialWeComAuthEvents)
+}
+
+// WeComOpenCallbackTask stores deduplicated OpenWork callback handling jobs.
+type WeComOpenCallbackTask struct {
+	TaskUUID            string            `gorm:"column:task_uuid;type:uuid;default:gen_random_uuid();primaryKey" json:"task_uuid"`
+	TenantUUID          string            `gorm:"column:tenant_uuid;type:uuid;not null;index:idx_social_wecom_callback_tasks_tenant;uniqueIndex:uq_social_wecom_callback_task_key,priority:1" json:"tenant_uuid"`
+	SuiteID             string            `gorm:"column:suite_id;type:text;not null;index:idx_social_wecom_callback_tasks_suite;uniqueIndex:uq_social_wecom_callback_task_key,priority:2" json:"suite_id"`
+	EventType           string            `gorm:"column:event_type;type:varchar(64);not null;index:idx_social_wecom_callback_tasks_event_type" json:"event_type"`
+	CallbackKey         string            `gorm:"column:callback_key;type:text;not null;uniqueIndex:uq_social_wecom_callback_task_key,priority:3" json:"callback_key"`
+	EventKey            string            `gorm:"column:event_key;type:text;not null;default:'';index:idx_social_wecom_callback_tasks_event_key" json:"event_key"`
+	AuthCode            string            `gorm:"column:auth_code;type:text;not null;default:'';index:idx_social_wecom_callback_tasks_auth_code" json:"-"`
+	CorpID              string            `gorm:"column:corp_id;type:text;not null;default:'';index:idx_social_wecom_callback_tasks_corp" json:"corp_id"`
+	AgentID             string            `gorm:"column:agent_id;type:text;not null;default:''" json:"agent_id"`
+	SuiteTicket         string            `gorm:"column:suite_ticket;type:text;not null;default:''" json:"-"`
+	State               string            `gorm:"column:state;type:text;not null;default:''" json:"state"`
+	MsgSignature        string            `gorm:"column:msg_signature;type:text;not null;default:''" json:"msg_signature"`
+	Timestamp           int64             `gorm:"column:timestamp;type:bigint;not null;default:0" json:"timestamp"`
+	Nonce               string            `gorm:"column:nonce;type:text;not null;default:''" json:"nonce"`
+	EventTime           *time.Time        `gorm:"column:event_time;type:timestamptz;index:idx_social_wecom_callback_tasks_event_time" json:"event_time,omitempty"`
+	Status              string            `gorm:"column:status;type:varchar(32);not null;default:'received';index:idx_social_wecom_callback_tasks_status" json:"status"`
+	IdempotentHit       bool              `gorm:"column:idempotent_hit;type:boolean;not null;default:false" json:"idempotent_hit"`
+	AttemptCount        int               `gorm:"column:attempt_count;type:int;not null;default:0" json:"attempt_count"`
+	MaxAttempts         int               `gorm:"column:max_attempts;type:int;not null;default:3" json:"max_attempts"`
+	LastError           string            `gorm:"column:last_error;type:text;not null;default:''" json:"last_error"`
+	NextRetryAt         *time.Time        `gorm:"column:next_retry_at;type:timestamptz;index:idx_social_wecom_callback_tasks_next_retry" json:"next_retry_at,omitempty"`
+	ProcessingStartedAt *time.Time        `gorm:"column:processing_started_at;type:timestamptz" json:"processing_started_at,omitempty"`
+	FinishedAt          *time.Time        `gorm:"column:finished_at;type:timestamptz" json:"finished_at,omitempty"`
+	Payload             datatypes.JSONMap `gorm:"column:payload;type:jsonb;default:'{}'::jsonb" json:"payload"`
+	CreatedAt           time.Time         `gorm:"column:created_at;type:timestamptz;autoCreateTime;index:idx_social_wecom_callback_tasks_created" json:"created_at"`
+	UpdatedAt           time.Time         `gorm:"column:updated_at;type:timestamptz;autoUpdateTime" json:"updated_at"`
+}
+
+func (WeComOpenCallbackTask) TableName() string {
+	return models.S(models.TableSocialWeComCallbackTasks)
 }
 
 // SyncBaselineJob tracks dual-sync baseline jobs for tags/org/external contacts.

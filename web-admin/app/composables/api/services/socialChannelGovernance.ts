@@ -152,6 +152,25 @@ export interface WeComOpenWorkTemplate {
   is_default?: boolean;
 }
 
+export interface DelegatedScopeSetPayload {
+  allow_user?: string[];
+  allow_party?: number[];
+  allow_tag?: number[];
+}
+
+export interface DelegatedScopeCandidate {
+  source_account_uuid: string;
+  display_name?: string;
+  corp_id?: string;
+  corp_name?: string;
+  agent_id?: string;
+  binding_status?: string;
+  is_default?: boolean;
+  account_status?: string;
+  org_sync_default?: boolean;
+  updated_at?: string;
+}
+
 export const useSocialChannelGovernanceService = () => {
   const apiClient = useApiClient();
   const baseUrl = "/admin/social/channel-accounts";
@@ -359,6 +378,24 @@ export const useSocialChannelGovernanceService = () => {
         has_suite_access_token?: boolean;
         message?: string;
       }>>(`/admin/social/channel-platform/wecom/openwork/suite-ticket/verify`, {});
+    },
+    setOrgSyncDelegatedScope: (sourceAccountUUID: string, payload: DelegatedScopeSetPayload) => {
+      return apiClient.post<ApiResponse<{
+        agent_id: number;
+        allow_user: string[];
+        allow_party: number[];
+        allow_tag: number[];
+        errcode: number;
+        errmsg: string;
+      }>>(
+        `/admin/org-sync/source-accounts/${encodeURIComponent(sourceAccountUUID)}/set-scope`,
+        payload
+      );
+    },
+    listOrgSyncDelegatedScopeCandidates: () => {
+      return apiClient.get<ApiResponse<{ items: DelegatedScopeCandidate[] }>>(
+        `/admin/org-sync/scope-candidates`
+      );
     },
   };
 };

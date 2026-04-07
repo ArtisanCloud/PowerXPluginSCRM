@@ -216,6 +216,9 @@ const props = withDefaults(
     inModal: false,
   },
 )
+const emit = defineEmits<{
+  authorized: []
+}>()
 
 const service = useSocialChannelGovernanceService()
 const wsBus = useWsBusClient()
@@ -331,27 +334,47 @@ const expiresInLabel = computed(() => {
 })
 
 const authStatusLabel = computed(() => {
+  const message = String(authMessage.value || '').toLowerCase()
+  const unauthorizedByMessage =
+    message.includes('authorization_canceled')
+    || message.includes('not_authorized')
+    || message.includes('unauthorized')
+    || message.includes('no_authorization')
+    || message.includes('未授权')
   switch (authStatus.value) {
     case 'pending':
       return '等待授权'
     case 'authorized':
       return '授权成功'
     case 'failed':
+      if (unauthorizedByMessage) {
+        return '未授权'
+      }
       return '授权失败'
     case 'expired':
       return '已过期'
     default:
-      return '未开始'
+      return '未授权'
   }
 })
 
 const authStatusColor = computed(() => {
+  const message = String(authMessage.value || '').toLowerCase()
+  const unauthorizedByMessage =
+    message.includes('authorization_canceled')
+    || message.includes('not_authorized')
+    || message.includes('unauthorized')
+    || message.includes('no_authorization')
+    || message.includes('未授权')
   switch (authStatus.value) {
     case 'pending':
       return 'warning'
     case 'authorized':
       return 'success'
     case 'failed':
+      if (unauthorizedByMessage) {
+        return 'neutral'
+      }
       return 'error'
     case 'expired':
       return 'neutral'
@@ -478,6 +501,7 @@ const refreshAuthorizationStatus = async () => {
     if (status === 'authorized') {
       stopAuthPolling()
       await refreshAll()
+      emit('authorized')
     }
     if (status === 'failed' || status === 'expired') {
       stopAuthPolling()
@@ -521,6 +545,7 @@ const ensureWsSubscription = () => {
       stopAuthPolling()
       if (status === 'authorized') {
         refreshAll()
+        emit('authorized')
       }
     }
   }))
@@ -603,6 +628,7 @@ const completeAuthorize = async () => {
     authMessage.value = 'manual_complete_success'
     stopAuthPolling()
     await refreshAll()
+    emit('authorized')
   } catch (err: any) {
     error.value = extractApiErrorMessage(err, '完成授权失败')
     authStatus.value = 'failed'

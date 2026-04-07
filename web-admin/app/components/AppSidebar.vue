@@ -213,6 +213,20 @@
               <UIcon name="i-heroicons-server-stack" class="w-3 h-3 mr-2" />
               {{ t('navigation.channelPlatformPlatformConfig') }}
             </UButton>
+            <UButton
+              to="/settings/channel-platform/wecom/scope"
+              variant="ghost"
+              color="neutral"
+              size="sm"
+              class="w-full justify-start text-sm"
+              :class="{
+                'bg-primary-50 text-primary-600 dark:bg-primary-950 dark:text-primary-400 is-active':
+                  isExactActive('/settings/channel-platform/wecom/scope'),
+              }"
+            >
+              <UIcon name="i-heroicons-adjustments-horizontal" class="w-3 h-3 mr-2" />
+              可见范围
+            </UButton>
           </div>
 
           <UButton
@@ -606,6 +620,11 @@ const navEntries = computed(() => {
   if (showPluginSettings.value) {
     entries.push({
       path: "/settings/channel-platform",
+      labelKey: "navigation.channelPlatformPlatformConfig",
+      groupKey: "navigation.pluginSettings",
+    });
+    entries.push({
+      path: "/settings/channel-platform/wecom/scope",
       labelKey: "navigation.channelPlatformPlatformConfig",
       groupKey: "navigation.pluginSettings",
     });

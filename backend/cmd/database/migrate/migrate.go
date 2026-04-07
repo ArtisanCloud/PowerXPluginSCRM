@@ -72,6 +72,7 @@ var businessTables = []interface{}{
 	&socialModel.ChannelAuthEvent{},
 	&socialModel.WeComOpenAuthBinding{},
 	&socialModel.WeComOpenAuthEvent{},
+	&socialModel.WeComOpenCallbackTask{},
 	&socialModel.SyncBaselineJob{},
 	&socialModel.SyncConflictRecord{},
 	&OrgSyncModel.SourceAccount{},
@@ -333,6 +334,18 @@ func ensureOpenWorkFoundationIndexes(ctx context.Context, db *gorm.DB) error {
 		return nil
 	}
 	bindingTable := models.S(models.TableSocialWeComAuthBindings)
+	identityIndex := "uq_social_wecom_auth_binding_identity"
+	dropIdentityStmt := fmt.Sprintf(`DROP INDEX IF EXISTS %s`, identityIndex)
+	if err := db.WithContext(ctx).Exec(dropIdentityStmt).Error; err != nil {
+		return err
+	}
+	identityStmt := fmt.Sprintf(
+		`CREATE UNIQUE INDEX IF NOT EXISTS %s ON %s (tenant_uuid, corp_id, agent_id)`,
+		identityIndex, bindingTable,
+	)
+	if err := db.WithContext(ctx).Exec(identityStmt).Error; err != nil {
+		return err
+	}
 	defaultIndex := "uq_social_wecom_default_binding_per_tenant"
 	defaultStmt := fmt.Sprintf(
 		`CREATE UNIQUE INDEX IF NOT EXISTS %s ON %s (tenant_uuid, channel_code, app_type) WHERE is_default = TRUE AND deleted_at IS NULL`,
@@ -348,6 +361,15 @@ func ensureOpenWorkFoundationIndexes(ctx context.Context, db *gorm.DB) error {
 		idempotencyIndex, jobTable,
 	)
 	if err := db.WithContext(ctx).Exec(idempotencyStmt).Error; err != nil {
+		return err
+	}
+	callbackTaskTable := models.S(models.TableSocialWeComCallbackTasks)
+	claimIndex := "idx_social_wecom_callback_tasks_claim"
+	claimStmt := fmt.Sprintf(
+		`CREATE INDEX IF NOT EXISTS %s ON %s (status, next_retry_at, created_at)`,
+		claimIndex, callbackTaskTable,
+	)
+	if err := db.WithContext(ctx).Exec(claimStmt).Error; err != nil {
 		return err
 	}
 	return nil

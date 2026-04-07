@@ -166,6 +166,7 @@ func TestOpenWorkFoundationHandler_GetAuthorizationStatus(t *testing.T) {
 	require.NoError(t, db.Create(&model.WeComOpenAuthBinding{
 		BindingUUID: "f6f9a130-8ba5-41fb-8a64-fad26fd15f8b",
 		TenantUUID:  tenantUUID,
+		ChannelAccountUUID: "acc-106",
 		ChannelCode: "wechat",
 		AppType:     "wecom",
 		SuiteID:     "suite-001",
@@ -174,6 +175,11 @@ func TestOpenWorkFoundationHandler_GetAuthorizationStatus(t *testing.T) {
 		Status:      model.WeComAuthBindingStatusActive,
 		IsDefault:   true,
 	}).Error)
+	require.NoError(t, db.Exec(`
+		INSERT INTO social_channel_accounts (
+			account_uuid, tenant_uuid, channel_code, app_type, account_id, display_name, status, owner_member_uuid
+		) VALUES (?, ?, 'wechat', 'wecom', ?, ?, 'connected', ?)
+	`, "acc-106", tenantUUID, "corp-auth", "Corp Auth", "1001").Error)
 
 	req := httptest.NewRequest(
 		http.MethodGet,

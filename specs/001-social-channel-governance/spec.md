@@ -129,6 +129,9 @@ As a platform owner, I want retry/dead-letter/replay observability and explicit 
 - **FR-008**: The system MUST provide delegated authorization start/finish APIs (pre-auth generation, auth-code exchange, permanent credential persistence).
 - **FR-008a**: The system MUST provide QR-first delegated authorization UX for WeCom OpenWork, including authorization entry display, waiting state, and completion feedback aligned with enterprise onboarding flow.
 - **FR-008b**: The system MUST keep manual `auth_code` input as fallback mode only, and default UI mode must be scan/callback driven.
+- **FR-008c**: The system MUST acknowledge OpenWork callback with `success` in a fast path (target < 1s), and execute authorization completion in asynchronous workers.
+- **FR-008d**: The system MUST provide cross-instance idempotency for callback processing and `auth_code` exchange to prevent duplicate `get_permanent_code` calls in SaaS multi-node deployment.
+- **FR-008e**: The system MUST treat WeCom `40078 invalid auth_code` as an idempotency-sensitive condition: if equivalent authorization already succeeded, the event is converged as success; otherwise mark as reauthorize-required with operator-visible reason.
 - **FR-009**: The system MUST allow one tenant to bind multiple enterprise accounts but enforce exactly one default enterprise account at any time.
 - **FR-010**: The system MUST apply default-account switching only to newly created tasks; running tasks keep historical account binding.
 - **FR-011**: The system MUST provide bi-directional sync baselines for tags, organization data, and external contacts/leads with idempotency guarantees.
@@ -175,6 +178,8 @@ As a platform owner, I want retry/dead-letter/replay observability and explicit 
 - **SC-004**: Account changes are auditable with actor and timestamp for every update.
 - **SC-005**: 95%+ tenants complete delegated authorization without manual secret entry.
 - **SC-005a**: 90%+ tenants complete delegated authorization through QR-first flow without manual `auth_code` entry in standard path.
+- **SC-005b**: Under duplicate callback injection (same `auth_code`) in multi-node simulation, duplicate permanent-code exchange rate is <= 0.1%.
+- **SC-005c**: OpenWork callback ACK latency P95 < 1s and P99 < 2s over rolling 7 days.
 - **SC-006**: Default enterprise account constraint violations are 0 in production.
 - **SC-007**: Tag/org/contact bidirectional sync success rate reaches >= 99.5% over rolling 7 days.
 - **SC-008**: Dead-letter backlog is replayable to zero within 24 hours under standard incident runbook.

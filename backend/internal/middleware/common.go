@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -128,26 +129,12 @@ func Timeout(timeout time.Duration) gin.HandlerFunc {
 			return
 		}
 
-		// 简单的超时处理，实际使用中可能需要更复杂的实现
-		finish := make(chan struct{})
-		panicChan := make(chan interface{}, 1)
-
-		go func() {
-			defer func() {
-				if p := recover(); p != nil {
-					panicChan <- p
-				}
-			}()
-			c.Next()
-			finish <- struct{}{}
-		}()
-
-		select {
-		case p := <-panicChan:
-			panic(p)
-		case <-finish:
-			// 请求正常完成
-		case <-time.After(timeout):
+		// Gin context 不是并发安全对象，不能在 goroutine 中执行 c.Next().
+		ctx, cancel := context.WithTimeout(c.Request.Context(), timeout)
+		defer cancel()
+		c.Request = c.Request.WithContext(ctx)
+		c.Next()
+		if ctx.Err() == context.DeadlineExceeded && !c.Writer.Written() {
 			c.JSON(http.StatusRequestTimeout, gin.H{
 				"error": "Request timeout",
 			})

@@ -67,13 +67,15 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		}
 		taskRepo := leadrepo.NewLeadSyncTaskRepository(deps.DB)
 		channelAccountRepo := socialrepo.NewAccountRepository(deps.DB)
+		openworkRepo := socialrepo.NewOpenWorkFoundationRepository(deps.DB)
+		platformRepo := socialrepo.NewChannelPlatformSettingRepository(deps.DB)
 		providerAdapter := leadsvc.NewDefaultSyncTaskProviderAdapter(deps.Config, deps.EventEmitter)
 		channelFactory := leadsvc.NewChannelSyncFactory()
 		defaultIdentity := deps.DefaultLeadSyncChannelIdentity()
 		_ = channelFactory.Register(
 			defaultIdentity.Channel,
 			defaultIdentity.AppType,
-			leadsvc.NewDefaultWeComLeadAdapterWithAccountRepo(channelAccountRepo),
+			leadsvc.NewDefaultWeComLeadAdapterWithResolvers(channelAccountRepo, openworkRepo, platformRepo),
 			providerAdapter,
 		)
 		wecomSyncSvc = leadsvc.NewWeComSyncService(taskRepo, metrics, nil).
