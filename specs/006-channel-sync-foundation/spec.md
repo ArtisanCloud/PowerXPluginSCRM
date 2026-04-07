@@ -3,7 +3,7 @@
 **Feature Branch**: `006-channel-sync-foundation`  
 **Created**: 2026-04-07  
 **Status**: Draft  
-**Input**: User description: "请根据文档 docs/plan/develop/channel-sync-foundation-prerequisites-plan.md，实现 spec 相关文档"
+**Input**: User description: "请根据文档 docs/plan/develop/channel-sync-foundation/README.md，实现 spec 相关文档"
 
 ## User Scenarios & Testing *(mandatory)*
 

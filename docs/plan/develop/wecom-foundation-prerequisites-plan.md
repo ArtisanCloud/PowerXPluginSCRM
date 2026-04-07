@@ -2,7 +2,7 @@
 
 该文档已迁移并升级为渠道中立版本：
 
-- 新路径：`docs/plan/develop/channel-sync-foundation-prerequisites-plan.md`
+- 新路径：`docs/plan/develop/channel-sync-foundation/README.md`
 
 说明：
 - 企业微信仍是首发渠道；

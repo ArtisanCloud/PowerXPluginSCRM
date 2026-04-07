@@ -48,5 +48,5 @@
 
 ## Phase 7: Go-live Gate
 
-- [ ] T025 按门禁清单执行验收并回写到 `docs/plan/develop/channel-sync-foundation-prerequisites-plan.md`
+- [ ] T025 按门禁清单执行验收并回写到 `docs/plan/develop/channel-sync-foundation/README.md`
 - [ ] T026 通过后解除活码新功能冻结标记到 `docs/plan/lead_capture/intake/channel_code_acquisition.md`

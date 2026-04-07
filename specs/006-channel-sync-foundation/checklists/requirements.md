@@ -31,5 +31,5 @@
 
 ## Notes
 
-- 本规格由 `docs/plan/develop/channel-sync-foundation-prerequisites-plan.md` 收敛生成。
+- 本规格由 `docs/plan/develop/channel-sync-foundation/README.md` 收敛生成。
 - 当前规格可直接进入 `/speckit.plan`。

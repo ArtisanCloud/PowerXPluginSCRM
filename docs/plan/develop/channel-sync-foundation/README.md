@@ -13,6 +13,16 @@
 
 > 渠道策略：企业微信作为首发渠道，飞书与钉钉按统一契约扩展，避免再次重做模型与流程。
 
+## 渠道特性子文档
+
+- WeCom（首发）：`docs/plan/develop/channel-sync-foundation/channels/wecom.md`
+- Feishu（扩展）：`docs/plan/develop/channel-sync-foundation/channels/feishu.md`
+- DingTalk（扩展）：`docs/plan/develop/channel-sync-foundation/channels/dingtalk.md`
+
+说明：
+- 本文件定义通用能力、阶段计划与门禁。
+- 各渠道差异（权限模型、字段映射、事件模型、能力降级）放在对应子文档维护。
+
 ## 范围声明
 
 本计划聚焦 4 个前置域：
