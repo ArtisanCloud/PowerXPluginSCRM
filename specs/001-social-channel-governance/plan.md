@@ -1,11 +1,12 @@
 # Implementation Plan: Social Channel Governance
 
-**Branch**: `001-social-channel-governance` | **Date**: 2026-01-15 | **Spec**: /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugins.scrm/specs/001-social-channel-governance/spec.md
+**Branch**: `001-social-channel-governance` | **Date**: 2026-01-15 | **Spec**: /private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/specs/001-social-channel-governance/spec.md
 **Input**: Feature specification from `/specs/001-social-channel-governance/spec.md`
 
 ## Summary
 
-Deliver a social channel governance capability that lets admins onboard channel accounts, assign owners/members, and configure supported capabilities with auditability and clear status. Implement a backend service and REST endpoints under `/v1`, persist account data under the plugin schema, and expose UI routes in `web-admin` for account and capability management.
+Deliver a social channel governance capability that lets admins onboard channel accounts, assign owners/members, and configure supported capabilities with auditability and clear status. Extend this scope with WeCom OpenWork delegated authorization, tenant multi-corp single-default governance, and bidirectional sync baselines (tags/org/external contacts), then define reliability gates before resuming acquisition live-code expansion.
+Note: Plugin ID is `com.powerx.plugins.scrm` (logical identity), while this repository directory is `com.powerx.plugin.scrm` (filesystem path).
 
 ## Technical Context
 
@@ -35,11 +36,12 @@ Deliver a social channel governance capability that lets admins onboard channel 
 ### Documentation (this feature)
 
 ```text
-/private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugins.scrm/specs/001-social-channel-governance/
+/private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/specs/001-social-channel-governance/
 ├── plan.md
 ├── research.md
 ├── data-model.md
 ├── quickstart.md
+├── wecom-openwork-foundation-tasks.md
 ├── contracts/
 └── tasks.md
 ```
@@ -47,13 +49,13 @@ Deliver a social channel governance capability that lets admins onboard channel 
 ### Source Code (repository root)
 
 ```text
-/private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugins.scrm/backend/
+/private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/backend/
 ├── internal/transport/http/social_channel_governance/
 ├── internal/services/social_channel_governance/
 ├── internal/domain/models/social_channel_governance/
 └── internal/domain/repository/social_channel_governance/
 
-/private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugins.scrm/web-admin/
+/private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/web-admin/
 ├── app/pages/scrm/social_channel_governance/
 ├── app/components/scrm/social_channel_governance/
 └── app/stores/scrm/social_channel_governance/
@@ -74,8 +76,32 @@ N/A
 - Produce `data-model.md` with entities, fields, and validation rules.
 - Produce `/contracts/openapi.yaml` describing REST endpoints under `/v1`.
 - Produce `quickstart.md` with local verification steps.
-- Run `/private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugins.scrm/.specify/scripts/bash/update-agent-context.sh codex`.
+- Run `/private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/.specify/scripts/bash/update-agent-context.sh codex`.
 
 ## Phase 2: Planning
 
 - Break down tasks by user stories into `tasks.md` (handled by `/speckit.tasks`).
+
+## Phase 3: OpenWork Foundation (P0, prerequisite)
+
+- Implement WeCom OpenWork callback ingestion and delegated auth start/finish APIs.
+- Add tenant-corp-app authorization binding model with single default corp constraint.
+- Implement default-switch policy (new tasks follow new default; running tasks keep old binding).
+- Deliver web-admin delegated-auth wizard and status panel; keep manual credential mode fallback.
+- Deliver QR-first authorization UX (scan entry + pending/success/fail state + callback-driven completion) aligned with reference onboarding pages (`/private/var/www/html/ArtisanCloud/dev/images/scrm/代开发.png`, `/private/var/www/html/ArtisanCloud/dev/images/scrm/待开发应用.png`, `/private/var/www/html/ArtisanCloud/dev/images/scrm/待开发应用2.png`).
+
+## Phase 4: Dual-Sync Baseline (P0, prerequisite)
+
+- Implement bi-directional tag sync with idempotency and conflict queue.
+- Implement bi-directional org sync for departments and members with mapping integrity guards.
+- Implement bi-directional external-contact/lead sync with deterministic dedup and controlled write-back fields.
+
+## Phase 5: Reliability & Go-live Gates (P0, prerequisite)
+
+- Add retry/dead-letter/replay mechanisms and observability dashboards for sync pipelines.
+- Define measurable go-live criteria and freeze acquisition live-code expansion until all gates pass.
+
+## Execution Priority
+
+- Social channel governance MVP (US1-US3) is done baseline.
+- Before resuming channel-code acquisition expansion, Phase 3-5 MUST be completed.

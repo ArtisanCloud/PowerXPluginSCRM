@@ -84,7 +84,12 @@ const deriveWsProxyTarget = (apiTarget: string, rawWsTarget?: string) => {
   }
 };
 const devWsProxyTarget = deriveWsProxyTarget(devApiProxyTarget, process.env.NUXT_DEV_WS_PROXY);
-const imgSources = ["'self'", "data:", "https://avatars.githubusercontent.com"];
+const imgSources = [
+  "'self'",
+  "data:",
+  "https://avatars.githubusercontent.com",
+  "https://quickchart.io",
+];
 const extraConnectHosts = new Set<string>();
 const registerConnectOrigin = (candidate?: string | null) => {
   if (!candidate) return;

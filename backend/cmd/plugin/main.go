@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -305,6 +306,29 @@ func main() {
 		logger.WithError(err).Fatal("Failed to attach HTTP server")
 	}
 	fwrouter.RegisterFrameworkRoutes(fwApp)
+	// 覆盖框架默认 /healthz，补充应用名与版本号，便于外部探针读取。
+	fwApp.Router.Handle(http.MethodGet, fwrouter.HealthzPath, func(ctx fwbootstrap.Context) {
+		version := strings.TrimSpace(cfg.Monitoring.HealthCheck.Version)
+		if version == "" {
+			version = strings.TrimSpace(os.Getenv("POWERX_PLUGIN_VERSION"))
+		}
+		if version == "" {
+			version = "dev"
+		}
+		appName := strings.TrimSpace(cfg.Monitoring.HealthCheck.AppName)
+		if appName == "" {
+			appName = strings.TrimSpace(os.Getenv("POWERX_PLUGIN_APP_NAME"))
+		}
+		if appName == "" {
+			appName = app.PluginID
+		}
+		ctx.JSON(http.StatusOK, map[string]any{
+			"status":    "ok",
+			"app_name":  appName,
+			"version":   version,
+			"timestamp": time.Now().UTC(),
+		})
+	})
 	fwrouter.RegisterPluginRoutes(fwApp, func(r fwbootstrap.Router) {
 		httpserver.RegisterGinRoutes(r, engine)
 	})

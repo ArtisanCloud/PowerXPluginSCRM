@@ -176,6 +176,157 @@
         </UButton>
       </div>
 
+      <div v-if="showPluginSettings">
+        <div class="px-3 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+          {{ t('navigation.pluginSettings') }}
+        </div>
+        <div class="space-y-1">
+          <UButton
+            variant="ghost"
+            color="neutral"
+            class="w-full justify-start"
+              @click="toggleChannelMenu('wecom')"
+              :class="{
+                'bg-primary-50 text-primary-600 dark:bg-primary-950 dark:text-primary-400 is-active':
+                isGroupActive(['/settings/channel-platform']),
+              }"
+            >
+            <UIcon name="i-heroicons-building-office-2" class="w-4 h-4 mr-3" />
+            {{ t('navigation.channelPlatformWeCom') }}
+            <UIcon
+              :name="showChannelMenus.wecom ? 'i-heroicons-chevron-down' : 'i-heroicons-chevron-right'"
+              class="w-4 h-4 ml-auto"
+            />
+          </UButton>
+          <div v-show="showChannelMenus.wecom" class="ml-6 mt-1 space-y-1">
+            <UButton
+              to="/settings/channel-platform"
+              variant="ghost"
+              color="neutral"
+              size="sm"
+              class="w-full justify-start text-sm"
+              :class="{
+                'bg-primary-50 text-primary-600 dark:bg-primary-950 dark:text-primary-400 is-active':
+                  isExactActive('/settings/channel-platform'),
+              }"
+            >
+              <UIcon name="i-heroicons-server-stack" class="w-3 h-3 mr-2" />
+              {{ t('navigation.channelPlatformPlatformConfig') }}
+            </UButton>
+            <UButton
+              to="/settings/channel-platform/wecom/scope"
+              variant="ghost"
+              color="neutral"
+              size="sm"
+              class="w-full justify-start text-sm"
+              :class="{
+                'bg-primary-50 text-primary-600 dark:bg-primary-950 dark:text-primary-400 is-active':
+                  isExactActive('/settings/channel-platform/wecom/scope'),
+              }"
+            >
+              <UIcon name="i-heroicons-adjustments-horizontal" class="w-3 h-3 mr-2" />
+              可见范围
+            </UButton>
+          </div>
+
+          <UButton
+            variant="ghost"
+            color="neutral"
+            class="w-full justify-start"
+            @click="toggleChannelMenu('feishu')"
+            :class="{
+              'bg-primary-50 text-primary-600 dark:bg-primary-950 dark:text-primary-400 is-active':
+                isGroupActive(['/settings/channel-platform/feishu']),
+            }"
+          >
+            <UIcon name="i-heroicons-chat-bubble-left-right" class="w-4 h-4 mr-3" />
+            {{ t('navigation.channelPlatformFeishu') }}
+            <UIcon
+              :name="showChannelMenus.feishu ? 'i-heroicons-chevron-down' : 'i-heroicons-chevron-right'"
+              class="w-4 h-4 ml-auto"
+            />
+          </UButton>
+          <div v-show="showChannelMenus.feishu" class="ml-6 mt-1 space-y-1">
+            <UButton
+              to="/settings/channel-platform/feishu/platform"
+              variant="ghost"
+              color="neutral"
+              size="sm"
+              class="w-full justify-start text-sm"
+              :class="{
+                'bg-primary-50 text-primary-600 dark:bg-primary-950 dark:text-primary-400 is-active':
+                  isExactActive('/settings/channel-platform/feishu/platform'),
+              }"
+            >
+              <UIcon name="i-heroicons-server-stack" class="w-3 h-3 mr-2" />
+              {{ t('navigation.channelPlatformPlatformConfig') }}
+            </UButton>
+            <UButton
+              to="/settings/channel-platform/feishu/templates"
+              variant="ghost"
+              color="neutral"
+              size="sm"
+              class="w-full justify-start text-sm"
+              :class="{
+                'bg-primary-50 text-primary-600 dark:bg-primary-950 dark:text-primary-400 is-active':
+                  isExactActive('/settings/channel-platform/feishu/templates'),
+              }"
+            >
+              <UIcon name="i-heroicons-cube" class="w-3 h-3 mr-2" />
+              {{ t('navigation.channelPlatformDelegatedTemplates') }}
+            </UButton>
+          </div>
+
+          <UButton
+            variant="ghost"
+            color="neutral"
+            class="w-full justify-start"
+            @click="toggleChannelMenu('dingding')"
+            :class="{
+              'bg-primary-50 text-primary-600 dark:bg-primary-950 dark:text-primary-400 is-active':
+                isGroupActive(['/settings/channel-platform/dingding']),
+            }"
+          >
+            <UIcon name="i-heroicons-phone" class="w-4 h-4 mr-3" />
+            {{ t('navigation.channelPlatformDingTalk') }}
+            <UIcon
+              :name="showChannelMenus.dingding ? 'i-heroicons-chevron-down' : 'i-heroicons-chevron-right'"
+              class="w-4 h-4 ml-auto"
+            />
+          </UButton>
+          <div v-show="showChannelMenus.dingding" class="ml-6 mt-1 space-y-1">
+            <UButton
+              to="/settings/channel-platform/dingding/platform"
+              variant="ghost"
+              color="neutral"
+              size="sm"
+              class="w-full justify-start text-sm"
+              :class="{
+                'bg-primary-50 text-primary-600 dark:bg-primary-950 dark:text-primary-400 is-active':
+                  isExactActive('/settings/channel-platform/dingding/platform'),
+              }"
+            >
+              <UIcon name="i-heroicons-server-stack" class="w-3 h-3 mr-2" />
+              {{ t('navigation.channelPlatformPlatformConfig') }}
+            </UButton>
+            <UButton
+              to="/settings/channel-platform/dingding/templates"
+              variant="ghost"
+              color="neutral"
+              size="sm"
+              class="w-full justify-start text-sm"
+              :class="{
+                'bg-primary-50 text-primary-600 dark:bg-primary-950 dark:text-primary-400 is-active':
+                  isExactActive('/settings/channel-platform/dingding/templates'),
+              }"
+            >
+              <UIcon name="i-heroicons-cube" class="w-3 h-3 mr-2" />
+              {{ t('navigation.channelPlatformDelegatedTemplates') }}
+            </UButton>
+          </div>
+        </div>
+      </div>
+
       <div v-if="showIAMMenu">
         <div class="px-3 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
           {{ t('navigation.iam') }}
@@ -272,6 +423,12 @@ const showIAMMenu = computed(() => auth.localIAMEnabled?.value ?? false);
 const userStore = useUserStore();
 const { isRoot } = storeToRefs(userStore);
 const showCapabilityLab = computed(() => Boolean(isRoot.value));
+const showPluginSettings = computed(() => Boolean(isRoot.value));
+const showChannelMenus = ref({
+  wecom: true,
+  feishu: false,
+  dingding: false,
+});
 const scrmSections = [
   {
     titleKey: "navigation.scrmSectionChannelsLeads",
@@ -305,6 +462,31 @@ const scrmSections = [
         to: "/scrm/org_sync",
         labelKey: "navigation.scrmOrgSync",
         icon: "i-heroicons-squares-2x2",
+      },
+    ],
+  },
+  {
+    titleKey: "navigation.scrmSectionAcquisition",
+    items: [
+      {
+        to: "/scrm/acquisition_staff_code",
+        labelKey: "navigation.scrmAcquisitionStaffCode",
+        icon: "i-heroicons-qr-code",
+      },
+      {
+        to: "/scrm/acquisition_staff_welcome",
+        labelKey: "navigation.scrmAcquisitionStaffWelcome",
+        icon: "i-heroicons-chat-bubble-oval-left-ellipsis",
+      },
+      {
+        to: "/scrm/acquisition_group_code",
+        labelKey: "navigation.scrmAcquisitionGroupCode",
+        icon: "i-heroicons-user-group",
+      },
+      {
+        to: "/scrm/acquisition_group_welcome",
+        labelKey: "navigation.scrmAcquisitionGroupWelcome",
+        icon: "i-heroicons-megaphone",
       },
     ],
   },
@@ -435,6 +617,38 @@ const navEntries = computed(() => {
       groupKey: "navigation.capabilities",
     });
   }
+  if (showPluginSettings.value) {
+    entries.push({
+      path: "/settings/channel-platform",
+      labelKey: "navigation.channelPlatformPlatformConfig",
+      groupKey: "navigation.pluginSettings",
+    });
+    entries.push({
+      path: "/settings/channel-platform/wecom/scope",
+      labelKey: "navigation.channelPlatformPlatformConfig",
+      groupKey: "navigation.pluginSettings",
+    });
+    entries.push({
+      path: "/settings/channel-platform/feishu/platform",
+      labelKey: "navigation.channelPlatformPlatformConfig",
+      groupKey: "navigation.pluginSettings",
+    });
+    entries.push({
+      path: "/settings/channel-platform/feishu/templates",
+      labelKey: "navigation.channelPlatformDelegatedTemplates",
+      groupKey: "navigation.pluginSettings",
+    });
+    entries.push({
+      path: "/settings/channel-platform/dingding/platform",
+      labelKey: "navigation.channelPlatformPlatformConfig",
+      groupKey: "navigation.pluginSettings",
+    });
+    entries.push({
+      path: "/settings/channel-platform/dingding/templates",
+      labelKey: "navigation.channelPlatformDelegatedTemplates",
+      groupKey: "navigation.pluginSettings",
+    });
+  }
   if (showIAMMenu.value) {
     entries.push(
       { path: "/admin/iam/overview", labelKey: "navigation.iamOverview", groupKey: "navigation.iam" },
@@ -493,6 +707,10 @@ const toggleTemplatesMenu = () => {
   showTemplatesMenu.value = !showTemplatesMenu.value;
 };
 
+const toggleChannelMenu = (channel: "wecom" | "feishu" | "dingding") => {
+  showChannelMenus.value[channel] = !showChannelMenus.value[channel];
+};
+
 const updateScrollIndicator = () => {
   const container = navRef.value;
   const thumb = scrollThumbRef.value;
@@ -546,6 +764,13 @@ watch(
   (newPath) => {
     if (newPath.startsWith("/templates")) {
       showTemplatesMenu.value = true;
+    }
+    if (newPath.startsWith("/settings/channel-platform/feishu")) {
+      showChannelMenus.value.feishu = true;
+    } else if (newPath.startsWith("/settings/channel-platform/dingding")) {
+      showChannelMenus.value.dingding = true;
+    } else if (newPath.startsWith("/settings/channel-platform")) {
+      showChannelMenus.value.wecom = true;
     }
     updateScrollIndicator();
   }

@@ -26,6 +26,12 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		conversationSvc  *leadsvc.ConversationService
 		sourceCatalogSvc *leadsvc.LeadSourceCatalogService
 		channelRuleSvc   *leadsvc.ChannelRuleService
+		channelCodeSvc   *leadsvc.ChannelCodeService
+		welcomeConfigSvc *leadsvc.WelcomeConfigService
+		attributionSvc   *leadsvc.AttributionService
+		channelEventSvc  *leadsvc.ChannelCodeEventService
+		welcomeSyncSvc   *leadsvc.WelcomeSyncService
+		welcomeSyncAuthz *leadsvc.WelcomeSyncAuthz
 	)
 	if deps.DB != nil {
 		leadRepository := leadrepo.NewLeadRepository(deps.DB)
@@ -33,20 +39,43 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		sourceCatalogSvc = leadsvc.NewLeadSourceCatalogService(leadrepo.NewLeadSourceCatalogRepository(deps.DB))
 		channelRuleRepo := leadrepo.NewChannelRuleRepository(deps.DB)
 		channelRuleSvc = leadsvc.NewChannelRuleService(channelRuleRepo)
+		domainRepos := deps.EnsureLeadCaptureRepos()
 
 		metrics := deps.LeadCaptureMetrics
 		if metrics == nil {
 			metrics = leadobs.NewMetrics()
 		}
+		if domainRepos != nil {
+			channelCodeSvc = leadsvc.NewChannelCodeService(domainRepos.ChannelCodes, metrics)
+			welcomeConfigSvc = leadsvc.NewWelcomeConfigService(domainRepos.WelcomeConfigs, domainRepos.ConfigChangeLogs, metrics)
+			attributionSvc = leadsvc.NewAttributionService(domainRepos.Attributions, leadRepository, leadSvc)
+			channelEventSvc = leadsvc.NewChannelCodeEventService(
+				domainRepos.ChannelCodeEvents,
+				domainRepos.ChannelCodes,
+				socialrepo.NewAccountRepository(deps.DB),
+				attributionSvc,
+				metrics,
+			)
+			welcomeSyncSvc = leadsvc.NewWelcomeSyncService(
+				domainRepos.ChannelCodes,
+				domainRepos.WelcomeConfigs,
+				domainRepos.WelcomeSyncAttempt,
+				leadsvc.NewWeComWelcomeAdapter(),
+				metrics,
+			)
+			welcomeSyncAuthz = leadsvc.NewWelcomeSyncAuthz()
+		}
 		taskRepo := leadrepo.NewLeadSyncTaskRepository(deps.DB)
 		channelAccountRepo := socialrepo.NewAccountRepository(deps.DB)
+		openworkRepo := socialrepo.NewOpenWorkFoundationRepository(deps.DB)
+		platformRepo := socialrepo.NewChannelPlatformSettingRepository(deps.DB)
 		providerAdapter := leadsvc.NewDefaultSyncTaskProviderAdapter(deps.Config, deps.EventEmitter)
 		channelFactory := leadsvc.NewChannelSyncFactory()
 		defaultIdentity := deps.DefaultLeadSyncChannelIdentity()
 		_ = channelFactory.Register(
 			defaultIdentity.Channel,
 			defaultIdentity.AppType,
-			leadsvc.NewDefaultWeComLeadAdapterWithAccountRepo(channelAccountRepo),
+			leadsvc.NewDefaultWeComLeadAdapterWithResolvers(channelAccountRepo, openworkRepo, platformRepo),
 			providerAdapter,
 		)
 		wecomSyncSvc = leadsvc.NewWeComSyncService(taskRepo, metrics, nil).
@@ -94,6 +123,10 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 	conversationHandler := NewConversationHandler(conversationSvc)
 	sourceCatalogHandler := NewSourceCatalogHandler(sourceCatalogSvc)
 	channelRuleHandler := NewChannelRuleHandler(channelRuleSvc)
+	channelCodeHandler := NewChannelCodeHandler(channelCodeSvc)
+	welcomeConfigHandler := NewWelcomeConfigHandler(welcomeConfigSvc)
+	channelCodeEventsHandler := NewChannelCodeEventsHandler(channelEventSvc)
+	welcomeSyncHandler := NewWelcomeSyncHandler(welcomeSyncSvc, welcomeSyncAuthz)
 	group := rg.Group("/leads", httpmw.EnsureTenant())
 	{
 		group.GET("", handler.List)
@@ -117,6 +150,14 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		group.GET("/wecom/sync-tasks", wecomSyncHandler.ListSyncTasks)
 		group.GET("/channel-rules/wecom/customer-dm", channelRuleHandler.GetWeComCustomerDMRule)
 		group.PUT("/channel-rules/wecom/customer-dm", channelRuleHandler.UpdateWeComCustomerDMRule)
+		group.POST("/channel-codes", channelCodeHandler.Create)
+		group.GET("/channel-codes", channelCodeHandler.List)
+		group.PATCH("/channel-codes/:code_uuid/status", channelCodeHandler.UpdateStatus)
+		group.GET("/channel-codes/:code_uuid/events", channelCodeEventsHandler.List)
+		group.PUT("/channel-codes/:code_uuid/welcome-config", welcomeConfigHandler.Save)
+		group.GET("/channel-codes/:code_uuid/welcome-config/history", welcomeConfigHandler.ListHistory)
+		group.POST("/channel-codes/:code_uuid/welcome-config/sync", welcomeSyncHandler.TriggerSync)
+		group.GET("/channel-codes/:code_uuid/welcome-config/sync-status", welcomeSyncHandler.GetSyncStatus)
 		group.GET("/:lead_id/conversations", conversationHandler.ListLeadConversations)
 		group.POST("/:lead_id/conversations/bind", conversationHandler.BindConversation)
 	}

@@ -6,6 +6,7 @@ import (
 	fwwsbus "github.com/ArtisanCloud/PowerXPlugin/framework/backend/go/runtime/wsbus"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/capabilities"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/config"
+	leadrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/domain/repository/lead_capture"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/grpc/client"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/integrations/gateway"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/logger"
@@ -47,6 +48,7 @@ type Deps struct {
 	OperationsMetrics   *opsmetrics.Metrics
 	AdminConsoleMetrics *adminmetrics.Metrics
 	LeadCaptureMetrics  *leadmetrics.Metrics
+	LeadCaptureRepos    *leadrepo.Bundle
 	EventEmitter        fweventbridge.Emitter
 	WSBusHub            fwwsbus.LocalHub
 	IAMMode             iamservice.IAMMode
@@ -130,4 +132,15 @@ func (d *Deps) DelegatedProxy() DelegatedAuthProxy {
 		return d.AuthProxy
 	}
 	return nil
+}
+
+// EnsureLeadCaptureRepos initializes lead-capture repositories lazily.
+func (d *Deps) EnsureLeadCaptureRepos() *leadrepo.Bundle {
+	if d == nil || d.DB == nil {
+		return nil
+	}
+	if d.LeadCaptureRepos == nil {
+		d.LeadCaptureRepos = leadrepo.NewBundle(d.DB)
+	}
+	return d.LeadCaptureRepos
 }

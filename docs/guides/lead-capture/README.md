@@ -215,3 +215,146 @@ go test ./internal/services/admin/lead_capture ./tests/contract ./tests/integrat
 - webhook `400 invalid signature headers`：缺少 `X-WeCom-Signature/X-WeCom-Timestamp/X-WeCom-Nonce`。
 - 分配失败（未绑定）：先完成 org-sync 成员映射确认。
 - 无 WS 事件：检查 topic 订阅是否成功，以及 runtime wsbus/topic 配置是否对齐。
+
+---
+
+## 11. 005 渠道码验收（US1~US3）
+
+以下验收用于 `005-channel-code-acquisition`（渠道活码引流与欢迎语同步）：
+
+### 11.1 US1：渠道码配置与欢迎语保存
+
+1) 创建渠道码：
+
+```bash
+curl -X POST "http://127.0.0.1:8092/api/v1/admin/leads/channel-codes" \
+  -H "Authorization: Bearer $USER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "channel":"wechat",
+    "app_type":"wecom",
+    "channel_account_uuid":"<your-channel-account-uuid>",
+    "code_key":"wx_qr_campaign_001",
+    "display_name":"企微活动码A",
+    "target_type":"group",
+    "target_id":"group-001"
+  }'
+```
+
+2) 保存欢迎语（仅保存不发布）：
+
+```bash
+curl -X PUT "http://127.0.0.1:8092/api/v1/admin/leads/channel-codes/<code_uuid>/welcome-config" \
+  -H "Authorization: Bearer $USER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"welcome_enabled":true,"message_content":{"text":"欢迎添加企业微信"}}'
+```
+
+验收点：
+- `sync_status=pending`
+- 不同 `code_uuid` 的欢迎语互不覆盖
+- 可查询配置历史
+
+### 11.2 US2：事件入池与来源追溯
+
+```bash
+curl -X POST "http://127.0.0.1:8092/api/v1/webhooks/channels/wechat/code-events" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "channel_account_uuid":"<your-channel-account-uuid>",
+    "code_key":"wx_qr_campaign_001",
+    "external_event_id":"evt-code-1001",
+    "event_type":"join",
+    "occurred_at":"2026-03-24T10:00:00Z",
+    "payload":{"phone":"13800000001","name":"线索A"}
+  }'
+```
+
+重复发送同一 `external_event_id` 再验证幂等。
+
+验收点：
+- 首次返回 `created=true`
+- 重放返回 `created=false` 且 `idempotent_hit=true`
+- 管理端查询事件列表可见 `touch_total/intake_total/dedup_total`
+
+### 11.3 US3：欢迎语发布与状态可见
+
+```bash
+curl -X POST "http://127.0.0.1:8092/api/v1/admin/leads/channel-codes/<code_uuid>/welcome-config/sync" \
+  -H "Authorization: Bearer $USER_TOKEN"
+
+curl "http://127.0.0.1:8092/api/v1/admin/leads/channel-codes/<code_uuid>/welcome-config/sync-status" \
+  -H "Authorization: Bearer $USER_TOKEN"
+```
+
+验收点：
+- 仅管理员/渠道运营可发布，其他角色返回 `403 FORBIDDEN`
+- 失败自动重试 3 次后 `sync_status=manual_required`
+- `last_sync_error` 带标准错误分类（如 `CHANNEL_AUTH_INVALID`）
+- 人工再次触发可恢复到 `success`
+
+---
+
+## 12. 005 V2 引流获客验收（员工全量 + 群骨架）
+
+### 12.1 员工活码（独立域）
+
+```bash
+curl -X POST "http://127.0.0.1:8092/api/v1/admin/leads/acquisition/staff-codes" \
+  -H "Authorization: Bearer $USER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "channel":"wechat",
+    "app_type":"wecom",
+    "channel_account_uuid":"<your-channel-account-uuid>",
+    "activity_name":"员工引流活动A",
+    "code_key":"staff_campaign_001",
+    "member_uuids":["<confirmed-mapping-member-uuid>"]
+  }'
+```
+
+验收点：
+- 创建成功返回 `staff_code_uuid`；
+- 非 confirmed mapping 成员创建被拒绝；
+- 支持 `list + status(active/disabled)`。
+
+### 12.2 员工欢迎语（结构化 + 预览）
+
+```bash
+curl -X PUT "http://127.0.0.1:8092/api/v1/admin/leads/acquisition/staff-codes/<staff_code_uuid>/welcome-config" \
+  -H "Authorization: Bearer $USER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "welcome_mode":"send",
+    "content_blocks":[{"type":"text","text":"欢迎添加企业微信"}]
+  }'
+```
+
+验收点：
+- 返回 `sync_status=pending`；
+- 返回 `payload_preview`；
+- 同步接口失败重试 3 次后转 `manual_required`，`latest_attempt_no=3`。
+
+### 12.3 群活码/群欢迎语骨架
+
+```bash
+curl "http://127.0.0.1:8092/api/v1/admin/leads/acquisition/group-codes" \
+  -H "Authorization: Bearer $USER_TOKEN"
+```
+
+验收点：
+- 页面非空白；
+- 接口可用并返回 `capability_status=not_implemented`；
+- 群欢迎语目前为骨架说明页（非可编辑态）。
+
+### 12.4 V2 webhook 骨架
+
+```bash
+curl -X POST "http://127.0.0.1:8092/api/v1/webhooks/channels/wechat/staff-code-events" \
+  -H "Content-Type: application/json" \
+  -d '{"channel_account_uuid":"<uuid>","code_key":"staff_campaign_001","external_event_id":"evt-1","event_type":"join","occurred_at":"2026-03-25T10:00:00Z"}'
+```
+
+验收点：
+- `staff-code-events` / `group-code-events` 路由可达；
+- 返回 `status=not_implemented`（骨架阶段）。

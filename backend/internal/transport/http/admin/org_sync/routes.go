@@ -60,7 +60,9 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		memberMappingRepo := orgrepo.NewMemberMappingRepository(deps.DB)
 		syncLogRepo := orgrepo.NewSyncLogRepository(deps.DB)
 		accountRepo := socialrepo.NewAccountRepository(deps.DB)
-		syncSvc = orgsvc.NewSyncService(sourceRepo, unitRepo, memberRepo, unitMappingRepo, memberMappingRepo, syncLogRepo, publisher)
+		openworkRepo := socialrepo.NewOpenWorkFoundationRepository(deps.DB)
+		platformRepo := socialrepo.NewChannelPlatformSettingRepository(deps.DB)
+		syncSvc = orgsvc.NewSyncService(sourceRepo, unitRepo, memberRepo, unitMappingRepo, memberMappingRepo, syncLogRepo, openworkRepo, platformRepo, publisher)
 		unitSvc = orgsvc.NewSourceUnitService(unitRepo)
 		memberSvc = orgsvc.NewSourceMemberService(memberRepo, memberProfileRepo)
 		syncLogSvc = orgsvc.NewSyncLogService(syncLogRepo, sourceRepo)
@@ -87,7 +89,9 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 	}
 	group := rg.Group("/org-sync", httpmw.EnsureTenant())
 	{
+		group.GET("/scope-candidates", handler.ListDelegatedScopeCandidates)
 		group.POST("/source-accounts/:source_account_uuid/sync", handler.TriggerSync)
+		group.POST("/source-accounts/:source_account_uuid/set-scope", handler.SetDelegatedScope)
 		group.POST("/source-accounts/default/:account_uuid", handler.SetDefaultSourceAccount)
 		group.GET("/source-units", handler.ListSourceUnits)
 		group.GET("/source-members", handler.ListSourceMembers)

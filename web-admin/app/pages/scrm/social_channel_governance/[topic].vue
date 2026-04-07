@@ -9,10 +9,24 @@
           <p class="text-gray-600 dark:text-gray-300">
             {{ topicDescription }}
           </p>
+          <div v-if="isUnifiedAccessTopic" class="pt-1">
+            <UBadge :color="openworkBindingBadgeColor" variant="soft">
+              OpenWork 绑定：{{ openworkBindingHint }}
+            </UBadge>
+          </div>
         </div>
         <div class="flex items-center gap-2">
           <UButton icon="i-heroicons-arrow-path" variant="soft" @click="refreshChannelAccounts" :loading="accountsLoading">
             刷新
+          </UButton>
+          <UButton
+            v-if="isUnifiedAccessTopic && showOpenWorkAuthorizeEntry"
+            icon="i-heroicons-shield-check"
+            color="primary"
+            variant="soft"
+            @click="openOpenWorkFoundation"
+          >
+            企微代开发
           </UButton>
           <UButton
             v-if="isUnifiedAccessTopic"
@@ -69,7 +83,7 @@
           </template>
           <template #owner_member_uuid-cell="{ row }">
             <span class="text-sm text-gray-700 dark:text-gray-200">
-              {{ ownerUserLabel(row.original.owner_member_uuid) || '未分配' }}
+              {{ ownerUserLabel(row.original.owner_member_uuid) || '外部负责人' }}
             </span>
           </template>
           <template #org_sync_default-cell="{ row }">
@@ -458,6 +472,23 @@
           </div>
         </template>
       </UModal>
+
+      <UModal
+        v-if="isUnifiedAccessTopic"
+        v-model:open="openWorkModalOpen"
+        :dismissible="true"
+        :modal="true"
+        :portal="true"
+        title="企微代开发"
+        description="扫码优先授权，手动 auth_code 作为回退模式"
+        :ui="{ content: 'max-w-6xl w-[92vw] mx-auto' }"
+      >
+        <template #body>
+          <div class="p-4 sm:p-5">
+            <OpenWorkFoundationContent in-modal @authorized="handleOpenWorkAuthorized" />
+          </div>
+        </template>
+      </UModal>
     </div>
 
     <div v-else class="space-y-6">
@@ -491,15 +522,18 @@
 <script setup lang="ts">
 import { nextTick } from 'vue'
 import { storeToRefs } from 'pinia'
+import OpenWorkFoundationContent from '~/components/scrm/social_channel_governance/OpenWorkFoundationContent.vue'
 import {
   type ChannelAccountSummary,
   useSocialChannelAccountStore,
 } from '~/stores/scrm/social_channel_governance/account_store'
 import type { ChannelSchemaDocument, ChannelFieldSchema } from '~/composables/api/services/socialChannelGovernance'
 import { useSocialChannelGovernanceService } from '~/composables/api/services/socialChannelGovernance'
+import type { OpenWorkBinding } from '~/composables/api/services/socialChannelGovernance'
 import { useOrgSyncService } from '~/composables/api/services/orgSync'
 import { useUserStore } from '~/stores/user'
 import { useIAMService, type MemberRecord } from '~/composables/api/services/iamService'
+import { useWsBusClient } from '~/composables/useWsBusClient'
 
 const { t } = useI18n()
 const toast = useToast()
@@ -539,6 +573,60 @@ const topicDescription = computed(() => {
 
 const accountStore = useSocialChannelAccountStore()
 const { accounts, loading: accountsLoading, error: accountsError } = storeToRefs(accountStore)
+const openworkBindings = ref<OpenWorkBinding[]>([])
+const connectedWeComAccountUUIDSet = computed(() => {
+  const set = new Set<string>()
+  for (const account of accounts.value || []) {
+    if (
+      (account.channel_code || '').toLowerCase() === 'wechat'
+      && (account.app_type || '').toLowerCase() === 'wecom'
+      && (account.status || '').toLowerCase() === 'connected'
+      && String(account.account_uuid || '').trim()
+    ) {
+      set.add(String(account.account_uuid).trim())
+    }
+  }
+  return set
+})
+const hasUsableOpenWorkBinding = computed(() =>
+  connectedWeComAccountUUIDSet.value.size > 0
+  && (openworkBindings.value || []).some((binding) => {
+    const status = String(binding?.status || '').trim().toLowerCase()
+    if (status !== 'active') {
+      return false
+    }
+    const linkedAccountUUID = String(binding?.channel_account_uuid || '').trim()
+    if (!linkedAccountUUID) {
+      return false
+    }
+    return connectedWeComAccountUUIDSet.value.has(linkedAccountUUID)
+  }),
+)
+const showOpenWorkAuthorizeEntry = computed(() => !hasUsableOpenWorkBinding.value)
+const hasFailedOrCanceledBinding = computed(() =>
+  (openworkBindings.value || []).some((binding) => {
+    const status = String(binding?.status || '').trim().toLowerCase()
+    return status === 'canceled' || status === 'disabled' || status === 'pending'
+  }),
+)
+const openworkBindingHint = computed(() => {
+  if (hasUsableOpenWorkBinding.value) {
+    return '已授权'
+  }
+  if (hasFailedOrCanceledBinding.value) {
+    return '授权异常'
+  }
+  return '未授权'
+})
+const openworkBindingBadgeColor = computed(() => {
+  if (hasUsableOpenWorkBinding.value) {
+    return 'success'
+  }
+  if (hasFailedOrCanceledBinding.value) {
+    return 'warning'
+  }
+  return 'neutral'
+})
 const editingAccount = computed(() =>
   accounts.value.find((account) => account.account_uuid === editingAccountUuid.value),
 )
@@ -548,6 +636,7 @@ const channelSchema = ref<ChannelSchemaDocument | null>(null)
 const channelSchemaLoading = ref(false)
 const channelSchemaError = ref('')
 const accountModalOpen = ref(false)
+const openWorkModalOpen = ref(false)
 const accountModalMode = ref<'create' | 'edit'>('create')
 const accountModalSaving = ref(false)
 const accountModalMessage = ref('')
@@ -578,6 +667,10 @@ const ownerUserTenantUuid = computed(
 const ownerUserDisabled = computed(() => ownerUserLoading.value)
 const ownerUserOptionCache = ref(new Map<string, string>())
 let ownerUserSearchTimer: ReturnType<typeof setTimeout> | null = null
+let accountRefreshTimer: ReturnType<typeof setTimeout> | null = null
+let openworkWsUnsubscribe: (() => void) | null = null
+const wsBus = useWsBusClient()
+const openworkWsTopics = ['openwork.auth.status', 'powerx.openwork.auth.status.v1']
 
 const accountForm = reactive({
   channel: '',
@@ -925,6 +1018,94 @@ const refreshChannelAccounts = async () => {
   await accountStore.fetchChannelAccounts()
 }
 
+const refreshOpenWorkBindings = async () => {
+  try {
+    const service = useSocialChannelGovernanceService()
+    const resp = await service.listOpenWorkBindings()
+    openworkBindings.value = ((resp as any)?.data?.items ?? []) as OpenWorkBinding[]
+  } catch {
+    openworkBindings.value = []
+  }
+}
+
+const scheduleRefreshChannelAccounts = () => {
+  if (!isUnifiedAccessTopic.value) {
+    return
+  }
+  if (accountRefreshTimer) {
+    clearTimeout(accountRefreshTimer)
+  }
+  accountRefreshTimer = setTimeout(() => {
+    Promise.allSettled([
+      refreshChannelAccounts(),
+      refreshOpenWorkBindings(),
+    ]).catch(() => {})
+    accountRefreshTimer = null
+  }, 300)
+}
+
+const matchWeComAccountByCorpID = (account: ChannelAccountSummary, corpID: string) => {
+  const normalizedCorpID = corpID.trim()
+  if (!normalizedCorpID) return false
+  if ((account.channel_code || '').toLowerCase() !== 'wechat') return false
+  if ((account.app_type || '').toLowerCase() !== 'wecom') return false
+  const accountID = String(account.account_id || '').trim()
+  const credentials = (account.credentials || {}) as Record<string, any>
+  const credCorpID = String(credentials.corp_id || '').trim()
+  const credAppID = String(credentials.app_id || '').trim()
+  return accountID === normalizedCorpID || credCorpID === normalizedCorpID || credAppID === normalizedCorpID
+}
+
+const optimisticApplyOpenWorkStatus = (payload: any) => {
+  const eventType = String(payload?.event_type || '').trim().toLowerCase()
+  const status = String(payload?.status || '').trim().toLowerCase()
+  const corpID = String(payload?.corp_id || '').trim()
+  if (!corpID) {
+    return
+  }
+  if (eventType === 'cancel_auth' || status === 'failed') {
+    accountStore.accounts = accountStore.accounts.map((account) =>
+      matchWeComAccountByCorpID(account, corpID)
+        ? { ...account, status: 'disabled', org_sync_default: false }
+        : account,
+    )
+    return
+  }
+  if (eventType === 'create_auth' || eventType === 'change_auth' || status === 'authorized') {
+    accountStore.accounts = accountStore.accounts.map((account) =>
+      matchWeComAccountByCorpID(account, corpID)
+        ? { ...account, status: 'connected' }
+        : account,
+    )
+  }
+}
+
+const ensureOpenWorkWsSubscription = () => {
+  if (!isUnifiedAccessTopic.value || openworkWsUnsubscribe) {
+    return
+  }
+  const unsubscribers = openworkWsTopics.map((topic) =>
+    wsBus.client.subscribe(topic, (payload: any) => {
+      const eventType = String(payload?.event_type || '').trim().toLowerCase()
+      const status = String(payload?.status || '').trim().toLowerCase()
+      optimisticApplyOpenWorkStatus(payload)
+      if (
+        eventType === 'create_auth' ||
+        eventType === 'change_auth' ||
+        eventType === 'cancel_auth' ||
+        eventType === 'reset_permanent_code' ||
+        status === 'authorized' ||
+        status === 'failed'
+      ) {
+        scheduleRefreshChannelAccounts()
+      }
+    }),
+  )
+  openworkWsUnsubscribe = () => {
+    unsubscribers.forEach((unsub) => unsub())
+  }
+}
+
 const setOrgSyncDefault = async (account: ChannelAccountSummary) => {
   if (!account?.account_uuid) {
     return
@@ -966,8 +1147,7 @@ const ownerUserLabel = (value?: string | null) => {
   if (!value || value === 'undefined') return ''
   const label = ownerUserLabelMap.value.get(value)
   if (label) return label
-  if (String(value).includes('-')) return ''
-  return value
+  return ''
 }
 
 const ensureMemberForUser = async (memberId: string) => memberId
@@ -1394,6 +1574,26 @@ const openConfigModal = (account: ChannelAccountSummary) => {
   configModalOpen.value = true
 }
 
+const openOpenWorkFoundation = () => {
+  openWorkModalOpen.value = true
+}
+
+const handleOpenWorkAuthorized = async () => {
+  await Promise.allSettled([
+    refreshChannelAccounts(),
+    refreshOpenWorkBindings(),
+  ])
+}
+
+watch(
+  () => openWorkModalOpen.value,
+  (open) => {
+    if (!open && process.client) {
+      ;(document.activeElement as HTMLElement | null)?.blur?.()
+    }
+  },
+)
+
 onMounted(async () => {
   if (topicKey.value === 'account-permission') {
     await navigateTo('/scrm/social_channel_governance/unified-access', { replace: true })
@@ -1413,10 +1613,29 @@ onMounted(async () => {
   }
   setDefaultChannelApp()
   if (isUnifiedAccessTopic.value) {
-    await refreshChannelAccounts()
+    await Promise.allSettled([
+      refreshChannelAccounts(),
+      refreshOpenWorkBindings(),
+    ])
+    ensureOpenWorkWsSubscription()
   }
   await userStore.fetchUserContext().catch(() => {})
   await loadOwnerUsers()
+})
+
+onBeforeUnmount(() => {
+  if (ownerUserSearchTimer) {
+    clearTimeout(ownerUserSearchTimer)
+    ownerUserSearchTimer = null
+  }
+  if (accountRefreshTimer) {
+    clearTimeout(accountRefreshTimer)
+    accountRefreshTimer = null
+  }
+  if (openworkWsUnsubscribe) {
+    openworkWsUnsubscribe()
+    openworkWsUnsubscribe = null
+  }
 })
 
 watch(
@@ -1479,6 +1698,12 @@ watch(
     }
     if (value === 'unified-access') {
       await refreshChannelAccounts()
+      ensureOpenWorkWsSubscription()
+      return
+    }
+    if (openworkWsUnsubscribe) {
+      openworkWsUnsubscribe()
+      openworkWsUnsubscribe = null
     }
   },
 )

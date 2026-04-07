@@ -126,6 +126,203 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ChannelAccount'
+  /admin/social/openwork/wecom/events:
+    post:
+      summary: Ingest OpenWork callback event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpenWorkEventIngestRequest'
+      responses:
+        '200':
+          description: Event accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpenWorkEventIngestResponse'
+  /admin/social/openwork/wecom/authorize/start:
+    post:
+      summary: Start OpenWork delegated authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpenWorkAuthorizeStartRequest'
+      responses:
+        '200':
+          description: Authorization URL generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpenWorkAuthorizeStartResponse'
+  /admin/social/openwork/wecom/authorize/complete:
+    post:
+      summary: Complete OpenWork delegated authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpenWorkAuthorizeCompleteRequest'
+      responses:
+        '200':
+          description: Authorization persisted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeComOpenAuthBinding'
+  /admin/social/openwork/wecom/authorize/status:
+    get:
+      summary: Query delegated authorization status
+      parameters:
+        - in: query
+          name: suite_id
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: state
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: started_at
+          required: false
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Current delegated authorization status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpenWorkAuthorizeStatusResponse'
+  /admin/social/openwork/wecom/bindings:
+    get:
+      summary: List OpenWork authorization bindings
+      responses:
+        '200':
+          description: Binding list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WeComOpenAuthBinding'
+  /admin/social/openwork/wecom/bindings/{binding_uuid}/default:
+    post:
+      summary: Switch default OpenWork binding
+      parameters:
+        - $ref: '#/components/parameters/BindingUuid'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpenWorkSetDefaultRequest'
+      responses:
+        '200':
+          description: Default binding switched
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeComOpenAuthBinding'
+  /admin/social/openwork/wecom/sync/jobs:
+    post:
+      summary: Create baseline sync job
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SyncBaselineJobCreateRequest'
+      responses:
+        '200':
+          description: Job created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncBaselineJob'
+    get:
+      summary: List sync jobs
+      parameters:
+        - $ref: '#/components/parameters/StatusQuery'
+        - $ref: '#/components/parameters/LimitQuery'
+      responses:
+        '200':
+          description: Sync jobs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SyncBaselineJob'
+  /admin/social/openwork/wecom/sync/conflicts:
+    get:
+      summary: List sync conflicts
+      parameters:
+        - $ref: '#/components/parameters/StatusQuery'
+        - $ref: '#/components/parameters/LimitQuery'
+      responses:
+        '200':
+          description: Conflict records
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SyncConflictRecord'
+  /admin/social/openwork/wecom/sync/conflicts/{conflict_uuid}/replay:
+    post:
+      summary: Replay a conflict record
+      parameters:
+        - $ref: '#/components/parameters/ConflictUuid'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SyncConflictReplayRequest'
+      responses:
+        '200':
+          description: Conflict replayed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncConflictRecord'
+  /admin/social/openwork/wecom/sync/dashboard:
+    get:
+      summary: Get sync reliability dashboard
+      responses:
+        '200':
+          description: Dashboard
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncDashboard'
+  /admin/social/openwork/wecom/go-live-gates:
+    get:
+      summary: Get go-live gates for acquisition resume
+      responses:
+        '200':
+          description: Gate list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GoLiveGates'
 components:
   parameters:
     AccountUuid:
@@ -135,6 +332,34 @@ components:
       schema:
         type: string
         format: uuid
+    BindingUuid:
+      name: binding_uuid
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ConflictUuid:
+      name: conflict_uuid
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    StatusQuery:
+      name: status
+      in: query
+      required: false
+      schema:
+        type: string
+    LimitQuery:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
   schemas:
     ChannelAccount:
       type: object
@@ -166,14 +391,12 @@ components:
         status:
           type: string
           enum: [pending, connected, disabled]
-        owner_user_uuid:
+        owner_member_uuid:
           type: string
-          format: uuid
         member_user_uuids:
           type: array
           items:
             type: string
-            format: uuid
         capabilities:
           $ref: '#/components/schemas/CapabilitySettings'
         created_at:
@@ -190,7 +413,7 @@ components:
         - account_id
         - display_name
         - status
-        - owner_user_uuid
+        - owner_member_uuid
         - capabilities
     ChannelAccountCreate:
       type: object
@@ -204,9 +427,8 @@ components:
           type: string
         display_name:
           type: string
-        owner_user_uuid:
+        owner_member_uuid:
           type: string
-          format: uuid
         app_id:
           type: string
         app_secret:
@@ -221,7 +443,7 @@ components:
         - app_type
         - account_id
         - display_name
-        - owner_user_uuid
+        - owner_member_uuid
     ChannelAccountUpdate:
       type: object
       properties:
@@ -230,9 +452,8 @@ components:
         status:
           type: string
           enum: [pending, connected, disabled]
-        owner_user_uuid:
+        owner_member_uuid:
           type: string
-          format: uuid
         app_id:
           type: string
         app_secret:
@@ -245,11 +466,12 @@ components:
     AccountMembersUpdate:
       type: object
       properties:
+        owner_member_uuid:
+          type: string
         member_user_uuids:
           type: array
           items:
             type: string
-            format: uuid
       required:
         - member_user_uuids
     CapabilitySettings:
@@ -263,3 +485,358 @@ components:
           $ref: '#/components/schemas/CapabilitySettings'
       required:
         - capabilities
+    OpenWorkEventIngestRequest:
+      type: object
+      properties:
+        suite_id:
+          type: string
+        event_type:
+          type: string
+          enum: [suite_ticket, create_auth, change_auth, cancel_auth, reset_permanent_code]
+        suite_ticket:
+          type: string
+        corp_id:
+          type: string
+        agent_id:
+          type: string
+        event_time:
+          type: integer
+          description: Unix timestamp (seconds)
+        payload:
+          type: object
+          additionalProperties: true
+      required: [suite_id, event_type]
+    OpenWorkEventIngestResponse:
+      type: object
+      properties:
+        event:
+          $ref: '#/components/schemas/WeComOpenAuthEvent'
+        binding:
+          $ref: '#/components/schemas/WeComOpenAuthBinding'
+    OpenWorkAuthorizeStartRequest:
+      type: object
+      properties:
+        suite_id:
+          type: string
+        suite_secret:
+          type: string
+        suite_ticket:
+          type: string
+        redirect_uri:
+          type: string
+        state:
+          type: string
+      required: [suite_id, suite_secret]
+    OpenWorkAuthorizeStartResponse:
+      type: object
+      properties:
+        suite_id:
+          type: string
+        pre_auth_code:
+          type: string
+        expires_in:
+          type: integer
+        authorize_url:
+          type: string
+        state:
+          type: string
+    OpenWorkAuthorizeStatusResponse:
+      type: object
+      properties:
+        suite_id:
+          type: string
+        state:
+          type: string
+        status:
+          type: string
+          enum: [pending, authorized, failed, expired]
+        message:
+          type: string
+        checked_at:
+          type: string
+          format: date-time
+        started_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        binding:
+          $ref: '#/components/schemas/WeComOpenAuthBinding'
+    OpenWorkAuthorizeCompleteRequest:
+      type: object
+      properties:
+        suite_id:
+          type: string
+        suite_secret:
+          type: string
+        suite_ticket:
+          type: string
+        auth_code:
+          type: string
+        channel_account_uuid:
+          type: string
+          format: uuid
+        set_default:
+          type: boolean
+      required: [suite_id, suite_secret, auth_code]
+    OpenWorkSetDefaultRequest:
+      type: object
+      properties:
+        channel_account_uuid:
+          type: string
+          format: uuid
+    WeComOpenAuthBinding:
+      type: object
+      properties:
+        binding_uuid:
+          type: string
+          format: uuid
+        tenant_uuid:
+          type: string
+          format: uuid
+        channel_account_uuid:
+          type: string
+          format: uuid
+        channel_code:
+          type: string
+          enum: [wechat]
+        app_type:
+          type: string
+          enum: [wecom]
+        suite_id:
+          type: string
+        corp_id:
+          type: string
+        corp_name:
+          type: string
+        agent_id:
+          type: string
+        status:
+          type: string
+          enum: [pending, active, canceled, disabled]
+        is_default:
+          type: boolean
+        default_switched_at:
+          type: string
+          format: date-time
+        last_event_type:
+          type: string
+        last_event_at:
+          type: string
+          format: date-time
+        auth_scope:
+          type: object
+          additionalProperties: true
+        metadata:
+          type: object
+          additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    WeComOpenAuthEvent:
+      type: object
+      properties:
+        event_uuid:
+          type: string
+          format: uuid
+        tenant_uuid:
+          type: string
+          format: uuid
+        suite_id:
+          type: string
+        event_type:
+          type: string
+        corp_id:
+          type: string
+        agent_id:
+          type: string
+        event_time:
+          type: string
+          format: date-time
+        event_key:
+          type: string
+        payload:
+          type: object
+          additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+    SyncBaselineJobCreateRequest:
+      type: object
+      properties:
+        binding_uuid:
+          type: string
+          format: uuid
+        domain:
+          type: string
+          enum: [tags, org, external_contacts]
+        mode:
+          type: string
+          enum: [bootstrap, incremental, pushback]
+        idempotency_key:
+          type: string
+        max_retries:
+          type: integer
+          minimum: 1
+        write_back_fields:
+          type: object
+          additionalProperties: true
+        context:
+          type: object
+          additionalProperties: true
+      required: [domain, mode]
+    SyncBaselineJob:
+      type: object
+      properties:
+        job_uuid:
+          type: string
+          format: uuid
+        tenant_uuid:
+          type: string
+          format: uuid
+        binding_uuid:
+          type: string
+          format: uuid
+        domain:
+          type: string
+          enum: [tags, org, external_contacts]
+        mode:
+          type: string
+          enum: [bootstrap, incremental, pushback]
+        status:
+          type: string
+          enum: [queued, running, success, failed, dead_letter]
+        idempotency_key:
+          type: string
+        resolve_source:
+          type: string
+          enum: [explicit, default]
+        total_count:
+          type: integer
+        success_count:
+          type: integer
+        failed_count:
+          type: integer
+        conflict_count:
+          type: integer
+        retry_count:
+          type: integer
+        max_retries:
+          type: integer
+        last_error:
+          type: string
+        next_retry_at:
+          type: string
+          format: date-time
+        dead_letter_at:
+          type: string
+          format: date-time
+        started_at:
+          type: string
+          format: date-time
+        finished_at:
+          type: string
+          format: date-time
+        write_back_fields:
+          type: object
+          additionalProperties: true
+        context:
+          type: object
+          additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    SyncConflictRecord:
+      type: object
+      properties:
+        conflict_uuid:
+          type: string
+          format: uuid
+        tenant_uuid:
+          type: string
+          format: uuid
+        job_uuid:
+          type: string
+          format: uuid
+        binding_uuid:
+          type: string
+          format: uuid
+        domain:
+          type: string
+        conflict_key:
+          type: string
+        status:
+          type: string
+          enum: [open, replayed, resolved]
+        reason:
+          type: string
+        external_version:
+          type: string
+        local_version:
+          type: string
+        resolution_note:
+          type: string
+        replay_count:
+          type: integer
+        last_replayed_at:
+          type: string
+          format: date-time
+        payload:
+          type: object
+          additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    SyncConflictReplayRequest:
+      type: object
+      properties:
+        note:
+          type: string
+    SyncDashboard:
+      type: object
+      properties:
+        jobs:
+          type: object
+          properties:
+            queued:
+              type: integer
+            running:
+              type: integer
+            success:
+              type: integer
+            failed:
+              type: integer
+            dead_letter:
+              type: integer
+        open_conflicts:
+          type: integer
+        max_lag_minutes:
+          type: integer
+    GoLiveGates:
+      type: object
+      properties:
+        phase:
+          type: string
+        gates:
+          type: array
+          items:
+            type: object
+            properties:
+              key:
+                type: string
+              description:
+                type: string
+              required:
+                type: boolean
+        rule:
+          type: string

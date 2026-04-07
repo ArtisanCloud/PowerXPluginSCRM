@@ -20,6 +20,12 @@
 - 渠道 webhook 接入
 - CSV/Excel 导入
 
+## 专项计划（迭代对齐）
+- 005 渠道活码引流（channel code acquisition）：
+  - `docs/plan/lead_capture/intake/channel_code_acquisition.md`
+  - 定位：群管理前置能力，先打通“入口引流 + 来源追溯 + 线索入池 + 欢迎语触达”
+  - 策略：全渠道契约先行，WeCom 适配器先落地（支持按渠道码配置欢迎语并同步）
+
 ## 数据模型（核心）
 - Lead
   - lead_uuid (uuid, PK)
@@ -74,6 +80,7 @@
 ## MVP
 - 手动录入 + 列表/详情
 - 简单表单提交（固定字段）
+- 渠道活码引流最小闭环（创建活码、事件回调、来源追溯、入池联动、渠道码级欢迎语配置与同步）
 
 ## 验收标准
 - 手动创建线索后生成 intake 操作记录

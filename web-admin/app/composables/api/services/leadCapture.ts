@@ -195,6 +195,113 @@ export interface LeadSourceCatalogListResponse {
   items: LeadSourceCatalogRecord[];
 }
 
+export type ChannelCodeStatus = "draft" | "active" | "disabled";
+
+export interface ChannelCodeRecord {
+  code_uuid: string;
+  tenant_uuid: string;
+  channel: string;
+  app_type: string;
+  channel_account_uuid: string;
+  code_key: string;
+  display_name: string;
+  target_type: "group" | "dm" | "entry";
+  target_id: string;
+  status: ChannelCodeStatus;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ChannelCodeCreatePayload {
+  channel: string;
+  app_type: string;
+  channel_account_uuid: string;
+  code_key: string;
+  display_name: string;
+  target_type: "group" | "dm" | "entry";
+  target_id: string;
+}
+
+export interface ChannelCodeListQuery {
+  channel?: string;
+  app_type?: string;
+  channel_account_uuid?: string;
+  status?: ChannelCodeStatus;
+  limit?: number;
+}
+
+export interface ChannelCodeStatusUpdatePayload {
+  status: Extract<ChannelCodeStatus, "active" | "disabled">;
+}
+
+export interface ChannelCodeWelcomeConfigPayload {
+  welcome_enabled: boolean;
+  message_content: Record<string, any>;
+}
+
+export interface ChannelCodeWelcomeConfigRecord {
+  config_uuid: string;
+  tenant_uuid: string;
+  code_uuid: string;
+  welcome_enabled: boolean;
+  message_content: Record<string, any>;
+  sync_status: "pending" | "syncing" | "success" | "failed" | "manual_required";
+  last_sync_error?: string;
+  last_synced_at?: string;
+  version: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ChannelCodeWelcomeSyncResult {
+  code_uuid: string;
+  sync_status: "syncing" | "success" | "failed" | "manual_required";
+  attempt_no: number;
+  message: string;
+  error_code?: string;
+}
+
+export interface ChannelCodeWelcomeSyncStatus {
+  code_uuid: string;
+  sync_status: "pending" | "syncing" | "success" | "failed" | "manual_required";
+  last_sync_error?: string;
+  last_synced_at?: string;
+  latest_attempt_no: number;
+}
+
+export interface ChannelCodeConfigChangeLogRecord {
+  change_uuid: string;
+  tenant_uuid: string;
+  code_uuid: string;
+  config_uuid: string;
+  version: number;
+  summary: string;
+  changed_fields: string[];
+  changed_by: string;
+  created_at?: string;
+}
+
+export interface ChannelCodeEventRecord {
+  event_uuid: string;
+  code_uuid: string;
+  external_event_id: string;
+  event_type: "scan" | "join" | "message" | "other";
+  occurred_at: string;
+  payload?: Record<string, any>;
+}
+
+export interface ChannelCodeEventStats {
+  touch_total: number;
+  intake_total: number;
+  dedup_total: number;
+}
+
+export interface ChannelCodeEventsResponse {
+  code_uuid: string;
+  events: ChannelCodeEventRecord[];
+  stats: ChannelCodeEventStats;
+}
+
 export const useLeadCaptureService = () => {
   const apiClient = useApiClient();
   const baseUrl = "/admin/leads";
@@ -284,5 +391,34 @@ export const useLeadCaptureService = () => {
       ),
     deleteSourceCatalog: (catalogId: string) =>
       apiClient.delete<ApiResponse<{ deleted: boolean }>>(`${baseUrl}/source-catalogs/${catalogId}`),
+    createChannelCode: (payload: ChannelCodeCreatePayload) =>
+      apiClient.post<ApiResponse<ChannelCodeRecord>>(`${baseUrl}/channel-codes`, payload),
+    listChannelCodes: (params?: ChannelCodeListQuery) =>
+      apiClient.get<ApiResponse<{ items: ChannelCodeRecord[] }>>(`${baseUrl}/channel-codes`, { params }),
+    updateChannelCodeStatus: (codeUUID: string, payload: ChannelCodeStatusUpdatePayload) =>
+      apiClient.patch<ApiResponse<ChannelCodeRecord>>(`${baseUrl}/channel-codes/${codeUUID}/status`, payload),
+    saveChannelCodeWelcomeConfig: (codeUUID: string, payload: ChannelCodeWelcomeConfigPayload) =>
+      apiClient.put<ApiResponse<ChannelCodeWelcomeConfigRecord>>(
+        `${baseUrl}/channel-codes/${codeUUID}/welcome-config`,
+        payload
+      ),
+    listChannelCodeWelcomeHistory: (codeUUID: string, limit = 20) =>
+      apiClient.get<ApiResponse<{ items: ChannelCodeConfigChangeLogRecord[] }>>(
+        `${baseUrl}/channel-codes/${codeUUID}/welcome-config/history`,
+        { params: { limit } }
+      ),
+    triggerChannelCodeWelcomeSync: (codeUUID: string) =>
+      apiClient.post<ApiResponse<ChannelCodeWelcomeSyncResult>>(
+        `${baseUrl}/channel-codes/${codeUUID}/welcome-config/sync`
+      ),
+    getChannelCodeWelcomeSyncStatus: (codeUUID: string) =>
+      apiClient.get<ApiResponse<ChannelCodeWelcomeSyncStatus>>(
+        `${baseUrl}/channel-codes/${codeUUID}/welcome-config/sync-status`
+      ),
+    listChannelCodeEvents: (codeUUID: string, limit = 50) =>
+      apiClient.get<ApiResponse<ChannelCodeEventsResponse>>(
+        `${baseUrl}/channel-codes/${codeUUID}/events`,
+        { params: { limit } }
+      ),
   };
 };

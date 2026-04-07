@@ -251,6 +251,172 @@
       </div>
     </UCard>
 
+    <UCard v-if="showChannelCodeWelcomePanel">
+      <template #header>
+        <div class="flex items-center justify-between gap-3">
+          <div class="flex items-center gap-2">
+            <UIcon name="i-heroicons-qr-code" class="text-primary" />
+            <span class="font-medium text-gray-900 dark:text-gray-100">渠道码与欢迎语</span>
+          </div>
+          <UButton size="xs" variant="soft" :loading="channelCodeStore.loading" @click="refreshChannelCodePanel">
+            刷新
+          </UButton>
+        </div>
+      </template>
+      <div class="space-y-4">
+        <div class="grid grid-cols-1 gap-3 xl:grid-cols-12">
+          <div class="xl:col-span-4 space-y-3">
+            <UFormField label="选择渠道码">
+              <USelectMenu
+                v-model="selectedChannelCodeUUID"
+                :items="channelCodeOptions"
+                value-key="value"
+                label-key="label"
+                placeholder="请选择渠道码"
+                class="w-full"
+                :portal="false"
+                :ui="{ content: 'z-[200]' }"
+              />
+            </UFormField>
+            <div class="flex flex-wrap gap-2">
+              <UButton
+                size="xs"
+                color="primary"
+                :disabled="!selectedChannelCodeUUID"
+                :loading="channelCodeStore.saving"
+                @click="setSelectedChannelCodeStatus('active')"
+              >
+                启用
+              </UButton>
+              <UButton
+                size="xs"
+                variant="soft"
+                :disabled="!selectedChannelCodeUUID"
+                :loading="channelCodeStore.saving"
+                @click="setSelectedChannelCodeStatus('disabled')"
+              >
+                停用
+              </UButton>
+              <UButton size="xs" variant="soft" @click="channelCodeCreateOpen = true">新建渠道码</UButton>
+            </div>
+            <div
+              v-if="selectedChannelCode"
+              class="rounded-lg border border-gray-200/80 bg-gray-50/70 px-3 py-2 text-xs text-gray-600 dark:border-gray-700/80 dark:bg-gray-900/40 dark:text-gray-300"
+            >
+              当前状态：<span class="font-medium">{{ selectedChannelCode.status }}</span>
+            </div>
+          </div>
+
+          <div class="xl:col-span-8 space-y-3">
+            <UFormField label="欢迎语内容（JSON）">
+              <UTextarea
+                v-model="channelCodeWelcomeContentText"
+                :rows="5"
+                placeholder='{"text":"欢迎添加企业微信"}'
+              />
+            </UFormField>
+            <div class="flex items-center justify-between gap-3">
+              <USwitch v-model="channelCodeWelcomeEnabled" label="启用欢迎语" />
+              <div class="flex items-center gap-2">
+                <UButton
+                  size="sm"
+                  color="primary"
+                  :disabled="!selectedChannelCodeUUID"
+                  :loading="channelCodeStore.saving"
+                  @click="saveSelectedChannelCodeWelcomeConfig"
+                >
+                  保存欢迎语（不发布）
+                </UButton>
+                <UButton
+                  size="sm"
+                  variant="soft"
+                  :disabled="!selectedChannelCodeUUID"
+                  :loading="channelCodeWelcomeSyncLoading"
+                  @click="triggerSelectedChannelCodeWelcomeSync"
+                >
+                  发布到渠道
+                </UButton>
+              </div>
+            </div>
+            <div
+              class="rounded-lg border border-gray-200/80 bg-gray-50/70 px-3 py-2 text-xs text-gray-600 dark:border-gray-700/80 dark:bg-gray-900/40 dark:text-gray-300"
+            >
+              <div class="flex flex-wrap items-center gap-3">
+                <span>同步状态：<span class="font-medium">{{ channelCodeWelcomeSyncStatus?.sync_status || "pending" }}</span></span>
+                <span>最新尝试：<span class="font-medium">{{ channelCodeWelcomeSyncStatus?.latest_attempt_no ?? 0 }}</span></span>
+                <span>最近同步：<span class="font-medium">{{ channelCodeWelcomeSyncStatus?.last_synced_at || "-" }}</span></span>
+              </div>
+              <div v-if="channelCodeWelcomeSyncStatus?.last_sync_error" class="mt-1 text-amber-600 dark:text-amber-300">
+                错误信息：{{ channelCodeWelcomeSyncStatus.last_sync_error }}
+              </div>
+            </div>
+            <div class="rounded-lg border border-gray-200/80 p-3 dark:border-gray-700/80">
+              <div class="mb-2 text-xs text-gray-500 dark:text-gray-400">配置变更摘要（最近 20 条）</div>
+              <div v-if="channelCodeStore.changeLogs.length === 0" class="text-xs text-gray-500 dark:text-gray-400">
+                暂无变更记录
+              </div>
+              <div v-else class="space-y-2">
+                <div
+                  v-for="item in channelCodeStore.changeLogs"
+                  :key="item.change_uuid"
+                  class="rounded border border-gray-200/70 px-2 py-2 text-xs dark:border-gray-700/70"
+                >
+                  <div class="font-medium text-gray-800 dark:text-gray-100">{{ item.summary }}</div>
+                  <div class="text-gray-500 dark:text-gray-400">v{{ item.version }} · {{ item.created_at || "-" }}</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="rounded-lg border border-gray-200/80 p-3 dark:border-gray-700/80">
+              <div class="mb-3 flex items-center justify-between">
+                <div class="text-xs text-gray-500 dark:text-gray-400">事件入池与来源追溯</div>
+                <UButton
+                  size="xs"
+                  variant="soft"
+                  :disabled="!selectedChannelCodeUUID"
+                  :loading="channelCodeEventsLoading"
+                  @click="loadSelectedChannelCodeEvents"
+                >
+                  刷新事件
+                </UButton>
+              </div>
+              <div class="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <div class="rounded border border-gray-200/70 px-2 py-2 text-xs dark:border-gray-700/70">
+                  触达量：<span class="font-medium">{{ channelCodeEventStats.touch_total }}</span>
+                </div>
+                <div class="rounded border border-gray-200/70 px-2 py-2 text-xs dark:border-gray-700/70">
+                  入池量：<span class="font-medium">{{ channelCodeEventStats.intake_total }}</span>
+                </div>
+                <div class="rounded border border-gray-200/70 px-2 py-2 text-xs dark:border-gray-700/70">
+                  去重量：<span class="font-medium">{{ channelCodeEventStats.dedup_total }}</span>
+                </div>
+              </div>
+              <div v-if="channelCodeEvents.length === 0" class="text-xs text-gray-500 dark:text-gray-400">
+                暂无事件记录
+              </div>
+              <div v-else class="space-y-2">
+                <div
+                  v-for="event in channelCodeEvents"
+                  :key="event.event_uuid"
+                  class="rounded border border-gray-200/70 px-2 py-2 text-xs dark:border-gray-700/70"
+                >
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="font-medium text-gray-800 dark:text-gray-100">
+                      {{ event.event_type }} · {{ event.external_event_id }}
+                    </span>
+                    <span class="text-gray-500 dark:text-gray-400">{{ event.occurred_at || "-" }}</span>
+                  </div>
+                  <div class="mt-1 text-gray-500 dark:text-gray-400">
+                    event_uuid: {{ event.event_uuid }}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </UCard>
+
     <UCard>
       <template #header>
         <div class="flex items-center justify-between">
@@ -604,6 +770,56 @@
       :color="toast.color"
       :duration="toast.duration"
     />
+
+    <UModal v-model:open="channelCodeCreateOpen" :ui="{ content: 'max-w-2xl w-full' }">
+      <template #title>新建渠道码</template>
+      <template #description>创建后可为该渠道码配置专属欢迎语。</template>
+      <template #body>
+        <UForm :state="channelCodeCreateForm" class="space-y-3 p-4">
+          <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <UFormField label="渠道" required>
+              <UInput v-model="channelCodeCreateForm.channel" placeholder="wechat" />
+            </UFormField>
+            <UFormField label="应用类型" required>
+              <UInput v-model="channelCodeCreateForm.app_type" placeholder="wecom" />
+            </UFormField>
+          </div>
+          <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <UFormField label="渠道账号 UUID" required>
+              <UInput v-model="channelCodeCreateForm.channel_account_uuid" placeholder="渠道账号 UUID" />
+            </UFormField>
+            <UFormField label="渠道码 Key" required>
+              <UInput v-model="channelCodeCreateForm.code_key" placeholder="campaign-key" />
+            </UFormField>
+          </div>
+          <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <UFormField label="显示名" required>
+              <UInput v-model="channelCodeCreateForm.display_name" placeholder="显示名称" />
+            </UFormField>
+            <UFormField label="目标类型" required>
+              <USelectMenu
+                v-model="channelCodeCreateForm.target_type"
+                :items="channelCodeTargetTypeOptions"
+                value-key="value"
+                label-key="label"
+                class="w-full"
+                :portal="false"
+                :ui="{ content: 'z-[200]' }"
+              />
+            </UFormField>
+          </div>
+          <UFormField label="目标 ID" required>
+            <UInput v-model="channelCodeCreateForm.target_id" placeholder="group-001" />
+          </UFormField>
+        </UForm>
+      </template>
+      <template #footer>
+        <div class="flex items-center justify-end gap-2">
+          <UButton variant="soft" @click="channelCodeCreateOpen = false">取消</UButton>
+          <UButton color="primary" :loading="channelCodeStore.saving" @click="submitChannelCodeCreate">创建</UButton>
+        </div>
+      </template>
+    </UModal>
   </UContainer>
 </template>
 
@@ -612,10 +828,14 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue"
 import { useRouter } from "#imports";
 import type { LeadCreatePayload } from "~/types/lead_capture/lead";
 import { useLeadCaptureStore } from "~/stores/scrm/lead_capture/lead_store";
+import { useLeadChannelCodeStore } from "~/stores/scrm/lead_capture/channel_code_store";
 import { useUserStore } from "~/stores/user";
 import ToastAlert from "~/components/ToastAlert.vue";
 import {
   useLeadCaptureService,
+  type ChannelCodeEventRecord,
+  type ChannelCodeEventStats,
+  type ChannelCodeWelcomeSyncStatus,
   type LeadActivityRecord,
   type WeComSyncTaskRecord,
   type WeComCustomerDMRule,
@@ -639,6 +859,7 @@ definePageMeta({
 });
 
 const store = useLeadCaptureStore();
+const channelCodeStore = useLeadChannelCodeStore();
 const userStore = useUserStore();
 const router = useRouter();
 const leadCaptureService = useLeadCaptureService();
@@ -647,6 +868,7 @@ const socialChannelService = useSocialChannelGovernanceService();
 const iamService = useIAMService();
 
 const ALL_OPTION_VALUE = "__all__";
+const showChannelCodeWelcomePanel = false;
 
 const searchText = ref("");
 const statusFilter = ref<string>(ALL_OPTION_VALUE);
@@ -663,6 +885,19 @@ const importFile = ref<File | null>(null);
 const importFileName = ref("");
 const importResult = ref<any | null>(null);
 const importStep = ref(1);
+const channelCodeCreateOpen = ref(false);
+const selectedChannelCodeUUID = ref("");
+const channelCodeWelcomeEnabled = ref(false);
+const channelCodeWelcomeContentText = ref('{"text":"欢迎添加企业微信"}');
+const channelCodeWelcomeSyncLoading = ref(false);
+const channelCodeWelcomeSyncStatus = ref<ChannelCodeWelcomeSyncStatus | null>(null);
+const channelCodeEventsLoading = ref(false);
+const channelCodeEvents = ref<ChannelCodeEventRecord[]>([]);
+const channelCodeEventStats = ref<ChannelCodeEventStats>({
+  touch_total: 0,
+  intake_total: 0,
+  dedup_total: 0,
+});
 const syncLoading = ref(false);
 const syncSubmitting = ref(false);
 const syncAccountUUID = ref("");
@@ -715,6 +950,16 @@ const fieldSynonyms: Record<string, string[]> = {
 
 const importForm = reactive({
   file: null as File | null,
+});
+
+const channelCodeCreateForm = reactive({
+  channel: "wechat",
+  app_type: "wecom",
+  channel_account_uuid: "",
+  code_key: "",
+  display_name: "",
+  target_type: "group" as "group" | "dm" | "entry",
+  target_id: "",
 });
 
 const createForm = reactive<LeadCreatePayload>({
@@ -793,10 +1038,27 @@ const syncTaskColumns = [
   { accessorKey: "error", header: "错误" },
 ] satisfies any;
 
+const channelCodeTargetTypeOptions = [
+  { label: "群聊", value: "group" },
+  { label: "私聊", value: "dm" },
+  { label: "入口", value: "entry" },
+];
+
 const syncTaskTotalPages = computed(() => {
   const total = Math.ceil(syncTasks.value.length / syncTaskPageSize.value);
   return total > 0 ? total : 1;
 });
+
+const channelCodeOptions = computed(() => {
+  return channelCodeStore.items.map((item) => ({
+    value: item.code_uuid,
+    label: `${item.display_name} (${item.code_key})`,
+  }));
+});
+
+const selectedChannelCode = computed(() =>
+  channelCodeStore.items.find((item) => item.code_uuid === selectedChannelCodeUUID.value) || null
+);
 
 const pagedSyncTasks = computed(() => {
   const start = (syncTaskPage.value - 1) * syncTaskPageSize.value;
@@ -1486,6 +1748,132 @@ const submitConfirm = async () => {
   }
 };
 
+const refreshChannelCodePanel = async () => {
+  await channelCodeStore.fetchChannelCodes();
+  if (!selectedChannelCodeUUID.value && channelCodeStore.items.length > 0) {
+    selectedChannelCodeUUID.value = channelCodeStore.items[0].code_uuid;
+  }
+  if (selectedChannelCodeUUID.value) {
+    await channelCodeStore.fetchChangeLogs(selectedChannelCodeUUID.value);
+    await loadSelectedChannelCodeWelcomeSyncStatus();
+    await loadSelectedChannelCodeEvents();
+  }
+};
+
+const loadSelectedChannelCodeWelcomeSyncStatus = async () => {
+  if (!selectedChannelCodeUUID.value) {
+    channelCodeWelcomeSyncStatus.value = null;
+    return;
+  }
+  try {
+    const resp = await leadCaptureService.getChannelCodeWelcomeSyncStatus(selectedChannelCodeUUID.value);
+    channelCodeWelcomeSyncStatus.value = ((resp as any)?.data || null) as ChannelCodeWelcomeSyncStatus | null;
+  } catch {
+    channelCodeWelcomeSyncStatus.value = null;
+  }
+};
+
+const loadSelectedChannelCodeEvents = async () => {
+  if (!selectedChannelCodeUUID.value) {
+    channelCodeEvents.value = [];
+    channelCodeEventStats.value = { touch_total: 0, intake_total: 0, dedup_total: 0 };
+    return;
+  }
+  channelCodeEventsLoading.value = true;
+  try {
+    const resp = await leadCaptureService.listChannelCodeEvents(selectedChannelCodeUUID.value, 50);
+    channelCodeEvents.value = ((resp as any)?.data?.events || []) as ChannelCodeEventRecord[];
+    channelCodeEventStats.value = ((resp as any)?.data?.stats || {
+      touch_total: 0,
+      intake_total: 0,
+      dedup_total: 0,
+    }) as ChannelCodeEventStats;
+  } catch (err: any) {
+    channelCodeEvents.value = [];
+    channelCodeEventStats.value = { touch_total: 0, intake_total: 0, dedup_total: 0 };
+    showToast(err?.message || "加载渠道码事件失败", "error");
+  } finally {
+    channelCodeEventsLoading.value = false;
+  }
+};
+
+const submitChannelCodeCreate = async () => {
+  try {
+    const created = await channelCodeStore.createChannelCode({ ...channelCodeCreateForm });
+    if (created?.code_uuid) {
+      selectedChannelCodeUUID.value = created.code_uuid;
+      channelCodeCreateOpen.value = false;
+      await channelCodeStore.fetchChangeLogs(created.code_uuid);
+    }
+    showToast("渠道码已创建", "success");
+  } catch (err: any) {
+    showToast(err?.message || "创建渠道码失败", "error");
+  }
+};
+
+const setSelectedChannelCodeStatus = async (status: "active" | "disabled") => {
+  if (!selectedChannelCodeUUID.value) {
+    showToast("请先选择渠道码", "warning");
+    return;
+  }
+  try {
+    await channelCodeStore.updateChannelCodeStatus(selectedChannelCodeUUID.value, status);
+    showToast(status === "active" ? "渠道码已启用" : "渠道码已停用", "success");
+  } catch (err: any) {
+    showToast(err?.message || "更新渠道码状态失败", "error");
+  }
+};
+
+const saveSelectedChannelCodeWelcomeConfig = async () => {
+  if (!selectedChannelCodeUUID.value) {
+    showToast("请先选择渠道码", "warning");
+    return;
+  }
+  let parsed: Record<string, any> = {};
+  try {
+    parsed = JSON.parse(channelCodeWelcomeContentText.value || "{}");
+  } catch (_err) {
+    showToast("欢迎语内容必须是合法 JSON", "warning");
+    return;
+  }
+  try {
+    await channelCodeStore.saveWelcomeConfig(selectedChannelCodeUUID.value, {
+      welcome_enabled: channelCodeWelcomeEnabled.value,
+      message_content: parsed,
+    });
+    showToast("欢迎语已保存（待发布）", "success");
+    await loadSelectedChannelCodeWelcomeSyncStatus();
+  } catch (err: any) {
+    showToast(err?.message || "保存欢迎语失败", "error");
+  }
+};
+
+const triggerSelectedChannelCodeWelcomeSync = async () => {
+  if (!selectedChannelCodeUUID.value) {
+    showToast("请先选择渠道码", "warning");
+    return;
+  }
+  channelCodeWelcomeSyncLoading.value = true;
+  try {
+    const resp = await leadCaptureService.triggerChannelCodeWelcomeSync(selectedChannelCodeUUID.value);
+    const result = (resp as any)?.data || {};
+    await loadSelectedChannelCodeWelcomeSyncStatus();
+    if (result?.sync_status === "success") {
+      showToast("欢迎语已同步成功", "success");
+      return;
+    }
+    if (result?.sync_status === "manual_required") {
+      showToast(`同步失败：${result?.error_code || "请人工重试"}`, "warning");
+      return;
+    }
+    showToast("欢迎语同步任务已触发", "success");
+  } catch (err: any) {
+    showToast(err?.message || "发布欢迎语失败", "error");
+  } finally {
+    channelCodeWelcomeSyncLoading.value = false;
+  }
+};
+
 const showToast = (message: string, color: ToastColor = "primary", title = "") => {
   const resolvedTitle = title || message;
   const resolvedMessage = title ? message : "";
@@ -1530,6 +1918,19 @@ watch([syncTaskPage, syncTaskPageSize], () => {
   }
 });
 
+watch(selectedChannelCodeUUID, async (value) => {
+  channelCodeStore.setSelectedCode(value || "");
+  if (!value) {
+    channelCodeWelcomeSyncStatus.value = null;
+    channelCodeEvents.value = [];
+    channelCodeEventStats.value = { touch_total: 0, intake_total: 0, dedup_total: 0 };
+    return;
+  }
+  await channelCodeStore.fetchChangeLogs(value);
+  await loadSelectedChannelCodeWelcomeSyncStatus();
+  await loadSelectedChannelCodeEvents();
+});
+
 watch(
   () => pagedLeads.value.map((item) => item.lead_uuid).join(","),
   () => {
@@ -1543,6 +1944,7 @@ onMounted(async () => {
   await refreshLeads();
   await refreshSyncTasks();
   await loadWeComCustomerDMRule();
+  await refreshChannelCodePanel();
 });
 
 onBeforeUnmount(() => {
