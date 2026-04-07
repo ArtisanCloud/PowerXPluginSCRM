@@ -107,25 +107,6 @@
                       </div>
 
                       <div class="acq-setting-row">
-                        <div class="acq-setting-label">码 Key</div>
-                        <div class="acq-setting-content">
-                          <div class="flex flex-wrap items-center gap-2">
-                            <UInput
-                              v-model="form.code_key"
-                              class="min-w-[260px] flex-1"
-                              :ui="{ root: 'w-full' }"
-                              placeholder="可自定义，留空则系统自动生成"
-                              @blur="checkCodeKeyAvailability"
-                            />
-                            <UButton variant="outline" color="primary" :loading="codeKeyChecking" @click="generateCodeKey">
-                              自动生成
-                            </UButton>
-                          </div>
-                          <div class="mt-2 text-xs" :class="codeKeyHintClass">{{ codeKeyHintText }}</div>
-                        </div>
-                      </div>
-
-                      <div class="acq-setting-row">
                         <div class="acq-setting-label">选择企业成员</div>
                         <div class="acq-setting-content">
                           <div class="flex flex-wrap items-center gap-3">
@@ -230,7 +211,7 @@
                           {{ form.welcome_text || "欢迎添加，我们将尽快联系你" }}
                         </div>
                         <div class="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
-                          标签：{{ previewTagText }} · 渠道码：{{ form.code_key?.trim() || "系统自动生成" }}
+                          标签：{{ previewTagText }} · 渠道码：系统自动生成
                         </div>
                       </div>
                       <div class="flex items-center gap-2 border-t border-slate-200 bg-white px-3 py-2">
@@ -271,12 +252,9 @@ const creating = ref(false);
 const createOpen = ref(false);
 const staffCodes = ref<StaffLiveCodeRecord[]>([]);
 const keyword = ref("");
-const codeKeyChecking = ref(false);
-const codeKeyAvailable = ref<boolean | null>(null);
 
 const form = reactive({
   activity_name: "",
-  code_key: "",
   member_uuids_text: "",
   corp_tag_ids_text: "",
   new_customer_remark_enabled: false,
@@ -302,23 +280,6 @@ const previewTagText = computed(() => {
     .map((item) => item.trim())
     .filter(Boolean);
   return tags.length > 0 ? tags.join(" / ") : "未设置";
-});
-
-const codeKeyHintText = computed(() => {
-  const key = form.code_key.trim();
-  if (!key) return "留空时系统自动生成码 Key";
-  if (codeKeyChecking.value) return "正在检查 Key 可用性...";
-  if (codeKeyAvailable.value === true) return "该 Key 可用";
-  if (codeKeyAvailable.value === false) return "该 Key 已存在，请更换或自动生成";
-  return "输入后会检查是否冲突";
-});
-
-const codeKeyHintClass = computed(() => {
-  if (!form.code_key.trim()) return "text-slate-300";
-  if (codeKeyChecking.value) return "text-sky-300";
-  if (codeKeyAvailable.value === true) return "text-emerald-300";
-  if (codeKeyAvailable.value === false) return "text-rose-300";
-  return "text-slate-300";
 });
 
 const filteredStaffCodes = computed(() => {
@@ -366,47 +327,6 @@ const setStatus = async (staffCodeUUID: string, status: "active" | "disabled") =
   }
 };
 
-const generateCodeKeySeed = () => {
-  const name = form.activity_name.trim().toLowerCase();
-  const base = (name || "staff-code")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 32) || "staff-code";
-  const rand = Math.random().toString(36).slice(2, 8);
-  return `${base}-${rand}`;
-};
-
-const checkCodeKeyAvailability = async () => {
-  const codeKey = form.code_key.trim();
-  if (!codeKey) {
-    codeKeyAvailable.value = null;
-    return true;
-  }
-  codeKeyChecking.value = true;
-  try {
-    const resp = await service.checkStaffCodeKeyAvailable(codeKey);
-    const available = Boolean((resp as any)?.data?.available);
-    codeKeyAvailable.value = available;
-    return available;
-  } catch (error: any) {
-    codeKeyAvailable.value = null;
-    toast.add({ title: "Key 校验失败", description: error?.message || "unknown error", color: "warning" });
-    return false;
-  } finally {
-    codeKeyChecking.value = false;
-  }
-};
-
-const generateCodeKey = async () => {
-  codeKeyAvailable.value = null;
-  for (let i = 0; i < 6; i += 1) {
-    form.code_key = generateCodeKeySeed();
-    const ok = await checkCodeKeyAvailability();
-    if (ok) return;
-  }
-  toast.add({ title: "自动生成失败", description: "请稍后重试或手动输入", color: "warning" });
-};
-
 const createStaffCode = async () => {
   const memberUUIDs = form.member_uuids_text
     .split(",")
@@ -420,21 +340,12 @@ const createStaffCode = async () => {
     toast.add({ title: "请填写完整信息", color: "warning" });
     return;
   }
-  const customCodeKey = form.code_key.trim();
-  if (customCodeKey) {
-    const available = await checkCodeKeyAvailability();
-    if (!available) {
-      toast.add({ title: "码 Key 不可用", description: "请更换或使用自动生成", color: "warning" });
-      return;
-    }
-  }
   creating.value = true;
   try {
     await service.createStaffCode({
       channel: "wechat",
       app_type: "wecom",
       activity_name: form.activity_name,
-      code_key: customCodeKey || undefined,
       member_uuids: memberUUIDs,
       corp_tag_ids: corpTagIDs,
       new_customer_remark_enabled: form.new_customer_remark_enabled,
@@ -452,14 +363,12 @@ const createStaffCode = async () => {
 const resetCreateForm = () => {
   Object.assign(form, {
     activity_name: "",
-    code_key: "",
     member_uuids_text: "",
     corp_tag_ids_text: "",
     new_customer_remark_enabled: false,
     welcome_mode: "send",
     welcome_text: "欢迎添加，我们将尽快联系你",
   });
-  codeKeyAvailable.value = null;
 };
 
 const closeCreatePanel = () => {
@@ -472,13 +381,6 @@ watch(createOpen, (open, prev) => {
     resetCreateForm();
   }
 });
-
-watch(
-  () => form.code_key,
-  () => {
-    codeKeyAvailable.value = null;
-  }
-);
 
 onMounted(loadData);
 </script>
