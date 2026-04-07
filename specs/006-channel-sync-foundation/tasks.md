@@ -34,23 +34,23 @@
 **Purpose**: 完成所有用户故事共享的底座能力。  
 **⚠️ CRITICAL**: 本阶段完成前不得进入任何用户故事实现。
 
-- [ ] T005 新增同步基础域模型（FoundationBinding/SyncJob/SyncCheckpoint/SyncConflict/WritebackPolicy/DeadLetterItem）到 `backend/internal/entity/models/social_channel_governance/`
-- [ ] T006 注册模型迁移与索引（含租户+域唯一约束）到 `backend/cmd/database/migrate/migrate.go`
-- [ ] T007 [P] 新增基础域 Repository（绑定、任务、检查点、冲突、死信、回写策略）到 `backend/internal/entity/repository/social_channel_governance/`
-- [ ] T008 实现通用同步编排接口与渠道工厂注册骨架（按 `channel + app_type` 解析）到 `backend/internal/services/admin/social_channel_governance/sync_orchestrator.go`、`backend/internal/services/admin/social_channel_governance/channel_factory.go`
-- [ ] T009 [P] 实现统一幂等键生成与校验组件到 `backend/internal/services/admin/social_channel_governance/idempotency_service.go`
-- [ ] T010 实现统一任务中心状态机（pending/running/success/failed/dead_letter）到 `backend/internal/services/admin/social_channel_governance/sync_job_service.go`
-- [ ] T011 实现执行并发策略“同租户同域串行、跨租户并发”（FR-018）到 `backend/internal/services/admin/social_channel_governance/sync_scheduler.go`
-- [ ] T012 [P] 实现重试/死信/人工重放底座（固定3次重试，FR-020）到 `backend/internal/services/admin/social_channel_governance/retry_deadletter_service.go`
-- [ ] T013 [P] 提供冲突默认策略 remote_first + 冲突队列落库（FR-017）到 `backend/internal/services/admin/social_channel_governance/conflict_resolution_service.go`
-- [ ] T014 建立 capability matrix 与 `capability_status` 降级返回（FR-021）到 `backend/internal/services/admin/social_channel_governance/capability_service.go`
-- [ ] T015 [P] 新增基础域路由与 RBAC 框架（任务/冲突/死信/能力探测）到 `backend/internal/transport/http/admin/social_channel_governance/routes.go`、`backend/internal/transport/http/admin/social_channel_governance/rbac.go`
-- [ ] T016 [P] 基础域单元测试（工厂解析、幂等、并发策略、重试状态机）到 `backend/tests/unit/social_channel_governance/`
-- [ ] T056 [P] 实现管理端入站验签中间件（JWT/HMAC）并接入同步域路由到 `backend/internal/middleware/common.go`、`backend/internal/router/router.go`
-- [ ] T057 [P] 在同步域 Repository 统一接入 `BeginTenantTx + SET LOCAL app.tenant_uuid` 到 `backend/internal/entity/repository/social_channel_governance/`
-- [ ] T058 [P] 新增多租户 RLS 集成测试（跨租户访问拒绝）到 `backend/tests/integration/social_channel_governance/tenant_rls_integration_test.go`
-- [ ] T059 [P] 新增事件契约校验（topic 命名、meta 必填、敏感字段拦截、最小权限）到 `backend/internal/observability/social_channel_governance/event_contract_guard.go`
-- [ ] T060 [P] 新增 TaskBus 发布/消费指标与权限拒绝指标测试到 `backend/tests/integration/social_channel_governance/event_contract_integration_test.go`
+- [X] T005 新增同步基础域模型（FoundationBinding/SyncJob/SyncCheckpoint/SyncConflict/WritebackPolicy/DeadLetterItem）到 `backend/internal/entity/models/social_channel_governance/`
+- [X] T006 注册模型迁移与索引（含租户+域唯一约束）到 `backend/cmd/database/migrate/migrate.go`
+- [X] T007 [P] 新增基础域 Repository（绑定、任务、检查点、冲突、死信、回写策略）到 `backend/internal/entity/repository/social_channel_governance/`
+- [X] T008 实现通用同步编排接口与渠道工厂注册骨架（按 `channel + app_type` 解析）到 `backend/internal/services/admin/social_channel_governance/sync_orchestrator.go`、`backend/internal/services/admin/social_channel_governance/channel_factory.go`
+- [X] T009 [P] 实现统一幂等键生成与校验组件到 `backend/internal/services/admin/social_channel_governance/idempotency_service.go`
+- [X] T010 实现统一任务中心状态机（pending/running/success/failed/dead_letter）到 `backend/internal/services/admin/social_channel_governance/sync_job_service.go`
+- [X] T011 实现执行并发策略“同租户同域串行、跨租户并发”（FR-018）到 `backend/internal/services/admin/social_channel_governance/sync_scheduler.go`
+- [X] T012 [P] 实现重试/死信/人工重放底座（固定3次重试，FR-020）到 `backend/internal/services/admin/social_channel_governance/retry_deadletter_service.go`
+- [X] T013 [P] 提供冲突默认策略 remote_first + 冲突队列落库（FR-017）到 `backend/internal/services/admin/social_channel_governance/conflict_resolution_service.go`
+- [X] T014 建立 capability matrix 与 `capability_status` 降级返回（FR-021）到 `backend/internal/services/admin/social_channel_governance/capability_service.go`
+- [X] T015 [P] 新增基础域路由与 RBAC 框架（任务/冲突/死信/能力探测）到 `backend/internal/transport/http/admin/social_channel_governance/routes.go`、`backend/internal/transport/http/admin/social_channel_governance/rbac.go`
+- [X] T016 [P] 基础域单元测试（工厂解析、幂等、并发策略、重试状态机）到 `backend/tests/unit/social_channel_governance/`
+- [X] T056 [P] 实现管理端入站验签中间件（JWT/HMAC）并接入同步域路由到 `backend/internal/middleware/common.go`、`backend/internal/router/router.go`
+- [X] T057 [P] 在同步域 Repository 统一接入 `BeginTenantTx + SET LOCAL app.tenant_uuid` 到 `backend/internal/entity/repository/social_channel_governance/`
+- [X] T058 [P] 新增多租户 RLS 集成测试（跨租户访问拒绝）到 `backend/tests/integration/social_channel_governance/tenant_rls_integration_test.go`
+- [X] T059 [P] 新增事件契约校验（topic 命名、meta 必填、敏感字段拦截、最小权限）到 `backend/internal/observability/social_channel_governance/event_contract_guard.go`
+- [X] T060 [P] 新增 TaskBus 发布/消费指标与权限拒绝指标测试到 `backend/tests/integration/social_channel_governance/event_contract_integration_test.go`
 
 **Checkpoint**: 底座可用，用户故事可并行启动。
 

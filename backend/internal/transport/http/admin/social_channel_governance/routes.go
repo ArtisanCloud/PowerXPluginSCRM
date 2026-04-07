@@ -24,12 +24,15 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 	var capabilitySvc *SocialService.ChannelAccountCapabilityService
 	var openworkHandler *OpenWorkFoundationHandler
 	var platformSettingHandler *ChannelPlatformSettingHandler
+	var syncJobHandler *SyncJobHandler
+	var conflictHandler *ConflictHandler
 	schemaLoader := SocialService.NewChannelSchemaLoader(SocialService.ChannelSchemaLoaderOptions{
 		Logger: logrus.WithField("module", "social_channel_governance"),
 	})
 	if deps.DB != nil {
 		repo := SocialRepo.NewAccountRepository(deps.DB)
 		openworkRepo := SocialRepo.NewOpenWorkFoundationRepository(deps.DB)
+		syncRepo := SocialRepo.NewSyncFoundationRepository(deps.DB)
 		platformSettingRepo := SocialRepo.NewChannelPlatformSettingRepository(deps.DB)
 		accountStatus := orgsync.NewAccountStatusService(
 			orgrepo.NewMemberMappingRepository(deps.DB),
@@ -40,6 +43,14 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		capabilitySvc = SocialService.NewChannelAccountCapabilityService(repo)
 		openworkHandler = NewOpenWorkFoundationHandler(SocialService.NewOpenWorkFoundationService(openworkRepo, repo))
 		platformSettingHandler = NewChannelPlatformSettingHandler(SocialService.NewChannelPlatformSettingService(platformSettingRepo))
+		factory := SocialService.NewChannelFactory()
+		capabilityMatrixSvc := SocialService.NewCapabilityService(factory)
+		idempotencySvc := SocialService.NewIdempotencyService()
+		scheduler := SocialService.NewSyncScheduler()
+		syncJobSvc := SocialService.NewSyncJobService(syncRepo, idempotencySvc, scheduler, capabilityMatrixSvc)
+		orchestrator := SocialService.NewSyncOrchestrator(factory, scheduler, syncJobSvc)
+		syncJobHandler = NewSyncJobHandler(syncJobSvc, orchestrator, capabilityMatrixSvc)
+		conflictHandler = NewConflictHandler()
 	}
 	accountHandler := NewAccountHandler(accountSvc)
 	schemaHandler := NewChannelSchemaHandler(schemaLoader, deps.Config)
@@ -75,6 +86,15 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 			group.POST("/openwork/wecom/sync/conflicts/:conflict_uuid/replay", openworkHandler.ReplaySyncConflict)
 			group.GET("/openwork/wecom/sync/dashboard", openworkHandler.GetDashboard)
 			group.GET("/openwork/wecom/go-live-gates", openworkHandler.GetGoLiveGates)
+		}
+		if syncJobHandler != nil && conflictHandler != nil {
+			group.POST("/openwork/foundation/sync/jobs", syncJobHandler.Create)
+			group.GET("/openwork/foundation/sync/jobs", syncJobHandler.List)
+			group.GET("/openwork/foundation/capabilities", syncJobHandler.Capabilities)
+			group.GET("/openwork/foundation/sync/conflicts", conflictHandler.List)
+			group.POST("/openwork/foundation/sync/conflicts/:conflict_uuid/replay", conflictHandler.Replay)
+			group.GET("/openwork/foundation/sync/dead-letters", conflictHandler.ListDeadLetters)
+			group.POST("/openwork/foundation/sync/dead-letters/:dead_letter_uuid/replay", conflictHandler.ReplayDeadLetter)
 		}
 		if platformSettingHandler != nil {
 			platformGroup := group.Group("/channel-platform/wecom/openwork", httpmw.EnsureRootRole())
