@@ -43,6 +43,7 @@ backend/.cache/
 backend/.gocache/
 backend/.gomodcache
 backend/logs/
+backend/wechat/*.log
 backend/tmp/
 backend/coverage.out
 backend/etc/config.yaml
