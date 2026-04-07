@@ -22,3 +22,13 @@
 
 - Feishu 适配器实现统一接口：auth/tag/org/external_contact/lead。
 - 工厂按 `channel + app_type` 解析到 Feishu 实现。
+
+## 能力矩阵（Phase 1 对齐）
+
+| 能力域 | 状态 | capability_status | 说明 |
+|---|---|---|---|
+| 授权接入 | 规划中 | planned | 按统一授权契约接入 |
+| 标签双向 | 规划中 | planned | 先保证字段映射稳定 |
+| 组织双向 | 规划中 | planned | 先单向验证后开双向 |
+| 外部联系人入池 | 待评估 | not_supported | 受 Feishu 能力面限制 |
+| 线索回写 | 待评估 | not_supported | 依赖字段与权限确认 |

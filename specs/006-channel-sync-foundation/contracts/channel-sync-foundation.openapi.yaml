@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: Channel Sync Foundation API
-  version: 0.1.0
-  description: 渠道授权接入与双向同步基础域契约（企业微信首发）
+  version: 0.2.0
+  description: 渠道授权接入与双向同步基础域契约（渠道中立，WeCom 首发）
 
 paths:
   /admin/social/openwork/foundation/access/status:
@@ -12,10 +12,14 @@ paths:
       responses:
         '200':
           description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FoundationAccessStatusResponse'
 
   /admin/social/openwork/foundation/bindings:
     get:
-      summary: 查询 tenant-corp-account 绑定列表
+      summary: 查询 tenant-corp-channel_account 绑定列表
       tags: [FoundationAccess]
       responses:
         '200':
@@ -26,6 +30,18 @@ paths:
       responses:
         '200':
           description: OK
+
+  /admin/social/openwork/foundation/capabilities:
+    get:
+      summary: 查询渠道能力矩阵
+      tags: [Capability]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CapabilityMatrixResponse'
 
   /admin/social/openwork/foundation/sync-jobs:
     get:
@@ -77,6 +93,28 @@ paths:
         '200':
           description: OK
 
+  /admin/social/openwork/foundation/dead-letters:
+    get:
+      summary: 查询死信任务队列
+      tags: [DeadLetters]
+      responses:
+        '200':
+          description: OK
+
+  /admin/social/openwork/foundation/dead-letters/{dead_letter_uuid}/replay:
+    post:
+      summary: 重放死信任务
+      tags: [DeadLetters]
+      parameters:
+        - name: dead_letter_uuid
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '202':
+          description: Accepted
+
   /admin/social/openwork/foundation/writeback/policies:
     get:
       summary: 查询回写策略
@@ -98,3 +136,57 @@ paths:
       responses:
         '200':
           description: OK
+
+components:
+  schemas:
+    FoundationAccessStatusResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          required: [auth_status, token_status, callback_status, capability_status]
+          properties:
+            auth_status:
+              type: string
+              enum: [authorized, expired, revoked, pending]
+            token_status:
+              type: string
+              enum: [valid, expiring, invalid]
+            callback_status:
+              type: string
+              enum: [ok, error, pending]
+            last_sync_at:
+              type: string
+              format: date-time
+              nullable: true
+            capability_status:
+              $ref: '#/components/schemas/CapabilityStatus'
+
+    CapabilityMatrixResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            type: object
+            required: [domain, capability_status]
+            properties:
+              domain:
+                type: string
+                enum: [auth, tags, org, external_contacts, leads]
+              capability_status:
+                $ref: '#/components/schemas/CapabilityStatus'
+              reason:
+                type: string
+                nullable: true
+
+    CapabilityStatus:
+      type: string
+      description: 能力可用状态
+      enum: [supported, partial, not_supported, planned]

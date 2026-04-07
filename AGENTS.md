@@ -9,6 +9,8 @@ Auto-generated from all feature plans. Last updated: 2026-01-15
 - Go 1.24（backend）, TypeScript 4 + Nuxt 4（web-admin） + Gin, GORM, PowerWechat SDK, Nuxt UI 3.3.x, Pinia (004-lead-managment)
 - PostgreSQL（主存储，租户隔离/RLS），Redis（可选缓存/队列） (004-lead-managment)
 - PostgreSQL（plugin schema + RLS），Redis（可选，用于异步任务/重试队列） (005-channel-code-acquisition)
+- Go 1.24（backend）, Node 20 + TypeScript 4 + Nuxt 4（web-admin） + Gin, GORM, PowerWechat SDK（首发渠道实现）, Nuxt UI 3.3.x (006-channel-sync-foundation)
+- PostgreSQL（plugin schema + RLS）, Redis（可选：队列/重试） (006-channel-sync-foundation)
 
 - Go 1.24 (backend), Node 20 + TypeScript 4 + Nuxt 4 (web-admin) + Gin + GORM (backend), Nuxt UI 3.3.x (frontend) (001-social-channel-governance)
 
@@ -29,9 +31,9 @@ npm test && npm run lint
 Go 1.24 (backend), Node 20 + TypeScript 4 + Nuxt 4 (web-admin): Follow standard conventions
 
 ## Recent Changes
+- 006-channel-sync-foundation: Added Go 1.24（backend）, Node 20 + TypeScript 4 + Nuxt 4（web-admin） + Gin, GORM, PowerWechat SDK（首发渠道实现）, Nuxt UI 3.3.x
 - 005-channel-code-acquisition: Added Go 1.24（backend）, TypeScript 4 + Nuxt 4（web-admin） + Gin, GORM, PowerWechat SDK, Nuxt UI 3.3.x, Pinia
 - 004-lead-managment: Added Go 1.24（backend）, TypeScript 4 + Nuxt 4（web-admin） + Gin, GORM, PowerWechat SDK, Nuxt UI 3.3.x, Pinia
-- 001-org-sync: Added Go 1.24（backend）, Node 20 + TypeScript 4 + Nuxt 4（web-admin） + Gin, GORM, Nuxt UI 3.3.x
 
 
 <!-- MANUAL ADDITIONS START -->
