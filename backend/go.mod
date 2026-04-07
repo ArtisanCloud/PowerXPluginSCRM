@@ -2,6 +2,8 @@ module github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backe
 
 go 1.24.0
 
+replace github.com/ArtisanCloud/PowerWeChat/v3 => /private/var/www/html/ArtisanCloud/PowerWechat/PowerWeChat
+
 require (
 	github.com/ArtisanCloud/PowerLibs/v3 v3.3.2
 	github.com/ArtisanCloud/PowerWeChat/v3 v3.4.38
@@ -9,7 +11,7 @@ require (
 	github.com/gin-gonic/gin v1.10.1
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/uuid v1.6.0
-	github.com/gorilla/websocket v1.5.1
+	github.com/gorilla/websocket v1.5.3
 	github.com/redis/go-redis/v9 v9.6.3
 	github.com/sirupsen/logrus v1.9.3
 	golang.org/x/sync v0.19.0
@@ -22,6 +24,7 @@ require (
 )
 
 require (
+	github.com/ArtisanCloud/PowerSocialite/v3 v3.0.10
 	github.com/ArtisanCloud/PowerX/api/grpc/gen/go v0.1.0-alpha
 	github.com/gin-contrib/sse v1.1.0
 	github.com/jackc/pgconn v1.14.3
@@ -33,7 +36,6 @@ require (
 
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect
-	github.com/ArtisanCloud/PowerSocialite/v3 v3.0.9 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/bytedance/sonic v1.14.1 // indirect

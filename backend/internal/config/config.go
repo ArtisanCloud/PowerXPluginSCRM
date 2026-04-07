@@ -295,6 +295,8 @@ type MetricsConfig struct {
 type HealthCheckConfig struct {
 	Enabled bool   `yaml:"enabled" json:"enabled"`
 	Path    string `yaml:"path" json:"path"`
+	AppName string `yaml:"app_name" json:"app_name"`
+	Version string `yaml:"version" json:"version"`
 }
 
 // LoggingConfig 日志配置
@@ -536,6 +538,8 @@ func getDefaultConfig() *Config {
 			HealthCheck: HealthCheckConfig{
 				Enabled: true,
 				Path:    "/health",
+				AppName: "com.powerx.plugins.scrm",
+				Version: "dev",
 			},
 		},
 		Logging: &LoggingConfig{
@@ -848,6 +852,12 @@ func loadEnvConfig(cfg *Config) {
 	// 服务配置
 	if addr := resolveConfigValue(os.Getenv("POWERX_BIND_ADDR")); addr != "" {
 		cfg.Server.BindAddr = addr
+	}
+	if appName := resolveConfigValue(os.Getenv("POWERX_PLUGIN_APP_NAME")); appName != "" {
+		cfg.Monitoring.HealthCheck.AppName = appName
+	}
+	if version := resolveConfigValue(os.Getenv("POWERX_PLUGIN_VERSION")); version != "" {
+		cfg.Monitoring.HealthCheck.Version = version
 	}
 	if level := resolveConfigValue(os.Getenv("POWERX_LOG_LEVEL")); level != "" {
 		normalized := strings.ToLower(level)
@@ -1189,6 +1199,15 @@ func normalizeConfig(cfg *Config) {
 		cfg.Logging.Level = strings.ToLower(resolveConfigValue(cfg.Logging.Level))
 		cfg.Logging.Format = strings.ToLower(resolveConfigValue(cfg.Logging.Format))
 		cfg.Logging.Output = strings.ToLower(resolveConfigValue(cfg.Logging.Output))
+	}
+	cfg.Monitoring.HealthCheck.Path = resolveConfigValue(cfg.Monitoring.HealthCheck.Path)
+	cfg.Monitoring.HealthCheck.AppName = resolveConfigValue(cfg.Monitoring.HealthCheck.AppName)
+	cfg.Monitoring.HealthCheck.Version = resolveConfigValue(cfg.Monitoring.HealthCheck.Version)
+	if strings.TrimSpace(cfg.Monitoring.HealthCheck.AppName) == "" {
+		cfg.Monitoring.HealthCheck.AppName = "com.powerx.plugins.scrm"
+	}
+	if strings.TrimSpace(cfg.Monitoring.HealthCheck.Version) == "" {
+		cfg.Monitoring.HealthCheck.Version = "dev"
 	}
 	if cfg.Cache != nil {
 		cfg.Cache.Driver = strings.ToLower(resolveConfigValue(cfg.Cache.Driver))

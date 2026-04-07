@@ -449,6 +449,7 @@ const applyDefaultAccountSelection = () => {
 };
 
 const syncOverlayLocked = ref(false);
+const liveProgressTracking = ref(false);
 
 const releaseSyncOverlay = (status?: string) => {
   if (status === "success") {
@@ -462,6 +463,7 @@ const releaseSyncOverlay = (status?: string) => {
     syncOverlayLocked.value = false;
   }
   gl.hide();
+  liveProgressTracking.value = false;
 };
 
 const triggerSync = async () => {
@@ -470,6 +472,7 @@ const triggerSync = async () => {
     return;
   }
   syncing.value = true;
+  liveProgressTracking.value = true;
   ensureWsSubscription();
   gl.show({
     lock: true,
@@ -545,6 +548,7 @@ const handleWsProgress = (payload: any) => {
     console.info("[org-sync][ws-progress]", payload);
   }
   if (!payload || payload.source_account_uuid !== selectedAccountUUID.value) return;
+  liveProgressTracking.value = true;
   const patch: Partial<OrgSyncSyncLog> = {
     sync_log_uuid: payload.sync_log_uuid,
     status: payload.status,
@@ -587,7 +591,7 @@ const handleWsProgress = (payload: any) => {
     const head = { ...syncLogs.value[0], ...patch };
     syncLogs.value = [head, ...syncLogs.value.slice(1)];
   }
-  updateGlobalLoadingFromLog();
+  updateGlobalLoadingFromLog(true);
   if (patch.status === "success" || patch.status === "failed") {
     const finalEventKey =
       (patch.sync_log_uuid && patch.sync_log_uuid.trim()) ||
@@ -625,15 +629,19 @@ const loadSyncLogs = async () => {
     const service = useOrgSyncService();
     const resp = await service.listSyncLogs(selectedAccountUUID.value, 5);
     syncLogs.value = (resp as any)?.data?.items ?? [];
-    updateGlobalLoadingFromLog();
+    updateGlobalLoadingFromLog(false);
   } catch (err: any) {
     showToast("加载同步日志失败", "error", err?.message ?? "");
   }
 };
 
-const updateGlobalLoadingFromLog = () => {
+const updateGlobalLoadingFromLog = (fromLiveEvent = false) => {
   const log = latestLog.value;
   if (!log) return;
+  // 页面首次进入只展示历史结果，不因为历史 queued/running 自动锁屏。
+  if (!fromLiveEvent && !syncing.value && !liveProgressTracking.value) {
+    return;
+  }
   if (log.status === "running" || log.status === "queued") {
     gl.setMessage(`同步中 · ${progressStageLabel.value}`);
     gl.setProgress(displayProgressPercent.value);

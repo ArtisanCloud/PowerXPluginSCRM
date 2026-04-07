@@ -74,10 +74,108 @@ export interface ChannelSchemaDocument {
   channels: ChannelSchema[];
 }
 
+export interface OpenWorkBinding {
+  binding_uuid: string;
+  tenant_uuid: string;
+  channel_account_uuid?: string;
+  template_id: string;
+  corp_id: string;
+  corp_name: string;
+  agent_id: string;
+  status: string;
+  is_default: boolean;
+  updated_at?: string;
+}
+
+export interface OpenWorkStartAuthorizePayload {
+  template_id?: string;
+  template_secret?: string;
+  template_ticket?: string;
+  provider_corpid?: string;
+  provider_secret?: string;
+  state?: string;
+}
+
+export interface OpenWorkCompleteAuthorizePayload {
+  template_id?: string;
+  template_secret?: string;
+  template_ticket?: string;
+  provider_corpid?: string;
+  provider_secret?: string;
+  auth_code: string;
+  channel_account_uuid?: string;
+  set_default?: boolean;
+}
+
+export interface OpenWorkAuthorizeStatusQuery {
+  template_id?: string;
+  state?: string;
+  started_at?: number;
+}
+
+export interface SyncBaselineCreatePayload {
+  binding_uuid?: string;
+  domain: "tags" | "org" | "external_contacts";
+  mode: "bootstrap" | "incremental" | "pushback";
+  idempotency_key?: string;
+  max_retries?: number;
+  write_back_fields?: Record<string, any>;
+  context?: Record<string, any>;
+}
+
+export interface WeComOpenWorkPlatformConfig {
+  enabled: boolean;
+  template_id?: string;
+  template_secret?: string;
+  template_ticket?: string;
+  template_ticket_updated_at?: string;
+  template_ticket_source?: string;
+  provider_corpid?: string;
+  provider_secret?: string;
+  token?: string;
+  aes_key?: string;
+  http_debug?: boolean;
+  callback_host?: string;
+  redirect_uri?: string;
+  default_template_id?: string;
+  templates?: WeComOpenWorkTemplate[];
+}
+
+export interface WeComOpenWorkTemplate {
+  template_id: string;
+  template_secret: string;
+  template_ticket?: string;
+  template_ticket_updated_at?: string;
+  template_ticket_source?: string;
+  provider_corpid?: string;
+  provider_secret?: string;
+  is_default?: boolean;
+}
+
+export interface DelegatedScopeSetPayload {
+  allow_user?: string[];
+  allow_party?: number[];
+  allow_tag?: number[];
+}
+
+export interface DelegatedScopeCandidate {
+  source_account_uuid: string;
+  display_name?: string;
+  corp_id?: string;
+  corp_name?: string;
+  agent_id?: string;
+  binding_status?: string;
+  is_default?: boolean;
+  account_status?: string;
+  org_sync_default?: boolean;
+  updated_at?: string;
+}
+
 export const useSocialChannelGovernanceService = () => {
   const apiClient = useApiClient();
   const baseUrl = "/admin/social/channel-accounts";
   const schemaUrl = "/admin/social/channel-schema";
+  const openworkBase = "/admin/social/openwork/wecom";
 
   return {
     getChannelSchema: () => {
@@ -135,6 +233,168 @@ export const useSocialChannelGovernanceService = () => {
       return apiClient.patch<ApiResponse<ChannelAccount>>(
         `${baseUrl}/${accountUuid}/capabilities`,
         payload
+      );
+    },
+    startOpenWorkAuthorization: (payload: OpenWorkStartAuthorizePayload) => {
+      return apiClient.post<ApiResponse<{
+        auth_mode?: string;
+        template_id: string;
+        expires_in: number;
+        authorize_url: string;
+        state: string;
+      }>>(`${openworkBase}/authorize/start`, payload);
+    },
+    completeOpenWorkAuthorization: (payload: OpenWorkCompleteAuthorizePayload) => {
+      return apiClient.post<ApiResponse<OpenWorkBinding>>(
+        `${openworkBase}/authorize/complete`,
+        payload
+      );
+    },
+    getOpenWorkAuthorizationStatus: (params: OpenWorkAuthorizeStatusQuery) => {
+      return apiClient.get<ApiResponse<{
+        template_id: string;
+        state?: string;
+        status: "pending" | "authorized" | "failed" | "expired";
+        message: string;
+        checked_at: string;
+        binding?: OpenWorkBinding;
+      }>>(`${openworkBase}/authorize/status`, { params });
+    },
+    listOpenWorkBindings: () => {
+      return apiClient.get<ApiResponse<{ items: OpenWorkBinding[] }>>(
+        `${openworkBase}/bindings`
+      );
+    },
+    setDefaultOpenWorkBinding: (bindingUuid: string, payload?: { channel_account_uuid?: string }) => {
+      return apiClient.post<ApiResponse<OpenWorkBinding>>(
+        `${openworkBase}/bindings/${bindingUuid}/default`,
+        payload ?? {}
+      );
+    },
+    createSyncBaselineJob: (payload: SyncBaselineCreatePayload) => {
+      return apiClient.post<ApiResponse<any>>(`${openworkBase}/sync/jobs`, payload);
+    },
+    listSyncBaselineJobs: (params?: { status?: string; limit?: number }) => {
+      return apiClient.get<ApiResponse<{ items: any[] }>>(`${openworkBase}/sync/jobs`, { params });
+    },
+    getSyncDashboard: () => {
+      return apiClient.get<ApiResponse<any>>(`${openworkBase}/sync/dashboard`);
+    },
+    listSyncConflicts: (params?: { status?: string; limit?: number }) => {
+      return apiClient.get<ApiResponse<{ items: any[] }>>(`${openworkBase}/sync/conflicts`, { params });
+    },
+    replaySyncConflict: (conflictUuid: string, payload?: { note?: string }) => {
+      return apiClient.post<ApiResponse<any>>(
+        `${openworkBase}/sync/conflicts/${conflictUuid}/replay`,
+        payload ?? {}
+      );
+    },
+    getOpenWorkGoLiveGates: () => {
+      return apiClient.get<ApiResponse<any>>(`${openworkBase}/go-live-gates`);
+    },
+    getWeComOpenWorkPlatformConfig: () => {
+      return apiClient.get<ApiResponse<WeComOpenWorkPlatformConfig>>(
+        `/admin/social/channel-platform/wecom/openwork`
+      );
+    },
+    updateWeComOpenWorkPlatformConfig: (payload: WeComOpenWorkPlatformConfig) => {
+      return apiClient.put<ApiResponse<WeComOpenWorkPlatformConfig>>(
+        `/admin/social/channel-platform/wecom/openwork`,
+        payload
+      );
+    },
+    listWeComOpenWorkTemplates: () => {
+      return apiClient.get<ApiResponse<{ items: WeComOpenWorkTemplate[] }>>(
+        `/admin/social/channel-platform/wecom/openwork/templates`
+      );
+    },
+    createWeComOpenWorkTemplate: (payload: WeComOpenWorkTemplate) => {
+      return apiClient.post<ApiResponse<WeComOpenWorkTemplate>>(
+        `/admin/social/channel-platform/wecom/openwork/templates`,
+        payload
+      );
+    },
+    updateWeComOpenWorkTemplate: (templateID: string, payload: WeComOpenWorkTemplate) => {
+      return apiClient.put<ApiResponse<WeComOpenWorkTemplate>>(
+        `/admin/social/channel-platform/wecom/openwork/templates/${encodeURIComponent(templateID)}`,
+        payload
+      );
+    },
+    deleteWeComOpenWorkTemplate: (templateID: string) => {
+      return apiClient.delete<ApiResponse<{ deleted: boolean; template_id: string }>>(
+        `/admin/social/channel-platform/wecom/openwork/templates/${encodeURIComponent(templateID)}`
+      );
+    },
+    setDefaultWeComOpenWorkTemplate: (templateID: string) => {
+      return apiClient.post<ApiResponse<WeComOpenWorkTemplate>>(
+        `/admin/social/channel-platform/wecom/openwork/templates/${encodeURIComponent(templateID)}/default`,
+        {}
+      );
+    },
+    refreshWeComTemplateTicketStatus: () => {
+      return apiClient.post<ApiResponse<{
+        ready: boolean;
+        template_id?: string;
+        template_ticket?: string;
+        template_ticket_masked?: string;
+        template_ticket_source?: string;
+        updated_at?: string;
+        checked_at?: string;
+        message?: string;
+      }>>(`/admin/social/channel-platform/wecom/openwork/suite-ticket/refresh`, {});
+    },
+    verifyWeComTemplateTicket: () => {
+      return apiClient.post<ApiResponse<{
+        valid: boolean;
+        template_id?: string;
+        checked_at?: string;
+        errcode?: number;
+        errmsg?: string;
+        expires_in?: number;
+        has_suite_access_token?: boolean;
+        message?: string;
+      }>>(`/admin/social/channel-platform/wecom/openwork/suite-ticket/verify`, {});
+    },
+    refreshWeComSuiteTicketStatus: () => {
+      return apiClient.post<ApiResponse<{
+        ready: boolean;
+        template_id?: string;
+        template_ticket?: string;
+        template_ticket_masked?: string;
+        template_ticket_source?: string;
+        updated_at?: string;
+        checked_at?: string;
+        message?: string;
+      }>>(`/admin/social/channel-platform/wecom/openwork/suite-ticket/refresh`, {});
+    },
+    verifyWeComSuiteTicket: () => {
+      return apiClient.post<ApiResponse<{
+        valid: boolean;
+        template_id?: string;
+        checked_at?: string;
+        errcode?: number;
+        errmsg?: string;
+        expires_in?: number;
+        has_suite_access_token?: boolean;
+        message?: string;
+      }>>(`/admin/social/channel-platform/wecom/openwork/suite-ticket/verify`, {});
+    },
+    setOrgSyncDelegatedScope: (sourceAccountUUID: string, payload: DelegatedScopeSetPayload) => {
+      return apiClient.post<ApiResponse<{
+        agent_id: number;
+        allow_user: string[];
+        allow_party: number[];
+        allow_tag: number[];
+        errcode: number;
+        errmsg: string;
+      }>>(
+        `/admin/org-sync/source-accounts/${encodeURIComponent(sourceAccountUUID)}/set-scope`,
+        payload
+      );
+    },
+    listOrgSyncDelegatedScopeCandidates: () => {
+      return apiClient.get<ApiResponse<{ items: DelegatedScopeCandidate[] }>>(
+        `/admin/org-sync/scope-candidates`
       );
     },
   };

@@ -4,12 +4,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 
+	plcache "github.com/ArtisanCloud/PowerLibs/v3/cache"
 	"github.com/ArtisanCloud/PowerSocialite/v3/src/models"
+	"github.com/ArtisanCloud/PowerWeChat/v3/src/kernel"
 	"github.com/ArtisanCloud/PowerWeChat/v3/src/kernel/response"
+	openwork "github.com/ArtisanCloud/PowerWeChat/v3/src/openWork"
+	openworksuit "github.com/ArtisanCloud/PowerWeChat/v3/src/openWork/suitAuth"
 	"github.com/ArtisanCloud/PowerWeChat/v3/src/work"
 	pwexternal "github.com/ArtisanCloud/PowerWeChat/v3/src/work/externalContact"
 	pwexternalresp "github.com/ArtisanCloud/PowerWeChat/v3/src/work/externalContact/response"
@@ -34,6 +39,15 @@ type WeComLeadAdapter interface {
 
 type weComChannelAccountLoader interface {
 	GetByAccountUUID(ctx context.Context, tenantUUID, accountUUID string) (*socialmodel.ChannelAccount, error)
+}
+
+type weComOpenWorkBindingLoader interface {
+	ResolveBindingByChannelAccount(ctx context.Context, tenantUUID, channelAccountUUID string) (*socialmodel.WeComOpenAuthBinding, error)
+	GetLatestSuiteTicket(ctx context.Context, tenantUUID, suiteID string) (string, error)
+}
+
+type weComPlatformConfigLoader interface {
+	GetByChannelProvider(ctx context.Context, channelCode, providerCode string) (*socialmodel.ChannelPlatformSetting, error)
 }
 
 type weComExternalContactClient interface {
@@ -68,9 +82,11 @@ var defaultWeComExternalContactClientFactory weComExternalContactClientFactory =
 
 // DefaultWeComLeadAdapter fetches external contacts via WeCom SDK.
 type DefaultWeComLeadAdapter struct {
-	accountLoader weComChannelAccountLoader
-	clientFactory weComExternalContactClientFactory
-	batchLimit    int
+	accountLoader  weComChannelAccountLoader
+	openworkLoader weComOpenWorkBindingLoader
+	platformLoader weComPlatformConfigLoader
+	clientFactory  weComExternalContactClientFactory
+	batchLimit     int
 }
 
 func NewDefaultWeComLeadAdapter() *DefaultWeComLeadAdapter {
@@ -83,6 +99,18 @@ func NewDefaultWeComLeadAdapter() *DefaultWeComLeadAdapter {
 func NewDefaultWeComLeadAdapterWithAccountRepo(repo *socialrepo.AccountRepository) *DefaultWeComLeadAdapter {
 	adapter := NewDefaultWeComLeadAdapter()
 	adapter.accountLoader = repo
+	return adapter
+}
+
+func NewDefaultWeComLeadAdapterWithResolvers(
+	accountRepo *socialrepo.AccountRepository,
+	openworkRepo *socialrepo.OpenWorkFoundationRepository,
+	platformRepo *socialrepo.ChannelPlatformSettingRepository,
+) *DefaultWeComLeadAdapter {
+	adapter := NewDefaultWeComLeadAdapter()
+	adapter.accountLoader = accountRepo
+	adapter.openworkLoader = openworkRepo
+	adapter.platformLoader = platformRepo
 	return adapter
 }
 
@@ -114,7 +142,9 @@ func (a *DefaultWeComLeadAdapter) FetchLeads(ctx context.Context, req TriggerSyn
 		return nil, fmt.Errorf("unsupported wecom account identity: %s/%s", strings.TrimSpace(account.ChannelCode), strings.TrimSpace(account.AppType))
 	}
 
-	client, err := a.clientFactory(credentialsToStringMap(account.Credentials))
+	credentials := credentialsToStringMap(account.Credentials)
+	credentials = a.mergeDelegatedCredentials(ctx, tenantUUID, channelAccountUUID, credentials)
+	client, err := a.clientFactory(credentials)
 	if err != nil {
 		return nil, err
 	}
@@ -274,32 +304,219 @@ func credentialsToStringMap(input map[string]interface{}) map[string]string {
 	return out
 }
 
+func (a *DefaultWeComLeadAdapter) mergeDelegatedCredentials(
+	ctx context.Context,
+	tenantUUID, channelAccountUUID string,
+	input map[string]string,
+) map[string]string {
+	out := make(map[string]string, len(input)+10)
+	for k, v := range input {
+		out[k] = strings.TrimSpace(v)
+	}
+	if strings.TrimSpace(out["app_secret"]) != "" {
+		return out
+	}
+
+	if a != nil && a.openworkLoader != nil && strings.TrimSpace(tenantUUID) != "" && strings.TrimSpace(channelAccountUUID) != "" {
+		binding, err := a.openworkLoader.ResolveBindingByChannelAccount(ctx, tenantUUID, channelAccountUUID)
+		if err == nil && binding != nil && strings.TrimSpace(binding.Status) == socialmodel.WeComAuthBindingStatusActive {
+			if strings.TrimSpace(out["corp_id"]) == "" {
+				out["corp_id"] = strings.TrimSpace(binding.CorpID)
+			}
+			if strings.TrimSpace(out["permanent_code"]) == "" {
+				out["permanent_code"] = strings.TrimSpace(binding.PermanentCode)
+			}
+			if strings.TrimSpace(out["template_id"]) == "" {
+				out["template_id"] = strings.TrimSpace(binding.SuiteID)
+			}
+			if strings.TrimSpace(out["suite_id"]) == "" {
+				out["suite_id"] = strings.TrimSpace(binding.SuiteID)
+			}
+			if strings.TrimSpace(out["agent_id"]) == "" {
+				out["agent_id"] = strings.TrimSpace(binding.AgentID)
+			}
+			if strings.TrimSpace(out["template_ticket"]) == "" {
+				out["template_ticket"] = strings.TrimSpace(binding.SuiteTicket)
+			}
+			if strings.TrimSpace(out["suite_ticket"]) == "" {
+				out["suite_ticket"] = strings.TrimSpace(binding.SuiteTicket)
+			}
+			if strings.TrimSpace(binding.SuiteID) != "" {
+				if latest, latestErr := a.openworkLoader.GetLatestSuiteTicket(ctx, tenantUUID, strings.TrimSpace(binding.SuiteID)); latestErr == nil {
+					latest = strings.TrimSpace(latest)
+					if latest != "" {
+						out["template_ticket"] = latest
+						out["suite_ticket"] = latest
+					}
+				}
+			}
+		}
+	}
+
+	if a == nil || a.platformLoader == nil {
+		return out
+	}
+	record, err := a.platformLoader.GetByChannelProvider(ctx, "wechat", "openwork")
+	if err != nil || record == nil || record.Config == nil {
+		return out
+	}
+
+	cfg := record.Config
+	defaultTemplateID := strings.TrimSpace(fmt.Sprintf("%v", cfg["default_template_id"]))
+	if defaultTemplateID == "" {
+		defaultTemplateID = strings.TrimSpace(fmt.Sprintf("%v", cfg["template_id"]))
+	}
+
+	pick := map[string]any{}
+	if rows, ok := cfg["templates"].([]any); ok {
+		for _, raw := range rows {
+			row, ok := raw.(map[string]any)
+			if !ok || row == nil {
+				continue
+			}
+			rowTpl := strings.TrimSpace(fmt.Sprintf("%v", row["template_id"]))
+			if rowTpl == "" {
+				continue
+			}
+			if len(pick) == 0 {
+				pick = row
+			}
+			if defaultTemplateID != "" && rowTpl == defaultTemplateID {
+				pick = row
+				break
+			}
+		}
+	}
+
+	applyIfMissing := func(key string, values ...string) {
+		if strings.TrimSpace(out[key]) != "" {
+			return
+		}
+		for _, val := range values {
+			val = strings.TrimSpace(val)
+			if val != "" {
+				out[key] = val
+				return
+			}
+		}
+	}
+
+	applyIfMissing("template_id",
+		strings.TrimSpace(fmt.Sprintf("%v", pick["template_id"])),
+		strings.TrimSpace(fmt.Sprintf("%v", cfg["template_id"])),
+	)
+	applyIfMissing("template_secret",
+		strings.TrimSpace(fmt.Sprintf("%v", pick["template_secret"])),
+		strings.TrimSpace(fmt.Sprintf("%v", cfg["template_secret"])),
+	)
+	applyIfMissing("template_ticket",
+		strings.TrimSpace(fmt.Sprintf("%v", pick["template_ticket"])),
+		strings.TrimSpace(fmt.Sprintf("%v", cfg["template_ticket"])),
+	)
+	applyIfMissing("provider_corpid",
+		strings.TrimSpace(fmt.Sprintf("%v", pick["provider_corpid"])),
+		strings.TrimSpace(fmt.Sprintf("%v", cfg["provider_corpid"])),
+	)
+	applyIfMissing("provider_secret",
+		strings.TrimSpace(fmt.Sprintf("%v", pick["provider_secret"])),
+		strings.TrimSpace(fmt.Sprintf("%v", cfg["provider_secret"])),
+	)
+	applyIfMissing("http_debug",
+		strings.TrimSpace(fmt.Sprintf("%v", pick["http_debug"])),
+		strings.TrimSpace(fmt.Sprintf("%v", cfg["http_debug"])),
+	)
+	return out
+}
+
 func newWeComLeadSyncApp(credentials map[string]string) (*work.Work, error) {
 	corpID := strings.TrimSpace(credentials["corp_id"])
 	appSecret := strings.TrimSpace(credentials["app_secret"])
 	agentIDRaw := strings.TrimSpace(credentials["agent_id"])
-	if corpID == "" || appSecret == "" {
-		return nil, errors.New("wecom credentials missing corp_id/app_secret")
-	}
-	agentID := 0
-	if agentIDRaw != "" {
-		parsed, err := strconv.Atoi(agentIDRaw)
-		if err != nil {
-			return nil, errors.New("wecom credentials invalid agent_id")
+	if corpID != "" && appSecret != "" {
+		agentID := 0
+		if agentIDRaw != "" {
+			parsed, err := strconv.Atoi(agentIDRaw)
+			if err != nil {
+				return nil, errors.New("wecom credentials invalid agent_id")
+			}
+			agentID = parsed
 		}
-		agentID = parsed
+		return work.NewWork(&work.UserConfig{
+			CorpID:    corpID,
+			AgentID:   agentID,
+			Secret:    appSecret,
+			Token:     strings.TrimSpace(credentials["token"]),
+			HttpDebug: parseCredentialBool(credentials["http_debug"]),
+			OAuth: work.OAuth{
+				Callback: strings.TrimSpace(credentials["oauth_callback"]),
+				Scopes:   nil,
+			},
+		})
 	}
-	return work.NewWork(&work.UserConfig{
-		CorpID:    corpID,
-		AgentID:   agentID,
-		Secret:    appSecret,
-		Token:     strings.TrimSpace(credentials["token"]),
-		HttpDebug: parseCredentialBool(credentials["http_debug"]),
-		OAuth: work.OAuth{
-			Callback: strings.TrimSpace(credentials["oauth_callback"]),
-			Scopes:   nil,
+
+	templateID := strings.TrimSpace(firstNonEmpty(
+		credentials["template_id"],
+		credentials["suite_id"],
+	))
+	templateSecret := strings.TrimSpace(firstNonEmpty(
+		credentials["template_secret"],
+		credentials["suite_secret"],
+	))
+	templateTicket := strings.TrimSpace(firstNonEmpty(
+		credentials["template_ticket"],
+		credentials["suite_ticket"],
+	))
+	providerCorpID := strings.TrimSpace(firstNonEmpty(
+		credentials["provider_corpid"],
+		credentials["provider_corpid"],
+		credentials["provider_corp_id"],
+	))
+	providerSecret := strings.TrimSpace(credentials["provider_secret"])
+	permanentCode := strings.TrimSpace(credentials["permanent_code"])
+	if corpID == "" {
+		corpID = strings.TrimSpace(credentials["auth_corp_id"])
+	}
+
+	if corpID == "" || templateID == "" || templateSecret == "" || providerCorpID == "" || providerSecret == "" || permanentCode == "" {
+		return nil, errors.New("wecom credentials missing corp_id/app_secret or delegated_template credentials")
+	}
+	if templateTicket == "" {
+		return nil, errors.New("wecom delegated credentials missing template_ticket")
+	}
+
+	callback := strings.TrimSpace(credentials["oauth_callback"])
+	if callback == "" {
+		callback = "http://localhost"
+	}
+	memCache := plcache.NewMemCache("scrm_lead_sync_openwork", 10*time.Minute, os.TempDir())
+	if memCache == nil {
+		return nil, errors.New("wecom delegated init cache failed")
+	}
+	httpDebug := parseCredentialBool(credentials["http_debug"])
+	openWorkApp, err := openwork.NewOpenWork(&openwork.UserConfig{
+		AppID:          templateID,
+		Secret:         templateSecret,
+		ProviderCorpID: providerCorpID,
+		ProviderSecret: providerSecret,
+		CallbackURL:    callback,
+		Cache:          kernel.CacheInterface(memCache),
+		HttpDebug:      httpDebug,
+		Log: openwork.Log{
+			Level:  "debug",
+			Stdout: httpDebug,
 		},
 	})
+	if err != nil {
+		return nil, err
+	}
+	suiteTicketComponent, ok := openWorkApp.GetComponent("SuiteTicket").(*openworksuit.SuiteTicket)
+	if !ok || suiteTicketComponent == nil {
+		return nil, errors.New("wecom delegated SuiteTicket component unavailable")
+	}
+	if err := suiteTicketComponent.SetTicket(templateTicket); err != nil {
+		return nil, err
+	}
+	return openWorkApp.ProviderClient(corpID, permanentCode, nil)
 }
 
 func parseCredentialBool(value string) bool {

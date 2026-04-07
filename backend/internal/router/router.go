@@ -15,6 +15,7 @@ import (
 	middleware2 "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/transport/http/middleware"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/transport/http/mini-app"
 	publicauth "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/transport/http/public"
+	webhooksapi "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/transport/http/webhooks"
 	wstransport "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/transport/websocket"
 
 	"github.com/gin-gonic/gin"
@@ -121,6 +122,10 @@ func (r *Router) setupRoutes() {
 	gMiniApp := r.engine.Group(prefix)
 	gMiniApp.Use(middleware2.RequestTrace())
 	miniapp.RegisterAPIRoutes(gMiniApp, r.deps)
+	// Public webhooks (e.g. WeCom OpenWork callback verify/event) must be reachable without admin JWT.
+	gPublicWebhook := r.engine.Group(prefix)
+	gPublicWebhook.Use(middleware2.RequestTrace())
+	webhooksapi.RegisterPublicRoutes(gPublicWebhook, r.deps)
 
 	// 使用 API 注册器注册所有路由（保持你现有的注册逻辑）
 	apiRegistry := http.NewRegistry(r.engine, r.deps)

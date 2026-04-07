@@ -22,18 +22,24 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 	var accountSvc *SocialService.ChannelAccountService
 	var memberSvc *SocialService.ChannelAccountMemberService
 	var capabilitySvc *SocialService.ChannelAccountCapabilityService
+	var openworkHandler *OpenWorkFoundationHandler
+	var platformSettingHandler *ChannelPlatformSettingHandler
 	schemaLoader := SocialService.NewChannelSchemaLoader(SocialService.ChannelSchemaLoaderOptions{
 		Logger: logrus.WithField("module", "social_channel_governance"),
 	})
 	if deps.DB != nil {
 		repo := SocialRepo.NewAccountRepository(deps.DB)
+		openworkRepo := SocialRepo.NewOpenWorkFoundationRepository(deps.DB)
+		platformSettingRepo := SocialRepo.NewChannelPlatformSettingRepository(deps.DB)
 		accountStatus := orgsync.NewAccountStatusService(
 			orgrepo.NewMemberMappingRepository(deps.DB),
 			orgrepo.NewUnitMappingRepository(deps.DB),
 		)
-		accountSvc = SocialService.NewChannelAccountService(repo, nil, schemaLoader, accountStatus, deps.Config)
+		accountSvc = SocialService.NewChannelAccountService(repo, openworkRepo, nil, schemaLoader, accountStatus, deps.Config)
 		memberSvc = SocialService.NewChannelAccountMemberService(repo)
 		capabilitySvc = SocialService.NewChannelAccountCapabilityService(repo)
+		openworkHandler = NewOpenWorkFoundationHandler(SocialService.NewOpenWorkFoundationService(openworkRepo, repo))
+		platformSettingHandler = NewChannelPlatformSettingHandler(SocialService.NewChannelPlatformSettingService(platformSettingRepo))
 	}
 	accountHandler := NewAccountHandler(accountSvc)
 	schemaHandler := NewChannelSchemaHandler(schemaLoader, deps.Config)
@@ -55,5 +61,32 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		group.POST("/channel-accounts/:account_uuid/restore", accountHandler.RestoreAccount)
 		group.POST("/channel-accounts/:account_uuid/channel-members", membersHandler.UpdateChannelAccountMembers)
 		group.PATCH("/channel-accounts/:account_uuid/capabilities", capabilityHandler.UpdateChannelAccountCapabilities)
+
+		if openworkHandler != nil {
+			group.POST("/openwork/wecom/events", openworkHandler.IngestEvent)
+			group.POST("/openwork/wecom/authorize/start", openworkHandler.StartAuthorization)
+			group.POST("/openwork/wecom/authorize/complete", openworkHandler.CompleteAuthorization)
+			group.GET("/openwork/wecom/authorize/status", openworkHandler.GetAuthorizationStatus)
+			group.GET("/openwork/wecom/bindings", openworkHandler.ListBindings)
+			group.POST("/openwork/wecom/bindings/:binding_uuid/default", openworkHandler.SetDefaultBinding)
+			group.POST("/openwork/wecom/sync/jobs", openworkHandler.CreateSyncJob)
+			group.GET("/openwork/wecom/sync/jobs", openworkHandler.ListSyncJobs)
+			group.GET("/openwork/wecom/sync/conflicts", openworkHandler.ListSyncConflicts)
+			group.POST("/openwork/wecom/sync/conflicts/:conflict_uuid/replay", openworkHandler.ReplaySyncConflict)
+			group.GET("/openwork/wecom/sync/dashboard", openworkHandler.GetDashboard)
+			group.GET("/openwork/wecom/go-live-gates", openworkHandler.GetGoLiveGates)
+		}
+		if platformSettingHandler != nil {
+			platformGroup := group.Group("/channel-platform/wecom/openwork", httpmw.EnsureRootRole())
+			platformGroup.GET("", platformSettingHandler.GetWeComOpenWork)
+			platformGroup.PUT("", platformSettingHandler.SaveWeComOpenWork)
+			platformGroup.GET("/templates", platformSettingHandler.ListWeComOpenWorkTemplates)
+			platformGroup.POST("/templates", platformSettingHandler.CreateWeComOpenWorkTemplate)
+			platformGroup.PUT("/templates/:template_id", platformSettingHandler.UpdateWeComOpenWorkTemplate)
+			platformGroup.DELETE("/templates/:template_id", platformSettingHandler.DeleteWeComOpenWorkTemplate)
+			platformGroup.POST("/templates/:template_id/default", platformSettingHandler.SetDefaultWeComOpenWorkTemplate)
+			platformGroup.POST("/suite-ticket/refresh", platformSettingHandler.RefreshWeComSuiteTicket)
+			platformGroup.POST("/suite-ticket/verify", platformSettingHandler.VerifyWeComSuiteTicket)
+		}
 	}
 }

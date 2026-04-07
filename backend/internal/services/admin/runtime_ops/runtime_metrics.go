@@ -12,6 +12,7 @@ import (
 	customermetrics "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/customer"
 	ebmetrics "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/event_bridge"
 	secmetrics "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/security"
+	socialmetrics "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/social_channel_governance"
 )
 
 const (
@@ -234,6 +235,7 @@ func renderMetrics(w io.Writer) {
 	authmetrics.RenderMetrics(w)
 	secmetrics.RenderMetrics(w)
 	customermetrics.RenderMetrics(w)
+	socialmetrics.RenderMetrics(w)
 	ebmetrics.RenderPrometheus(w)
 }
 

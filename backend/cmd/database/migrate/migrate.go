@@ -67,6 +67,14 @@ var businessTables = []interface{}{
 	&adminconsoleModel.JobRun{},
 	&socialModel.ChannelAccount{},
 	&socialModel.AuditEvent{},
+	&socialModel.ChannelPlatformSetting{},
+	&socialModel.ChannelAuthBinding{},
+	&socialModel.ChannelAuthEvent{},
+	&socialModel.WeComOpenAuthBinding{},
+	&socialModel.WeComOpenAuthEvent{},
+	&socialModel.WeComOpenCallbackTask{},
+	&socialModel.SyncBaselineJob{},
+	&socialModel.SyncConflictRecord{},
 	&OrgSyncModel.SourceAccount{},
 	&OrgSyncModel.SourceUnit{},
 	&OrgSyncModel.SourceMember{},
@@ -137,6 +145,9 @@ func MigratePluginModels(ctx context.Context, db *gorm.DB, includeIAM bool) erro
 		return err
 	}
 	if err := ensureChannelCodeAcquisitionIndexes(ctx, db); err != nil {
+		return err
+	}
+	if err := ensureOpenWorkFoundationIndexes(ctx, db); err != nil {
 		return err
 	}
 	if includeIAM {
@@ -316,6 +327,52 @@ func ensureChannelCodeAcquisitionIndexes(ctx context.Context, db *gorm.DB) error
 		indexName, tableName,
 	)
 	return db.WithContext(ctx).Exec(createStmt).Error
+}
+
+func ensureOpenWorkFoundationIndexes(ctx context.Context, db *gorm.DB) error {
+	if db == nil {
+		return nil
+	}
+	bindingTable := models.S(models.TableSocialWeComAuthBindings)
+	identityIndex := "uq_social_wecom_auth_binding_identity"
+	dropIdentityStmt := fmt.Sprintf(`DROP INDEX IF EXISTS %s`, identityIndex)
+	if err := db.WithContext(ctx).Exec(dropIdentityStmt).Error; err != nil {
+		return err
+	}
+	identityStmt := fmt.Sprintf(
+		`CREATE UNIQUE INDEX IF NOT EXISTS %s ON %s (tenant_uuid, corp_id, agent_id)`,
+		identityIndex, bindingTable,
+	)
+	if err := db.WithContext(ctx).Exec(identityStmt).Error; err != nil {
+		return err
+	}
+	defaultIndex := "uq_social_wecom_default_binding_per_tenant"
+	defaultStmt := fmt.Sprintf(
+		`CREATE UNIQUE INDEX IF NOT EXISTS %s ON %s (tenant_uuid, channel_code, app_type) WHERE is_default = TRUE AND deleted_at IS NULL`,
+		defaultIndex, bindingTable,
+	)
+	if err := db.WithContext(ctx).Exec(defaultStmt).Error; err != nil {
+		return err
+	}
+	jobTable := models.S(models.TableSocialSyncBaselineJobs)
+	idempotencyIndex := "idx_social_sync_jobs_tenant_idempotency"
+	idempotencyStmt := fmt.Sprintf(
+		`CREATE INDEX IF NOT EXISTS %s ON %s (tenant_uuid, idempotency_key, created_at DESC)`,
+		idempotencyIndex, jobTable,
+	)
+	if err := db.WithContext(ctx).Exec(idempotencyStmt).Error; err != nil {
+		return err
+	}
+	callbackTaskTable := models.S(models.TableSocialWeComCallbackTasks)
+	claimIndex := "idx_social_wecom_callback_tasks_claim"
+	claimStmt := fmt.Sprintf(
+		`CREATE INDEX IF NOT EXISTS %s ON %s (status, next_retry_at, created_at)`,
+		claimIndex, callbackTaskTable,
+	)
+	if err := db.WithContext(ctx).Exec(claimStmt).Error; err != nil {
+		return err
+	}
+	return nil
 }
 
 func ensureLeadCaptureActivityTable(ctx context.Context, db *gorm.DB) error {

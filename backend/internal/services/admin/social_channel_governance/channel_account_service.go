@@ -30,17 +30,18 @@ func (noopChannelAccountValidator) Validate(_ context.Context, _ string, _ Chann
 // ChannelAccountService orchestrates channel account onboarding and lookup.
 type ChannelAccountService struct {
 	repo          *SocialRepo.AccountRepository
+	openworkRepo  *SocialRepo.OpenWorkFoundationRepository
 	validator     ChannelAccountCredentialValidator
 	schemaLoader  *ChannelSchemaLoader
 	accountStatus *orgsync.AccountStatusService
 	cfg           *config.Config
 }
 
-func NewChannelAccountService(repo *SocialRepo.AccountRepository, validator ChannelAccountCredentialValidator, schemaLoader *ChannelSchemaLoader, accountStatus *orgsync.AccountStatusService, cfg *config.Config) *ChannelAccountService {
+func NewChannelAccountService(repo *SocialRepo.AccountRepository, openworkRepo *SocialRepo.OpenWorkFoundationRepository, validator ChannelAccountCredentialValidator, schemaLoader *ChannelSchemaLoader, accountStatus *orgsync.AccountStatusService, cfg *config.Config) *ChannelAccountService {
 	if validator == nil {
 		validator = noopChannelAccountValidator{}
 	}
-	return &ChannelAccountService{repo: repo, validator: validator, schemaLoader: schemaLoader, accountStatus: accountStatus, cfg: cfg}
+	return &ChannelAccountService{repo: repo, openworkRepo: openworkRepo, validator: validator, schemaLoader: schemaLoader, accountStatus: accountStatus, cfg: cfg}
 }
 
 // ChannelAccountCreateRequest captures required fields for onboarding.
@@ -248,6 +249,11 @@ func (s *ChannelAccountService) UpdateAccount(ctx context.Context, tenantUUID, a
 	if err != nil {
 		return nil, err
 	}
+	if status == model.ChannelAccountStatusDisabled && s.openworkRepo != nil {
+		if err := s.openworkRepo.DisableBindingsByChannelAccount(ctx, tenantUUID, accountUUID, "channel_account_disabled"); err != nil {
+			return nil, err
+		}
+	}
 	if len(credentials) > 0 {
 		merged := mergeCredentials(current.Credentials, credentials)
 		merged = ensureAccountID(s.loadSchema(ctx), current.ChannelCode, current.AppType, accountID, merged)
@@ -278,6 +284,11 @@ func (s *ChannelAccountService) DeleteAccount(ctx context.Context, tenantUUID, a
 	current, _ := s.repo.GetByAccountUUID(ctx, tenantUUID, accountUUID)
 	if err := s.repo.DeleteAccount(ctx, tenantUUID, accountUUID); err != nil {
 		return err
+	}
+	if s.openworkRepo != nil {
+		if err := s.openworkRepo.DisableBindingsByChannelAccount(ctx, tenantUUID, accountUUID, "channel_account_deleted"); err != nil {
+			return err
+		}
 	}
 	if current != nil {
 		orgdriver.InvalidateCache(current.ChannelCode, current.AppType, current.AccountUUID)

@@ -160,6 +160,16 @@ func (r *LeadSyncTaskRepository) ResolveChannelAccount(ctx context.Context, tena
 		return acc.AccountUUID, model.LeadSyncTaskResolveExplicit, nil
 	}
 
+	var candidates []socialmodel.ChannelAccount
+	if err := r.DB.WithContext(ctx).
+		Where("tenant_uuid = ? AND channel_code = ? AND app_type = ? AND status = ?", tenantUUID, channel, appType, "connected").
+		Find(&candidates).Error; err != nil {
+		return "", "", err
+	}
+	if len(candidates) > 1 {
+		return "", "", errors.New("multiple wecom accounts found, channel_account_uuid is required")
+	}
+
 	var account socialmodel.ChannelAccount
 	err := r.DB.WithContext(ctx).
 		Where("tenant_uuid = ? AND channel_code = ? AND app_type = ? AND org_sync_default = TRUE", tenantUUID, channel, appType).
