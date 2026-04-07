@@ -15,6 +15,8 @@
 1. **Delegated Authorization**
 - 可完成 `authorize/start -> 企业微信授权 -> authorize/complete` 闭环
 - 可接收并入库 OpenWork 事件：`suite_ticket/create_auth/change_auth/cancel_auth/reset_permanent_code`
+- 回调 ACK 走快路径，P95 < 1s（不得在回调主链路执行长耗时授权兑换）
+- `auth_code` 兑换具备跨实例幂等与互斥保护，不出现并发重复兑换
 
 2. **Single Default Corp Constraint**
 - 单租户可绑定多个企业账号
@@ -30,9 +32,11 @@
 - 同步任务状态可见：`queued/running/success/failed/dead_letter`
 - 具备失败重试与死信沉淀
 - 冲突记录可执行手工回放
+- 对 `40078 invalid auth_code` 有明确收敛策略（已成功则幂等成功；未成功则可观测并触发重授权流程）
 
 5. **Operational Visibility**
 - 提供看板字段：任务状态分布、开放冲突数、最大积压时延（分钟）
+- 提供回调专项指标：重复投递率、幂等命中率、`40078` 发生率、回调 ACK 延时、授权完成耗时（P95/P99）
 
 ## Release Rule
 

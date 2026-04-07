@@ -10,6 +10,7 @@ import (
 	socialrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/social_channel_governance"
 	leadobs "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/lead_capture"
 	leadsvc "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/services/admin/lead_capture"
+	socialsvc "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/services/admin/social_channel_governance"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/shared/app"
 	"github.com/gin-gonic/gin"
 )
@@ -82,6 +83,9 @@ func RegisterPublicRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		return
 	}
 	platformRepo := socialrepo.NewChannelPlatformSettingRepository(deps.DB)
+	openWorkRepo := socialrepo.NewOpenWorkFoundationRepository(deps.DB)
+	accountRepo := socialrepo.NewAccountRepository(deps.DB)
+	openWorkFoundationSvc := socialsvc.NewOpenWorkFoundationService(openWorkRepo, accountRepo)
 	publisher := fwwsbus.NewAdapter(
 		fwwsbus.NewLocalPublisher(deps.WSBusHub, nil),
 		"",
@@ -105,7 +109,7 @@ func RegisterPublicRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 			publisher = fwwsbus.NewAdapter(hostClient, "", nil)
 		}
 	}
-	openWorkHandler := NewOpenWorkCallbackHandler(platformRepo, deps, publisher)
+	openWorkHandler := NewOpenWorkCallbackHandler(platformRepo, openWorkRepo, openWorkFoundationSvc, deps, publisher)
 
 	group := rg.Group("/webhooks")
 	{

@@ -251,7 +251,7 @@
       </div>
     </UCard>
 
-    <UCard>
+    <UCard v-if="showChannelCodeWelcomePanel">
       <template #header>
         <div class="flex items-center justify-between gap-3">
           <div class="flex items-center gap-2">
@@ -868,6 +868,7 @@ const socialChannelService = useSocialChannelGovernanceService();
 const iamService = useIAMService();
 
 const ALL_OPTION_VALUE = "__all__";
+const showChannelCodeWelcomePanel = false;
 
 const searchText = ref("");
 const statusFilter = ref<string>(ALL_OPTION_VALUE);

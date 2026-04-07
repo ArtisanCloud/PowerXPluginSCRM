@@ -164,6 +164,21 @@
             </div>
           </div>
         </div>
+
+        <div class="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-4">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <div class="text-sm font-semibold text-amber-300">阶段 4：代开发应用可见范围设置（独立页）</div>
+              <div class="text-xs text-gray-400 mt-1">
+                set_scope 已拆分到独立页面，便于运维排障与企业后台配置对照。
+              </div>
+            </div>
+            <UButton color="warning" :disabled="!isRoot" to="/settings/channel-platform/wecom/scope">进入可见范围页</UButton>
+          </div>
+          <div class="rounded-lg border border-amber-500/20 bg-black/20 px-3 py-2 text-sm text-gray-200">
+            新页面路径：`/settings/channel-platform/wecom/scope`
+          </div>
+        </div>
       </div>
     </UCard>
   </UContainer>

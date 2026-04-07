@@ -35,7 +35,7 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 			orgrepo.NewMemberMappingRepository(deps.DB),
 			orgrepo.NewUnitMappingRepository(deps.DB),
 		)
-		accountSvc = SocialService.NewChannelAccountService(repo, nil, schemaLoader, accountStatus, deps.Config)
+		accountSvc = SocialService.NewChannelAccountService(repo, openworkRepo, nil, schemaLoader, accountStatus, deps.Config)
 		memberSvc = SocialService.NewChannelAccountMemberService(repo)
 		capabilitySvc = SocialService.NewChannelAccountCapabilityService(repo)
 		openworkHandler = NewOpenWorkFoundationHandler(SocialService.NewOpenWorkFoundationService(openworkRepo, repo))
@@ -77,15 +77,16 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 			group.GET("/openwork/wecom/go-live-gates", openworkHandler.GetGoLiveGates)
 		}
 		if platformSettingHandler != nil {
-			group.GET("/channel-platform/wecom/openwork", platformSettingHandler.GetWeComOpenWork)
-			group.PUT("/channel-platform/wecom/openwork", platformSettingHandler.SaveWeComOpenWork)
-			group.GET("/channel-platform/wecom/openwork/templates", platformSettingHandler.ListWeComOpenWorkTemplates)
-			group.POST("/channel-platform/wecom/openwork/templates", platformSettingHandler.CreateWeComOpenWorkTemplate)
-			group.PUT("/channel-platform/wecom/openwork/templates/:template_id", platformSettingHandler.UpdateWeComOpenWorkTemplate)
-			group.DELETE("/channel-platform/wecom/openwork/templates/:template_id", platformSettingHandler.DeleteWeComOpenWorkTemplate)
-			group.POST("/channel-platform/wecom/openwork/templates/:template_id/default", platformSettingHandler.SetDefaultWeComOpenWorkTemplate)
-			group.POST("/channel-platform/wecom/openwork/suite-ticket/refresh", platformSettingHandler.RefreshWeComSuiteTicket)
-			group.POST("/channel-platform/wecom/openwork/suite-ticket/verify", platformSettingHandler.VerifyWeComSuiteTicket)
+			platformGroup := group.Group("/channel-platform/wecom/openwork", httpmw.EnsureRootRole())
+			platformGroup.GET("", platformSettingHandler.GetWeComOpenWork)
+			platformGroup.PUT("", platformSettingHandler.SaveWeComOpenWork)
+			platformGroup.GET("/templates", platformSettingHandler.ListWeComOpenWorkTemplates)
+			platformGroup.POST("/templates", platformSettingHandler.CreateWeComOpenWorkTemplate)
+			platformGroup.PUT("/templates/:template_id", platformSettingHandler.UpdateWeComOpenWorkTemplate)
+			platformGroup.DELETE("/templates/:template_id", platformSettingHandler.DeleteWeComOpenWorkTemplate)
+			platformGroup.POST("/templates/:template_id/default", platformSettingHandler.SetDefaultWeComOpenWorkTemplate)
+			platformGroup.POST("/suite-ticket/refresh", platformSettingHandler.RefreshWeComSuiteTicket)
+			platformGroup.POST("/suite-ticket/verify", platformSettingHandler.VerifyWeComSuiteTicket)
 		}
 	}
 }

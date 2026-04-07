@@ -85,6 +85,7 @@ const (
 	TableSocialChannelAuthEvents             = "social_channel_auth_events"
 	TableSocialWeComAuthBindings             = "social_wecom_auth_bindings"
 	TableSocialWeComAuthEvents               = "social_wecom_auth_events"
+	TableSocialWeComCallbackTasks            = "social_wecom_callback_tasks"
 	TableSocialSyncBaselineJobs              = "social_sync_baseline_jobs"
 	TableSocialSyncConflictRecords           = "social_sync_conflict_records"
 	TableOrgSyncSourceAccounts               = "org_sync_source_accounts"

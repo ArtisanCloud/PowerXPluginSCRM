@@ -205,10 +205,14 @@ class WsBusClient {
       pluginApiBase,
     );
     const picked = urls[Math.max(0, this.retry) % urls.length] || "/api/ws";
-    const tenantUUID = readCookie("tenant_uuid");
     const ordered = [picked, ...urls.filter((u) => u !== picked)];
     this.connectCandidates = ordered.map((candidate) => {
-      let out = appendTenantUUIDToWsURL(candidate, tenantUUID);
+      let out = candidate;
+      // 优先让后端从认证上下文解析租户，避免 query tenant_uuid 与当前会话租户不一致时造成“订阅成功但收不到事件”。
+      if (!token) {
+        const tenantUUID = readCookie("tenant_uuid");
+        out = appendTenantUUIDToWsURL(out, tenantUUID);
+      }
       if (import.meta.dev && !insidePowerX && token) {
         out = appendAuthorizationToWsURL(out, token);
       }

@@ -26,3 +26,14 @@ npm run dev
 3. Create a channel account and verify it appears in the list with status.
 4. Update channel account members and confirm the account updates in the list.
 5. Update channel account capabilities and confirm the update response persists.
+
+## Callback Reliability Verification (SaaS)
+
+1. Trigger duplicated OpenWork callback delivery (`create_auth`) with the same `auth_code`.
+2. Confirm only one callback task performs real auth exchange; duplicate callbacks are idempotent hits.
+3. Validate metrics at `/api/v1/admin/runtime/metrics`:
+   - `plugin_openwork_callback_total`
+   - `plugin_openwork_callback_idempotent_hits_total`
+   - `plugin_openwork_auth_complete_total`
+4. If `40078 invalid auth_code` appears, follow runbook:
+   - `specs/001-social-channel-governance/openwork-invalid-auth-code-runbook.md`
