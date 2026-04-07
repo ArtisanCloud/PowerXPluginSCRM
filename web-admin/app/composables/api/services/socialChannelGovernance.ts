@@ -113,6 +113,10 @@ export interface OpenWorkAuthorizeStatusQuery {
   started_at?: number;
 }
 
+export interface OpenWorkFoundationAccessStatusQuery {
+  template_id?: string;
+}
+
 export interface SyncBaselineCreatePayload {
   binding_uuid?: string;
   domain: "tags" | "org" | "external_contacts";
@@ -259,6 +263,28 @@ export const useSocialChannelGovernanceService = () => {
         checked_at: string;
         binding?: OpenWorkBinding;
       }>>(`${openworkBase}/authorize/status`, { params });
+    },
+    getOpenWorkFoundationAccessStatus: (params: OpenWorkFoundationAccessStatusQuery) => {
+      return apiClient.get<ApiResponse<{
+        auth_status: string;
+        token_status: string;
+        callback_status: string;
+        last_sync_at?: string;
+        message?: string;
+        binding_uuid?: string;
+        corp_id?: string;
+        corp_name?: string;
+        channel_account_uuid?: string;
+      }>>(`${openworkBase}/foundation/access/status`, { params });
+    },
+    restartOpenWorkAuthorization: (payload: OpenWorkStartAuthorizePayload) => {
+      return apiClient.post<ApiResponse<{
+        auth_mode?: string;
+        template_id: string;
+        expires_in: number;
+        authorize_url: string;
+        state: string;
+      }>>(`${openworkBase}/authorize/restart`, payload);
     },
     listOpenWorkBindings: () => {
       return apiClient.get<ApiResponse<{ items: OpenWorkBinding[] }>>(

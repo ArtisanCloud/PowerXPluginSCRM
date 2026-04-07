@@ -63,22 +63,22 @@
 
 ### Tests for User Story 1
 
-- [ ] T017 [P] [US1] 新增接入状态接口 contract 测试到 `backend/tests/contract/admin_social_channel_governance_foundation_contract_test.go`
-- [ ] T018 [P] [US1] 新增授权回调与绑定落库集成测试到 `backend/tests/integration/social_channel_governance/openwork_foundation_integration_test.go`
+- [X] T017 [P] [US1] 新增接入状态接口 contract 测试到 `backend/tests/contract/admin_social_channel_governance_foundation_contract_test.go`
+- [X] T018 [P] [US1] 新增授权回调与绑定落库集成测试到 `backend/tests/integration/social_channel_governance/openwork_foundation_integration_test.go`
 
 ### Implementation for User Story 1
 
-- [ ] T019 [US1] 实现代开发授权安装/续期状态机到 `backend/internal/services/admin/social_channel_governance/openwork_foundation_service.go`
-- [ ] T020 [US1] 实现自动建立与维护 `tenant-corp-channel_account` 绑定到 `backend/internal/services/admin/social_channel_governance/channel_account_service.go`
-- [ ] T021 [US1] 保留手工接入并存路径并实现“迁移+回退”逻辑到 `backend/internal/services/admin/social_channel_governance/channel_account_service.go`
-- [ ] T022 [US1] 暴露接入状态查询 API（auth/token/callback/last_sync）到 `backend/internal/transport/http/admin/social_channel_governance/foundation_handler.go`
-- [ ] T023 [US1] 增加授权失败原因与重授权入口 API 到 `backend/internal/transport/http/admin/social_channel_governance/foundation_handler.go`
-- [ ] T024 [US1] 实现接入状态页与重授权交互到 `web-admin/app/components/scrm/social_channel_governance/OpenWorkFoundationContent.vue`
-- [ ] T025 [P] [US1] 更新接入状态 API client 与类型定义到 `web-admin/app/composables/api/services/socialChannelGovernance.ts`
-- [ ] T026 [P] [US1] 补充接入页文案 i18n 到 `web-admin/i18n/locales/zh.json`、`web-admin/i18n/locales/en.json`
-- [ ] T061 [P] [US1] 新增手工接入迁移/回退集成测试到 `backend/tests/integration/social_channel_governance/manual_to_delegated_rollback_integration_test.go`
-- [ ] T062 [US1] 实现同租户多企业主体默认同步目标决策与可配置覆盖到 `backend/internal/services/admin/social_channel_governance/binding_policy_service.go`
-- [ ] T063 [P] [US1] 新增多企业主体默认目标选择集成测试到 `backend/tests/integration/social_channel_governance/multi_corp_binding_policy_integration_test.go`
+- [X] T019 [US1] 实现代开发授权安装/续期状态机到 `backend/internal/services/admin/social_channel_governance/openwork_foundation_service.go`
+- [X] T020 [US1] 实现自动建立与维护 `tenant-corp-channel_account` 绑定到 `backend/internal/services/admin/social_channel_governance/channel_account_service.go`
+- [X] T021 [US1] 保留手工接入并存路径并实现“迁移+回退”逻辑到 `backend/internal/services/admin/social_channel_governance/channel_account_service.go`
+- [X] T022 [US1] 暴露接入状态查询 API（auth/token/callback/last_sync）到 `backend/internal/transport/http/admin/social_channel_governance/foundation_handler.go`
+- [X] T023 [US1] 增加授权失败原因与重授权入口 API 到 `backend/internal/transport/http/admin/social_channel_governance/foundation_handler.go`
+- [X] T024 [US1] 实现接入状态页与重授权交互到 `web-admin/app/components/scrm/social_channel_governance/OpenWorkFoundationContent.vue`
+- [X] T025 [P] [US1] 更新接入状态 API client 与类型定义到 `web-admin/app/composables/api/services/socialChannelGovernance.ts`
+- [X] T026 [P] [US1] 补充接入页文案 i18n 到 `web-admin/i18n/locales/zh.json`、`web-admin/i18n/locales/en.json`
+- [X] T061 [P] [US1] 新增手工接入迁移/回退集成测试到 `backend/tests/integration/social_channel_governance/manual_to_delegated_rollback_integration_test.go`
+- [X] T062 [US1] 实现同租户多企业主体默认同步目标决策与可配置覆盖到 `backend/internal/services/admin/social_channel_governance/binding_policy_service.go`
+- [X] T063 [P] [US1] 新增多企业主体默认目标选择集成测试到 `backend/tests/integration/social_channel_governance/multi_corp_binding_policy_integration_test.go`
 
 **Checkpoint**: US1 可独立演示与上线（MVP）。
 

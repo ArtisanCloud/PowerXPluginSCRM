@@ -430,6 +430,63 @@ func (s *OpenWorkFoundationService) ListBindings(ctx context.Context, tenantUUID
 	return s.repo.ListBindings(ctx, tenantUUID)
 }
 
+func (s *OpenWorkFoundationService) FoundationAccessStatus(ctx context.Context, tenantUUID, templateID string) (map[string]any, error) {
+	if s == nil || s.repo == nil {
+		return nil, errors.New("openwork foundation service unavailable")
+	}
+	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
+	templateID = strings.TrimSpace(templateID)
+	if tenantUUID == "" {
+		return nil, errors.New("tenant_uuid is required")
+	}
+	status := map[string]any{
+		"auth_status":     "pending",
+		"token_status":    "invalid",
+		"callback_status": "pending",
+		"last_sync_at":    nil,
+		"message":         "waiting_authorization",
+	}
+	if templateID == "" {
+		return status, nil
+	}
+	bindings, err := s.repo.ListBindingsBySuite(ctx, tenantUUID, templateID, 1)
+	if err != nil {
+		return nil, err
+	}
+	if len(bindings) == 0 || bindings[0] == nil {
+		return status, nil
+	}
+	latest := bindings[0]
+	status["binding_uuid"] = latest.BindingUUID
+	status["corp_id"] = latest.CorpID
+	status["corp_name"] = latest.CorpName
+	status["channel_account_uuid"] = latest.ChannelAccountUUID
+	status["last_event_type"] = latest.LastEventType
+	if latest.LastEventAt != nil {
+		status["last_event_at"] = latest.LastEventAt
+	}
+	switch strings.TrimSpace(latest.Status) {
+	case model.WeComAuthBindingStatusActive:
+		status["auth_status"] = "authorized"
+		status["callback_status"] = "ok"
+		status["message"] = "authorization_completed"
+		if strings.TrimSpace(latest.SuiteAccessToken) != "" {
+			status["token_status"] = "valid"
+		} else {
+			status["token_status"] = "expiring"
+		}
+	case model.WeComAuthBindingStatusCanceled, model.WeComAuthBindingStatusDisabled:
+		status["auth_status"] = "revoked"
+		status["callback_status"] = "error"
+		status["message"] = "authorization_revoked_reauthorize_required"
+	default:
+		status["auth_status"] = "pending"
+		status["callback_status"] = "pending"
+		status["message"] = "authorization_pending"
+	}
+	return status, nil
+}
+
 func (s *OpenWorkFoundationService) AuthorizationStatus(ctx context.Context, in OpenWorkAuthorizeStatusInput) (map[string]any, error) {
 	if s == nil || s.repo == nil {
 		return nil, errors.New("openwork foundation service unavailable")

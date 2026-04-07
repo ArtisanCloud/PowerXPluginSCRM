@@ -1094,6 +1094,14 @@
       "content": "Content"
     }
   },
+  "openworkFoundation": {
+    "accessStatus": "Access Status",
+    "authStatus": "Auth Status",
+    "tokenStatus": "Token Status",
+    "callbackStatus": "Callback Status",
+    "lastSyncAt": "Last Sync Time",
+    "reauthorize": "Reauthorize"
+  },
   "message": {
     "saveSuccess": "Saved successfully",
     "deleteSuccess": "Deleted successfully",

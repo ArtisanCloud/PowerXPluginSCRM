@@ -1158,6 +1158,14 @@
       "content": "内容"
     }
   },
+  "openworkFoundation": {
+    "accessStatus": "接入状态",
+    "authStatus": "授权状态",
+    "tokenStatus": "Token 状态",
+    "callbackStatus": "回调状态",
+    "lastSyncAt": "最近同步时间",
+    "reauthorize": "重新授权"
+  },
   "message": {
     "saveSuccess": "保存成功",
     "deleteSuccess": "删除成功",

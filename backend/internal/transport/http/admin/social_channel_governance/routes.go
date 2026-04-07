@@ -76,8 +76,10 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		if openworkHandler != nil {
 			group.POST("/openwork/wecom/events", openworkHandler.IngestEvent)
 			group.POST("/openwork/wecom/authorize/start", openworkHandler.StartAuthorization)
+			group.POST("/openwork/wecom/authorize/restart", openworkHandler.RestartAuthorization)
 			group.POST("/openwork/wecom/authorize/complete", openworkHandler.CompleteAuthorization)
 			group.GET("/openwork/wecom/authorize/status", openworkHandler.GetAuthorizationStatus)
+			group.GET("/openwork/wecom/foundation/access/status", openworkHandler.GetFoundationAccessStatus)
 			group.GET("/openwork/wecom/bindings", openworkHandler.ListBindings)
 			group.POST("/openwork/wecom/bindings/:binding_uuid/default", openworkHandler.SetDefaultBinding)
 			group.POST("/openwork/wecom/sync/jobs", openworkHandler.CreateSyncJob)
