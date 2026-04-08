@@ -156,6 +156,19 @@ export interface LeadImportPreview {
 export interface WeComSyncTriggerPayload {
   channel_account_uuid?: string;
   trace_id?: string;
+  domain?: "external_contacts" | "leads";
+  direction?: "pull" | "push";
+  mode?: "incremental" | "pushback" | "bootstrap";
+  checkpoint_cursor?: string;
+  lead_writeback?: Array<{
+    lead_uuid?: string;
+    external_userid?: string;
+    corp_id?: string;
+    phone?: string;
+    order_version?: number;
+    idempotency_hint?: string;
+    fields?: Record<string, any>;
+  }>;
 }
 
 export interface WeComSyncTaskRecord {
@@ -179,6 +192,22 @@ export interface WeComSyncTaskRecord {
 
 export interface WeComSyncTaskListResponse {
   items: WeComSyncTaskRecord[];
+}
+
+export interface WeComWritebackPolicy {
+  domain: string;
+  capability_status: "supported" | "partial" | "not_supported" | "planned";
+  enabled: boolean;
+  overwrite_mode: "safe" | "force";
+  mapping_rules: Record<string, any>;
+  protected_fields: Record<string, any>;
+}
+
+export interface WeComWritebackPolicyUpdatePayload {
+  enabled: boolean;
+  overwrite_mode?: "safe" | "force";
+  mapping_rules: Record<string, any>;
+  protected_fields: Record<string, any>;
 }
 
 export interface WeComCustomerDMRule {
@@ -368,6 +397,17 @@ export const useLeadCaptureService = () => {
       apiClient.get<ApiResponse<WeComSyncTaskListResponse>>(`${baseUrl}/wecom/sync-tasks`, {
         params,
       }),
+    getWeComWritebackPolicy: (params?: { channel?: string; app_type?: string }) =>
+      apiClient.get<ApiResponse<WeComWritebackPolicy>>(`${baseUrl}/wecom/writeback-policy`, { params }),
+    updateWeComWritebackPolicy: (
+      payload: WeComWritebackPolicyUpdatePayload,
+      params?: { channel?: string; app_type?: string }
+    ) =>
+      apiClient.put<ApiResponse<WeComWritebackPolicy>>(`${baseUrl}/wecom/writeback-policy`, payload, { params }),
+    listWeComWritebackDeadLetters: () =>
+      apiClient.get<ApiResponse<{ items: any[] }>>(`${baseUrl}/wecom/writeback-dead-letters`),
+    replayWeComWritebackDeadLetter: (deadLetterUUID: string) =>
+      apiClient.post<ApiResponse<any>>(`${baseUrl}/wecom/writeback-dead-letters/${deadLetterUUID}/replay`),
     getWeComCustomerDMRule: () =>
       apiClient.get<ApiResponse<WeComCustomerDMRule>>(`${baseUrl}/channel-rules/wecom/customer-dm`),
     updateWeComCustomerDMRule: (payload: WeComCustomerDMRuleUpdatePayload) =>

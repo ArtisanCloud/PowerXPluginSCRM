@@ -184,6 +184,102 @@
           </div>
         </div>
 
+        <div class="grid grid-cols-1 gap-4 xl:grid-cols-12">
+          <div class="xl:col-span-7 rounded-xl border border-gray-200/80 bg-gray-50/70 p-4 dark:border-gray-700/80 dark:bg-gray-900/40">
+            <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div class="flex items-center gap-2">
+                <span class="text-sm font-medium text-gray-900 dark:text-gray-100">线索回写策略</span>
+                <UBadge :color="writebackCapabilityColor(writebackPolicy?.capability_status)" variant="soft">
+                  {{ writebackCapabilityLabel(writebackPolicy?.capability_status) }}
+                </UBadge>
+              </div>
+              <div class="flex items-center gap-2">
+                <UButton size="xs" variant="soft" :loading="writebackPolicyLoading" @click="loadWritebackPolicy">
+                  刷新策略
+                </UButton>
+                <UButton size="xs" color="primary" :loading="writebackPolicySaving" @click="saveWritebackPolicy">
+                  保存策略
+                </UButton>
+              </div>
+            </div>
+            <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <UFormField label="覆盖模式">
+                <USelectMenu
+                  v-model="writebackOverwriteMode"
+                  :items="writebackOverwriteModeOptions"
+                  value-key="value"
+                  label-key="label"
+                  class="w-full"
+                  :portal="false"
+                  :ui="{ content: 'z-[200]' }"
+                />
+              </UFormField>
+              <UFormField label="启用回写">
+                <div class="h-8 flex items-center">
+                  <USwitch v-model="writebackEnabled" />
+                </div>
+              </UFormField>
+              <UFormField label="白名单字段（逗号分隔）" class="md:col-span-2">
+                <UInput
+                  v-model="writebackWhitelistText"
+                  placeholder="phone, email, owner_user_uuid, status"
+                />
+              </UFormField>
+              <UFormField label="受保护字段（逗号分隔）" class="md:col-span-2">
+                <UInput
+                  v-model="writebackProtectedText"
+                  placeholder="lead_uuid, tenant_uuid, source_account_uuid"
+                />
+              </UFormField>
+            </div>
+            <div class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+              提示：白名单外字段不会回写，受保护字段即使在白名单中也会被忽略。
+            </div>
+          </div>
+
+          <div class="xl:col-span-5 rounded-xl border border-gray-200/80 bg-gray-50/70 p-4 dark:border-gray-700/80 dark:bg-gray-900/40">
+            <div class="mb-3 flex items-center justify-between gap-2">
+              <span class="text-sm font-medium text-gray-900 dark:text-gray-100">回写死信队列</span>
+              <UButton size="xs" variant="soft" :loading="writebackDeadLettersLoading" @click="refreshWritebackDeadLetters">
+                刷新死信
+              </UButton>
+            </div>
+            <div v-if="writebackDeadLetters.length === 0" class="text-xs text-gray-500 dark:text-gray-400">
+              暂无死信记录
+            </div>
+            <div v-else class="space-y-2">
+              <div
+                v-for="item in writebackDeadLetters"
+                :key="item.dead_letter_uuid"
+                class="rounded-lg border border-gray-200/80 px-3 py-2 text-xs dark:border-gray-700/80"
+              >
+                <div class="flex items-start justify-between gap-2">
+                  <div class="space-y-1">
+                    <div class="font-medium text-gray-900 dark:text-gray-100">
+                      {{ item.dead_letter_uuid || "-" }}
+                    </div>
+                    <div class="text-gray-500 dark:text-gray-400">
+                      错误：{{ item.last_error_code || "-" }} / {{ item.last_error_message || "-" }}
+                    </div>
+                    <div class="text-gray-500 dark:text-gray-400">
+                      状态：{{ item.replay_status || "pending" }}
+                    </div>
+                  </div>
+                  <UButton
+                    size="xs"
+                    variant="soft"
+                    :loading="writebackReplayLoadingUUID === item.dead_letter_uuid"
+                    :disabled="!item.dead_letter_uuid"
+                    @click="replayWritebackDeadLetter(item.dead_letter_uuid)"
+                  >
+                    重放
+                  </UButton>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <UTable :columns="syncTaskColumns" :data="pagedSyncTasks" :loading="syncLoading">
           <template #task_uuid-cell="{ row }">
             <button
@@ -837,6 +933,7 @@ import {
   type ChannelCodeEventStats,
   type ChannelCodeWelcomeSyncStatus,
   type LeadActivityRecord,
+  type WeComWritebackPolicy,
   type WeComSyncTaskRecord,
   type WeComCustomerDMRule,
 } from "~/composables/api/services/leadCapture";
@@ -905,6 +1002,16 @@ const syncStatusFilter = ref<string>(ALL_OPTION_VALUE);
 const syncTasks = ref<WeComSyncTaskRecord[]>([]);
 const syncTaskPage = ref(1);
 const syncTaskPageSize = ref(5);
+const writebackPolicyLoading = ref(false);
+const writebackPolicySaving = ref(false);
+const writebackDeadLettersLoading = ref(false);
+const writebackReplayLoadingUUID = ref("");
+const writebackPolicy = ref<WeComWritebackPolicy | null>(null);
+const writebackEnabled = ref(true);
+const writebackOverwriteMode = ref<"safe" | "force">("safe");
+const writebackWhitelistText = ref("");
+const writebackProtectedText = ref("");
+const writebackDeadLetters = ref<any[]>([]);
 let syncPollTimer: ReturnType<typeof setTimeout> | null = null;
 const lastLeadAutoRefreshTaskSignature = ref("");
 const syncLastResolveSource = ref("");
@@ -1026,6 +1133,11 @@ const syncTaskPageSizeOptions = [
   { label: "5/页", value: 5 },
   { label: "10/页", value: 10 },
   { label: "20/页", value: 20 },
+];
+
+const writebackOverwriteModeOptions = [
+  { label: "安全覆盖（safe）", value: "safe" },
+  { label: "强制覆盖（force）", value: "force" },
 ];
 
 const syncTaskColumns = [
@@ -1355,6 +1467,104 @@ const resolveSyncAccountLabel = (task?: WeComSyncTaskRecord) => {
   const uuid = (task?.channel_account_uuid || "").trim();
   if (!uuid) return "-";
   return syncAccountLabelMap.value.get(uuid.toLowerCase()) || uuid;
+};
+
+const parseFieldList = (value: string): string[] =>
+  value
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => !!item);
+
+const writebackCapabilityLabel = (status?: string) => {
+  switch ((status || "").trim()) {
+    case "supported":
+      return "已支持";
+    case "partial":
+      return "部分支持";
+    case "not_supported":
+      return "暂不支持";
+    case "planned":
+      return "规划中";
+    default:
+      return "未知";
+  }
+};
+
+const writebackCapabilityColor = (status?: string) => {
+  switch ((status || "").trim()) {
+    case "supported":
+      return "success";
+    case "partial":
+      return "warning";
+    case "not_supported":
+      return "neutral";
+    case "planned":
+      return "info";
+    default:
+      return "neutral";
+  }
+};
+
+const loadWritebackPolicy = async () => {
+  writebackPolicyLoading.value = true;
+  try {
+    const resp = await leadCaptureService.getWeComWritebackPolicy();
+    const policy = ((resp as any)?.data || null) as WeComWritebackPolicy | null;
+    writebackPolicy.value = policy;
+    writebackEnabled.value = !!policy?.enabled;
+    writebackOverwriteMode.value = (policy?.overwrite_mode || "safe") as "safe" | "force";
+    writebackWhitelistText.value = ((policy?.mapping_rules?.whitelist || []) as any[]).join(", ");
+    writebackProtectedText.value = ((policy?.protected_fields?.fields || []) as any[]).join(", ");
+  } catch (err: any) {
+    showToast(err?.message || "加载回写策略失败", "error");
+  } finally {
+    writebackPolicyLoading.value = false;
+  }
+};
+
+const saveWritebackPolicy = async () => {
+  writebackPolicySaving.value = true;
+  try {
+    const resp = await leadCaptureService.updateWeComWritebackPolicy({
+      enabled: !!writebackEnabled.value,
+      overwrite_mode: writebackOverwriteMode.value,
+      mapping_rules: { whitelist: parseFieldList(writebackWhitelistText.value) },
+      protected_fields: { fields: parseFieldList(writebackProtectedText.value) },
+    });
+    writebackPolicy.value = ((resp as any)?.data || null) as WeComWritebackPolicy | null;
+    showToast("回写策略已保存", "success");
+  } catch (err: any) {
+    showToast(err?.message || "保存回写策略失败", "error");
+  } finally {
+    writebackPolicySaving.value = false;
+  }
+};
+
+const refreshWritebackDeadLetters = async () => {
+  writebackDeadLettersLoading.value = true;
+  try {
+    const resp = await leadCaptureService.listWeComWritebackDeadLetters();
+    writebackDeadLetters.value = ((resp as any)?.data?.items || []) as any[];
+  } catch (err: any) {
+    showToast(err?.message || "加载回写死信失败", "error");
+  } finally {
+    writebackDeadLettersLoading.value = false;
+  }
+};
+
+const replayWritebackDeadLetter = async (deadLetterUUID?: string) => {
+  const uuid = (deadLetterUUID || "").trim();
+  if (!uuid) return;
+  writebackReplayLoadingUUID.value = uuid;
+  try {
+    await leadCaptureService.replayWeComWritebackDeadLetter(uuid);
+    showToast("死信重放已提交", "success");
+    await refreshWritebackDeadLetters();
+  } catch (err: any) {
+    showToast(err?.message || "死信重放失败", "error");
+  } finally {
+    writebackReplayLoadingUUID.value = "";
+  }
 };
 
 const refreshSyncTasks = async () => {
@@ -1943,6 +2153,8 @@ onMounted(async () => {
   await loadCreateLookupOptions();
   await refreshLeads();
   await refreshSyncTasks();
+  await loadWritebackPolicy();
+  await refreshWritebackDeadLetters();
   await loadWeComCustomerDMRule();
   await refreshChannelCodePanel();
 });

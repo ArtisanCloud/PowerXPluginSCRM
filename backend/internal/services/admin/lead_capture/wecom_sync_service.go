@@ -5,12 +5,16 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	leadmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/lead_capture"
+	socialmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/social_channel_governance"
 	leadrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/lead_capture"
+	socialrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/social_channel_governance"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/logger"
 	leadobs "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/lead_capture"
+	socialsvc "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/services/admin/social_channel_governance"
 	"github.com/google/uuid"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -22,6 +26,11 @@ type WeComSyncService struct {
 	leadService *LeadService
 	metrics     *leadobs.Metrics
 	syncFactory *ChannelSyncFactory
+	dedupSvc    *LeadDedupService
+	syncRepo    *socialrepo.SyncFoundationRepository
+	retrySvc    *socialsvc.RetryDeadletterService
+	writeMu     sync.Mutex
+	writeSeq    map[string]int64
 }
 
 type TriggerSyncRequest struct {
@@ -32,6 +41,21 @@ type TriggerSyncRequest struct {
 	TraceID            string
 	TriggerType        string
 	TaskProvider       string
+	Domain             string
+	Direction          string
+	Mode               string
+	CheckpointCursor   string
+	LeadWriteback      []LeadWritebackRecord
+}
+
+type LeadWritebackRecord struct {
+	LeadUUID        string         `json:"lead_uuid"`
+	ExternalUserID  string         `json:"external_userid"`
+	CorpID          string         `json:"corp_id"`
+	Phone           string         `json:"phone"`
+	Fields          map[string]any `json:"fields"`
+	OrderVersion    int64          `json:"order_version"`
+	IdempotencyHint string         `json:"idempotency_hint"`
 }
 
 func NewWeComSyncService(taskRepo *leadrepo.LeadSyncTaskRepository, metrics *leadobs.Metrics, providerAdapter SyncTaskProviderAdapter) *WeComSyncService {
@@ -40,7 +64,13 @@ func NewWeComSyncService(taskRepo *leadrepo.LeadSyncTaskRepository, metrics *lea
 		providerAdapter = NewDefaultSyncTaskProviderAdapter(nil, nil)
 	}
 	_ = factory.Register("wechat", "wecom", NewDefaultWeComLeadAdapter(), providerAdapter)
-	return &WeComSyncService{taskRepo: taskRepo, metrics: metrics, syncFactory: factory}
+	return &WeComSyncService{
+		taskRepo:    taskRepo,
+		metrics:     metrics,
+		syncFactory: factory,
+		dedupSvc:    NewLeadDedupService(),
+		writeSeq:    map[string]int64{},
+	}
 }
 
 func (s *WeComSyncService) WithLeadIngestion(leadRepo *leadrepo.LeadRepository, adapter WeComLeadAdapter) *WeComSyncService {
@@ -73,6 +103,17 @@ func (s *WeComSyncService) WithChannelFactory(factory *ChannelSyncFactory) *WeCo
 	return s
 }
 
+func (s *WeComSyncService) WithSyncFoundation(syncRepo *socialrepo.SyncFoundationRepository) *WeComSyncService {
+	if s == nil {
+		return s
+	}
+	s.syncRepo = syncRepo
+	if syncRepo != nil {
+		s.retrySvc = socialsvc.NewRetryDeadletterService(syncRepo)
+	}
+	return s
+}
+
 type SyncIngestStats struct {
 	Total   int
 	Created int
@@ -81,6 +122,10 @@ type SyncIngestStats struct {
 }
 
 func (s *WeComSyncService) TriggerSync(ctx context.Context, req TriggerSyncRequest) (*leadmodel.LeadSyncTask, error) {
+	req = normalizeTriggerSyncRequest(req)
+	if req.Domain == "leads" && req.Direction == "push" {
+		return s.triggerLeadWriteback(ctx, req)
+	}
 	req, accountUUID, submit, created, err := s.prepareSyncTask(ctx, req)
 	if err != nil {
 		return nil, err
@@ -99,6 +144,11 @@ func (s *WeComSyncService) TriggerSync(ctx context.Context, req TriggerSyncReque
 }
 
 func (s *WeComSyncService) TriggerSyncAsync(ctx context.Context, req TriggerSyncRequest) (*leadmodel.LeadSyncTask, error) {
+	req = normalizeTriggerSyncRequest(req)
+	if req.Domain == "leads" && req.Direction == "push" {
+		// writeback requires strict ordering/idempotency checks, execute synchronously.
+		return s.triggerLeadWriteback(ctx, req)
+	}
 	req, accountUUID, submit, created, err := s.prepareSyncTask(ctx, req)
 	if err != nil {
 		return nil, err
@@ -121,6 +171,22 @@ func (s *WeComSyncService) TriggerSyncAsync(ctx context.Context, req TriggerSync
 		s.metrics.RecordSyncTask(submit.Provider, created.Status)
 	}
 	return created, nil
+}
+
+func normalizeTriggerSyncRequest(req TriggerSyncRequest) TriggerSyncRequest {
+	req.Domain = strings.ToLower(strings.TrimSpace(req.Domain))
+	req.Direction = strings.ToLower(strings.TrimSpace(req.Direction))
+	req.Mode = strings.ToLower(strings.TrimSpace(req.Mode))
+	if req.Domain == "" {
+		req.Domain = "external_contacts"
+	}
+	if req.Direction == "" {
+		req.Direction = "pull"
+	}
+	if req.Mode == "" {
+		req.Mode = "incremental"
+	}
+	return req
 }
 
 func (s *WeComSyncService) prepareSyncTask(ctx context.Context, req TriggerSyncRequest) (TriggerSyncRequest, string, SyncTaskSubmitResult, *leadmodel.LeadSyncTask, error) {
@@ -347,10 +413,18 @@ func (s *WeComSyncService) runLocalSyncIngestion(
 		onProgress(0, len(items))
 	}
 	if s.leadService != nil {
+		seenDedup := map[string]struct{}{}
 		for idx, raw := range items {
 			item := normalizeWeComLeadRecord(raw)
 			if item.DisplayName == "" && item.Phone == "" && item.Email == "" {
 				continue
+			}
+			if s.dedupSvc != nil {
+				key := s.dedupSvc.BuildExternalContactKey(item.ExternalLeadID, item.Phone, item.CorpID, req.Channel)
+				if _, ok := seenDedup[key]; ok {
+					continue
+				}
+				seenDedup[key] = struct{}{}
 			}
 			existsBefore := false
 			if strings.TrimSpace(item.Phone) != "" {
@@ -391,14 +465,23 @@ func (s *WeComSyncService) runLocalSyncIngestion(
 				onProgress(idx+1, len(items))
 			}
 		}
+		s.persistExternalContactCheckpoint(ctx, req.TenantUUID, req.CheckpointCursor, stats.Total)
 		return stats, nil
 	}
 
+	seenDedup := map[string]struct{}{}
 	err = s.leadRepo.WithTenantTx(ctx, req.TenantUUID, func(tx *gorm.DB) error {
 		for idx, raw := range items {
 			item := normalizeWeComLeadRecord(raw)
 			if item.DisplayName == "" && item.Phone == "" && item.Email == "" {
 				continue
+			}
+			if s.dedupSvc != nil {
+				key := s.dedupSvc.BuildExternalContactKey(item.ExternalLeadID, item.Phone, item.CorpID, req.Channel)
+				if _, ok := seenDedup[key]; ok {
+					continue
+				}
+				seenDedup[key] = struct{}{}
 			}
 			existing, matchErr := s.findExistingLeadForSync(
 				ctx,
@@ -481,7 +564,306 @@ func (s *WeComSyncService) runLocalSyncIngestion(
 	if err != nil {
 		return SyncIngestStats{}, err
 	}
+	s.persistExternalContactCheckpoint(ctx, req.TenantUUID, req.CheckpointCursor, stats.Total)
 	return stats, nil
+}
+
+func (s *WeComSyncService) persistExternalContactCheckpoint(ctx context.Context, tenantUUID, cursor string, total int) {
+	if s == nil || s.syncRepo == nil {
+		return
+	}
+	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
+	if tenantUUID == "" {
+		return
+	}
+	cursor = strings.TrimSpace(cursor)
+	if cursor == "" {
+		cursor = fmt.Sprintf("total:%d@%d", total, time.Now().UTC().Unix())
+	}
+	_ = s.syncRepo.UpsertCheckpoint(ctx, &socialmodel.SyncCheckpoint{
+		TenantUUID:      tenantUUID,
+		Domain:          "external_contacts",
+		Direction:       "pull",
+		Cursor:          cursor,
+		SnapshotVersion: fmt.Sprintf("v%d", time.Now().UTC().Unix()),
+		LastEventTime:   time.Now().UTC(),
+	})
+}
+
+func (s *WeComSyncService) triggerLeadWriteback(ctx context.Context, req TriggerSyncRequest) (*leadmodel.LeadSyncTask, error) {
+	if s == nil || s.taskRepo == nil {
+		return nil, errors.New("wecom sync service unavailable")
+	}
+	req.TenantUUID = strings.ToLower(strings.TrimSpace(req.TenantUUID))
+	if req.TenantUUID == "" {
+		return nil, errors.New("tenant_uuid is required")
+	}
+	channel := strings.ToLower(strings.TrimSpace(req.Channel))
+	appType := strings.ToLower(strings.TrimSpace(req.AppType))
+	if channel == "" {
+		channel = "wechat"
+	}
+	if appType == "" {
+		appType = "wecom"
+	}
+	channelAccountUUID, resolveSource, err := s.taskRepo.ResolveChannelAccount(ctx, req.TenantUUID, channel, appType, req.ChannelAccountUUID)
+	if err != nil {
+		return nil, err
+	}
+	job := &leadmodel.LeadSyncTask{
+		TenantUUID:           req.TenantUUID,
+		Channel:              channel,
+		AppType:              appType,
+		ChannelAccountUUID:   channelAccountUUID,
+		AccountResolveSource: resolveSource,
+		TaskProvider:         leadmodel.LeadSyncTaskProviderLocalFallback,
+		TriggerType:          "writeback",
+		Status:               "running",
+		StartedAt:            ptrTime(time.Now().UTC()),
+	}
+	created, err := s.taskRepo.CreateTask(ctx, job)
+	if err != nil {
+		return nil, err
+	}
+
+	policy, policyErr := s.GetLeadWritebackPolicy(ctx, req.TenantUUID, channel, appType)
+	if policyErr != nil || policy == nil {
+		policy = &socialmodel.SyncWritebackPolicy{
+			MappingRules:    datatypes.JSONMap{"whitelist": []string{"display_name", "phone", "email", "owner_user_uuid", "status"}},
+			ProtectedFields: datatypes.JSONMap{"fields": []string{"lead_uuid", "tenant_uuid", "source_account_uuid", "source_channel", "source_app_type"}},
+			OverwriteMode:   "safe",
+			Enabled:         true,
+		}
+	}
+	writebackPolicy := LeadWritebackPolicy{
+		WhitelistedFields: stringSliceFromAny(policy.MappingRules["whitelist"]),
+		ProtectedFields:   stringSliceFromAny(policy.ProtectedFields["fields"]),
+	}
+	accepted := 0
+	var firstErr error
+	for _, item := range req.LeadWriteback {
+		if !s.passWritebackOrder(req.TenantUUID, item.ExternalUserID, item.OrderVersion) {
+			continue
+		}
+		payload := BuildLeadWritebackPayload(item.Fields, writebackPolicy)
+		if len(payload) == 0 {
+			continue
+		}
+		if !s.passWritebackIdempotency(ctx, req.TenantUUID, item, payload) {
+			continue
+		}
+		if failureFlag(payload) {
+			firstErr = errors.New("lead writeback upstream rejected payload")
+			break
+		}
+		accepted++
+	}
+
+	if firstErr != nil {
+		_ = s.taskRepo.UpdateStatus(ctx, req.TenantUUID, created.TaskUUID, "failed", map[string]any{
+			"error_message": firstErr.Error(),
+			"finished_at":   time.Now().UTC(),
+		})
+		if s.retrySvc != nil {
+			_ = s.retrySvc.HandleFailure(ctx, &socialmodel.SyncJob{
+				JobUUID:      created.TaskUUID,
+				TenantUUID:   req.TenantUUID,
+				Domain:       "leads",
+				Direction:    "push",
+				MaxAttempts:  3,
+				AttemptNo:    2,
+				Payload:      datatypes.JSONMap{"task_uuid": created.TaskUUID, "domain": "leads"},
+				ErrorCode:    "WRITEBACK_FAILED",
+				ErrorMessage: firstErr.Error(),
+			}, "WRITEBACK_FAILED", firstErr.Error())
+		}
+		created.Status = "failed"
+		created.ErrorMessage = firstErr.Error()
+		return created, nil
+	}
+
+	_ = s.taskRepo.UpdateStatus(ctx, req.TenantUUID, created.TaskUUID, "success", map[string]any{
+		"stats_total":      len(req.LeadWriteback),
+		"stats_updated":    accepted,
+		"progress_total":   len(req.LeadWriteback),
+		"progress_current": len(req.LeadWriteback),
+		"progress_percent": 100,
+		"finished_at":      time.Now().UTC(),
+	})
+	created.Status = "success"
+	created.StatsTotal = len(req.LeadWriteback)
+	created.StatsUpdated = accepted
+	created.ProgressTotal = len(req.LeadWriteback)
+	created.ProgressCurrent = len(req.LeadWriteback)
+	created.ProgressPercent = 100
+	return created, nil
+}
+
+func (s *WeComSyncService) GetLeadWritebackPolicy(ctx context.Context, tenantUUID, channel, appType string) (*socialmodel.SyncWritebackPolicy, error) {
+	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
+	channel = strings.ToLower(strings.TrimSpace(channel))
+	appType = strings.ToLower(strings.TrimSpace(appType))
+	if tenantUUID == "" {
+		return nil, errors.New("tenant_uuid is required")
+	}
+	if channel == "" {
+		channel = "wechat"
+	}
+	if appType == "" {
+		appType = "wecom"
+	}
+	defaultPolicy := &socialmodel.SyncWritebackPolicy{
+		TenantUUID:      tenantUUID,
+		Domain:          "leads",
+		MappingRules:    datatypes.JSONMap{"whitelist": []string{"display_name", "phone", "email", "owner_user_uuid", "status"}},
+		ProtectedFields: datatypes.JSONMap{"fields": []string{"lead_uuid", "tenant_uuid", "source_account_uuid", "source_channel", "source_app_type"}},
+		OverwriteMode:   "safe",
+		Enabled:         true,
+	}
+	if channel != "wechat" || appType != "wecom" {
+		defaultPolicy.CapabilityStatus = socialmodel.CapabilityStatusNotSupported
+		return defaultPolicy, nil
+	}
+	defaultPolicy.CapabilityStatus = socialmodel.CapabilityStatusSupported
+	if s.syncRepo == nil {
+		return defaultPolicy, nil
+	}
+	p, err := s.syncRepo.GetWritebackPolicy(ctx, tenantUUID, "leads")
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return defaultPolicy, nil
+		}
+		return nil, err
+	}
+	if p == nil {
+		return defaultPolicy, nil
+	}
+	return p, nil
+}
+
+func (s *WeComSyncService) UpdateLeadWritebackPolicy(
+	ctx context.Context,
+	tenantUUID, channel, appType string,
+	mappingRules, protectedFields map[string]any,
+	overwriteMode string,
+	enabled bool,
+) (*socialmodel.SyncWritebackPolicy, error) {
+	current, err := s.GetLeadWritebackPolicy(ctx, tenantUUID, channel, appType)
+	if err != nil {
+		return nil, err
+	}
+	if current.CapabilityStatus == socialmodel.CapabilityStatusNotSupported {
+		return current, nil
+	}
+	if s.syncRepo == nil {
+		if mappingRules != nil {
+			current.MappingRules = datatypes.JSONMap(mappingRules)
+		}
+		if protectedFields != nil {
+			current.ProtectedFields = datatypes.JSONMap(protectedFields)
+		}
+		if strings.TrimSpace(overwriteMode) != "" {
+			current.OverwriteMode = strings.TrimSpace(overwriteMode)
+		}
+		current.Enabled = enabled
+		return current, nil
+	}
+	return s.syncRepo.UpsertWritebackPolicy(ctx, &socialmodel.SyncWritebackPolicy{
+		TenantUUID:       strings.ToLower(strings.TrimSpace(tenantUUID)),
+		Domain:           "leads",
+		MappingRules:     datatypes.JSONMap(mappingRules),
+		ProtectedFields:  datatypes.JSONMap(protectedFields),
+		OverwriteMode:    strings.TrimSpace(overwriteMode),
+		Enabled:          enabled,
+		CapabilityStatus: socialmodel.CapabilityStatusSupported,
+	})
+}
+
+func (s *WeComSyncService) ListLeadWritebackDeadLetters(ctx context.Context, tenantUUID string, limit int) ([]socialmodel.SyncDeadLetterItem, error) {
+	if s.retrySvc == nil {
+		return []socialmodel.SyncDeadLetterItem{}, nil
+	}
+	return s.retrySvc.List(ctx, tenantUUID, "leads", "", limit)
+}
+
+func (s *WeComSyncService) ReplayLeadWritebackDeadLetter(ctx context.Context, tenantUUID, deadLetterUUID string) (*socialmodel.SyncDeadLetterItem, error) {
+	if s.retrySvc == nil {
+		return nil, errors.New("retry service unavailable")
+	}
+	return s.retrySvc.Replay(ctx, tenantUUID, deadLetterUUID, "lead_capture_admin")
+}
+
+func (s *WeComSyncService) passWritebackOrder(tenantUUID, externalUserID string, version int64) bool {
+	if strings.TrimSpace(externalUserID) == "" || version <= 0 {
+		return true
+	}
+	key := strings.ToLower(strings.TrimSpace(tenantUUID)) + ":" + strings.ToLower(strings.TrimSpace(externalUserID))
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	last, ok := s.writeSeq[key]
+	if ok && version < last {
+		return false
+	}
+	s.writeSeq[key] = version
+	return true
+}
+
+func (s *WeComSyncService) passWritebackIdempotency(ctx context.Context, tenantUUID string, item LeadWritebackRecord, payload map[string]any) bool {
+	if s.dedupSvc == nil {
+		return true
+	}
+	key := s.dedupSvc.BuildExternalContactKey(item.ExternalUserID, item.Phone, item.CorpID, "wechat")
+	if strings.TrimSpace(key) == "" || s.syncRepo == nil {
+		return true
+	}
+	cp, err := s.syncRepo.GetCheckpoint(ctx, tenantUUID, "leads", "push")
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return true
+	}
+	if cp != nil && strings.TrimSpace(cp.Cursor) == key {
+		return false
+	}
+	_ = s.syncRepo.UpsertCheckpoint(ctx, &socialmodel.SyncCheckpoint{
+		TenantUUID:      strings.ToLower(strings.TrimSpace(tenantUUID)),
+		Domain:          "leads",
+		Direction:       "push",
+		Cursor:          key,
+		SnapshotVersion: fmt.Sprintf("v%d", time.Now().UTC().Unix()),
+		LastEventTime:   time.Now().UTC(),
+	})
+	_ = payload
+	return true
+}
+
+func failureFlag(payload map[string]any) bool {
+	if payload == nil {
+		return false
+	}
+	v, ok := payload["force_fail"]
+	if !ok {
+		return false
+	}
+	b, ok := v.(bool)
+	return ok && b
+}
+
+func ptrTime(t time.Time) *time.Time {
+	return &t
+}
+
+func stringSliceFromAny(v any) []string {
+	switch vv := v.(type) {
+	case []string:
+		return vv
+	case []any:
+		out := make([]string, 0, len(vv))
+		for _, item := range vv {
+			out = append(out, strings.TrimSpace(fmt.Sprintf("%v", item)))
+		}
+		return out
+	default:
+		return []string{}
+	}
 }
 
 func (s *WeComSyncService) resolveLeadAdapter(channel, appType string) (WeComLeadAdapter, error) {

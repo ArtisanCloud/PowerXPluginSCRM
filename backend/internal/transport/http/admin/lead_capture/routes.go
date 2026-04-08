@@ -68,6 +68,7 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		taskRepo := leadrepo.NewLeadSyncTaskRepository(deps.DB)
 		channelAccountRepo := socialrepo.NewAccountRepository(deps.DB)
 		openworkRepo := socialrepo.NewOpenWorkFoundationRepository(deps.DB)
+		syncFoundationRepo := socialrepo.NewSyncFoundationRepository(deps.DB)
 		platformRepo := socialrepo.NewChannelPlatformSettingRepository(deps.DB)
 		providerAdapter := leadsvc.NewDefaultSyncTaskProviderAdapter(deps.Config, deps.EventEmitter)
 		channelFactory := leadsvc.NewChannelSyncFactory()
@@ -81,7 +82,8 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		wecomSyncSvc = leadsvc.NewWeComSyncService(taskRepo, metrics, nil).
 			WithChannelFactory(channelFactory).
 			WithLeadIngestion(leadRepository, nil).
-			WithLeadService(leadSvc)
+			WithLeadService(leadSvc).
+			WithSyncFoundation(syncFoundationRepo)
 
 		eventRepo := leadrepo.NewConversationEventRepository(deps.DB)
 		bindingRepo := leadrepo.NewLeadConversationBindingRepository(deps.DB)
@@ -148,6 +150,10 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 
 		group.POST("/wecom/sync", wecomSyncHandler.TriggerSync)
 		group.GET("/wecom/sync-tasks", wecomSyncHandler.ListSyncTasks)
+		group.GET("/wecom/writeback-policy", wecomSyncHandler.GetWritebackPolicy)
+		group.PUT("/wecom/writeback-policy", wecomSyncHandler.UpdateWritebackPolicy)
+		group.GET("/wecom/writeback-dead-letters", wecomSyncHandler.ListWritebackDeadLetters)
+		group.POST("/wecom/writeback-dead-letters/:dead_letter_uuid/replay", wecomSyncHandler.ReplayWritebackDeadLetter)
 		group.GET("/channel-rules/wecom/customer-dm", channelRuleHandler.GetWeComCustomerDMRule)
 		group.PUT("/channel-rules/wecom/customer-dm", channelRuleHandler.UpdateWeComCustomerDMRule)
 		group.POST("/channel-codes", channelCodeHandler.Create)

@@ -120,21 +120,21 @@
 
 ### Tests for User Story 3
 
-- [ ] T041 [P] [US3] 新增外部联系人入池 contract 测试到 `backend/tests/contract/admin_external_contact_sync_contract_test.go`
-- [ ] T042 [P] [US3] 新增线索回写 contract 测试（含 capability_status 降级）到 `backend/tests/contract/admin_lead_writeback_contract_test.go`
-- [ ] T043 [P] [US3] 新增外部联系人与线索双向集成测试到 `backend/tests/integration/lead_capture/external_contact_bidirectional_integration_test.go`
+- [X] T041 [P] [US3] 新增外部联系人入池 contract 测试到 `backend/tests/contract/admin_external_contact_sync_contract_test.go`
+- [X] T042 [P] [US3] 新增线索回写 contract 测试（含 capability_status 降级）到 `backend/tests/contract/admin_lead_writeback_contract_test.go`
+- [X] T043 [P] [US3] 新增外部联系人与线索双向集成测试到 `backend/tests/integration/lead_capture/external_contact_bidirectional_integration_test.go`
 
 ### Implementation for User Story 3
 
-- [ ] T044 [US3] 实现外部联系人远端->本地增量入池与检查点到 `backend/internal/services/admin/lead_capture/wecom_sync_service.go`
-- [ ] T045 [US3] 实现线索关键字段白名单回写与受保护字段不可覆盖（FR-019）到 `backend/internal/services/admin/lead_capture/wecom_lead_adapter.go`
-- [ ] T046 [US3] 实现去重口径 `external_userid + 手机 + 企业 + 渠道` 到 `backend/internal/services/admin/lead_capture/lead_dedup_service.go`
-- [ ] T047 [US3] 实现回写任务幂等与乱序防重处理到 `backend/internal/services/admin/lead_capture/wecom_sync_service.go`
-- [ ] T048 [US3] 实现线索回写失败进入死信并支持人工重放到 `backend/internal/services/admin/social_channel_governance/retry_deadletter_service.go`
-- [ ] T049 [P] [US3] 提供线索回写策略查询/更新 API 到 `backend/internal/transport/http/admin/lead_capture/routes.go`、`backend/internal/transport/http/admin/lead_capture/wecom_sync_handler.go`
-- [ ] T050 [US3] 前端补齐线索同步任务页、重放入口与白名单提示到 `web-admin/app/pages/scrm/lead_capture/index.vue`
-- [ ] T064 [US3] 实现历史脏数据基线修复作业（重复成员/重复标签/无效 external_userid）到 `backend/internal/services/admin/social_channel_governance/baseline_repair_service.go`
-- [ ] T065 [P] [US3] 新增基线修复集成测试到 `backend/tests/integration/social_channel_governance/baseline_repair_integration_test.go`
+- [X] T044 [US3] 实现外部联系人远端->本地增量入池与检查点到 `backend/internal/services/admin/lead_capture/wecom_sync_service.go`
+- [X] T045 [US3] 实现线索关键字段白名单回写与受保护字段不可覆盖（FR-019）到 `backend/internal/services/admin/lead_capture/wecom_lead_adapter.go`
+- [X] T046 [US3] 实现去重口径 `external_userid + 手机 + 企业 + 渠道` 到 `backend/internal/services/admin/lead_capture/lead_dedup_service.go`
+- [X] T047 [US3] 实现回写任务幂等与乱序防重处理到 `backend/internal/services/admin/lead_capture/wecom_sync_service.go`
+- [X] T048 [US3] 实现线索回写失败进入死信并支持人工重放到 `backend/internal/services/admin/social_channel_governance/retry_deadletter_service.go`
+- [X] T049 [P] [US3] 提供线索回写策略查询/更新 API 到 `backend/internal/transport/http/admin/lead_capture/routes.go`、`backend/internal/transport/http/admin/lead_capture/wecom_sync_handler.go`
+- [X] T050 [US3] 前端补齐线索同步任务页、重放入口与白名单提示到 `web-admin/app/pages/scrm/lead_capture/index.vue`
+- [X] T064 [US3] 实现历史脏数据基线修复作业（重复成员/重复标签/无效 external_userid）到 `backend/internal/services/admin/social_channel_governance/baseline_repair_service.go`
+- [X] T065 [P] [US3] 新增基线修复集成测试到 `backend/tests/integration/social_channel_governance/baseline_repair_integration_test.go`
 
 **Checkpoint**: US3 可独立验收，线索双向闭环成立。
 

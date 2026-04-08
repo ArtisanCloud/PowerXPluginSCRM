@@ -8,6 +8,7 @@ import (
 
 	model "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/social_channel_governance"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository"
+	"github.com/google/uuid"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -151,6 +152,9 @@ func (r *SyncFoundationRepository) AddDeadLetter(ctx context.Context, item *mode
 	}
 	if item.Payload == nil {
 		item.Payload = datatypes.JSONMap{}
+	}
+	if strings.TrimSpace(item.DeadLetterUUID) == "" {
+		item.DeadLetterUUID = uuid.NewString()
 	}
 	return r.WithTenantTx(ctx, item.TenantUUID, func(tx *gorm.DB) error {
 		return tx.Create(item).Error
@@ -346,4 +350,76 @@ func (r *SyncFoundationRepository) GetCheckpoint(ctx context.Context, tenantUUID
 		return nil, err
 	}
 	return out, nil
+}
+
+func (r *SyncFoundationRepository) GetWritebackPolicy(ctx context.Context, tenantUUID, domain string) (*model.SyncWritebackPolicy, error) {
+	if r == nil || r.DB == nil {
+		return nil, errors.New("repository database is not initialized")
+	}
+	tenantUUID = strings.TrimSpace(strings.ToLower(tenantUUID))
+	domain = strings.TrimSpace(strings.ToLower(domain))
+	if tenantUUID == "" {
+		return nil, repository.ErrTenantUuidRequired
+	}
+	if domain == "" {
+		return nil, errors.New("domain is required")
+	}
+	out := &model.SyncWritebackPolicy{}
+	err := r.WithTenantTx(ctx, tenantUUID, func(tx *gorm.DB) error {
+		return tx.Where("tenant_uuid = ? AND domain = ?", tenantUUID, domain).First(out).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (r *SyncFoundationRepository) UpsertWritebackPolicy(ctx context.Context, policy *model.SyncWritebackPolicy) (*model.SyncWritebackPolicy, error) {
+	if r == nil || r.DB == nil {
+		return nil, errors.New("repository database is not initialized")
+	}
+	if policy == nil {
+		return nil, errors.New("policy is required")
+	}
+	policy.TenantUUID = strings.TrimSpace(strings.ToLower(policy.TenantUUID))
+	policy.Domain = strings.TrimSpace(strings.ToLower(policy.Domain))
+	if policy.TenantUUID == "" {
+		return nil, repository.ErrTenantUuidRequired
+	}
+	if policy.Domain == "" {
+		return nil, errors.New("domain is required")
+	}
+	if policy.MappingRules == nil {
+		policy.MappingRules = datatypes.JSONMap{}
+	}
+	if policy.ProtectedFields == nil {
+		policy.ProtectedFields = datatypes.JSONMap{}
+	}
+	if strings.TrimSpace(policy.OverwriteMode) == "" {
+		policy.OverwriteMode = "safe"
+	}
+	if strings.TrimSpace(policy.CapabilityStatus) == "" {
+		policy.CapabilityStatus = model.CapabilityStatusSupported
+	}
+
+	err := r.WithTenantTx(ctx, policy.TenantUUID, func(tx *gorm.DB) error {
+		return tx.Clauses(clause.OnConflict{
+			Columns: []clause.Column{
+				{Name: "tenant_uuid"},
+				{Name: "domain"},
+			},
+			DoUpdates: clause.Assignments(map[string]any{
+				"mapping_rules":     policy.MappingRules,
+				"protected_fields":  policy.ProtectedFields,
+				"overwrite_mode":    policy.OverwriteMode,
+				"enabled":           policy.Enabled,
+				"capability_status": policy.CapabilityStatus,
+				"updated_at":        time.Now().UTC(),
+			}),
+		}).Create(policy).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+	return r.GetWritebackPolicy(ctx, policy.TenantUUID, policy.Domain)
 }
