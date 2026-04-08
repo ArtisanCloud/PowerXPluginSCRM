@@ -141,6 +141,40 @@
     <UCard>
       <template #header>
         <div class="flex items-center justify-between">
+          <span class="font-medium text-gray-700 dark:text-slate-200">组织冲突队列</span>
+          <div class="flex items-center gap-2">
+            <UBadge variant="soft" color="warning">{{ orgConflicts.length }}</UBadge>
+            <UButton size="xs" variant="soft" color="primary" :loading="loadingOrgConflicts" @click="loadOrgConflicts">
+              刷新
+            </UButton>
+          </div>
+        </div>
+      </template>
+      <div v-if="orgConflicts.length === 0" class="text-xs text-gray-600 dark:text-slate-300">暂无组织冲突</div>
+      <ul v-else class="space-y-3 text-xs text-gray-600 dark:text-slate-300">
+        <li v-for="item in orgConflicts" :key="item.conflict_uuid" class="rounded border border-amber-200/60 bg-amber-50/40 p-3 dark:border-amber-700/40 dark:bg-amber-950/20">
+          <div class="flex items-center justify-between gap-2">
+            <div class="truncate">
+              <span class="font-medium text-gray-800 dark:text-slate-100">{{ item.entity_type || "org" }}</span>
+              <span class="ml-2 text-gray-500 dark:text-slate-300">{{ item.entity_key || "-" }}</span>
+            </div>
+            <UButton
+              size="xs"
+              color="warning"
+              variant="soft"
+              :loading="replayingConflictUUID === item.conflict_uuid"
+              @click="replayOrgConflict(item.conflict_uuid)"
+            >
+              重放
+            </UButton>
+          </div>
+        </li>
+      </ul>
+    </UCard>
+
+    <UCard>
+      <template #header>
+        <div class="flex items-center justify-between">
           <span class="font-medium text-gray-700 dark:text-slate-200">匹配建议</span>
           <UBadge variant="soft" color="primary">{{ memberSuggestions.length }}</UBadge>
         </div>
@@ -212,6 +246,9 @@ const settingDefault = ref(false);
 const memberSuggestions = ref<OrgSyncMemberSuggestion[]>([]);
 const syncStatus = ref<OrgSyncSourceAccount | null>(null);
 const syncLogs = ref<OrgSyncSyncLog[]>([]);
+const orgConflicts = ref<any[]>([]);
+const loadingOrgConflicts = ref(false);
+const replayingConflictUUID = ref("");
 const channelAccounts = ref<ChannelAccount[]>([]);
 const channelSchema = ref<ChannelSchemaDocument | null>(null);
 
@@ -500,9 +537,38 @@ const loadMappingData = async () => {
   }
   loading.value = true;
   try {
-    await Promise.all([loadSuggestions(), loadSyncLogs()]);
+    await Promise.all([loadSuggestions(), loadSyncLogs(), loadOrgConflicts()]);
   } finally {
     loading.value = false;
+  }
+};
+
+const loadOrgConflicts = async () => {
+  loadingOrgConflicts.value = true;
+  try {
+    const service = useSocialChannelGovernanceService();
+    const resp = await service.listFoundationConflicts({ domain: "org", status: "open", limit: 20 });
+    orgConflicts.value = (resp as any)?.data?.items ?? [];
+  } catch (err: any) {
+    showToast("加载组织冲突失败", "error", err?.message ?? "");
+  } finally {
+    loadingOrgConflicts.value = false;
+  }
+};
+
+const replayOrgConflict = async (conflictUUID: string) => {
+  const id = String(conflictUUID || "").trim();
+  if (!id) return;
+  replayingConflictUUID.value = id;
+  try {
+    const service = useSocialChannelGovernanceService();
+    await service.replayFoundationConflict(id, { resolved_by: "org_sync_page" });
+    showToast("冲突已重放", "success");
+    await loadOrgConflicts();
+  } catch (err: any) {
+    showToast("重放失败", "error", err?.message ?? "");
+  } finally {
+    replayingConflictUUID.value = "";
   }
 };
 

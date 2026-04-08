@@ -2,12 +2,14 @@ package social_channel_governance
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
 	model "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/social_channel_governance"
 	socialrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/social_channel_governance"
 	"gorm.io/datatypes"
+	"gorm.io/gorm"
 )
 
 type RetryDeadletterService struct {
@@ -43,4 +45,25 @@ func (s *RetryDeadletterService) HandleFailure(ctx context.Context, job *model.S
 		ReplayStatus:     "pending",
 		Payload:          datatypes.JSONMap(job.Payload),
 	})
+}
+
+func (s *RetryDeadletterService) List(ctx context.Context, tenantUUID, domain, replayStatus string, limit int) ([]model.SyncDeadLetterItem, error) {
+	if s == nil || s.repo == nil {
+		return []model.SyncDeadLetterItem{}, nil
+	}
+	return s.repo.ListDeadLetters(ctx, tenantUUID, domain, replayStatus, limit)
+}
+
+func (s *RetryDeadletterService) Replay(ctx context.Context, tenantUUID, deadLetterUUID, replayedBy string) (*model.SyncDeadLetterItem, error) {
+	if s == nil || s.repo == nil {
+		return nil, errors.New("dead letter service unavailable")
+	}
+	out, err := s.repo.ReplayDeadLetter(ctx, tenantUUID, deadLetterUUID, replayedBy)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, socialrepo.ErrSyncJobNotFound
+		}
+		return nil, err
+	}
+	return out, nil
 }

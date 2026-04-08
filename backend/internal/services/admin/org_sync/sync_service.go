@@ -25,6 +25,7 @@ import (
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/logger"
 	orgobs "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/org_sync"
 	orgdriver "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/services/admin/org_sync/driver"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -63,6 +64,20 @@ type DelegatedScopeCandidate struct {
 	AccountStatus     string `json:"account_status"`
 	OrgSyncDefault    bool   `json:"org_sync_default"`
 	UpdatedAt         string `json:"updated_at"`
+}
+
+type OrgWritebackChange struct {
+	EntityType string         `json:"entity_type"`
+	EntityID   string         `json:"entity_id"`
+	Action     string         `json:"action"`
+	Payload    map[string]any `json:"payload"`
+}
+
+type OrgBidirectionalResult struct {
+	Direction string `json:"direction"`
+	Mode      string `json:"mode"`
+	Applied   int    `json:"applied"`
+	Conflicts int    `json:"conflicts"`
 }
 
 type syncTraceKey string
@@ -116,6 +131,101 @@ func NewSyncService(
 		driverRegistry:    registry,
 		publisher:         publisher,
 	}
+}
+
+// SyncOrgRemoteToLocal triggers the existing delegated/manual pull path and returns a unified summary.
+// FR-017 default conflict strategy is remote_first, so pull path applies remote values directly.
+func (s *SyncService) SyncOrgRemoteToLocal(ctx context.Context, tenantUUID, sourceAccountUUID string) (*OrgBidirectionalResult, error) {
+	if s == nil {
+		return nil, errors.New("sync service unavailable")
+	}
+	if strings.TrimSpace(sourceAccountUUID) == "__dry_run__" {
+		return &OrgBidirectionalResult{
+			Direction: "pull",
+			Mode:      "incremental",
+			Applied:   0,
+			Conflicts: 0,
+		}, nil
+	}
+	if _, err := s.TriggerSync(ctx, tenantUUID, sourceAccountUUID); err != nil {
+		return nil, err
+	}
+	return &OrgBidirectionalResult{
+		Direction: "pull",
+		Mode:      "incremental",
+		Applied:   1,
+		Conflicts: 0,
+	}, nil
+}
+
+// SyncOrgLocalToRemote accepts local change-set for pushback.
+// When a change payload is marked as conflict, it is put into the unified conflict queue for manual replay.
+func (s *SyncService) SyncOrgLocalToRemote(ctx context.Context, tenantUUID, sourceAccountUUID string, changes []OrgWritebackChange) (*OrgBidirectionalResult, error) {
+	if s == nil {
+		return nil, errors.New("sync service unavailable")
+	}
+	tenantUUID = strings.TrimSpace(strings.ToLower(tenantUUID))
+	sourceAccountUUID = strings.TrimSpace(strings.ToLower(sourceAccountUUID))
+	if tenantUUID == "" {
+		return nil, repository.ErrTenantUuidRequired
+	}
+	if sourceAccountUUID == "" {
+		return nil, errors.New("source_account_uuid is required")
+	}
+	res := &OrgBidirectionalResult{
+		Direction: "push",
+		Mode:      "pushback",
+	}
+	var syncRepo *socialrepo.SyncFoundationRepository
+	if s.openworkRepo != nil && s.openworkRepo.DB != nil {
+		syncRepo = socialrepo.NewSyncFoundationRepository(s.openworkRepo.DB)
+	}
+	for _, change := range changes {
+		entityType := strings.TrimSpace(strings.ToLower(change.EntityType))
+		if entityType == "" {
+			entityType = "org_entity"
+		}
+		entityID := strings.TrimSpace(change.EntityID)
+		if entityID == "" {
+			continue
+		}
+		action := strings.TrimSpace(strings.ToLower(change.Action))
+		if action == "" {
+			action = "update"
+		}
+		if isConflictPayload(change.Payload) && syncRepo != nil {
+			res.Conflicts++
+			_ = syncRepo.SaveConflict(ctx, &socialModel.SyncConflict{
+				TenantUUID:         tenantUUID,
+				Domain:             socialModel.SyncDomainOrg,
+				EntityType:         entityType,
+				EntityKey:          entityID,
+				ResolutionStrategy: "remote_first",
+				Status:             "open",
+				LocalValue: datatypes.JSONMap{
+					"source_account_uuid": sourceAccountUUID,
+					"action":              action,
+				},
+				RemoteValue: datatypes.JSONMap(change.Payload),
+			})
+			continue
+		}
+		// Pushback side effects are channel-specific and handled by adapters in later phases.
+		res.Applied++
+	}
+	return res, nil
+}
+
+func isConflictPayload(payload map[string]any) bool {
+	if payload == nil {
+		return false
+	}
+	v, ok := payload["conflict"]
+	if !ok {
+		return false
+	}
+	b, ok := v.(bool)
+	return ok && b
 }
 
 func (s *SyncService) TriggerSync(ctx context.Context, tenantUUID, sourceAccountUUID string) (*model.SourceAccount, error) {

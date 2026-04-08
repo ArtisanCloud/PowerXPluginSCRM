@@ -49,8 +49,10 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		scheduler := SocialService.NewSyncScheduler()
 		syncJobSvc := SocialService.NewSyncJobService(syncRepo, idempotencySvc, scheduler, capabilityMatrixSvc)
 		orchestrator := SocialService.NewSyncOrchestrator(factory, scheduler, syncJobSvc)
-		syncJobHandler = NewSyncJobHandler(syncJobSvc, orchestrator, capabilityMatrixSvc)
-		conflictHandler = NewConflictHandler()
+		conflictSvc := SocialService.NewConflictResolutionService(syncRepo)
+		deadletterSvc := SocialService.NewRetryDeadletterService(syncRepo)
+		syncJobHandler = NewSyncJobHandler(syncJobSvc, orchestrator, capabilityMatrixSvc, conflictSvc)
+		conflictHandler = NewConflictHandler(conflictSvc, deadletterSvc)
 	}
 	accountHandler := NewAccountHandler(accountSvc)
 	schemaHandler := NewChannelSchemaHandler(schemaLoader, deps.Config)
@@ -92,6 +94,7 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		if syncJobHandler != nil && conflictHandler != nil {
 			group.POST("/openwork/foundation/sync/jobs", syncJobHandler.Create)
 			group.GET("/openwork/foundation/sync/jobs", syncJobHandler.List)
+			group.GET("/openwork/foundation/sync/overview", syncJobHandler.Overview)
 			group.GET("/openwork/foundation/capabilities", syncJobHandler.Capabilities)
 			group.GET("/openwork/foundation/sync/conflicts", conflictHandler.List)
 			group.POST("/openwork/foundation/sync/conflicts/:conflict_uuid/replay", conflictHandler.Replay)

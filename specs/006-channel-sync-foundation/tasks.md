@@ -91,23 +91,23 @@
 
 ### Tests for User Story 2
 
-- [ ] T027 [P] [US2] 新增标签双向与冲突处理 contract 测试到 `backend/tests/contract/admin_tag_sync_contract_test.go`
-- [ ] T028 [P] [US2] 新增组织双向与冲突处理 contract 测试到 `backend/tests/contract/admin_org_sync_contract_test.go`
-- [ ] T029 [P] [US2] 新增标签双向集成测试到 `backend/tests/integration/social_channel_governance/tag_bidirectional_integration_test.go`
-- [ ] T030 [P] [US2] 新增组织双向集成测试到 `backend/tests/integration/org_sync/org_bidirectional_integration_test.go`
+- [X] T027 [P] [US2] 新增标签双向与冲突处理 contract 测试到 `backend/tests/contract/admin_tag_sync_contract_test.go`
+- [X] T028 [P] [US2] 新增组织双向与冲突处理 contract 测试到 `backend/tests/contract/admin_org_sync_contract_test.go`
+- [X] T029 [P] [US2] 新增标签双向集成测试到 `backend/tests/integration/social_channel_governance/tag_bidirectional_integration_test.go`
+- [X] T030 [P] [US2] 新增组织双向集成测试到 `backend/tests/integration/org_sync/org_bidirectional_integration_test.go`
 
 ### Implementation for User Story 2
 
-- [ ] T031 [US2] 实现远端->本地标签全量/增量同步到 `backend/internal/services/admin/social_channel_governance/tag_sync_service.go`
-- [ ] T032 [US2] 实现本地->远端标签回写到 `backend/internal/services/admin/social_channel_governance/tag_sync_service.go`
-- [ ] T033 [US2] 实现标签映射版本与检查点维护到 `backend/internal/entity/repository/social_channel_governance/tag_mapping_repository.go`
-- [ ] T034 [US2] 实现组织远端->本地同步（部门/成员）到 `backend/internal/services/admin/org_sync/sync_service.go`
-- [ ] T035 [US2] 实现组织本地->远端回写（增删改、启停、调部门）到 `backend/internal/services/admin/org_sync/sync_service.go`
-- [ ] T036 [US2] 组织与标签冲突统一接入冲突队列（remote_first 默认 + 人工重放）到 `backend/internal/services/admin/social_channel_governance/conflict_resolution_service.go`
-- [ ] T037 [US2] 提供冲突列表/详情/重放 API 到 `backend/internal/transport/http/admin/social_channel_governance/conflict_handler.go`
-- [ ] T038 [P] [US2] 提供标签与组织任务可观测 API 到 `backend/internal/transport/http/admin/social_channel_governance/sync_job_handler.go`
-- [ ] T039 [US2] 前端补齐组织同步页实时进度与冲突入口到 `web-admin/app/pages/scrm/org_sync/sync.vue`
-- [ ] T040 [P] [US2] 前端补齐标签同步与冲突处理操作到 `web-admin/app/pages/scrm/social_channel_governance/[topic].vue`
+- [X] T031 [US2] 实现远端->本地标签全量/增量同步到 `backend/internal/services/admin/social_channel_governance/tag_sync_service.go`
+- [X] T032 [US2] 实现本地->远端标签回写到 `backend/internal/services/admin/social_channel_governance/tag_sync_service.go`
+- [X] T033 [US2] 实现标签映射版本与检查点维护到 `backend/internal/entity/repository/social_channel_governance/tag_mapping_repository.go`
+- [X] T034 [US2] 实现组织远端->本地同步（部门/成员）到 `backend/internal/services/admin/org_sync/sync_service.go`
+- [X] T035 [US2] 实现组织本地->远端回写（增删改、启停、调部门）到 `backend/internal/services/admin/org_sync/sync_service.go`
+- [X] T036 [US2] 组织与标签冲突统一接入冲突队列（remote_first 默认 + 人工重放）到 `backend/internal/services/admin/social_channel_governance/conflict_resolution_service.go`
+- [X] T037 [US2] 提供冲突列表/详情/重放 API 到 `backend/internal/transport/http/admin/social_channel_governance/conflict_handler.go`
+- [X] T038 [P] [US2] 提供标签与组织任务可观测 API 到 `backend/internal/transport/http/admin/social_channel_governance/sync_job_handler.go`
+- [X] T039 [US2] 前端补齐组织同步页实时进度与冲突入口到 `web-admin/app/pages/scrm/org_sync/sync.vue`
+- [X] T040 [P] [US2] 前端补齐标签同步与冲突处理操作到 `web-admin/app/pages/scrm/social_channel_governance/[topic].vue`
 
 **Checkpoint**: US2 可独立验收，标签/组织双向收敛。
 

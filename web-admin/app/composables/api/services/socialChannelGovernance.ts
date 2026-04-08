@@ -175,11 +175,21 @@ export interface DelegatedScopeCandidate {
   updated_at?: string;
 }
 
+export interface FoundationSyncJobPayload {
+  channel?: string;
+  app_type?: string;
+  domain: "tags" | "org" | "external_contacts" | "leads";
+  direction?: "pull" | "push";
+  mode?: "bootstrap" | "incremental" | "pushback";
+  payload?: Record<string, any>;
+}
+
 export const useSocialChannelGovernanceService = () => {
   const apiClient = useApiClient();
   const baseUrl = "/admin/social/channel-accounts";
   const schemaUrl = "/admin/social/channel-schema";
   const openworkBase = "/admin/social/openwork/wecom";
+  const foundationBase = "/admin/social/openwork/foundation";
 
   return {
     getChannelSchema: () => {
@@ -317,6 +327,26 @@ export const useSocialChannelGovernanceService = () => {
     },
     getOpenWorkGoLiveGates: () => {
       return apiClient.get<ApiResponse<any>>(`${openworkBase}/go-live-gates`);
+    },
+    createFoundationSyncJob: (payload: FoundationSyncJobPayload) => {
+      return apiClient.post<ApiResponse<{ job_uuid: string }>>(`${foundationBase}/sync/jobs`, payload);
+    },
+    listFoundationSyncJobs: (params?: { domain?: string; status?: string; limit?: number }) => {
+      return apiClient.get<ApiResponse<{ items: any[] }>>(`${foundationBase}/sync/jobs`, { params });
+    },
+    getFoundationSyncOverview: () => {
+      return apiClient.get<ApiResponse<{ jobs: Record<string, Record<string, number>>; open_conflicts: Record<string, number> }>>(
+        `${foundationBase}/sync/overview`
+      );
+    },
+    listFoundationConflicts: (params?: { domain?: string; status?: string; limit?: number }) => {
+      return apiClient.get<ApiResponse<{ items: any[] }>>(`${foundationBase}/sync/conflicts`, { params });
+    },
+    replayFoundationConflict: (conflictUuid: string, payload?: { resolved_by?: string }) => {
+      return apiClient.post<ApiResponse<any>>(
+        `${foundationBase}/sync/conflicts/${conflictUuid}/replay`,
+        payload ?? {}
+      );
     },
     getWeComOpenWorkPlatformConfig: () => {
       return apiClient.get<ApiResponse<WeComOpenWorkPlatformConfig>>(

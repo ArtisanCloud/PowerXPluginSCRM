@@ -15,10 +15,21 @@ type SyncJobHandler struct {
 	jobSvc        *socialsvc.SyncJobService
 	orchestrator  *socialsvc.SyncOrchestrator
 	capabilitySvc *socialsvc.CapabilityService
+	conflictSvc   *socialsvc.ConflictResolutionService
 }
 
-func NewSyncJobHandler(jobSvc *socialsvc.SyncJobService, orchestrator *socialsvc.SyncOrchestrator, capabilitySvc *socialsvc.CapabilityService) *SyncJobHandler {
-	return &SyncJobHandler{jobSvc: jobSvc, orchestrator: orchestrator, capabilitySvc: capabilitySvc}
+func NewSyncJobHandler(
+	jobSvc *socialsvc.SyncJobService,
+	orchestrator *socialsvc.SyncOrchestrator,
+	capabilitySvc *socialsvc.CapabilityService,
+	conflictSvc *socialsvc.ConflictResolutionService,
+) *SyncJobHandler {
+	return &SyncJobHandler{
+		jobSvc:        jobSvc,
+		orchestrator:  orchestrator,
+		capabilitySvc: capabilitySvc,
+		conflictSvc:   conflictSvc,
+	}
 }
 
 func (h *SyncJobHandler) Create(c *gin.Context) {
@@ -90,4 +101,53 @@ func (h *SyncJobHandler) Capabilities(c *gin.Context) {
 	}
 	matrix := h.capabilitySvc.Matrix(c.Request.Context(), tenantUUID, c.Query("channel"), c.Query("app_type"))
 	contracts.ResponseSuccess(c, gin.H{"capability_status": matrix})
+}
+
+func (h *SyncJobHandler) Overview(c *gin.Context) {
+	if h == nil || h.jobSvc == nil {
+		contracts.ResponseServiceUnavailable(c, "sync job service unavailable", nil)
+		return
+	}
+	tenantUUID, ok := httpmw.TenantUUIDFromContext(c)
+	if !ok || strings.TrimSpace(tenantUUID) == "" {
+		contracts.ResponseUnauthorized(c, "tenant context missing")
+		return
+	}
+	jobs, err := h.jobSvc.List(c.Request.Context(), tenantUUID, "", "", 200)
+	if err != nil {
+		contracts.ResponseError(c, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
+		return
+	}
+
+	// T038: org/tags observability summary for dashboard cards.
+	perDomain := map[string]map[string]int{
+		"tags": {},
+		"org":  {},
+	}
+	for _, job := range jobs {
+		domain := strings.TrimSpace(job.Domain)
+		if domain != "tags" && domain != "org" {
+			continue
+		}
+		if perDomain[domain] == nil {
+			perDomain[domain] = map[string]int{}
+		}
+		perDomain[domain][job.Status]++
+	}
+	openConflicts := map[string]int{
+		"tags": 0,
+		"org":  0,
+	}
+	if h.conflictSvc != nil {
+		if items, e := h.conflictSvc.List(c.Request.Context(), tenantUUID, "tags", "open", 200); e == nil {
+			openConflicts["tags"] = len(items)
+		}
+		if items, e := h.conflictSvc.List(c.Request.Context(), tenantUUID, "org", "open", 200); e == nil {
+			openConflicts["org"] = len(items)
+		}
+	}
+	contracts.ResponseSuccess(c, gin.H{
+		"jobs":           perDomain,
+		"open_conflicts": openConflicts,
+	})
 }

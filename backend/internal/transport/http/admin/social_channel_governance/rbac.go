@@ -41,6 +41,7 @@ func RBACEntries(prefix string) map[string]authx.Permission {
 		"GET:" + openworkBase + "/go-live-gates":                           {Resource: "scrm.social_channel_accounts", Action: "read"},
 		"POST:" + foundationBase + "/sync/jobs":                            {Resource: "scrm.social_channel_accounts", Action: "write"},
 		"GET:" + foundationBase + "/sync/jobs":                             {Resource: "scrm.social_channel_accounts", Action: "read"},
+		"GET:" + foundationBase + "/sync/overview":                         {Resource: "scrm.social_channel_accounts", Action: "read"},
 		"GET:" + foundationBase + "/capabilities":                          {Resource: "scrm.social_channel_accounts", Action: "read"},
 		"GET:" + foundationBase + "/sync/conflicts":                        {Resource: "scrm.social_channel_accounts", Action: "read"},
 		"POST:" + foundationBase + "/sync/conflicts/:conflict_uuid/replay": {Resource: "scrm.social_channel_accounts", Action: "write"},
