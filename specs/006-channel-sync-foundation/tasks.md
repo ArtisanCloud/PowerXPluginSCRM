@@ -144,11 +144,11 @@
 
 **Purpose**: 跨故事收尾、文档与门禁验证。
 
-- [ ] T051 [P] 汇总同步成功率/延迟/冲突/失败 TopN 指标与接口到 `backend/internal/observability/`、`backend/internal/transport/http/admin/social_channel_governance/metrics_handler.go`
-- [ ] T052 [P] 前端 WebSocket 订阅健壮性修复（仅客户端重连/去重/断线恢复，不包含事件契约校验）到 `web-admin/app/composables/useWsBusClient.ts`
-- [ ] T053 [P] 更新快速验收与排障手册（通用主文档 + 渠道特性附录）到 `docs/guides/channel-sync-foundation/`
-- [ ] T054 执行并记录 quickstart 全流程验收到 `specs/006-channel-sync-foundation/quickstart.md`
-- [ ] T055 回写阶段门禁与发布结论到 `docs/plan/develop/channel-sync-foundation/README.md`
+- [X] T051 [P] 汇总同步成功率/延迟/冲突/失败 TopN 指标与接口到 `backend/internal/observability/`、`backend/internal/transport/http/admin/social_channel_governance/metrics_handler.go`
+- [X] T052 [P] 前端 WebSocket 订阅健壮性修复（仅客户端重连/去重/断线恢复，不包含事件契约校验）到 `web-admin/app/composables/useWsBusClient.ts`
+- [X] T053 [P] 更新快速验收与排障手册（通用主文档 + 渠道特性附录）到 `docs/guides/channel-sync-foundation/`
+- [X] T054 执行并记录 quickstart 全流程验收到 `specs/006-channel-sync-foundation/quickstart.md`
+- [X] T055 回写阶段门禁与发布结论到 `docs/plan/develop/channel-sync-foundation/README.md`
 
 ---
 

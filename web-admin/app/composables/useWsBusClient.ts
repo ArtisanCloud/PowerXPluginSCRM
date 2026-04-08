@@ -173,9 +173,12 @@ class WsBusClient {
   connected = ref(false);
   lastError = ref<string | null>(null);
 
+  private readonly dedupWindowMS = 15000;
+  private readonly dedupMaxSize = 1024;
   private ws: WebSocket | null = null;
   private handlers = new Map<string, Set<TopicHandler>>();
   private pendingTopics = new Set<string>();
+  private recentEventKeys = new Map<string, number>();
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private retry = 0;
   private closing = false;
@@ -183,6 +186,11 @@ class WsBusClient {
   private connectCandidates: string[] = [];
   private connectCursor = 0;
   private probing = false;
+  private listenersBound = false;
+
+  constructor() {
+    this.bindWindowListeners();
+  }
 
   connect = (force = false) => {
     if (typeof window === "undefined") return;
@@ -318,6 +326,7 @@ class WsBusClient {
 
   subscribe = (topic: string, handler: TopicHandler): Unsubscribe => {
     if (!topic) return () => {};
+    this.closing = false;
     const set = this.handlers.get(topic) ?? new Set<TopicHandler>();
     set.add(handler);
     this.handlers.set(topic, set);
@@ -349,6 +358,7 @@ class WsBusClient {
     }
     if (!env) return;
     if (env.type !== "event" || !env.topic) return;
+    if (this.isDuplicateEvent(env)) return;
     const handlers = this.handlers.get(env.topic);
     if (!handlers || handlers.size === 0) return;
     handlers.forEach((fn) => {
@@ -379,13 +389,76 @@ class WsBusClient {
   };
 
   private scheduleReconnect = () => {
+    if (this.handlers.size === 0) return;
     if (this.reconnectTimer) return;
     this.retry += 1;
-    const delay = Math.min(10000, 500 * Math.pow(2, Math.min(this.retry, 4)));
+    const baseDelay = Math.min(10000, 500 * Math.pow(2, Math.min(this.retry, 4)));
+    const jitter = Math.floor(Math.random() * 350);
+    const delay = baseDelay + jitter;
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       this.connect(true);
     }, delay);
+  };
+
+  private bindWindowListeners = () => {
+    if (typeof window === "undefined") return;
+    if (this.listenersBound) return;
+    this.listenersBound = true;
+    window.addEventListener("online", () => {
+      this.closing = false;
+      this.connect(true);
+    });
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState !== "visible") return;
+      if (this.connected.value) return;
+      this.closing = false;
+      this.connect(true);
+    });
+  };
+
+  private isDuplicateEvent = (env: WSBusEnvelope) => {
+    const key = this.buildEventDedupKey(env);
+    if (!key) return false;
+    const now = Date.now();
+    const prev = this.recentEventKeys.get(key);
+    this.recentEventKeys.set(key, now);
+    this.pruneDedupCache(now);
+    return typeof prev === "number" && now-prev <= this.dedupWindowMS;
+  };
+
+  private buildEventDedupKey = (env: WSBusEnvelope) => {
+    const topic = String(env.topic || "").trim();
+    const trace = String(env.trace_id || "").trim();
+    const ts = Number(env.ts || 0);
+    if (!topic) return "";
+    if (!trace && !ts) return "";
+    let payloadSig = "";
+    try {
+      payloadSig = JSON.stringify(env.payload ?? null);
+    } catch {
+      payloadSig = "";
+    }
+    if (payloadSig.length > 256) {
+      payloadSig = payloadSig.slice(0, 256);
+    }
+    return `${topic}|${trace}|${ts}|${payloadSig}`;
+  };
+
+  private pruneDedupCache = (now: number) => {
+    if (this.recentEventKeys.size <= this.dedupMaxSize) {
+      for (const [key, ts] of this.recentEventKeys.entries()) {
+        if (now-ts > this.dedupWindowMS) {
+          this.recentEventKeys.delete(key);
+        }
+      }
+      return;
+    }
+    const entries = Array.from(this.recentEventKeys.entries()).sort((a, b) => a[1]-b[1]);
+    const removeCount = Math.max(0, entries.length-this.dedupMaxSize);
+    for (let i = 0; i < removeCount; i += 1) {
+      this.recentEventKeys.delete(entries[i][0]);
+    }
   };
 }
 

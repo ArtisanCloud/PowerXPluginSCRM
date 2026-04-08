@@ -26,6 +26,7 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 	var platformSettingHandler *ChannelPlatformSettingHandler
 	var syncJobHandler *SyncJobHandler
 	var conflictHandler *ConflictHandler
+	var metricsHandler *MetricsHandler
 	schemaLoader := SocialService.NewChannelSchemaLoader(SocialService.ChannelSchemaLoaderOptions{
 		Logger: logrus.WithField("module", "social_channel_governance"),
 	})
@@ -53,6 +54,7 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		deadletterSvc := SocialService.NewRetryDeadletterService(syncRepo)
 		syncJobHandler = NewSyncJobHandler(syncJobSvc, orchestrator, capabilityMatrixSvc, conflictSvc)
 		conflictHandler = NewConflictHandler(conflictSvc, deadletterSvc)
+		metricsHandler = NewMetricsHandler(syncRepo)
 	}
 	accountHandler := NewAccountHandler(accountSvc)
 	schemaHandler := NewChannelSchemaHandler(schemaLoader, deps.Config)
@@ -95,6 +97,9 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 			group.POST("/openwork/foundation/sync/jobs", syncJobHandler.Create)
 			group.GET("/openwork/foundation/sync/jobs", syncJobHandler.List)
 			group.GET("/openwork/foundation/sync/overview", syncJobHandler.Overview)
+			if metricsHandler != nil {
+				group.GET("/openwork/foundation/sync/metrics", metricsHandler.GetSyncMetrics)
+			}
 			group.GET("/openwork/foundation/capabilities", syncJobHandler.Capabilities)
 			group.GET("/openwork/foundation/sync/conflicts", conflictHandler.List)
 			group.POST("/openwork/foundation/sync/conflicts/:conflict_uuid/replay", conflictHandler.Replay)

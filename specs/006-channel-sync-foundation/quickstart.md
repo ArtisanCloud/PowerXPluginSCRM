@@ -46,3 +46,37 @@ ls -la specs/006-channel-sync-foundation/contracts/
    - 组织双向稳定
    - 外部联系人与线索双向稳定
    - 任务重试/审计/重放能力可用
+
+## 6. 2026-04-08 验收执行记录（Phase 6）
+
+### 6.1 后端能力验证
+
+1. 编译验证：
+```bash
+cd backend && GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go build ./cmd/plugin
+```
+结果：通过。
+
+2. US3 合同测试：
+```bash
+cd backend && GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test ./tests/contract -run 'ExternalContact|LeadWriteback' -count=1
+```
+结果：通过（contract 全绿）。
+
+3. US3 集成测试：
+```bash
+cd backend && GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test ./tests/integration/lead_capture ./tests/integration/social_channel_governance -run 'ExternalContactBidirectional|BaselineRepair' -count=1
+```
+结果：通过（integration 全绿）。
+
+### 6.2 Phase 6 交付检查
+
+1. 指标接口（T051）：已新增 `GET /api/v1/admin/social/openwork/foundation/sync/metrics`。
+2. WS 客户端健壮性（T052）：已补充断线恢复、消息去重、在线重连。
+3. 排障文档（T053）：已新增 `docs/guides/channel-sync-foundation/` 主文档与渠道附录。
+4. 门禁回写（T055）：已在计划 README 更新当前结论。
+
+### 6.3 当前遗留说明
+
+1. 前端 lint 在当前仓库输出 `Lint checks pending configuration`，未提供可执行规则。
+2. 渠道真实环境（Feishu/DingTalk）仍需在后续渠道实现阶段补真实联调结果。

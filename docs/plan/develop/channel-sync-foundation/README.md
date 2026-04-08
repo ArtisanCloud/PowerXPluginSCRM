@@ -161,3 +161,24 @@
 - 当前仅完成 Setup（Shared Infrastructure）。
 - 渠道活码仍处于“新增冻结，仅允许缺陷修复”。
 - Foundational 开始前需保持门禁状态不被绕过。
+
+## Phase 6 门禁与发布结论（2026-04-08）
+
+### 已完成项
+
+1. 同步观测指标接口已上线：`/api/v1/admin/social/openwork/foundation/sync/metrics`。
+2. WebSocket 客户端健壮性已补齐：重连、去重、断线恢复。
+3. 快速验收与排障手册已沉淀：`docs/guides/channel-sync-foundation/`。
+4. quickstart 已补充执行记录：`specs/006-channel-sync-foundation/quickstart.md`。
+
+### 门禁判定
+
+1. 同步基础域（接入/标签/组织/外部联系人与线索）当前实现链路：`Pass`。
+2. 稳定性与可运维能力（任务、冲突、死信、重放、指标）：`Pass`。
+3. 活码能力新增冻结策略：继续生效，直到业务侧明确解除。
+
+### 发布建议
+
+1. 可进入下一阶段业务开发（员工活码/群活码增量需求）。
+2. 上线前保持每日巡检 metrics 与死信 TopN。
+3. Feishu/DingTalk 继续按工厂适配扩展，不回写 WeCom 特有逻辑到主流程。
