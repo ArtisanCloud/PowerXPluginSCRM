@@ -266,7 +266,8 @@ func (d *LocalDirectory) CheckPermission(ctx context.Context, tc TenantContext, 
 		return ErrInvalidArguments
 	}
 	for _, role := range tc.Roles {
-		if role == "system.admin" {
+		switch strings.ToLower(strings.TrimSpace(role)) {
+		case "system.admin", "system_admin", "role_admin", "role_owner":
 			return nil
 		}
 	}

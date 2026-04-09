@@ -32,6 +32,13 @@
         >
           批量导入
         </UButton>
+        <UButton
+          icon="i-heroicons-adjustments-horizontal"
+          variant="soft"
+          @click="syncCenterOpen = true"
+        >
+          同步中心
+        </UButton>
         <UButton icon="i-heroicons-plus" color="primary" @click="openCreateModal">
           新建线索
         </UButton>
@@ -91,6 +98,32 @@
     </div>
 
     <UCard>
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="text-sm text-gray-600 dark:text-gray-300">
+          同步中心已收纳为弹层，当前仅展示线索列表主视图。
+        </div>
+        <div class="flex items-center gap-2">
+          <UBadge variant="soft" :color="syncTasks.some((item) => item.status === 'failed') ? 'error' : 'success'">
+            同步任务 {{ syncTasks.length }} 条
+          </UBadge>
+          <UButton size="xs" variant="soft" :loading="syncLoading" @click="refreshSyncTasks">刷新</UButton>
+          <UButton size="xs" color="primary" @click="syncCenterOpen = true">打开同步中心</UButton>
+        </div>
+      </div>
+    </UCard>
+
+    <UModal
+      v-model:open="syncCenterOpen"
+      :prevent-close="false"
+      :dismissible="true"
+      :modal="true"
+      :ui="{ content: 'max-w-7xl w-full' }"
+    >
+      <template #title>同步中心</template>
+      <template #description>统一管理渠道同步任务、线索回写策略与死信重放。</template>
+      <template #body>
+        <div class="p-1">
+    <UCard>
       <template #header>
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div class="flex items-center gap-2">
@@ -116,26 +149,21 @@
                   同步筛选
                 </div>
                 <div class="text-xs text-gray-500 dark:text-gray-400">
-                  触发同步前可切换账号与状态范围
+                  触发前选择同步动作，系统自动使用默认渠道账号
                 </div>
               </div>
               <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <UFormField label="同步账号（可选）">
-                  <USelectMenu
-                    v-model="syncAccountUUID"
-                    :items="syncAccountOptions"
-                    value-key="value"
-                    label-key="label"
-                    placeholder="不填走默认账号"
+                <UFormField label="同步账号（系统默认）">
+                  <UInput
+                    :model-value="defaultSyncAccountLabel"
+                    readonly
                     class="w-full"
-                    :portal="false"
-                    :ui="{ content: 'z-[200]' }"
                   />
                 </UFormField>
-                <UFormField label="状态筛选">
+                <UFormField label="同步动作">
                   <USelectMenu
-                    v-model="syncStatusFilter"
-                    :items="syncStatusOptions"
+                    v-model="syncTriggerAction"
+                    :items="syncTriggerActionOptions"
                     value-key="value"
                     label-key="label"
                     class="w-full"
@@ -143,11 +171,44 @@
                     :ui="{ content: 'z-[200]' }"
                   />
                 </UFormField>
+              </div>
+              <div v-if="syncTriggerAction === 'push_leads'" class="mt-3 rounded-xl border border-gray-200/80 bg-white/80 p-3 dark:border-gray-700/80 dark:bg-gray-950/30">
+                <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <div class="text-sm font-medium text-gray-800 dark:text-gray-100">
+                    回写线索选择（多选）
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <UButton size="xs" variant="soft" @click="selectAllFilteredLeadsForPush">
+                      选择当前筛选全部
+                    </UButton>
+                    <UButton size="xs" variant="ghost" @click="clearSelectedLeadsForPush">
+                      清空
+                    </UButton>
+                  </div>
+                </div>
+                <UFormField label="待回写线索">
+                  <USelectMenu
+                    v-model="selectedLeadUUIDsForPush"
+                    multiple
+                    searchable
+                    :items="pushLeadSelectionOptions"
+                    value-key="value"
+                    label-key="label"
+                    placeholder="请选择要回写到渠道的线索（可多选）"
+                    class="w-full"
+                    :portal="false"
+                    :ui="{ content: 'z-[220]' }"
+                  />
+                </UFormField>
+                <div class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                  已选 {{ selectedLeadUUIDsForPush.length }} 条；只会推送你选中的线索，不会全量推送。
+                </div>
               </div>
               <div
                 class="mt-3 rounded-lg border border-dashed border-gray-300/80 bg-white/70 px-3 py-2 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-950/30 dark:text-gray-300"
               >
                 最近一次账号解析来源：<span class="font-medium text-gray-800 dark:text-gray-100">{{ syncLastResolveSource || "未触发" }}</span>
+                <span class="ml-2 text-[11px] text-gray-500 dark:text-gray-400">（触发同步时固定按系统默认账号解析）</span>
               </div>
             </div>
           </div>
@@ -158,14 +219,17 @@
                 <div class="flex items-start justify-between gap-3">
                   <div>
                     <div class="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                      客户私信自动建线索（WeCom）
+                      客户私信自动建线索（{{ currentSyncChannelTag }}）
                     </div>
                     <div class="mt-1 text-xs leading-5 text-gray-600 dark:text-gray-300">
-                      关闭时进入待绑定池，开启后客户私信自动入池。
+                      {{ isWeComDefaultSyncChannel
+                        ? "关闭时进入待绑定池，开启后客户私信自动入池。"
+                        : "当前默认渠道暂不支持该规则（仅 WeCom 已实现）。" }}
                     </div>
                   </div>
                   <USwitch
                     v-model="wecomCustomerDMAutoCreate"
+                    :disabled="!isWeComDefaultSyncChannel"
                     :loading="wecomCustomerDMRuleLoading || wecomCustomerDMRuleSaving"
                   />
                 </div>
@@ -173,6 +237,7 @@
                   <UButton
                     size="xs"
                     color="primary"
+                    :disabled="!isWeComDefaultSyncChannel"
                     :loading="wecomCustomerDMRuleSaving"
                     @click="saveWeComCustomerDMRule"
                   >
@@ -185,7 +250,7 @@
         </div>
 
         <div class="grid grid-cols-1 gap-4 xl:grid-cols-12">
-          <div class="xl:col-span-7 rounded-xl border border-gray-200/80 bg-gray-50/70 p-4 dark:border-gray-700/80 dark:bg-gray-900/40">
+          <div class="xl:col-span-12 rounded-xl border border-gray-200/80 bg-gray-50/70 p-4 dark:border-gray-700/80 dark:bg-gray-900/40">
             <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
               <div class="flex items-center gap-2">
                 <span class="text-sm font-medium text-gray-900 dark:text-gray-100">线索回写策略</span>
@@ -197,155 +262,232 @@
                 <UButton size="xs" variant="soft" :loading="writebackPolicyLoading" @click="loadWritebackPolicy">
                   刷新策略
                 </UButton>
-                <UButton size="xs" color="primary" :loading="writebackPolicySaving" @click="saveWritebackPolicy">
-                  保存策略
+                <UButton size="xs" color="primary" @click="openWritebackPolicyDialog">
+                  配置策略
                 </UButton>
               </div>
             </div>
-            <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <UFormField label="覆盖模式">
+            <div class="space-y-2 text-xs text-gray-500 dark:text-gray-400">
+              <div>覆盖模式：<span class="font-medium text-gray-800 dark:text-gray-200">{{ writebackOverwriteMode }}</span></div>
+              <div>启用状态：<span class="font-medium text-gray-800 dark:text-gray-200">{{ writebackEnabled ? "已启用" : "未启用" }}</span></div>
+              <div>白名单字段数：<span class="font-medium text-gray-800 dark:text-gray-200">{{ writebackWhitelistFields.length }}</span>，受保护字段数：<span class="font-medium text-gray-800 dark:text-gray-200">{{ writebackProtectedFields.length }}</span></div>
+            </div>
+          </div>
+        </div>
+
+        <UModal
+          v-model:open="writebackPolicyDialogOpen"
+          :prevent-close="false"
+          :dismissible="true"
+          :modal="true"
+          :ui="{ content: 'max-w-4xl w-full' }"
+        >
+          <template #title>线索回写策略</template>
+          <template #description>配置字段白名单与受保护字段，保存后生效。</template>
+          <template #body>
+            <div class="space-y-3 p-1">
+              <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <UFormField label="覆盖模式">
+                  <USelectMenu
+                    v-model="writebackOverwriteMode"
+                    :items="writebackOverwriteModeOptions"
+                    value-key="value"
+                    label-key="label"
+                    class="w-full"
+                    :portal="false"
+                    :ui="{ content: 'z-[200]' }"
+                  />
+                </UFormField>
+                <UFormField label="启用回写">
+                  <div class="h-8 flex items-center">
+                    <USwitch v-model="writebackEnabled" />
+                  </div>
+                </UFormField>
+                <UFormField label="白名单字段（多选）" class="md:col-span-2">
+                  <div class="grid grid-cols-2 gap-2 md:grid-cols-3">
+                    <label
+                      v-for="field in writebackFieldOptions"
+                      :key="`whitelist-dialog-${field.value}`"
+                      class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200"
+                    >
+                      <input
+                        type="checkbox"
+                        class="h-4 w-4"
+                        :checked="writebackWhitelistFields.includes(field.value)"
+                        @change="onWritebackCheckboxChange('whitelist', field.value, $event)"
+                      />
+                      <span>{{ field.label }}</span>
+                    </label>
+                  </div>
+                </UFormField>
+                <UFormField label="受保护字段（多选）" class="md:col-span-2">
+                  <div class="grid grid-cols-2 gap-2 md:grid-cols-3">
+                    <label
+                      v-for="field in writebackFieldOptions"
+                      :key="`protected-dialog-${field.value}`"
+                      class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200"
+                    >
+                      <input
+                        type="checkbox"
+                        class="h-4 w-4"
+                        :checked="writebackProtectedFields.includes(field.value)"
+                        @change="onWritebackCheckboxChange('protected', field.value, $event)"
+                      />
+                      <span>{{ field.label }}</span>
+                    </label>
+                  </div>
+                </UFormField>
+              </div>
+              <div class="text-xs text-gray-500 dark:text-gray-400">
+                提示：白名单外字段不会回写，受保护字段即使在白名单中也会被忽略。
+              </div>
+            </div>
+          </template>
+          <template #footer>
+            <div class="flex items-center justify-end gap-2">
+              <UButton variant="soft" @click="writebackPolicyDialogOpen = false">取消</UButton>
+              <UButton color="primary" :loading="writebackPolicySaving" @click="saveWritebackPolicyFromDialog">
+                保存策略
+              </UButton>
+            </div>
+          </template>
+        </UModal>
+
+        <UCard>
+          <template #header>
+            <div class="flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2">
+                <span class="text-sm font-medium text-gray-900 dark:text-gray-100">同步任务队列</span>
+                <UBadge variant="soft" color="info">{{ syncTasks.length }}</UBadge>
+              </div>
+              <div class="flex items-center gap-2">
+                <UButton size="xs" variant="soft" :loading="syncLoading" @click="refreshSyncTasks">刷新任务</UButton>
+                <UButton size="xs" variant="soft" @click="syncTaskPanelOpen = !syncTaskPanelOpen">
+                  {{ syncTaskPanelOpen ? "收起" : "展开" }}
+                </UButton>
+              </div>
+            </div>
+          </template>
+          <div v-if="syncTaskPanelOpen" class="space-y-3">
+            <UTable :columns="syncTaskColumns" :data="pagedSyncTasks" :loading="syncLoading">
+              <template #task_uuid-cell="{ row }">
+                <button
+                  type="button"
+                  class="max-w-[180px] truncate text-left text-sm text-gray-300 hover:text-primary cursor-pointer"
+                  :title="row.original.task_uuid"
+                  @click="copyTaskUUID(row.original.task_uuid)"
+                >
+                  {{ shortUUID(row.original.task_uuid) }}
+                </button>
+              </template>
+              <template #channel_account_uuid-cell="{ row }">
+                <span class="text-sm text-gray-700 dark:text-gray-200">
+                  {{ resolveSyncAccountLabel(row.original) }}
+                </span>
+              </template>
+              <template #status-cell="{ row }">
+                <UBadge :color="syncStatusMeta(row.original.status).color" variant="soft">
+                  {{ syncStatusMeta(row.original.status).label }}
+                </UBadge>
+              </template>
+              <template #progress-cell="{ row }">
+                <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-300">
+                  <div class="h-1.5 w-24 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                    <div
+                      class="h-full rounded-full bg-primary transition-all duration-300"
+                      :style="{ width: `${syncProgressPercent(row.original)}%` }"
+                    />
+                  </div>
+                  <span>{{ syncProgressPercent(row.original) }}%</span>
+                </div>
+              </template>
+              <template #stats-cell="{ row }">
+                <div class="text-xs text-gray-500 dark:text-gray-400">
+                  总数 {{ row.original.stats_total || 0 }} / 新增 {{ row.original.stats_created || 0 }} /
+                  更新 {{ row.original.stats_updated || 0 }} / 合并 {{ row.original.stats_merged || 0 }}
+                </div>
+              </template>
+              <template #error-cell="{ row }">
+                <span class="text-xs text-amber-500">{{ row.original.error_message || "-" }}</span>
+              </template>
+            </UTable>
+            <div class="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
+              <div class="text-xs text-gray-500 dark:text-gray-400">
+                任务第 {{ syncTaskPage }} / {{ syncTaskTotalPages }} 页（共 {{ syncTasks.length }} 条）
+              </div>
+              <div class="flex flex-wrap items-center gap-2">
                 <USelectMenu
-                  v-model="writebackOverwriteMode"
-                  :items="writebackOverwriteModeOptions"
+                  v-model="syncTaskPageSize"
+                  :items="syncTaskPageSizeOptions"
                   value-key="value"
                   label-key="label"
-                  class="w-full"
+                  class="w-24"
                   :portal="false"
                   :ui="{ content: 'z-[200]' }"
                 />
-              </UFormField>
-              <UFormField label="启用回写">
-                <div class="h-8 flex items-center">
-                  <USwitch v-model="writebackEnabled" />
-                </div>
-              </UFormField>
-              <UFormField label="白名单字段（逗号分隔）" class="md:col-span-2">
-                <UInput
-                  v-model="writebackWhitelistText"
-                  placeholder="phone, email, owner_user_uuid, status"
-                />
-              </UFormField>
-              <UFormField label="受保护字段（逗号分隔）" class="md:col-span-2">
-                <UInput
-                  v-model="writebackProtectedText"
-                  placeholder="lead_uuid, tenant_uuid, source_account_uuid"
-                />
-              </UFormField>
-            </div>
-            <div class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-              提示：白名单外字段不会回写，受保护字段即使在白名单中也会被忽略。
+                <UButton size="xs" variant="soft" :disabled="syncTaskPage <= 1" @click="syncTaskPrevPage">
+                  上一页
+                </UButton>
+                <UButton size="xs" variant="soft" :disabled="syncTaskPage >= syncTaskTotalPages" @click="syncTaskNextPage">
+                  下一页
+                </UButton>
+              </div>
             </div>
           </div>
+        </UCard>
 
-          <div class="xl:col-span-5 rounded-xl border border-gray-200/80 bg-gray-50/70 p-4 dark:border-gray-700/80 dark:bg-gray-900/40">
-            <div class="mb-3 flex items-center justify-between gap-2">
-              <span class="text-sm font-medium text-gray-900 dark:text-gray-100">回写死信队列</span>
-              <UButton size="xs" variant="soft" :loading="writebackDeadLettersLoading" @click="refreshWritebackDeadLetters">
-                刷新死信
-              </UButton>
+        <UCard>
+          <template #header>
+            <div class="flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2">
+                <span class="text-sm font-medium text-gray-900 dark:text-gray-100">回写死信队列</span>
+                <UBadge variant="soft" color="warning">{{ writebackDeadLetters.length }}</UBadge>
+              </div>
+              <div class="flex items-center gap-2">
+                <UButton size="xs" variant="soft" :loading="writebackDeadLettersLoading" @click="refreshWritebackDeadLetters">刷新死信</UButton>
+                <UButton size="xs" variant="soft" @click="deadLetterPanelOpen = !deadLetterPanelOpen">
+                  {{ deadLetterPanelOpen ? "收起" : "展开" }}
+                </UButton>
+              </div>
             </div>
+          </template>
+          <div v-if="deadLetterPanelOpen" class="space-y-3">
             <div v-if="writebackDeadLetters.length === 0" class="text-xs text-gray-500 dark:text-gray-400">
               暂无死信记录
             </div>
-            <div v-else class="space-y-2">
-              <div
-                v-for="item in writebackDeadLetters"
-                :key="item.dead_letter_uuid"
-                class="rounded-lg border border-gray-200/80 px-3 py-2 text-xs dark:border-gray-700/80"
-              >
-                <div class="flex items-start justify-between gap-2">
-                  <div class="space-y-1">
-                    <div class="font-medium text-gray-900 dark:text-gray-100">
-                      {{ item.dead_letter_uuid || "-" }}
-                    </div>
-                    <div class="text-gray-500 dark:text-gray-400">
-                      错误：{{ item.last_error_code || "-" }} / {{ item.last_error_message || "-" }}
-                    </div>
-                    <div class="text-gray-500 dark:text-gray-400">
-                      状态：{{ item.replay_status || "pending" }}
-                    </div>
-                  </div>
-                  <UButton
-                    size="xs"
-                    variant="soft"
-                    :loading="writebackReplayLoadingUUID === item.dead_letter_uuid"
-                    :disabled="!item.dead_letter_uuid"
-                    @click="replayWritebackDeadLetter(item.dead_letter_uuid)"
-                  >
-                    重放
-                  </UButton>
-                </div>
-              </div>
-            </div>
+            <UTable v-else :columns="deadLetterColumns" :data="writebackDeadLetters" :loading="writebackDeadLettersLoading">
+              <template #dead_letter_uuid-cell="{ row }">
+                <span class="text-xs text-gray-300">{{ shortUUID(row.original.dead_letter_uuid) }}</span>
+              </template>
+              <template #replay_status-cell="{ row }">
+                <UBadge variant="soft" :color="row.original.replay_status === 'done' ? 'success' : 'warning'">
+                  {{ row.original.replay_status || "pending" }}
+                </UBadge>
+              </template>
+              <template #error-cell="{ row }">
+                <span class="text-xs text-amber-500">
+                  {{ row.original.last_error_code || "-" }} / {{ row.original.last_error_message || "-" }}
+                </span>
+              </template>
+              <template #actions-cell="{ row }">
+                <UButton
+                  size="xs"
+                  variant="soft"
+                  :loading="writebackReplayLoadingUUID === row.original.dead_letter_uuid"
+                  :disabled="!row.original.dead_letter_uuid"
+                  @click="replayWritebackDeadLetter(row.original.dead_letter_uuid)"
+                >
+                  重放
+                </UButton>
+              </template>
+            </UTable>
           </div>
-        </div>
-
-        <UTable :columns="syncTaskColumns" :data="pagedSyncTasks" :loading="syncLoading">
-          <template #task_uuid-cell="{ row }">
-            <button
-              type="button"
-              class="max-w-[180px] truncate text-left text-sm text-gray-300 hover:text-primary cursor-pointer"
-              :title="row.original.task_uuid"
-              @click="copyTaskUUID(row.original.task_uuid)"
-            >
-              {{ shortUUID(row.original.task_uuid) }}
-            </button>
-          </template>
-          <template #channel_account_uuid-cell="{ row }">
-            <span class="text-sm text-gray-700 dark:text-gray-200">
-              {{ resolveSyncAccountLabel(row.original) }}
-            </span>
-          </template>
-          <template #status-cell="{ row }">
-            <UBadge :color="syncStatusMeta(row.original.status).color" variant="soft">
-              {{ syncStatusMeta(row.original.status).label }}
-            </UBadge>
-          </template>
-          <template #progress-cell="{ row }">
-            <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-300">
-              <div class="h-1.5 w-24 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
-                <div
-                  class="h-full rounded-full bg-primary transition-all duration-300"
-                  :style="{ width: `${syncProgressPercent(row.original)}%` }"
-                />
-              </div>
-              <span>{{ syncProgressPercent(row.original) }}%</span>
-            </div>
-          </template>
-          <template #stats-cell="{ row }">
-            <div class="text-xs text-gray-500 dark:text-gray-400">
-              总数 {{ row.original.stats_total || 0 }} / 新增 {{ row.original.stats_created || 0 }} /
-              更新 {{ row.original.stats_updated || 0 }} / 合并 {{ row.original.stats_merged || 0 }}
-            </div>
-          </template>
-          <template #error-cell="{ row }">
-            <span class="text-xs text-amber-500">{{ row.original.error_message || "-" }}</span>
-          </template>
-        </UTable>
-        <div class="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
-          <div class="text-xs text-gray-500 dark:text-gray-400">
-            任务第 {{ syncTaskPage }} / {{ syncTaskTotalPages }} 页（共 {{ syncTasks.length }} 条）
-          </div>
-          <div class="flex flex-wrap items-center gap-2">
-            <USelectMenu
-              v-model="syncTaskPageSize"
-              :items="syncTaskPageSizeOptions"
-              value-key="value"
-              label-key="label"
-              class="w-24"
-              :portal="false"
-              :ui="{ content: 'z-[200]' }"
-            />
-            <UButton size="xs" variant="soft" :disabled="syncTaskPage <= 1" @click="syncTaskPrevPage">
-              上一页
-            </UButton>
-            <UButton size="xs" variant="soft" :disabled="syncTaskPage >= syncTaskTotalPages" @click="syncTaskNextPage">
-              下一页
-            </UButton>
-          </div>
-        </div>
+        </UCard>
       </div>
     </UCard>
+        </div>
+      </template>
+    </UModal>
 
     <UCard v-if="showChannelCodeWelcomePanel">
       <template #header>
@@ -932,7 +1074,6 @@ import {
   type ChannelCodeEventRecord,
   type ChannelCodeEventStats,
   type ChannelCodeWelcomeSyncStatus,
-  type LeadActivityRecord,
   type WeComWritebackPolicy,
   type WeComSyncTaskRecord,
   type WeComCustomerDMRule,
@@ -997,20 +1138,24 @@ const channelCodeEventStats = ref<ChannelCodeEventStats>({
 });
 const syncLoading = ref(false);
 const syncSubmitting = ref(false);
-const syncAccountUUID = ref("");
-const syncStatusFilter = ref<string>(ALL_OPTION_VALUE);
+const syncCenterOpen = ref(false);
+const syncTaskPanelOpen = ref(false);
+const deadLetterPanelOpen = ref(false);
+const syncTriggerAction = ref<"pull_external_contacts" | "push_leads">("pull_external_contacts");
+const selectedLeadUUIDsForPush = ref<string[]>([]);
 const syncTasks = ref<WeComSyncTaskRecord[]>([]);
 const syncTaskPage = ref(1);
 const syncTaskPageSize = ref(5);
 const writebackPolicyLoading = ref(false);
 const writebackPolicySaving = ref(false);
+const writebackPolicyDialogOpen = ref(false);
 const writebackDeadLettersLoading = ref(false);
 const writebackReplayLoadingUUID = ref("");
 const writebackPolicy = ref<WeComWritebackPolicy | null>(null);
 const writebackEnabled = ref(true);
 const writebackOverwriteMode = ref<"safe" | "force">("safe");
-const writebackWhitelistText = ref("");
-const writebackProtectedText = ref("");
+const writebackWhitelistFields = ref<string[]>([]);
+const writebackProtectedFields = ref<string[]>([]);
 const writebackDeadLetters = ref<any[]>([]);
 let syncPollTimer: ReturnType<typeof setTimeout> | null = null;
 const lastLeadAutoRefreshTaskSignature = ref("");
@@ -1021,10 +1166,6 @@ const wecomCustomerDMAutoCreate = ref(false);
 const channelAccounts = ref<ChannelAccount[]>([]);
 const iamMembers = ref<MemberRecord[]>([]);
 const sourceCatalogs = ref<RuntimeDictionaryItem[]>([]);
-const leadSyncTraceMap = ref<Record<string, Record<string, any>>>({});
-const leadSyncTraceLoadingSet = ref<Set<string>>(new Set());
-const leadSyncTraceWarmRunning = ref(false);
-const leadSyncTraceWarmQueued = ref(false);
 const previewHeaders = ref<string[]>([]);
 const previewRows = ref<string[][]>([]);
 const mappingForm = reactive<Record<string, number>>({});
@@ -1121,13 +1262,25 @@ const pageSizeOptions = [
   { label: "50/页", value: 50 },
 ];
 
-const syncStatusOptions = [
-  { label: "全部状态", value: ALL_OPTION_VALUE },
-  { label: "排队中", value: "queued" },
-  { label: "执行中", value: "running" },
-  { label: "成功", value: "success" },
-  { label: "失败", value: "failed" },
+const syncTriggerActionOptions = [
+  { label: "拉取外部联系人到线索", value: "pull_external_contacts" },
+  { label: "回写线索到渠道", value: "push_leads" },
 ];
+
+const pushLeadSelectionOptions = computed(() =>
+  filteredLeads.value.map((lead) => {
+    const name = (lead.display_name || "").trim();
+    const phone = (lead.phone || "").trim();
+    const email = (lead.email || "").trim();
+    const status = statusMeta(lead.status).label;
+    const title = name || phone || email || lead.lead_uuid;
+    const desc = [phone || "-", email || "-", status].join(" / ");
+    return {
+      value: lead.lead_uuid,
+      label: `${title}（${desc}）`,
+    };
+  })
+);
 
 const syncTaskPageSizeOptions = [
   { label: "5/页", value: 5 },
@@ -1140,6 +1293,19 @@ const writebackOverwriteModeOptions = [
   { label: "强制覆盖（force）", value: "force" },
 ];
 
+const writebackFieldOptions = [
+  { label: "姓名（display_name）", value: "display_name" },
+  { label: "手机号（phone）", value: "phone" },
+  { label: "邮箱（email）", value: "email" },
+  { label: "负责人（owner_user_uuid）", value: "owner_user_uuid" },
+  { label: "状态（status）", value: "status" },
+  { label: "线索UUID（lead_uuid）", value: "lead_uuid" },
+  { label: "租户UUID（tenant_uuid）", value: "tenant_uuid" },
+  { label: "来源账号（source_account_uuid）", value: "source_account_uuid" },
+  { label: "来源渠道（source_channel）", value: "source_channel" },
+  { label: "来源应用（source_app_type）", value: "source_app_type" },
+];
+
 const syncTaskColumns = [
   { accessorKey: "task_uuid", header: "任务 UUID" },
   { accessorKey: "channel_account_uuid", header: "同步账号" },
@@ -1148,6 +1314,15 @@ const syncTaskColumns = [
   { accessorKey: "progress", header: "进度" },
   { accessorKey: "stats", header: "统计" },
   { accessorKey: "error", header: "错误" },
+] satisfies any;
+
+const deadLetterColumns = [
+  { accessorKey: "dead_letter_uuid", header: "死信 UUID" },
+  { accessorKey: "domain", header: "域" },
+  { accessorKey: "direction", header: "方向" },
+  { accessorKey: "replay_status", header: "状态" },
+  { accessorKey: "error", header: "错误" },
+  { accessorKey: "actions", header: "操作" },
 ] satisfies any;
 
 const channelCodeTargetTypeOptions = [
@@ -1251,12 +1426,37 @@ const createAccountOptions = computed(() => {
   }));
 });
 
-const syncAccountOptions = computed(() =>
-  channelAccounts.value.map((account) => ({
-    label: `${account.display_name || account.account_id} (${account.channel_code}/${account.app_type})`,
-    value: account.account_uuid,
-  }))
-);
+const defaultSyncAccount = computed(() => {
+  const activeWeComAccounts = channelAccounts.value.filter((account) => {
+    const channel = (account.channel_code || "").trim().toLowerCase();
+    const appType = (account.app_type || "").trim().toLowerCase();
+    const status = (account.status || "").trim().toLowerCase();
+    return channel === "wechat" && appType === "wecom" && status !== "disabled";
+  });
+  if (!activeWeComAccounts.length) return null;
+  const preferred = activeWeComAccounts.find((account) => !!account.org_sync_default);
+  return preferred || activeWeComAccounts[0];
+});
+
+const defaultSyncAccountLabel = computed(() => {
+  const account = defaultSyncAccount.value;
+  if (!account) return "未找到默认渠道账号（将由服务端兜底解析）";
+  return `${account.display_name || account.account_id} (${account.channel_code}/${account.app_type})`;
+});
+
+const isWeComDefaultSyncChannel = computed(() => {
+  const account = defaultSyncAccount.value;
+  if (!account) return false;
+  const channel = (account.channel_code || "").trim().toLowerCase();
+  const appType = (account.app_type || "").trim().toLowerCase();
+  return channel === "wechat" && appType === "wecom";
+});
+
+const currentSyncChannelTag = computed(() => {
+  const account = defaultSyncAccount.value;
+  if (!account) return "渠道未识别";
+  return `${account.channel_code}/${account.app_type}`;
+});
 
 const syncAccountLabelMap = computed(() => {
   const map = new Map<string, string>();
@@ -1336,80 +1536,15 @@ const statusMeta = (status?: string) => {
   }
 };
 
-const parseISOTime = (value?: string): number => {
-  if (!value) return 0;
-  const ts = Date.parse(value);
-  return Number.isNaN(ts) ? 0 : ts;
-};
-
-const pickLatestSyncTracePayload = (activities: LeadActivityRecord[]): Record<string, any> => {
-  const traces = activities.filter((item) => item.activity_type === "sync_trace");
-  if (!traces.length) return {};
-  const sorted = traces.slice().sort((a, b) => parseISOTime(b.created_at) - parseISOTime(a.created_at));
-  return (sorted[0]?.payload || {}) as Record<string, any>;
-};
-
-const ensureLeadSyncTrace = async (leadId?: string) => {
-  const key = (leadId || "").trim();
-  if (!key) return;
-  if (leadSyncTraceMap.value[key]) return;
-  if (leadSyncTraceLoadingSet.value.has(key)) return;
-  leadSyncTraceLoadingSet.value.add(key);
-  try {
-    const resp = await leadCaptureService.listActivities(key);
-    const items = (((resp as any)?.data?.items || []) as LeadActivityRecord[]);
-    leadSyncTraceMap.value[key] = pickLatestSyncTracePayload(items);
-  } catch {
-    leadSyncTraceMap.value[key] = {};
-  } finally {
-    leadSyncTraceLoadingSet.value.delete(key);
-  }
-};
-
-const warmPagedLeadSyncTrace = async () => {
-  if (leadSyncTraceWarmRunning.value) {
-    leadSyncTraceWarmQueued.value = true;
-    return;
-  }
-  leadSyncTraceWarmRunning.value = true;
-  try {
-    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-    let guard = 0;
-    while (guard < 5) {
-      guard += 1;
-      leadSyncTraceWarmQueued.value = false;
-      const ids = pagedLeads.value
-        .map((item) => item?.lead_uuid || "")
-        .filter((id) => id && !leadSyncTraceMap.value[id] && !leadSyncTraceLoadingSet.value.has(id));
-      if (!ids.length) {
-        break;
-      }
-      for (const id of ids) {
-        await ensureLeadSyncTrace(id);
-        await sleep(120);
-      }
-      if (!leadSyncTraceWarmQueued.value) {
-        break;
-      }
-    }
-  } finally {
-    leadSyncTraceWarmRunning.value = false;
-    leadSyncTraceWarmQueued.value = false;
-  }
-};
-
-const leadSyncExternalInfo = (leadId?: string) => {
-  const payload = leadId ? (leadSyncTraceMap.value[leadId] || {}) : {};
+const leadSyncExternalInfo = (_leadId?: string) => {
   return {
-    externalLeadId: String(payload?.external_lead_id || "").trim(),
-    externalWechatId: String(payload?.external_wechat_id || "").trim(),
+    externalLeadId: "",
+    externalWechatId: "",
   };
 };
 
 const refreshLeads = async () => {
   await store.fetchLeads();
-  leadSyncTraceMap.value = {};
-  void warmPagedLeadSyncTrace();
   if (store.error) {
     showToast(store.error, "error", "线索列表加载失败");
   }
@@ -1449,6 +1584,35 @@ const shortUUID = (value?: string) => {
   return `${s.slice(0, 8)}...${s.slice(-4)}`;
 };
 
+const clearSelectedLeadsForPush = () => {
+  selectedLeadUUIDsForPush.value = [];
+};
+
+const selectAllFilteredLeadsForPush = () => {
+  selectedLeadUUIDsForPush.value = filteredLeads.value.map((lead) => lead.lead_uuid);
+};
+
+const buildLeadWritebackPayload = () => {
+  const picked = new Set(selectedLeadUUIDsForPush.value.map((v) => (v || "").trim()).filter(Boolean));
+  const targets = store.leads.filter((lead) => picked.has((lead.lead_uuid || "").trim()));
+  return targets.map((lead) => ({
+    lead_uuid: lead.lead_uuid,
+    phone: (lead.phone || "").trim() || undefined,
+    idempotency_hint: `lead:${lead.lead_uuid}:${lead.updated_at || lead.created_at || ""}`,
+    fields: {
+      lead_uuid: lead.lead_uuid,
+      display_name: (lead.display_name || "").trim(),
+      phone: (lead.phone || "").trim(),
+      email: (lead.email || "").trim(),
+      status: (lead.status || "").trim(),
+      owner_user_uuid: (lead.owner_user_uuid || "").trim(),
+      source_channel: (lead.source_channel || "").trim(),
+      source_app_type: (lead.source_app_type || "").trim(),
+      source_account_uuid: (lead.source_account_uuid || "").trim(),
+    },
+  }));
+};
+
 const copyTaskUUID = async (value?: string) => {
   const text = (value || "").trim();
   if (!text) return;
@@ -1469,11 +1633,25 @@ const resolveSyncAccountLabel = (task?: WeComSyncTaskRecord) => {
   return syncAccountLabelMap.value.get(uuid.toLowerCase()) || uuid;
 };
 
-const parseFieldList = (value: string): string[] =>
-  value
-    .split(",")
-    .map((item) => item.trim())
-    .filter((item) => !!item);
+const toggleWritebackSelection = (scope: "whitelist" | "protected", field: string, checked: boolean) => {
+  const target = scope === "whitelist" ? writebackWhitelistFields : writebackProtectedFields;
+  const set = new Set(target.value.map((item) => item.trim()).filter(Boolean));
+  if (checked) {
+    set.add(field);
+  } else {
+    set.delete(field);
+  }
+  target.value = Array.from(set);
+};
+
+const onWritebackCheckboxChange = (
+  scope: "whitelist" | "protected",
+  field: string,
+  event: Event
+) => {
+  const checked = !!(event.target as HTMLInputElement | null)?.checked;
+  toggleWritebackSelection(scope, field, checked);
+};
 
 const writebackCapabilityLabel = (status?: string) => {
   switch ((status || "").trim()) {
@@ -1513,13 +1691,22 @@ const loadWritebackPolicy = async () => {
     writebackPolicy.value = policy;
     writebackEnabled.value = !!policy?.enabled;
     writebackOverwriteMode.value = (policy?.overwrite_mode || "safe") as "safe" | "force";
-    writebackWhitelistText.value = ((policy?.mapping_rules?.whitelist || []) as any[]).join(", ");
-    writebackProtectedText.value = ((policy?.protected_fields?.fields || []) as any[]).join(", ");
+    writebackWhitelistFields.value = ((policy?.mapping_rules?.whitelist || []) as any[])
+      .map((item) => String(item || "").trim())
+      .filter(Boolean);
+    writebackProtectedFields.value = ((policy?.protected_fields?.fields || []) as any[])
+      .map((item) => String(item || "").trim())
+      .filter(Boolean);
   } catch (err: any) {
     showToast(err?.message || "加载回写策略失败", "error");
   } finally {
     writebackPolicyLoading.value = false;
   }
+};
+
+const openWritebackPolicyDialog = async () => {
+  await loadWritebackPolicy();
+  writebackPolicyDialogOpen.value = true;
 };
 
 const saveWritebackPolicy = async () => {
@@ -1528,8 +1715,8 @@ const saveWritebackPolicy = async () => {
     const resp = await leadCaptureService.updateWeComWritebackPolicy({
       enabled: !!writebackEnabled.value,
       overwrite_mode: writebackOverwriteMode.value,
-      mapping_rules: { whitelist: parseFieldList(writebackWhitelistText.value) },
-      protected_fields: { fields: parseFieldList(writebackProtectedText.value) },
+      mapping_rules: { whitelist: writebackWhitelistFields.value },
+      protected_fields: { fields: writebackProtectedFields.value },
     });
     writebackPolicy.value = ((resp as any)?.data || null) as WeComWritebackPolicy | null;
     showToast("回写策略已保存", "success");
@@ -1538,6 +1725,11 @@ const saveWritebackPolicy = async () => {
   } finally {
     writebackPolicySaving.value = false;
   }
+};
+
+const saveWritebackPolicyFromDialog = async () => {
+  await saveWritebackPolicy();
+  writebackPolicyDialogOpen.value = false;
 };
 
 const refreshWritebackDeadLetters = async () => {
@@ -1571,8 +1763,6 @@ const refreshSyncTasks = async () => {
   syncLoading.value = true;
   try {
     const resp = await leadCaptureService.listWeComSyncTasks({
-      channel_account_uuid: syncAccountUUID.value.trim() || undefined,
-      status: (syncStatusFilter.value === ALL_OPTION_VALUE ? undefined : syncStatusFilter.value) as any,
       limit: 100,
     });
     syncTasks.value = ((resp as any)?.data?.items || []) as WeComSyncTaskRecord[];
@@ -1609,11 +1799,16 @@ const refreshSyncTasks = async () => {
 const triggerWeComSync = async () => {
   syncSubmitting.value = true;
   try {
-    const payload: Record<string, string> = {};
-    if (syncAccountUUID.value.trim()) {
-      payload.channel_account_uuid = syncAccountUUID.value.trim();
-    }
+    const payload: Record<string, any> = {};
+    payload.action = syncTriggerAction.value;
     payload.trace_id = `lead-sync-${Date.now()}`;
+    if (syncTriggerAction.value === "push_leads") {
+      if (selectedLeadUUIDsForPush.value.length === 0) {
+        showToast("请先选择要回写的线索", "warning");
+        return;
+      }
+      payload.lead_writeback = buildLeadWritebackPayload();
+    }
     const resp = await leadCaptureService.triggerWeComSync(payload);
     const task = (resp as any)?.data as WeComSyncTaskRecord | undefined;
     if (task?.account_resolve_source) {
@@ -2112,8 +2307,14 @@ watch([statusFilter, channelFilter, appTypeFilter, searchText], () => {
   currentPage.value = 1;
 });
 
-watch([syncAccountUUID, syncStatusFilter, syncTaskPageSize], () => {
+watch([syncTaskPageSize], () => {
   syncTaskPage.value = 1;
+});
+
+watch(syncTriggerAction, (value) => {
+  if (value !== "pull_external_contacts") {
+    syncCheckpointCursor.value = "";
+  }
 });
 
 watch([currentPage, pageSize], () => {
@@ -2141,13 +2342,11 @@ watch(selectedChannelCodeUUID, async (value) => {
   await loadSelectedChannelCodeEvents();
 });
 
-watch(
-  () => pagedLeads.value.map((item) => item.lead_uuid).join(","),
-  () => {
-    void warmPagedLeadSyncTrace();
-  },
-  { immediate: true }
-);
+watch(syncTriggerAction, (value) => {
+  if (value !== "push_leads") {
+    clearSelectedLeadsForPush();
+  }
+});
 
 onMounted(async () => {
   await loadCreateLookupOptions();

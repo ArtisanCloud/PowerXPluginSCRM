@@ -29,6 +29,10 @@ type delegatedSetScopeRequest struct {
 	AllowTag   []int    `json:"allow_tag"`
 }
 
+type triggerPushSyncRequest struct {
+	Changes []orgsvc.OrgWritebackChange `json:"changes"`
+}
+
 func NewOrgSyncHandler(syncSvc *orgsvc.SyncService, unitSvc *orgsvc.SourceUnitService, memberSvc *orgsvc.SourceMemberService, syncLogSvc *orgsvc.SyncLogService, defaultSvc *orgsvc.DefaultSourceAccountService) *OrgSyncHandler {
 	return &OrgSyncHandler{
 		syncSvc:    syncSvc,
@@ -135,6 +139,67 @@ func (h *OrgSyncHandler) TriggerSync(c *gin.Context) {
 		"source_account_uuid": sourceAccountUUID,
 		"status":              "queued",
 	})
+}
+
+func (h *OrgSyncHandler) TriggerPushSync(c *gin.Context) {
+	if h.syncSvc == nil {
+		contracts.ResponseServiceUnavailable(c, "org sync service unavailable", nil)
+		return
+	}
+	sourceAccountUUID := strings.TrimSpace(c.Param("source_account_uuid"))
+	if sourceAccountUUID == "" {
+		contracts.ResponseBadRequest(c, "source_account_uuid is required")
+		return
+	}
+	tenantUUID, ok := middleware.TenantUUIDFromContext(c)
+	if !ok || tenantUUID == "" {
+		contracts.ResponseUnauthorized(c, "tenant context missing")
+		return
+	}
+	var req triggerPushSyncRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		contracts.ResponseBadRequest(c, "invalid body: "+err.Error())
+		return
+	}
+	result, err := h.syncSvc.SyncOrgLocalToRemote(c.Request.Context(), tenantUUID, sourceAccountUUID, req.Changes)
+	if err != nil {
+		switch {
+		case errors.Is(err, repository.ErrTenantUuidRequired):
+			contracts.ResponseBadRequest(c, "tenant_uuid is required")
+		default:
+			contracts.ResponseBadRequest(c, err.Error())
+		}
+		return
+	}
+	contracts.ResponseSuccess(c, result)
+}
+
+func (h *OrgSyncHandler) PreviewPushSync(c *gin.Context) {
+	if h.syncSvc == nil {
+		contracts.ResponseServiceUnavailable(c, "org sync service unavailable", nil)
+		return
+	}
+	sourceAccountUUID := strings.TrimSpace(c.Param("source_account_uuid"))
+	if sourceAccountUUID == "" {
+		contracts.ResponseBadRequest(c, "source_account_uuid is required")
+		return
+	}
+	tenantUUID, ok := middleware.TenantUUIDFromContext(c)
+	if !ok || tenantUUID == "" {
+		contracts.ResponseUnauthorized(c, "tenant context missing")
+		return
+	}
+	result, err := h.syncSvc.PreviewLocalToRemote(c.Request.Context(), tenantUUID, sourceAccountUUID)
+	if err != nil {
+		switch {
+		case errors.Is(err, repository.ErrTenantUuidRequired):
+			contracts.ResponseBadRequest(c, "tenant_uuid is required")
+		default:
+			contracts.ResponseBadRequest(c, err.Error())
+		}
+		return
+	}
+	contracts.ResponseSuccess(c, result)
 }
 
 func (h *OrgSyncHandler) ListSourceUnits(c *gin.Context) {

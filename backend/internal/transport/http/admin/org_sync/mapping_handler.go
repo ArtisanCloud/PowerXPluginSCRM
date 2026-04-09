@@ -29,6 +29,10 @@ type MappingConfirmRequest struct {
 	MemberMappings []MappingMemberInput `json:"member_mappings"`
 }
 
+type MappingAutoSyncRequest struct {
+	ChannelAccountUUID string `json:"channel_account_uuid"`
+}
+
 type MappingUnitInput struct {
 	SourceUnitID string `json:"source_unit_id"`
 	MainUnitID   string `json:"main_unit_id"`
@@ -113,6 +117,44 @@ func (h *MappingHandler) Confirm(c *gin.Context) {
 	contracts.ResponseSuccess(c, result)
 }
 
+func (h *MappingHandler) AutoSync(c *gin.Context) {
+	if h == nil || h.mappingSvc == nil {
+		contracts.ResponseServiceUnavailable(c, "org sync service unavailable", nil)
+		return
+	}
+	tc, ok := authmw.GetTenantContext(c)
+	if !ok || strings.TrimSpace(tc.TenantUUID) == "" {
+		contracts.ResponseUnauthorized(c, "tenant context missing")
+		return
+	}
+	if !isOrgAdmin(tc) {
+		contracts.ResponseError(c, http.StatusForbidden, contracts.ErrCodeForbidden, "permission denied")
+		return
+	}
+	var req MappingAutoSyncRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		contracts.ResponseBadRequest(c, "invalid body: "+err.Error())
+		return
+	}
+	channelAccountUUID := strings.TrimSpace(req.ChannelAccountUUID)
+	if channelAccountUUID == "" {
+		contracts.ResponseBadRequest(c, "channel_account_uuid is required")
+		return
+	}
+	confirmedBy := strconv.FormatInt(tc.UserID, 10)
+	result, err := h.mappingSvc.AutoSyncFromChannel(c.Request.Context(), tc.TenantUUID, channelAccountUUID, confirmedBy)
+	if err != nil {
+		switch {
+		case errors.Is(err, repository.ErrTenantUuidRequired):
+			contracts.ResponseBadRequest(c, "tenant_uuid is required")
+		default:
+			contracts.ResponseInternalError(c, err)
+		}
+		return
+	}
+	contracts.ResponseSuccess(c, result)
+}
+
 func toUnitInputs(items []MappingUnitInput) []orgsvc.UnitMappingInput {
 	out := make([]orgsvc.UnitMappingInput, 0, len(items))
 	for _, item := range items {
@@ -138,7 +180,7 @@ func toMemberInputs(items []MappingMemberInput) []orgsvc.MemberMappingInput {
 func isOrgAdmin(tc authmw.TenantContext) bool {
 	for _, role := range tc.Roles {
 		switch strings.ToLower(strings.TrimSpace(role)) {
-		case "superadmin", "system.admin", "org.admin":
+		case "superadmin", "system.admin", "system_admin", "org.admin", "role_admin", "role_owner", "tenant.admin", "tenant_admin":
 			return true
 		}
 	}

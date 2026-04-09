@@ -313,7 +313,7 @@ func (s *LeadService) Assign(ctx context.Context, tenantUUID, leadUUID string, r
 		if err := ensureMemberExists(ctx, tx, tenantUUID, memberID); err != nil {
 			return err
 		}
-		if s.assignmentSvc != nil {
+		if s.assignmentSvc != nil && shouldEnforceAssigneeBinding(lead) {
 			if err := s.assignmentSvc.EnsureMemberBound(ctx, tx, tenantUUID, memberID); err != nil {
 				return err
 			}
@@ -374,6 +374,21 @@ func (s *LeadService) Assign(ctx context.Context, tenantUUID, leadUUID string, r
 		"reason":          strings.TrimSpace(req.Reason),
 	})
 	return updated, nil
+}
+
+func shouldEnforceAssigneeBinding(lead *model.Lead) bool {
+	if lead == nil {
+		return false
+	}
+	channel := strings.ToLower(strings.TrimSpace(lead.SourceChannel))
+	appType := strings.ToLower(strings.TrimSpace(lead.SourceAppType))
+	if channel != "wechat" || appType != "wecom" {
+		return false
+	}
+	if lead.SourceAccountUUID == nil {
+		return false
+	}
+	return strings.TrimSpace(*lead.SourceAccountUUID) != ""
 }
 
 func (s *LeadService) UpdateStatus(ctx context.Context, tenantUUID, leadUUID string, req LeadStatusUpdateRequest) (*model.Lead, error) {

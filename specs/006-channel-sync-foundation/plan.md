@@ -8,7 +8,8 @@
 在不新增渠道活码业务能力的前提下，建设“通用同步封装 + 渠道工厂实现”的同步基础域：
 - 首发打通 WeCom 授权接入、标签双向、组织双向、外部联系人与线索双向；
 - 保持 Feishu / DingTalk 可扩展，不改主流程契约；
-- 统一任务中心（重试、死信、重放）与可观测门禁。
+- 统一任务中心（重试、死信、重放）与可观测门禁；
+- 组织域采用“本地 IAM 单主数据”策略，渠道镜像组织表退出业务主视图。
 
 ## Technical Context
 
@@ -80,6 +81,20 @@ web-admin/
 ```
 
 **Structure Decision**: 采用现有 backend + web-admin 双端结构；在既有 `social_channel_governance`、`org_sync`、`lead_capture` 子域上增量扩展，通过“通用接口 + 渠道工厂注册”实现多渠道能力。
+
+## 组织域对齐（2026-04-09）
+
+- 本地组织主数据统一为 `iam_departments` / `iam_members`。
+- `org_sync_source_units` / `org_sync_source_members` / `org_sync_source_member_units` / `org_sync_member_profiles` 降级为迁移期兼容数据，不再作为组织业务读模型。
+- 组织 push 必须支持“本地未映射对象自动创建远端并回填绑定”，避免人工先映射导致链路中断。
+
+### 迁移策略
+
+1. 新增组织绑定模型（以 `main_*_id + external_*_id + channel_account_uuid` 为核心键），并与现有 mapping 表并行写入。
+2. 将组织 pull 写入目标改为 `iam_*`，同步更新绑定与检查点。
+3. 将组织 push 读源改为 `iam_* + 绑定`，对未绑定对象执行“创建远端 + 回填绑定”。
+4. 前端组织页仅展示本地组织与同步状态，不再展示渠道镜像树作为主操作入口。
+5. 经过一个发布周期验证后，清理旧镜像表的读路径，再执行物理下线。
 
 ## Phase 0: Research & Unknown Resolution
 

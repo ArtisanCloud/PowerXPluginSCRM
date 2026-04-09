@@ -101,6 +101,8 @@ const (
 	TableOrgSyncMemberProfiles               = "org_sync_member_profiles"
 	TableOrgSyncUnitMappings                 = "org_sync_unit_mappings"
 	TableOrgSyncMemberMappings               = "org_sync_member_mappings"
+	TableOrgSyncUnitBindings                 = "org_sync_unit_bindings"
+	TableOrgSyncMemberBindings               = "org_sync_member_bindings"
 	TableOrgSyncSyncLogs                     = "org_sync_sync_logs"
 	TableLeadCaptureLeads                    = "lead_capture_leads"
 	TableLeadCaptureSources                  = "lead_capture_sources"

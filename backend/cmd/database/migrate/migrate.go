@@ -88,6 +88,8 @@ var businessTables = []interface{}{
 	&OrgSyncModel.SourceMemberProfile{},
 	&OrgSyncModel.UnitMapping{},
 	&OrgSyncModel.MemberMapping{},
+	&OrgSyncModel.UnitBinding{},
+	&OrgSyncModel.MemberBinding{},
 	&OrgSyncModel.SyncLog{},
 	&leadCaptureModel.Lead{},
 	&leadCaptureModel.LeadSource{},
@@ -160,6 +162,9 @@ func MigratePluginModels(ctx context.Context, db *gorm.DB, includeIAM bool) erro
 		if err := ensureIAMConstraints(ctx, db); err != nil {
 			return err
 		}
+	}
+	if err := backfillOrgSyncIAMBindings(ctx, db); err != nil {
+		return err
 	}
 	return nil
 }

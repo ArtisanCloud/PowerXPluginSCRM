@@ -96,6 +96,20 @@ const toMemberWithProfile = (record: MemberRecord): MemberWithProfile => {
 
 export const useUserService = () => {
   const iamService = useIAMService();
+  const normalizeStatus = (status: unknown): string | undefined => {
+    if (status === null || status === undefined || status === "") return undefined;
+    if (typeof status === "string") {
+      const value = status.trim().toLowerCase();
+      if (value === "1") return "active";
+      if (value === "0") return "inactive";
+      if (value === "disabled" || value === "locked" || value === "inactive") return "inactive";
+      return "active";
+    }
+    if (typeof status === "number") {
+      return status === 1 ? "active" : "inactive";
+    }
+    return undefined;
+  };
 
   const getUsers = async (
     params: UserListParams
@@ -161,7 +175,8 @@ export const useUserService = () => {
       username: data.username,
       phone: data.phone,
       department_id: data.departmentId ?? data.department_id,
-      status: data.status,
+      status: normalizeStatus(data.status),
+      roles: Array.isArray(data.roles) ? data.roles : undefined,
     };
     const response = await iamService.createMember(payload);
     return (response as any)?.data ?? response;
@@ -174,7 +189,9 @@ export const useUserService = () => {
       username: data.username,
       phone: data.phone,
       department_id: data.departmentId ?? data.department_id,
-      status: data.status,
+      status: normalizeStatus(data.status),
+      roles: Array.isArray(data.roles) ? data.roles : undefined,
+      replace_roles: typeof data.replace_roles === "boolean" ? data.replace_roles : undefined,
     };
     const response = await iamService.updateMember(memberId, payload);
     return (response as any)?.data ?? response;

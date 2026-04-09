@@ -156,6 +156,7 @@ export interface LeadImportPreview {
 export interface WeComSyncTriggerPayload {
   channel_account_uuid?: string;
   trace_id?: string;
+  action?: "pull_external_contacts" | "push_leads";
   domain?: "external_contacts" | "leads";
   direction?: "pull" | "push";
   mode?: "incremental" | "pushback" | "bootstrap";

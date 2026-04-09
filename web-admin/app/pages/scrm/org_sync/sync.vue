@@ -16,69 +16,115 @@
     <UCard>
       <template #header>
         <div class="flex items-center justify-between">
-          <span class="font-medium text-gray-700 dark:text-slate-200">选择渠道账号</span>
-          <UBadge variant="soft" color="primary">必选</UBadge>
+          <span class="font-medium text-gray-700 dark:text-slate-200">同步中心（组织）</span>
+          <UBadge variant="soft" color="success">系统默认</UBadge>
         </div>
       </template>
-      <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <UFormField label="渠道" required>
-          <USelectMenu
-            v-model="selectedChannel"
-            :items="channelOptions"
-            value-key="value"
-            label-key="label"
-            searchable
-            placeholder="选择渠道"
-            :portal="false"
-            :ui="{ content: 'z-[200]' }"
-          />
-        </UFormField>
-        <UFormField label="应用类型" required>
-          <USelectMenu
-            v-model="selectedAppType"
-            :items="appTypeOptions"
-            value-key="value"
-            label-key="label"
-            searchable
-            placeholder="选择应用类型"
-            :portal="false"
-            :ui="{ content: 'z-[200]' }"
-            :disabled="!selectedChannel"
-          />
-        </UFormField>
-        <UFormField label="账号" required>
-          <USelectMenu
-            v-model="selectedAccountUUID"
-            :items="accountOptions"
-            value-key="value"
-            label-key="label"
-            option-attribute="fullLabel"
-            searchable
-            placeholder="选择账号"
-            :portal="false"
-            :ui="{ content: 'z-[200] w-72' }"
-            :disabled="!selectedAppType"
-          />
-        </UFormField>
+      <div class="rounded-xl border border-gray-200/80 bg-gray-50/70 p-4 dark:border-gray-700/80 dark:bg-gray-900/40">
+        <div class="mb-2 text-sm font-medium text-gray-800 dark:text-gray-100">
+          同步账号（系统默认）
+        </div>
+        <UInput
+          :model-value="defaultSyncAccountLabel"
+          readonly
+          class="w-full"
+        />
       </div>
-      <div class="mt-4 flex flex-wrap items-center gap-3">
-        <UButton color="primary" :loading="syncing" @click="triggerSync">同步组织与成员</UButton>
+      <div class="mt-4 flex flex-wrap items-end gap-3">
+        <UFormField label="同步方向" class="min-w-[260px]">
+          <USelectMenu
+            v-model="syncDirection"
+            :items="syncDirectionOptions"
+            value-key="value"
+            label-key="label"
+            class="w-full"
+            :portal="false"
+            :ui="{ content: 'z-[200]' }"
+          />
+        </UFormField>
         <UButton
-          v-if="selectedAccountUUID && !isDefaultAccount"
-          variant="soft"
           color="primary"
-          :loading="settingDefault"
-          @click="setDefaultAccount"
+          :loading="syncing"
+          :disabled="!canTriggerSync"
+          class="h-9"
+          @click="triggerSync"
         >
-          设为默认组织来源
+          {{ syncDirection === "pull" ? "同步组织与成员（拉取）" : "回写组织变更到渠道（推送）" }}
         </UButton>
-        <UBadge v-else-if="selectedAccountUUID && isDefaultAccount" variant="soft" color="success">
-          当前默认来源账号
-        </UBadge>
-        <UButton variant="soft" color="primary" :loading="loading" @click="loadMappingData">
-          刷新映射数据
-        </UButton>
-        <span class="text-xs text-gray-600 dark:text-slate-300">同步任务异步执行，结果会记录在下方。</span>
+        <span class="text-xs text-gray-600 dark:text-slate-300 pb-1">统一管理组织拉取、组织回写、映射与冲突重放。</span>
+      </div>
+      <div v-if="lastPushResult" class="mt-2 text-xs text-gray-600 dark:text-slate-300">
+        最近一次推送结果：方向 {{ lastPushResult.direction }}，模式 {{ lastPushResult.mode }}，应用 {{ lastPushResult.applied }} 条，冲突 {{ lastPushResult.conflicts }} 条。
+      </div>
+      <div v-if="syncDirection === 'push'" class="mt-3 rounded-lg border border-primary-500/30 bg-primary-500/5 p-3 text-xs text-gray-700 dark:text-slate-200">
+        <div class="flex items-center justify-between gap-2">
+          <span class="font-medium">推送增量预览</span>
+          <UButton size="xs" variant="soft" color="primary" :loading="loadingPushPreview" @click="loadPushPreview">
+            刷新预览
+          </UButton>
+        </div>
+        <div class="mt-2 flex flex-wrap items-center gap-2">
+          <UBadge variant="outline" color="success">部门待创建 {{ pushPreview?.units_create ?? 0 }}</UBadge>
+          <UBadge variant="outline" color="info">部门待更新 {{ pushPreview?.units_update ?? 0 }}</UBadge>
+          <UBadge variant="outline" color="success">成员待创建 {{ pushPreview?.members_create ?? 0 }}</UBadge>
+          <UBadge variant="outline" color="info">成员待更新 {{ pushPreview?.members_update ?? 0 }}</UBadge>
+          <UBadge variant="outline" color="neutral">总计 {{ pushPreview?.total ?? 0 }}</UBadge>
+          <UBadge variant="solid" color="warning">已选 {{ selectedPushCount }}/{{ pushPreview?.total ?? 0 }}</UBadge>
+        </div>
+        <div class="mt-2 flex flex-wrap items-center gap-2">
+          <UButton size="xs" variant="ghost" color="primary" @click="selectAllPushItems">全选</UButton>
+          <UButton size="xs" variant="ghost" color="success" @click="selectPushItemsByAction('create')">仅选创建</UButton>
+          <UButton size="xs" variant="ghost" color="info" @click="selectPushItemsByAction('update')">仅选更新</UButton>
+          <UButton size="xs" variant="ghost" color="neutral" @click="clearPushSelection">清空</UButton>
+        </div>
+        <div v-if="!loadingPushPreview && (pushPreview?.items?.length || 0) === 0" class="mt-2 text-gray-600 dark:text-slate-300">
+          暂无可推送增量。
+        </div>
+        <div v-else class="mt-3 space-y-3">
+          <div class="rounded-lg border border-gray-200/70 bg-gray-50/70 p-2 dark:border-gray-700/70 dark:bg-gray-900/30">
+            <div class="mb-2 text-[12px] font-medium text-gray-700 dark:text-slate-100">部门增量</div>
+            <UTable
+              :columns="pushUnitColumns"
+              :data="pushUnitItems"
+              :ui="{ td: 'py-1.5 text-xs', th: 'py-1.5 text-xs' }"
+            >
+              <template #select-cell="{ row }">
+                <UCheckbox
+                  :model-value="isPushItemSelected(row.original)"
+                  @update:model-value="setPushItemSelected(row.original, $event)"
+                />
+              </template>
+              <template #action-cell="{ row }">
+                <UBadge :color="row.original.action === 'create' ? 'success' : 'primary'" variant="soft">
+                  {{ row.original.action === "create" ? "创建" : "更新" }}
+                </UBadge>
+              </template>
+            </UTable>
+            <div v-if="pushUnitItems.length === 0" class="px-1 py-1 text-xs text-gray-500 dark:text-slate-400">无部门变更</div>
+          </div>
+
+          <div class="rounded-lg border border-gray-200/70 bg-gray-50/70 p-2 dark:border-gray-700/70 dark:bg-gray-900/30">
+            <div class="mb-2 text-[12px] font-medium text-gray-700 dark:text-slate-100">成员增量</div>
+            <UTable
+              :columns="pushMemberColumns"
+              :data="pushMemberItems"
+              :ui="{ td: 'py-1.5 text-xs', th: 'py-1.5 text-xs' }"
+            >
+              <template #select-cell="{ row }">
+                <UCheckbox
+                  :model-value="isPushItemSelected(row.original)"
+                  @update:model-value="setPushItemSelected(row.original, $event)"
+                />
+              </template>
+              <template #action-cell="{ row }">
+                <UBadge :color="row.original.action === 'create' ? 'success' : 'primary'" variant="soft">
+                  {{ row.original.action === "create" ? "创建" : "更新" }}
+                </UBadge>
+              </template>
+            </UTable>
+            <div v-if="pushMemberItems.length === 0" class="px-1 py-1 text-xs text-gray-500 dark:text-slate-400">无成员变更</div>
+          </div>
+        </div>
       </div>
     </UCard>
 
@@ -86,10 +132,15 @@
       <template #header>
         <div class="flex items-center justify-between">
           <span class="font-medium text-gray-700 dark:text-slate-200">结果概览</span>
-          <UBadge variant="soft" color="neutral">最近一次</UBadge>
+          <div class="flex items-center gap-2">
+            <UBadge variant="soft" color="neutral">最近一次</UBadge>
+            <UButton size="xs" variant="ghost" @click="overviewCollapsed = !overviewCollapsed">
+              {{ overviewCollapsed ? "展开" : "收起" }}
+            </UButton>
+          </div>
         </div>
       </template>
-      <div class="space-y-3 text-sm">
+      <div v-show="!overviewCollapsed" class="space-y-3 text-sm">
         <div class="flex items-center justify-between">
           <span class="text-gray-600 dark:text-slate-200">状态</span>
           <UBadge :color="syncStatusColor" variant="soft">{{ currentStatusLabel }}</UBadge>
@@ -123,9 +174,15 @@
       <template #header>
         <div class="flex items-center justify-between">
           <span class="font-medium text-gray-700 dark:text-slate-200">同步日志</span>
-          <UBadge variant="soft" color="neutral">最近 5 条</UBadge>
+          <div class="flex items-center gap-2">
+            <UBadge variant="soft" color="neutral">最近 5 条</UBadge>
+            <UButton size="xs" variant="ghost" @click="syncLogsCollapsed = !syncLogsCollapsed">
+              {{ syncLogsCollapsed ? "展开" : "收起" }}
+            </UButton>
+          </div>
         </div>
       </template>
+      <div v-show="!syncLogsCollapsed">
       <div v-if="syncLogs.length === 0" class="text-xs text-gray-600 dark:text-slate-300">暂无日志</div>
       <ul v-else class="space-y-3 text-xs text-gray-600 dark:text-slate-300">
         <li v-for="log in syncLogs" :key="log.sync_log_uuid" class="space-y-1">
@@ -136,6 +193,7 @@
           <div class="text-[11px] text-gray-400 dark:text-slate-300">{{ log.message || '-' }}</div>
         </li>
       </ul>
+      </div>
     </UCard>
 
     <UCard>
@@ -176,9 +234,15 @@
       <template #header>
         <div class="flex items-center justify-between">
           <span class="font-medium text-gray-700 dark:text-slate-200">匹配建议</span>
-          <UBadge variant="soft" color="primary">{{ memberSuggestions.length }}</UBadge>
+          <div class="flex items-center gap-2">
+            <UBadge variant="soft" color="primary">{{ memberSuggestions.length }}</UBadge>
+            <UButton size="xs" variant="ghost" @click="suggestionsCollapsed = !suggestionsCollapsed">
+              {{ suggestionsCollapsed ? "展开" : "收起" }}
+            </UButton>
+          </div>
         </div>
       </template>
+      <div v-show="!suggestionsCollapsed">
       <UTable
         :columns="suggestionColumns"
         :data="memberSuggestions"
@@ -202,6 +266,7 @@
       <div v-if="!loadingSuggestions && memberSuggestions.length === 0" class="text-xs text-gray-600 dark:text-slate-300 mt-3">
         暂无匹配建议。
       </div>
+      </div>
     </UCard>
 
     <ToastAlert
@@ -220,6 +285,9 @@ import ToastAlert from "~/components/ToastAlert.vue";
 import { useGlobalLoadingAdapter } from "~/composables/useGlobalLoadingAdapter";
 import { useWsBusClient } from "~/composables/useWsBusClient";
 import {
+  type OrgBidirectionalResult,
+  type OrgPushPreviewItem,
+  type OrgPushPreviewResult,
   type OrgSyncMemberSuggestion,
   type OrgSyncSourceAccount,
   type OrgSyncSyncLog,
@@ -238,11 +306,11 @@ definePageMeta({
 const selectedChannel = ref("");
 const selectedAppType = ref("");
 const selectedAccountUUID = ref("");
+const syncDirection = ref<"pull" | "push">("pull");
 const syncing = ref(false);
 const loading = ref(false);
 const loadingSuggestions = ref(false);
 const confirming = ref<string | null>(null);
-const settingDefault = ref(false);
 const memberSuggestions = ref<OrgSyncMemberSuggestion[]>([]);
 const syncStatus = ref<OrgSyncSourceAccount | null>(null);
 const syncLogs = ref<OrgSyncSyncLog[]>([]);
@@ -251,6 +319,13 @@ const loadingOrgConflicts = ref(false);
 const replayingConflictUUID = ref("");
 const channelAccounts = ref<ChannelAccount[]>([]);
 const channelSchema = ref<ChannelSchemaDocument | null>(null);
+const lastPushResult = ref<OrgBidirectionalResult | null>(null);
+const pushPreview = ref<OrgPushPreviewResult | null>(null);
+const loadingPushPreview = ref(false);
+const selectedPushKeys = ref<string[]>([]);
+const overviewCollapsed = ref(false);
+const syncLogsCollapsed = ref(true);
+const suggestionsCollapsed = ref(true);
 
 const toast = ref({
   visible: false,
@@ -303,6 +378,18 @@ const selectedAccount = computed(() =>
   channelAccounts.value.find((acc) => acc.account_uuid === selectedAccountUUID.value)
 );
 const isDefaultAccount = computed(() => Boolean(selectedAccount.value?.org_sync_default));
+const defaultAccount = computed(() => channelAccounts.value.find((acc) => acc.org_sync_default));
+const allPushItems = computed(() => pushPreview.value?.items || []);
+const selectedPushCount = computed(() => selectedPushKeys.value.length);
+const canTriggerSync = computed(() =>
+  Boolean(selectedAccountUUID.value) &&
+  (syncDirection.value !== "push" || selectedPushCount.value > 0)
+);
+const defaultSyncAccountLabel = computed(() => {
+  const acc = selectedAccount.value || defaultAccount.value;
+  if (!acc) return "未识别到可用默认账号";
+  return `${acc.display_name}（${channelLabel(acc.channel_code)}/${appTypeLabel(acc.channel_code, acc.app_type)}）`;
+});
 
 const latestLog = computed(() => syncLogs.value[0] ?? null);
 const syncStatusColor = computed(() => statusColor(latestLog.value?.status || syncStatus.value?.last_sync_status));
@@ -348,6 +435,64 @@ const suggestionColumns = [
   { accessorKey: "matched_by", header: "匹配方式" },
   { accessorKey: "actions", header: "操作" },
 ] as const;
+
+const pushUnitColumns = [
+  { accessorKey: "select", header: "" },
+  { accessorKey: "action", header: "动作" },
+  { accessorKey: "name", header: "部门" },
+  { accessorKey: "reason", header: "原因" },
+  { accessorKey: "external_id", header: "渠道ID" },
+] as const;
+
+const pushMemberColumns = [
+  { accessorKey: "select", header: "" },
+  { accessorKey: "action", header: "动作" },
+  { accessorKey: "name", header: "成员" },
+  { accessorKey: "reason", header: "原因" },
+  { accessorKey: "external_id", header: "渠道ID" },
+] as const;
+
+const pushUnitItems = computed(() =>
+  (pushPreview.value?.items || []).filter((item) => item.entity_type === "unit")
+);
+const pushMemberItems = computed(() =>
+  (pushPreview.value?.items || []).filter((item) => item.entity_type === "member")
+);
+
+const pushItemKey = (item: OrgPushPreviewItem) => `${item.entity_type}:${item.main_id}`;
+
+const isPushItemSelected = (item: OrgPushPreviewItem) =>
+  selectedPushKeys.value.includes(pushItemKey(item));
+
+const setPushItemSelected = (item: OrgPushPreviewItem, checked: unknown) => {
+  const key = pushItemKey(item);
+  const next = new Set(selectedPushKeys.value);
+  if (Boolean(checked)) {
+    next.add(key);
+  } else {
+    next.delete(key);
+  }
+  selectedPushKeys.value = Array.from(next);
+};
+
+const selectAllPushItems = () => {
+  selectedPushKeys.value = allPushItems.value.map((item) => pushItemKey(item));
+};
+
+const clearPushSelection = () => {
+  selectedPushKeys.value = [];
+};
+
+const selectPushItemsByAction = (action: "create" | "update") => {
+  selectedPushKeys.value = allPushItems.value
+    .filter((item) => item.action === action)
+    .map((item) => pushItemKey(item));
+};
+
+const syncDirectionOptions = [
+  { label: "拉取：渠道 -> 本地", value: "pull" },
+  { label: "推送：本地 -> 渠道", value: "push" },
+];
 
 const showToast = (title: string, color: typeof toast.value.color, message = "") => {
   toast.value.title = title;
@@ -445,6 +590,11 @@ const loadChannelAccounts = async () => {
 };
 
 const applyDefaultChannelSelection = () => {
+  if (defaultAccount.value) {
+    selectedChannel.value = defaultAccount.value.channel_code;
+    selectedAppType.value = defaultAccount.value.app_type;
+    return;
+  }
   if (selectedChannel.value && selectedAppType.value) {
     return;
   }
@@ -465,22 +615,23 @@ const applyDefaultChannelSelection = () => {
 };
 
 const applyDefaultAccountSelection = () => {
-  if (!selectedChannel.value || !selectedAppType.value) return;
-  if (selectedAccountUUID.value) return;
-  const defaultAccount = channelAccounts.value.find(
-    (acc) =>
-      acc.channel_code === selectedChannel.value &&
-      acc.app_type === selectedAppType.value &&
-      acc.org_sync_default
-  );
-  if (defaultAccount) {
-    selectedAccountUUID.value = defaultAccount.account_uuid;
+  if (defaultAccount.value) {
+    selectedAccountUUID.value = defaultAccount.value.account_uuid;
     return;
   }
-  const firstAccount = channelAccounts.value.find(
-    (acc) => acc.channel_code === selectedChannel.value && acc.app_type === selectedAppType.value
+  const firstWeCom = channelAccounts.value.find(
+    (acc) => acc.channel_code === "wechat" && acc.app_type === "wecom"
   );
+  if (firstWeCom) {
+    selectedChannel.value = firstWeCom.channel_code;
+    selectedAppType.value = firstWeCom.app_type;
+    selectedAccountUUID.value = firstWeCom.account_uuid;
+    return;
+  }
+  const firstAccount = channelAccounts.value[0];
   if (firstAccount) {
+    selectedChannel.value = firstAccount.channel_code;
+    selectedAppType.value = firstAccount.app_type;
     selectedAccountUUID.value = firstAccount.account_uuid;
   }
 };
@@ -505,25 +656,43 @@ const releaseSyncOverlay = (status?: string) => {
 
 const triggerSync = async () => {
   if (!selectedAccountUUID.value) {
-    showToast("请选择账号", "warning");
+    showToast("未识别到默认同步账号", "warning");
     return;
   }
   syncing.value = true;
-  liveProgressTracking.value = true;
-  ensureWsSubscription();
-  gl.show({
-    lock: true,
-    message: "正在同步组织与成员",
-    progress: 0,
-  });
-  syncOverlayLocked.value = true;
   try {
     const service = useOrgSyncService();
-    const resp = await service.triggerSync(selectedAccountUUID.value);
-    syncStatus.value = (resp as any)?.data ?? null;
-    showToast("同步已触发", "success");
+    if (syncDirection.value === "pull") {
+      liveProgressTracking.value = true;
+      ensureWsSubscription();
+      gl.show({
+        lock: true,
+        message: "正在同步组织与成员",
+        progress: 0,
+      });
+      syncOverlayLocked.value = true;
+      const resp = await service.triggerSync(selectedAccountUUID.value);
+      syncStatus.value = (resp as any)?.data ?? null;
+      showToast("拉取同步已触发", "success");
+      return;
+    }
+    const selectedChanges = allPushItems.value
+      .filter((item) => selectedPushKeys.value.includes(pushItemKey(item)))
+      .map((item) => ({
+        entity_type: item.entity_type,
+        entity_id: item.main_id,
+        action: item.action,
+      }));
+    if (selectedChanges.length === 0) {
+      showToast("请选择要推送的增量", "warning");
+      return;
+    }
+    const resp = await service.triggerPushSync(selectedAccountUUID.value, { changes: selectedChanges });
+    lastPushResult.value = ((resp as any)?.data || null) as OrgBidirectionalResult | null;
+    showToast("组织回写已执行", "success");
+    await loadMappingData();
   } catch (err: any) {
-    showToast("同步失败", "error", err?.message ?? "");
+    showToast(syncDirection.value === "pull" ? "同步失败" : "回写失败", "error", err?.message ?? "");
     releaseSyncOverlay("failed");
   } finally {
     syncing.value = false;
@@ -537,9 +706,29 @@ const loadMappingData = async () => {
   }
   loading.value = true;
   try {
-    await Promise.all([loadSuggestions(), loadSyncLogs(), loadOrgConflicts()]);
+    await Promise.all([loadSuggestions(), loadSyncLogs(), loadOrgConflicts(), loadPushPreview()]);
   } finally {
     loading.value = false;
+  }
+};
+
+const loadPushPreview = async () => {
+  if (!selectedAccountUUID.value) {
+    pushPreview.value = null;
+    return;
+  }
+  loadingPushPreview.value = true;
+  try {
+    const service = useOrgSyncService();
+    const resp = await service.previewPushSync(selectedAccountUUID.value);
+    pushPreview.value = ((resp as any)?.data || null) as OrgPushPreviewResult | null;
+    selectAllPushItems();
+  } catch (err: any) {
+    pushPreview.value = null;
+    clearPushSelection();
+    showToast("加载推送预览失败", "error", err?.message ?? "");
+  } finally {
+    loadingPushPreview.value = false;
   }
 };
 
@@ -569,24 +758,6 @@ const replayOrgConflict = async (conflictUUID: string) => {
     showToast("重放失败", "error", err?.message ?? "");
   } finally {
     replayingConflictUUID.value = "";
-  }
-};
-
-const setDefaultAccount = async () => {
-  if (!selectedAccountUUID.value) {
-    showToast("请选择账号", "warning");
-    return;
-  }
-  settingDefault.value = true;
-  try {
-    const service = useOrgSyncService();
-    await service.setDefaultSourceAccount(selectedAccountUUID.value);
-    showToast("默认来源已更新", "success");
-    await loadChannelAccounts();
-  } catch (err: any) {
-    showToast("设置默认来源失败", "error", err?.message ?? "");
-  } finally {
-    settingDefault.value = false;
   }
 };
 
@@ -782,8 +953,16 @@ watch(selectedAppType, () => {
 watch(selectedAccountUUID, (value) => {
   memberSuggestions.value = [];
   syncLogs.value = [];
+  pushPreview.value = null;
+  clearPushSelection();
   if (value) {
     loadMappingData();
+  }
+});
+
+watch(syncDirection, (value) => {
+  if (value === "push" && selectedAccountUUID.value) {
+    loadPushPreview();
   }
 });
 

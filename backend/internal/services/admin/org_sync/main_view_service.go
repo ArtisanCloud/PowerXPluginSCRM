@@ -3,6 +3,7 @@ package org_sync
 import (
 	"context"
 	"errors"
+	"sort"
 	"strings"
 
 	iammodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/iam"
@@ -16,6 +17,8 @@ import (
 type MainOrgMemberView struct {
 	MainMemberID     string   `json:"main_member_id"`
 	MainMemberName   string   `json:"main_member_name"`
+	MappingStatus    string   `json:"mapping_status"`
+	MappedCount      int      `json:"mapped_count"`
 	SourceAccounts   []string `json:"source_accounts"`
 	SourceMemberUUID []string `json:"source_member_uuids"`
 }
@@ -39,11 +42,27 @@ func (s *MainViewService) List(ctx context.Context, tenantUUID, query string) ([
 		return nil, repository.ErrTenantUuidRequired
 	}
 	keyword := strings.TrimSpace(query)
+	members := []struct {
+		MainMemberID   string
+		MainMemberName string
+	}{}
+	memberQry := s.db.WithContext(ctx).
+		Table(iammodel.Member{}.TableName() + " m").
+		Select("m.id::text AS main_member_id, COALESCE(NULLIF(m.display_name, ''), NULLIF(u.display_name, ''), m.username) AS main_member_name").
+		Joins("JOIN " + iammodel.User{}.TableName() + " u ON u.id = m.user_id").
+		Where("m.tenant_uuid = ?", tenantUUID)
+	if keyword != "" {
+		like := "%" + strings.ToLower(keyword) + "%"
+		memberQry = memberQry.Where("lower(COALESCE(NULLIF(m.display_name, ''), NULLIF(u.display_name, ''), m.username)) LIKE ?", like)
+	}
+	if err := memberQry.Scan(&members).Error; err != nil {
+		return nil, err
+	}
 	rows := []struct {
-		MainMemberID     string
-		MainMemberName   string
+		MainMemberID      string
+		MainMemberName    string
 		SourceAccountUUID string
-		SourceMemberUUID string
+		SourceMemberUUID  string
 	}{}
 	qry := s.db.WithContext(ctx).
 		Table(orgmodel.MemberMapping{}.TableName()+" mm").
@@ -60,6 +79,23 @@ func (s *MainViewService) List(ctx context.Context, tenantUUID, query string) ([
 		return nil, err
 	}
 	viewMap := make(map[string]*MainOrgMemberView)
+	for _, row := range members {
+		if strings.TrimSpace(row.MainMemberID) == "" {
+			continue
+		}
+		name := strings.TrimSpace(row.MainMemberName)
+		if name == "" {
+			name = row.MainMemberID
+		}
+		viewMap[row.MainMemberID] = &MainOrgMemberView{
+			MainMemberID:     row.MainMemberID,
+			MainMemberName:   name,
+			MappingStatus:    "unmapped",
+			MappedCount:      0,
+			SourceAccounts:   []string{},
+			SourceMemberUUID: []string{},
+		}
+	}
 	for _, row := range rows {
 		if strings.TrimSpace(row.MainMemberID) == "" {
 			continue
@@ -69,6 +105,8 @@ func (s *MainViewService) List(ctx context.Context, tenantUUID, query string) ([
 			entry = &MainOrgMemberView{
 				MainMemberID:     row.MainMemberID,
 				MainMemberName:   row.MainMemberName,
+				MappingStatus:    "unmapped",
+				MappedCount:      0,
 				SourceAccounts:   []string{},
 				SourceMemberUUID: []string{},
 			}
@@ -83,8 +121,15 @@ func (s *MainViewService) List(ctx context.Context, tenantUUID, query string) ([
 	}
 	out := make([]MainOrgMemberView, 0, len(viewMap))
 	for _, item := range viewMap {
+		item.MappedCount = len(item.SourceMemberUUID)
+		if item.MappedCount > 0 {
+			item.MappingStatus = "mapped"
+		}
 		out = append(out, *item)
 	}
+	sort.Slice(out, func(i, j int) bool {
+		return strings.ToLower(strings.TrimSpace(out[i].MainMemberName)) < strings.ToLower(strings.TrimSpace(out[j].MainMemberName))
+	})
 	orgobs.EmitMainViewQueried(ctx, tenantUUID, orgobs.ResolveActorUserUUID(ctx, ""), keyword, len(out))
 	return out, nil
 }

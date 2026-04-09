@@ -86,9 +86,18 @@ export interface OrgSyncMappingConfirmResult {
   member_mappings: number;
 }
 
+export interface OrgSyncAutoSyncResult {
+  departments_created: number;
+  members_created: number;
+  unit_mappings: number;
+  member_mappings: number;
+}
+
 export interface OrgSyncMainMemberView {
   main_member_id: string;
   main_member_name: string;
+  mapping_status?: "mapped" | "unmapped";
+  mapped_count?: number;
   source_accounts: string[];
   source_member_uuids: string[];
 }
@@ -119,6 +128,32 @@ export interface OrgSyncSyncLog {
   updated_at?: string;
 }
 
+export interface OrgBidirectionalResult {
+  direction: "pull" | "push";
+  mode: string;
+  applied: number;
+  conflicts: number;
+}
+
+export interface OrgPushPreviewItem {
+  entity_type: "unit" | "member" | string;
+  action: "create" | "update" | string;
+  main_id: string;
+  name: string;
+  reason?: string;
+  external_id?: string;
+  department_main_id?: string;
+}
+
+export interface OrgPushPreviewResult {
+  total: number;
+  units_create: number;
+  units_update: number;
+  members_create: number;
+  members_update: number;
+  items: OrgPushPreviewItem[];
+}
+
 export const useOrgSyncService = () => {
   const apiClient = useApiClient();
   const baseUrl = "/admin/org-sync";
@@ -127,6 +162,18 @@ export const useOrgSyncService = () => {
     triggerSync: (sourceAccountUUID: string) =>
       apiClient.post<ApiResponse<OrgSyncSourceAccount>>(
         `${baseUrl}/source-accounts/${sourceAccountUUID}/sync`
+      ),
+    triggerPushSync: (
+      sourceAccountUUID: string,
+      payload: { changes?: Array<{ entity_type: string; entity_id: string; action?: string; payload?: Record<string, any> }> } = {}
+    ) =>
+      apiClient.post<ApiResponse<OrgBidirectionalResult>>(
+        `${baseUrl}/source-accounts/${sourceAccountUUID}/push`,
+        payload
+      ),
+    previewPushSync: (sourceAccountUUID: string) =>
+      apiClient.get<ApiResponse<OrgPushPreviewResult>>(
+        `${baseUrl}/source-accounts/${sourceAccountUUID}/push-preview`
       ),
     listSourceUnits: (sourceAccountUUID: string, status?: string, channelAccountUUID?: string) =>
       apiClient.get<ApiResponse<{ items: OrgSyncSourceUnit[] }>>(
@@ -176,12 +223,20 @@ export const useOrgSyncService = () => {
       ),
     getMappingSuggestions: (sourceAccountUUID: string, channelAccountUUID?: string) =>
       apiClient.get<ApiResponse<OrgSyncMappingSuggestions>>(`${baseUrl}/mappings/suggestions`, {
-        params: { source_account_uuid: sourceAccountUUID, channel_account_uuid: channelAccountUUID },
+        params: {
+          source_account_uuid: sourceAccountUUID || undefined,
+          channel_account_uuid: channelAccountUUID || undefined,
+        },
       }),
     confirmMappings: (payload: OrgSyncMappingConfirmPayload) =>
       apiClient.post<ApiResponse<OrgSyncMappingConfirmResult>>(
         `${baseUrl}/mappings/confirm`,
         payload
+      ),
+    autoSyncMappings: (channelAccountUUID: string) =>
+      apiClient.post<ApiResponse<OrgSyncAutoSyncResult>>(
+        `${baseUrl}/mappings/auto-sync`,
+        { channel_account_uuid: channelAccountUUID }
       ),
     listMainOrgView: (q?: string) =>
       apiClient.get<ApiResponse<{ items: OrgSyncMainMemberView[] }>>(

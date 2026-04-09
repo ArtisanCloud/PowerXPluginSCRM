@@ -18,7 +18,7 @@ type SyncFoundationBinding struct {
 	BindingUUID        string            `gorm:"column:binding_uuid;type:uuid;default:gen_random_uuid();primaryKey" json:"binding_uuid"`
 	TenantUUID         string            `gorm:"column:tenant_uuid;type:uuid;not null;index:idx_social_sync_foundation_bindings_tenant;uniqueIndex:uq_social_sync_foundation_binding,priority:1" json:"tenant_uuid"`
 	CorpID             string            `gorm:"column:corp_id;type:text;not null;default:'';uniqueIndex:uq_social_sync_foundation_binding,priority:2" json:"corp_id"`
-	ChannelAccountUUID string            `gorm:"column:channel_account_uuid;type:uuid;not null;default:'';uniqueIndex:uq_social_sync_foundation_binding,priority:3" json:"channel_account_uuid"`
+	ChannelAccountUUID string            `gorm:"column:channel_account_uuid;type:uuid;not null;uniqueIndex:uq_social_sync_foundation_binding,priority:3" json:"channel_account_uuid"`
 	AccessMode         string            `gorm:"column:access_mode;type:varchar(32);not null;default:'delegated';index:idx_social_sync_foundation_bindings_access_mode" json:"access_mode"`
 	AuthStatus         string            `gorm:"column:auth_status;type:varchar(32);not null;default:'pending';index:idx_social_sync_foundation_bindings_auth_status" json:"auth_status"`
 	TokenStatus        string            `gorm:"column:token_status;type:varchar(32);not null;default:'invalid'" json:"token_status"`

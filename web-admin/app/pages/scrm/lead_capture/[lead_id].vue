@@ -698,7 +698,12 @@ const submitAssignForm = async () => {
 };
 
 const loadMembers = async (tenantUUID?: string) => {
-  members.value = await memberService.listBound(tenantUUID);
+  const boundMembers = await memberService.listBound(tenantUUID);
+  if (boundMembers.length > 0) {
+    members.value = boundMembers;
+    return;
+  }
+  members.value = await memberService.listAll(tenantUUID);
 };
 
 onMounted(async () => {

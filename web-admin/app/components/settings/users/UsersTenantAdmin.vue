@@ -9,26 +9,24 @@ import {
   onMounted,
   watch,
 } from "vue";
-import { useI18n } from "#imports";
+import { useI18n, useToast } from "#imports";
 import SelectTree from "~/components/ui/SelectTree.vue";
-import { useDepartmentStore } from "~/stores/department";
 import {
   useUserService,
   type MemberWithProfile,
 } from "~/composables/api/services/userService";
-import type { Department } from "~/composables/api/services/departmentService";
+import { useIAMService } from "~/composables/api/services/iamService";
 
 // ==== 输入属性（Root 复用时传入 tenantUuid） ====
 const props = defineProps<{ tenantUuid: string }>();
 const { t, locale } = useI18n();
+const toast = useToast();
 
-// ==== 部门store ====
-const departmentStore = useDepartmentStore();
 const userService = useUserService();
+const iamService = useIAMService();
 
 // ===== 类型与数据 =====
 type StatusType = "active" | "inactive";
-type RoleType = "admin" | "editor" | "user";
 
 interface RowUser {
   id: number; // Member ID
@@ -38,45 +36,123 @@ interface RowUser {
   email?: string;
   phone?: string;
   department?: string;
-  roles?: RoleType[] | null;
+  departmentId?: number | null;
   status: StatusType | string;
   avatar: string;
   meta?: Record<string, any> | null;
 }
 
+const resolveErrorMessage = (err: any, fallback = "操作失败") => {
+  return (
+    err?.data?.error?.message ||
+    err?.response?._data?.error?.message ||
+    err?.response?._data?.message ||
+    err?.message ||
+    fallback
+  );
+};
+
+const notifyError = (title: string, err: any, fallback = "操作失败") => {
+  toast.add({
+    color: "error",
+    title,
+    description: resolveErrorMessage(err, fallback),
+  });
+};
+
+const notifySuccess = (title: string, description?: string) => {
+  toast.add({
+    color: "success",
+    title,
+    description,
+  });
+};
+
 // 表格数据和加载状态
 const users = ref<RowUser[]>([]);
 const loading = ref(false);
+const roleOptions = ref<Array<{ label: string; value: number }>>([]);
+const loadingRoles = ref(false);
 
 // ====== 过滤/分页（与你现有一致） ======
 const searchQuery = ref("");
 const filters = reactive({
   department: null as string | null,
-  role: null as string | null,
   status: null as string | null,
 });
 
 const pagination = reactive({ page: 1, pageSize: 10, total: 0, totalPages: 0 });
 
+const departmentItems = ref<any[]>([]);
+
+function buildDepartmentTree(items: any[]) {
+  const nodeMap = new Map<string, any>();
+  const roots: any[] = [];
+
+  for (const item of items) {
+    const id = String(item?.id || "");
+    if (!id) continue;
+    nodeMap.set(id, {
+      label: item?.name || "未命名部门",
+      value: id,
+      icon: "i-heroicons-building-office-2",
+      defaultExpanded: true,
+      disabled: item?.status === 0,
+      children: [] as any[],
+      _parentId:
+        item?.parent_id === null || item?.parent_id === undefined
+          ? null
+          : String(item.parent_id),
+    });
+  }
+
+  for (const node of nodeMap.values()) {
+    const parentId = node._parentId;
+    if (!parentId || !nodeMap.has(parentId)) {
+      roots.push(node);
+      continue;
+    }
+    nodeMap.get(parentId).children.push(node);
+  }
+
+  const clean = (nodes: any[]): any[] =>
+    nodes
+      .map((n) => {
+        const children = clean(n.children || []);
+        return {
+          label: n.label,
+          value: n.value,
+          icon: n.icon,
+          defaultExpanded: n.defaultExpanded,
+          disabled: n.disabled,
+          children,
+        };
+      })
+      .sort((a, b) => a.label.localeCompare(b.label, "zh-CN"));
+
+  return clean(roots);
+}
+
+async function loadDepartmentOptions() {
+  if (!props.tenantUuid) {
+    departmentItems.value = [];
+    return;
+  }
+  try {
+    const response = await iamService.listDepartments(props.tenantUuid);
+    const items = (response as any)?.data?.items ?? [];
+    departmentItems.value = buildDepartmentTree(Array.isArray(items) ? items : []);
+  } catch (error) {
+    departmentItems.value = [];
+    notifyError("加载部门失败", error);
+  }
+}
+
 // 将部门数据转换为SelectTree需要的TreeNode格式
 const departmentTreeItems = computed(() => {
-  const convertDepartmentToTreeNode = (dept: Department) => ({
-    label: dept.name || "未命名部门",
-    value: String(dept.id),
-    icon: "i-heroicons-building-office-2",
-    children: dept.children?.map(convertDepartmentToTreeNode) || [],
-    disabled: dept.status === 0, // 假设status为0表示禁用
-  });
-
-  return departmentStore.tree.map(convertDepartmentToTreeNode);
+  return departmentItems.value;
 });
-const roles = ref([
-  { label: t("organization.user.form.selectRole"), value: null },
-  { label: t("organization.user.role.admin"), value: "admin" },
-  { label: t("organization.user.role.editor"), value: "editor" },
-  { label: t("organization.user.role.user"), value: "user" },
-]);
-
+const hasDepartmentOptions = computed(() => departmentTreeItems.value.length > 0);
 // ====== 导入导出 ======
 type ExportFormat = "csv" | "json";
 
@@ -108,9 +184,10 @@ async function exportUsers(format: ExportFormat) {
     const { saveAs } = await import("file-saver");
     const blob = new Blob([content], { type: mimeType });
     saveAs(blob, filename);
+    notifySuccess("导出成功", `已导出 ${users.value.length} 条记录`);
   } catch (error) {
     console.error("导出失败:", error);
-    alert("导出失败，请重试");
+    notifyError("导出失败", error, "导出失败，请重试");
   }
 }
 
@@ -136,10 +213,10 @@ function importUsers() {
 
       // 这里可以添加数据验证和转换逻辑
       console.log("导入的数据:", importedData);
-      alert(`成功导入 ${importedData.length} 条记录`);
+      notifySuccess("导入成功", `成功导入 ${importedData.length} 条记录`);
     } catch (error) {
       console.error("导入失败:", error);
-      alert("导入失败，请检查文件格式");
+      notifyError("导入失败", error, "导入失败，请检查文件格式");
     }
   };
   input.click();
@@ -179,7 +256,7 @@ const userForm = reactive({
   email: "",
   phone: "",
   departmentId: null as number | null,
-  roleIds: [] as number[],
+  roleId: null as number | null,
   avatarUrl: "",
   password: "",
   confirmPassword: "",
@@ -193,7 +270,7 @@ function resetForm() {
   userForm.email = "";
   userForm.phone = "";
   userForm.departmentId = null;
-  userForm.roleIds = [];
+  userForm.roleId = null;
   userForm.avatarUrl = "";
   userForm.password = "";
   userForm.confirmPassword = "";
@@ -201,6 +278,12 @@ function resetForm() {
   userForm.meta = {};
   isEditing.value = false;
   editingId.value = null;
+}
+
+function normalizeDepartmentId(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : null;
 }
 
 function openAddForm() {
@@ -218,6 +301,7 @@ function openEditForm(row: RowUser) {
   userForm.username = row.username || "";
   userForm.email = row.email || "";
   userForm.phone = row.phone || "";
+  userForm.departmentId = normalizeDepartmentId(row.departmentId);
   userForm.avatarUrl = row.avatar;
   userForm.status = row.status === "active" ? "active" : "disabled";
   userForm.meta = row.meta || {};
@@ -227,45 +311,90 @@ function openEditForm(row: RowUser) {
 async function saveUser() {
   // 基础校验
   if (!userForm.name || !userForm.email) {
-    return alert(t("organization.user.validation.requiredFields"));
+    notifyError("保存失败", null, t("organization.user.validation.requiredFields"));
+    return;
+  }
+  if (!normalizeDepartmentId(userForm.departmentId)) {
+    notifyError("保存失败", null, "请选择部门");
+    return;
+  }
+  if (!userForm.roleId) {
+    notifyError("保存失败", null, "请选择角色");
+    return;
   }
   if (!isEditing.value && !userForm.username) {
-    return alert("用户名为必填项");
+    notifyError("保存失败", null, "用户名为必填项");
+    return;
   }
   if (!isEditing.value && userForm.password !== userForm.confirmPassword) {
-    return alert(t("organization.user.validation.passwordMismatch"));
+    notifyError("保存失败", null, t("organization.user.validation.passwordMismatch"));
+    return;
   }
 
   try {
     if (isEditing.value && editingId.value) {
       // 更新用户
-      const updatePayload = {
+      const updatePayload: Record<string, any> = {
         display_name: userForm.name,
         email: userForm.email,
         phone: userForm.phone,
+        departmentId: normalizeDepartmentId(userForm.departmentId),
         avatar_url: userForm.avatarUrl,
         status: userForm.status === "active" ? 1 : 0,
       };
+      if (userForm.roleId) {
+        updatePayload.roles = [userForm.roleId];
+        updatePayload.replace_roles = true;
+      }
       await userService.updateUser(editingId.value, updatePayload);
     } else {
       // 创建系统用户
       const createPayload = {
+        tenant_uuid: props.tenantUuid,
         display_name: userForm.name,
         email: userForm.email,
         phone: userForm.phone,
+        departmentId: normalizeDepartmentId(userForm.departmentId),
         avatar_url: userForm.avatarUrl,
         status: userForm.status === "active" ? 1 : 0,
         meta: userForm.meta ?? {},
         username: userForm.username || userForm.email.split("@")[0],
         initial_password: userForm.password,
-        dept_ids: userForm.departmentId ? [userForm.departmentId] : [],
+        roles: userForm.roleId ? [userForm.roleId] : [],
       };
       await userService.createSystemUser(createPayload);
     }
     showForm.value = false;
     await loadUsers(); // 重新加载数据
+    notifySuccess(isEditing.value ? "用户更新成功" : "用户创建成功");
   } catch (e: any) {
-    alert(e?.message || "保存失败");
+    notifyError("保存失败", e);
+  }
+}
+
+async function loadRoleOptions() {
+  if (!props.tenantUuid) {
+    roleOptions.value = [];
+    return;
+  }
+  loadingRoles.value = true;
+  try {
+    const resp = await iamService.listRoles({ tenantUuid: props.tenantUuid });
+    const items = (resp as any)?.data?.items ?? [];
+    roleOptions.value = Array.isArray(items)
+      ? items.map((item: any) => ({
+          label: String(item?.name || item?.code || item?.id || ""),
+          value: Number(item?.id),
+        })).filter((item: any) => Number.isFinite(item.value) && item.value > 0)
+      : [];
+    if (import.meta.dev) {
+      console.info("[UsersTenantAdmin] role options loaded:", roleOptions.value.length);
+    }
+  } catch (err) {
+    notifyError("加载角色失败", err);
+    roleOptions.value = [];
+  } finally {
+    loadingRoles.value = false;
   }
 }
 
@@ -276,8 +405,9 @@ async function deleteUser(id: number) {
     // 根据后端实现调整
     await userService.deleteUser(id);
     await loadUsers(); // 重新加载数据
+    notifySuccess("用户已停用");
   } catch (e: any) {
-    alert(e?.message || "删除失败");
+    notifyError("删除失败", e);
   }
 }
 
@@ -288,8 +418,9 @@ async function toggleUserStatus(row: RowUser) {
     // 根据后端实现调整
     await userService.setUserStatus(row.id, { status: newStatus });
     await loadUsers(); // 重新加载数据
+    notifySuccess("状态更新成功");
   } catch (e: any) {
-    alert(e?.message || "状态更新失败");
+    notifyError("状态更新失败", e);
   }
 }
 
@@ -321,7 +452,7 @@ async function changePageSize(size: number) {
 }
 
 function resetFilters() {
-  filters.department = filters.role = filters.status = null;
+  filters.department = filters.status = null;
   searchQuery.value = "";
   pagination.page = 1;
   loadUsers();
@@ -332,7 +463,6 @@ watch(
   [
     searchQuery,
     () => filters.department,
-    () => filters.role,
     () => filters.status,
   ],
   () => {
@@ -346,6 +476,8 @@ watch(
   () => {
     pagination.page = 1;
     loadUsers();
+    loadDepartmentOptions();
+    loadRoleOptions();
   }
 );
 
@@ -467,9 +599,20 @@ function maskPhone(phone: string): string {
   return phone.slice(0, 3) + "****" + phone.slice(-4);
 }
 
+function fallbackAvatarDataUri(seed: string): string {
+  const raw = String(seed || "U").trim();
+  const initial = (raw[0] || "U").toUpperCase();
+  const hue = Array.from(raw).reduce((acc, ch) => acc + ch.charCodeAt(0), 0) % 360;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96"><rect width="96" height="96" rx="20" fill="hsl(${hue},70%,45%)"/><text x="50%" y="54%" text-anchor="middle" dominant-baseline="middle" fill="#fff" font-family="Arial, sans-serif" font-size="42" font-weight="700">${initial}</text></svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
 // 转换API数据为组件需要的格式
 function transformUserData(memberWithProfile: MemberWithProfile): RowUser {
   const { Member, User } = memberWithProfile;
+  const rawDepartment = (Member.meta as any)?.department;
+  const departmentId = normalizeDepartmentId(rawDepartment);
+  const avatarSeed = User.email || Member.display_name || Member.username || "U";
   return {
     id: Member.id, // 使用Member的ID作为主要ID
     userId: User.id, // 保存User的ID以备后用
@@ -478,12 +621,12 @@ function transformUserData(memberWithProfile: MemberWithProfile): RowUser {
     email: User.email || "",
     phone: User.phone || "",
     department: Member.meta?.title || Member.meta?.department || "",
-    roles: null,
+    departmentId,
     status: Member.status === 1 ? "active" : "inactive",
     avatar:
       Member.avatar_url ||
       User.avatar_url ||
-      `https://i.pravatar.cc/150?u=${encodeURIComponent(User.email || Member.display_name)}`,
+      fallbackAvatarDataUri(avatarSeed),
     meta: { ...User.meta, ...Member.meta }, // 合并User和Member的meta
   };
 }
@@ -496,6 +639,7 @@ async function loadUsers() {
   try {
     loading.value = true;
     const params: any = {
+      tenant_uuid: props.tenantUuid,
       page: pagination.page,
       page_size: pagination.pageSize,
       status: filters.status
@@ -519,6 +663,7 @@ async function loadUsers() {
     }
   } catch (error) {
     console.error("加载用户数据失败:", error);
+    notifyError("加载用户数据失败", error);
   } finally {
     loading.value = false;
   }
@@ -526,15 +671,9 @@ async function loadUsers() {
 
 // 初始化数据
 onMounted(async () => {
-  // 初始化部门数据
-  try {
-    await departmentStore.fetchTree();
-  } catch (error) {
-    console.error("加载部门数据失败:", error);
-  }
-
-  // 加载用户数据
+  await loadDepartmentOptions();
   await loadUsers();
+  await loadRoleOptions();
 });
 </script>
 
@@ -584,15 +723,6 @@ onMounted(async () => {
             searchable
             clearable
             class="w-full sm:min-w-[12rem]"
-          />
-        </UFormField>
-        <UFormField :label="$t('organization.user.form.role')">
-          <USelect
-            v-model="filters.role"
-            :items="roles"
-            class="w-full sm:min-w-[12rem]"
-            :placeholder="$t('organization.user.form.selectRole')"
-            option-attribute="label"
           />
         </UFormField>
         <UFormField :label="$t('organization.user.form.status')" class="mb-0">
@@ -702,6 +832,71 @@ onMounted(async () => {
               class="md:col-span-2"
             >
               <UInput v-model="userForm.email" type="email" />
+            </UFormField>
+            <UFormField
+              :label="$t('organization.user.form.department')"
+              required
+              class="md:col-span-2"
+            >
+              <div class="space-y-2">
+                <SelectTree
+                  v-model="userForm.departmentId"
+                  :items="departmentTreeItems"
+                  :placeholder="$t('organization.user.form.selectDepartment')"
+                  tree-class="w-[22rem] max-h-72 overflow-auto rounded-md border border-gray-200 px-1 py-1 dark:border-slate-700"
+                  button-class="text-gray-900 dark:text-slate-100"
+                  searchable
+                  clearable
+                />
+                <div
+                  v-if="!hasDepartmentOptions"
+                  class="flex items-center justify-between rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200"
+                >
+                  <span>当前租户暂无部门，请先新增部门后再选择。</span>
+                  <UButton
+                    size="xs"
+                    color="warning"
+                    variant="soft"
+                    :to="{ path: '/admin/iam/members', query: { tab: 'departments' } }"
+                  >
+                    去新增部门
+                  </UButton>
+                </div>
+              </div>
+            </UFormField>
+            <UFormField
+              :label="$t('organization.user.form.role')"
+              required
+              class="md:col-span-2"
+            >
+              <div class="space-y-2">
+                <div class="text-xs text-gray-500 dark:text-slate-300">
+                  角色（必选），来源于当前租户角色配置。
+                </div>
+                <USelect
+                  v-model="userForm.roleId"
+                  :items="roleOptions"
+                  option-attribute="label"
+                  value-attribute="value"
+                  :placeholder="$t('organization.user.form.selectRole')"
+                  :loading="loadingRoles"
+                  class="w-full min-h-10"
+                />
+                <div
+                  v-if="!loadingRoles && roleOptions.length === 0"
+                  class="flex items-center justify-between rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200"
+                >
+                  <span>当前租户暂无角色，请先创建角色后再新增成员。</span>
+                  <UButton
+                    size="xs"
+                    color="warning"
+                    variant="soft"
+                    :to="{ path: '/admin/iam/members', query: { tab: 'permissions' } }"
+                  >
+                    去权限页
+                  </UButton>
+                </div>
+              </div>
             </UFormField>
             <UFormField :label="$t('organization.user.form.phone')">
               <UInput

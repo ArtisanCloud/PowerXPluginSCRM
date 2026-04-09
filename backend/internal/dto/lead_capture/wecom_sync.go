@@ -4,6 +4,7 @@ package lead_capture
 type TriggerWeComSyncRequest struct {
 	ChannelAccountUUID string `json:"channel_account_uuid" binding:"omitempty,uuid4"`
 	TraceID            string `json:"trace_id" binding:"omitempty,max=128"`
+	Action             string `json:"action" binding:"omitempty,oneof=pull_external_contacts push_leads"`
 	Domain             string `json:"domain" binding:"omitempty,oneof=external_contacts leads"`
 	Direction          string `json:"direction" binding:"omitempty,oneof=pull push"`
 	Mode               string `json:"mode" binding:"omitempty,oneof=incremental pushback bootstrap"`

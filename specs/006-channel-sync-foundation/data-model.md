@@ -80,7 +80,27 @@
 约束：
 - 未处理冲突必须保留原始快照。
 
-## 5. WritebackPolicy（回写策略）
+## 5. OrgBinding（组织绑定）
+
+描述：本地 IAM 组织对象与渠道外部对象的稳定绑定关系。组织域业务读写以 IAM 表为主，不以渠道镜像表为主。
+
+核心字段：
+- `binding_uuid`
+- `tenant_uuid`
+- `channel_account_uuid`
+- `entity_type`（unit/member）
+- `main_entity_id`（本地 `iam_departments.id` 或 `iam_members.user_id`）
+- `external_entity_id`（渠道 `external_unit_id` / `external_member_id`）
+- `parent_external_entity_id`（仅部门可选）
+- `sync_status`
+- `last_pull_at`
+- `last_push_at`
+
+约束：
+- 同租户同渠道同实体类型下，`main_entity_id` 与 `external_entity_id` 必须双向唯一。
+- 推送时允许对未绑定对象执行“远端创建 + 回填绑定”。
+
+## 6. WritebackPolicy（回写策略）
 
 描述：系统到渠道侧回写字段映射与保护规则。
 
@@ -96,7 +116,7 @@
 约束：
 - 受保护字段不可被普通回写覆盖。
 
-## 6. DeadLetterItem（死信记录）
+## 7. DeadLetterItem（死信记录）
 
 描述：超过重试上限的任务落地项，用于人工重放。
 

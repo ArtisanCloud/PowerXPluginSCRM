@@ -76,7 +76,7 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		memberMappingRepo := orgrepo.NewMemberMappingRepository(deps.DB)
 		unitRepo := orgrepo.NewSourceUnitRepository(deps.DB)
 		unitMappingRepo := orgrepo.NewUnitMappingRepository(deps.DB)
-		matchSvc := orgsvc.NewMatchService(deps.DB, memberRepo, memberMappingRepo)
+		matchSvc := orgsvc.NewMatchService(deps.DB, unitRepo, unitMappingRepo, memberRepo, memberMappingRepo)
 		mappingSvc := orgsvc.NewMappingService(unitRepo, memberRepo, unitMappingRepo, memberMappingRepo)
 		mappingHandler = NewMappingHandler(matchSvc, mappingSvc)
 		mainViewHandler = NewMainViewHandler(orgsvc.NewMainViewService(deps.DB, memberMappingRepo))
@@ -91,6 +91,8 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 	{
 		group.GET("/scope-candidates", handler.ListDelegatedScopeCandidates)
 		group.POST("/source-accounts/:source_account_uuid/sync", handler.TriggerSync)
+		group.POST("/source-accounts/:source_account_uuid/push", handler.TriggerPushSync)
+		group.GET("/source-accounts/:source_account_uuid/push-preview", handler.PreviewPushSync)
 		group.POST("/source-accounts/:source_account_uuid/set-scope", handler.SetDelegatedScope)
 		group.POST("/source-accounts/default/:account_uuid", handler.SetDefaultSourceAccount)
 		group.GET("/source-units", handler.ListSourceUnits)
@@ -98,6 +100,7 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		group.GET("/sync-logs", handler.ListSyncLogs)
 		group.GET("/mappings/suggestions", mappingHandler.Suggestions)
 		group.POST("/mappings/confirm", mappingHandler.Confirm)
+		group.POST("/mappings/auto-sync", mappingHandler.AutoSync)
 		group.GET("/main-org-view", mainViewHandler.List)
 	}
 }

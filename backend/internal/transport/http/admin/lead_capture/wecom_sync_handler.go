@@ -34,6 +34,7 @@ func (h *WeComSyncHandler) TriggerSync(c *gin.Context) {
 		contracts.ResponseBadRequest(c, "invalid body: "+err.Error())
 		return
 	}
+	applySyncActionMapping(&req)
 	writebacks := make([]leadsvc.LeadWritebackRecord, 0, len(req.LeadWriteback))
 	for _, item := range req.LeadWriteback {
 		writebacks = append(writebacks, leadsvc.LeadWritebackRecord{
@@ -71,6 +72,22 @@ func (h *WeComSyncHandler) TriggerSync(c *gin.Context) {
 		"task_provider":          task.TaskProvider,
 		"status":                 task.Status,
 	})
+}
+
+func applySyncActionMapping(req *dto.TriggerWeComSyncRequest) {
+	if req == nil {
+		return
+	}
+	switch strings.TrimSpace(req.Action) {
+	case "pull_external_contacts":
+		req.Domain = "external_contacts"
+		req.Direction = "pull"
+		req.Mode = "incremental"
+	case "push_leads":
+		req.Domain = "leads"
+		req.Direction = "push"
+		req.Mode = "pushback"
+	}
 }
 
 func (h *WeComSyncHandler) GetWritebackPolicy(c *gin.Context) {

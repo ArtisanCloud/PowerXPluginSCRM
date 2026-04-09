@@ -111,6 +111,17 @@
 
 **Checkpoint**: US2 可独立验收，标签/组织双向收敛。
 
+### US2 对齐增量（2026-04-09）
+
+- [ ] T066 [US2] 新增“组织单主数据”迁移设计与数据回填脚本到 `backend/cmd/database/migrate/migrate.go`、`backend/cmd/database/migrate/org_sync_iam_backfill.go`
+- [ ] T067 [US2] 新增组织绑定模型（以 `main_*_id + external_*_id + channel_account_uuid` 为核心）到 `backend/internal/entity/models/org_sync/` 并注册迁移
+- [ ] T068 [US2] 改造组织 pull：直接写入 `iam_departments` / `iam_members`，并维护绑定与检查点到 `backend/internal/services/admin/org_sync/sync_service.go`
+- [ ] T069 [US2] 改造组织 push：从 `iam_* + 绑定` 执行回写，未绑定对象自动创建远端并回填绑定到 `backend/internal/services/admin/org_sync/sync_service.go`
+- [ ] T070 [P] [US2] 下线组织镜像读路径（`org_sync_source_*` 不再作为业务读模型）到 `backend/internal/services/admin/org_sync/`、`backend/internal/transport/http/admin/org_sync/`
+- [ ] T071 [P] [US2] 更新组织同步页：仅展示本地组织与同步状态，移除渠道镜像主视图入口到 `web-admin/app/pages/scrm/org_sync/index.vue`
+- [ ] T072 [P] [US2] 新增“本地未映射自动创建远端”合同测试到 `backend/tests/contract/admin_org_sync_contract_test.go`
+- [ ] T073 [P] [US2] 新增组织单主数据集成测试（pull直写IAM、push自动回填绑定）到 `backend/tests/integration/org_sync/org_bidirectional_integration_test.go`
+
 ---
 
 ## Phase 5: User Story 3 - 外部联系人与线索双向闭环 (Priority: P1)

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from "vue";
+import { computed, onMounted, watch } from "vue";
 import { storeToRefs } from "pinia";
 import DepartmentManager from "@/components/settings/users/DepartmentManager.vue";
 import UserShell from "@/components/settings/users/UsersShell.vue";
@@ -13,7 +13,15 @@ definePageMeta({
 });
 
 const { t } = useI18n();
-const activeTab = ref("departments");
+const route = useRoute();
+const resolveTabFromQuery = () => {
+  const value = String(route.query.tab || "").trim().toLowerCase();
+  if (value === "users" || value === "departments" || value === "permissions") {
+    return value;
+  }
+  return "departments";
+};
+const activeTab = ref(resolveTabFromQuery());
 
 // 使用用户状态 Store
 const userStore = useUserStore();
@@ -46,10 +54,22 @@ const tabs = computed(() => {
   return baseTabs;
 });
 
+watch(
+  () => route.query.tab,
+  () => {
+    const next = resolveTabFromQuery();
+    if (next === "permissions" && !(isRoot.value || isCurrentTenantAdmin.value)) {
+      activeTab.value = "departments";
+      return;
+    }
+    activeTab.value = next;
+  }
+);
+
 // 组件挂载时加载用户上下文
 onMounted(async () => {
   try {
-    await userStore.fetchUserContext();
+    await userStore.fetchUserContext({ force: true });
   } catch (error) {
     console.error("加载用户上下文失败:", error);
   }
