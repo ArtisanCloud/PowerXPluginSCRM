@@ -8,25 +8,20 @@ import (
 
 	orgmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/org_sync"
 	repository "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository"
-	orgrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/org_sync"
 	"gorm.io/gorm"
 )
 
-// AccountStatusService updates mappings when a source account is disabled.
+// AccountStatusService updates bindings when a source account is disabled.
 type AccountStatusService struct {
-	memberMappingRepo *orgrepo.MemberMappingRepository
-	unitMappingRepo   *orgrepo.UnitMappingRepository
+	db *gorm.DB
 }
 
-func NewAccountStatusService(
-	memberMappingRepo *orgrepo.MemberMappingRepository,
-	unitMappingRepo *orgrepo.UnitMappingRepository,
-) *AccountStatusService {
-	return &AccountStatusService{memberMappingRepo: memberMappingRepo, unitMappingRepo: unitMappingRepo}
+func NewAccountStatusService(db *gorm.DB) *AccountStatusService {
+	return &AccountStatusService{db: db}
 }
 
-func (s *AccountStatusService) MarkMappingsDisabled(ctx context.Context, tenantUUID, channelAccountUUID string) (int64, int64, error) {
-	if s == nil || s.memberMappingRepo == nil || s.unitMappingRepo == nil {
+func (s *AccountStatusService) MarkBindingsDisabled(ctx context.Context, tenantUUID, channelAccountUUID string) (int64, int64, error) {
+	if s == nil || s.db == nil {
 		return 0, 0, errors.New("account status service dependencies not configured")
 	}
 	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
@@ -44,22 +39,22 @@ func (s *AccountStatusService) MarkMappingsDisabled(ctx context.Context, tenantU
 	now := time.Now().UTC()
 	var unitAffected int64
 	var memberAffected int64
-	if err := s.unitMappingRepo.WithTenantTx(ctx, tenantUUID, func(tx *gorm.DB) error {
-		res := tx.Model(&orgmodel.UnitMapping{}).
-			Where("tenant_uuid = ? AND source_unit_uuid IN (SELECT source_unit_uuid FROM "+orgmodel.SourceUnit{}.TableName()+" WHERE tenant_uuid = ? AND source_account_uuid IN ?)", tenantUUID, tenantUUID, sourceAccounts).
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Model(&orgmodel.UnitBinding{}).
+			Where("tenant_uuid = ? AND channel_account_uuid = ?", tenantUUID, channelAccountUUID).
 			Updates(map[string]any{
-				"mapping_status": orgmodel.MappingStatusDisabled,
-				"updated_at":     now,
+				"sync_status": "disabled",
+				"updated_at":  now,
 			})
 		if res.Error != nil {
 			return res.Error
 		}
 		unitAffected = res.RowsAffected
-		res = tx.Model(&orgmodel.MemberMapping{}).
-			Where("tenant_uuid = ? AND source_member_uuid IN (SELECT source_member_uuid FROM "+orgmodel.SourceMember{}.TableName()+" WHERE tenant_uuid = ? AND source_account_uuid IN ?)", tenantUUID, tenantUUID, sourceAccounts).
+		res = tx.Model(&orgmodel.MemberBinding{}).
+			Where("tenant_uuid = ? AND channel_account_uuid = ?", tenantUUID, channelAccountUUID).
 			Updates(map[string]any{
-				"mapping_status": orgmodel.MappingStatusDisabled,
-				"updated_at":     now,
+				"sync_status": "disabled",
+				"updated_at":  now,
 			})
 		if res.Error != nil {
 			return res.Error
@@ -73,13 +68,13 @@ func (s *AccountStatusService) MarkMappingsDisabled(ctx context.Context, tenantU
 }
 
 func (s *AccountStatusService) lookupSourceAccounts(ctx context.Context, tenantUUID, channelAccountUUID string) ([]string, error) {
-	if s == nil || s.memberMappingRepo == nil || s.memberMappingRepo.DB == nil {
+	if s == nil || s.db == nil {
 		return nil, errors.New("repository database is not initialized")
 	}
 	var rows []struct {
 		SourceAccountUUID string
 	}
-	err := s.memberMappingRepo.DB.WithContext(ctx).
+	err := s.db.WithContext(ctx).
 		Model(&orgmodel.SourceAccount{}).
 		Select("source_account_uuid").
 		Where("tenant_uuid = ? AND channel_account_uuid = ?", tenantUUID, channelAccountUUID).

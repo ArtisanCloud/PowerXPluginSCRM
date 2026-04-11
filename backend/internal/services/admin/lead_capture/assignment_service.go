@@ -30,12 +30,11 @@ func (s *AssignmentService) EnsureMemberBound(ctx context.Context, tx *gorm.DB, 
 	}
 	var count int64
 	err := tx.WithContext(ctx).
-		Model(&orgmodel.MemberMapping{}).
+		Model(&orgmodel.MemberBinding{}).
 		Where(
-			"tenant_uuid = ? AND main_member_id = ? AND mapping_status = ?",
+			"tenant_uuid = ? AND main_member_id = ?",
 			tenantUUID,
 			strconv.FormatUint(memberID, 10),
-			orgmodel.MappingStatusConfirmed,
 		).
 		Limit(1).
 		Count(&count).Error

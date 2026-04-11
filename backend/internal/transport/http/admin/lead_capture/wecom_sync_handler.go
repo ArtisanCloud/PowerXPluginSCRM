@@ -64,6 +64,16 @@ func (h *WeComSyncHandler) TriggerSync(c *gin.Context) {
 		contracts.ResponseBadRequest(c, err.Error())
 		return
 	}
+	isPushRequest := strings.TrimSpace(req.Action) == "push_leads" ||
+		(strings.EqualFold(strings.TrimSpace(req.Domain), "leads") && strings.EqualFold(strings.TrimSpace(req.Direction), "push"))
+	if isPushRequest && strings.EqualFold(strings.TrimSpace(task.Status), "failed") {
+		message := strings.TrimSpace(task.ErrorMessage)
+		if message == "" {
+			message = "push sync failed"
+		}
+		contracts.ResponseError(c, http.StatusBadRequest, contracts.ErrCodeInvalidRequest, message)
+		return
+	}
 	contracts.ResponseSuccess(c, gin.H{
 		"task_uuid":              task.TaskUUID,
 		"external_task_id":       task.ExternalTaskID,
@@ -174,6 +184,34 @@ func (h *WeComSyncHandler) ListWritebackDeadLetters(c *gin.Context) {
 		return
 	}
 	contracts.ResponseSuccess(c, gin.H{"items": items})
+}
+
+func (h *WeComSyncHandler) ClearSyncTasks(c *gin.Context) {
+	if h == nil || h.svc == nil {
+		contracts.ResponseServiceUnavailable(c, "wecom sync service unavailable", nil)
+		return
+	}
+	tenantUUID, ok := httpmw.TenantUUIDFromContext(c)
+	if !ok || tenantUUID == "" {
+		contracts.ResponseUnauthorized(c, "tenant context missing")
+		return
+	}
+	var req dto.ClearWeComSyncTasksRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		contracts.ResponseBadRequest(c, "invalid body: "+err.Error())
+		return
+	}
+	deleted, err := h.svc.ClearSyncTasks(
+		c.Request.Context(),
+		tenantUUID,
+		strings.TrimSpace(req.ChannelAccountUUID),
+		strings.TrimSpace(req.Status),
+	)
+	if err != nil {
+		contracts.ResponseError(c, http.StatusBadRequest, contracts.ErrCodeInvalidRequest, err.Error())
+		return
+	}
+	contracts.ResponseSuccess(c, gin.H{"deleted": deleted})
 }
 
 func (h *WeComSyncHandler) ReplayWritebackDeadLetter(c *gin.Context) {

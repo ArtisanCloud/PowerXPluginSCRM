@@ -8,8 +8,11 @@ import (
 	"sync"
 	"time"
 
+	pwexternalreq "github.com/ArtisanCloud/PowerWeChat/v3/src/work/externalContact/request"
 	leadmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/lead_capture"
+	orgmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/org_sync"
 	socialmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/social_channel_governance"
+	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository"
 	leadrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/lead_capture"
 	socialrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/social_channel_governance"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/logger"
@@ -25,6 +28,7 @@ type WeComSyncService struct {
 	leadRepo    *leadrepo.LeadRepository
 	leadService *LeadService
 	metrics     *leadobs.Metrics
+	realtime    *LeadSyncRealtimePublisher
 	syncFactory *ChannelSyncFactory
 	dedupSvc    *LeadDedupService
 	syncRepo    *socialrepo.SyncFoundationRepository
@@ -92,6 +96,14 @@ func (s *WeComSyncService) WithLeadService(leadService *LeadService) *WeComSyncS
 		return s
 	}
 	s.leadService = leadService
+	return s
+}
+
+func (s *WeComSyncService) WithRealtimePublisher(realtime *LeadSyncRealtimePublisher) *WeComSyncService {
+	if s == nil {
+		return s
+	}
+	s.realtime = realtime
 	return s
 }
 
@@ -248,6 +260,7 @@ func (s *WeComSyncService) prepareSyncTask(ctx context.Context, req TriggerSyncR
 		}
 		return TriggerSyncRequest{}, "", SyncTaskSubmitResult{}, nil, err
 	}
+	s.publishTaskProgress(ctx, created)
 	return req, accountUUID, submit, created, nil
 }
 
@@ -294,6 +307,10 @@ func (s *WeComSyncService) executeLocalSyncTask(ctx context.Context, req Trigger
 			"progress_current": current,
 			"progress_percent": percent,
 		})
+		task.ProgressTotal = total
+		task.ProgressCurrent = current
+		task.ProgressPercent = percent
+		s.publishTaskProgress(ctx, task)
 	}
 
 	stats, runErr := s.runLocalSyncIngestion(ctx, req, accountUUID, reportProgress)
@@ -307,6 +324,7 @@ func (s *WeComSyncService) executeLocalSyncTask(ctx context.Context, req Trigger
 		}
 		task.Status = "failed"
 		task.ErrorMessage = strings.TrimSpace(runErr.Error())
+		s.publishTaskProgress(ctx, task)
 		if s.metrics != nil {
 			s.metrics.RecordSyncTask(leadmodel.LeadSyncTaskProviderLocalFallback, "failed")
 		}
@@ -335,6 +353,7 @@ func (s *WeComSyncService) executeLocalSyncTask(ctx context.Context, req Trigger
 	task.ProgressCurrent = stats.Total
 	task.ProgressPercent = 100
 	task.FinishedAt = &finishAt
+	s.publishTaskProgress(ctx, task)
 	if s.metrics != nil {
 		s.metrics.RecordSyncTask(leadmodel.LeadSyncTaskProviderLocalFallback, "success")
 	}
@@ -346,6 +365,19 @@ func (s *WeComSyncService) ListSyncTasks(ctx context.Context, tenantUUID, channe
 		return nil, errors.New("wecom sync service unavailable")
 	}
 	return s.taskRepo.ListByFilter(ctx, tenantUUID, channelAccountUUID, status, limit)
+}
+
+func (s *WeComSyncService) ClearSyncTasks(ctx context.Context, tenantUUID, channelAccountUUID, status string) (int64, error) {
+	if s == nil || s.taskRepo == nil {
+		return 0, errors.New("wecom sync service unavailable")
+	}
+	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
+	channelAccountUUID = strings.ToLower(strings.TrimSpace(channelAccountUUID))
+	status = strings.ToLower(strings.TrimSpace(status))
+	if tenantUUID == "" {
+		return 0, repository.ErrTenantUuidRequired
+	}
+	return s.taskRepo.ClearByFilter(ctx, tenantUUID, channelAccountUUID, status)
 }
 
 func (s *WeComSyncService) RetryTask(ctx context.Context, tenantUUID, taskUUID string) error {
@@ -388,6 +420,7 @@ func (s *WeComSyncService) updateTaskRunning(ctx context.Context, task *leadmode
 	task.Status = "running"
 	task.StartedAt = &startedAt
 	task.ProgressPercent = 5
+	s.publishTaskProgress(ctx, task)
 	return nil
 }
 
@@ -414,10 +447,21 @@ func (s *WeComSyncService) runLocalSyncIngestion(
 	}
 	if s.leadService != nil {
 		seenDedup := map[string]struct{}{}
+		ownerBindingCache := map[string]string{}
 		for idx, raw := range items {
 			item := normalizeWeComLeadRecord(raw)
 			if item.DisplayName == "" && item.Phone == "" && item.Email == "" {
 				continue
+			}
+			ownerUserUUID, resolveOwnerErr := s.resolveLeadOwnerUserUUIDFromExternalMember(
+				ctx,
+				req.TenantUUID,
+				channelAccountUUID,
+				item.OwnerMemberUUID,
+				ownerBindingCache,
+			)
+			if resolveOwnerErr != nil {
+				return SyncIngestStats{}, resolveOwnerErr
 			}
 			if s.dedupSvc != nil {
 				key := s.dedupSvc.BuildExternalContactKey(item.ExternalLeadID, item.Phone, item.CorpID, req.Channel)
@@ -444,6 +488,7 @@ func (s *WeComSyncService) runLocalSyncIngestion(
 				SourceChannel:     req.Channel,
 				SourceAppType:     req.AppType,
 				SourceAccountUUID: channelAccountUUID,
+				OwnerUserUUID:     ownerUserUUID,
 			})
 			if createErr != nil {
 				return SyncIngestStats{}, createErr
@@ -470,11 +515,22 @@ func (s *WeComSyncService) runLocalSyncIngestion(
 	}
 
 	seenDedup := map[string]struct{}{}
+	ownerBindingCache := map[string]string{}
 	err = s.leadRepo.WithTenantTx(ctx, req.TenantUUID, func(tx *gorm.DB) error {
 		for idx, raw := range items {
 			item := normalizeWeComLeadRecord(raw)
 			if item.DisplayName == "" && item.Phone == "" && item.Email == "" {
 				continue
+			}
+			ownerUserUUID, resolveOwnerErr := s.resolveLeadOwnerUserUUIDFromExternalMember(
+				ctx,
+				req.TenantUUID,
+				channelAccountUUID,
+				item.OwnerMemberUUID,
+				ownerBindingCache,
+			)
+			if resolveOwnerErr != nil {
+				return resolveOwnerErr
 			}
 			if s.dedupSvc != nil {
 				key := s.dedupSvc.BuildExternalContactKey(item.ExternalLeadID, item.Phone, item.CorpID, req.Channel)
@@ -507,6 +563,7 @@ func (s *WeComSyncService) runLocalSyncIngestion(
 					SourceChannel:     req.Channel,
 					SourceAppType:     req.AppType,
 					SourceAccountUUID: &channelAccountUUID,
+					OwnerUserUUID:     ownerUserUUID,
 					CreatedAt:         time.Now().UTC(),
 					UpdatedAt:         time.Now().UTC(),
 				}
@@ -539,6 +596,10 @@ func (s *WeComSyncService) runLocalSyncIngestion(
 			}
 			if existing.SourceAccountUUID == nil {
 				updates["source_account_uuid"] = channelAccountUUID
+				changed = true
+			}
+			if strings.TrimSpace(existing.OwnerUserUUID) == "" && ownerUserUUID != "" {
+				updates["owner_user_uuid"] = ownerUserUUID
 				changed = true
 			}
 			if changed {
@@ -625,6 +686,7 @@ func (s *WeComSyncService) triggerLeadWriteback(ctx context.Context, req Trigger
 	if err != nil {
 		return nil, err
 	}
+	s.publishTaskProgress(ctx, created)
 
 	policy, policyErr := s.GetLeadWritebackPolicy(ctx, req.TenantUUID, channel, appType)
 	if policyErr != nil || policy == nil {
@@ -639,29 +701,209 @@ func (s *WeComSyncService) triggerLeadWriteback(ctx context.Context, req Trigger
 		WhitelistedFields: stringSliceFromAny(policy.MappingRules["whitelist"]),
 		ProtectedFields:   stringSliceFromAny(policy.ProtectedFields["fields"]),
 	}
+	credentials, authMode, err := s.resolveWeComWritebackCredentials(ctx, req.TenantUUID, channelAccountUUID)
+	if err != nil {
+		_ = s.taskRepo.UpdateStatus(ctx, req.TenantUUID, created.TaskUUID, "failed", map[string]any{
+			"error_message": err.Error(),
+			"finished_at":   time.Now().UTC(),
+		})
+		created.Status = "failed"
+		created.ErrorMessage = err.Error()
+		s.publishTaskProgress(ctx, created)
+		return created, nil
+	}
+	logger.WithFields(logger.Fields{
+		"component":            "lead_capture_sync",
+		"tenant_uuid":          req.TenantUUID,
+		"channel_account_uuid": channelAccountUUID,
+		"auth_mode":            authMode,
+	}).Info("lead writeback auth mode resolved")
+	app, err := newWeComLeadSyncApp(credentials)
+	if err != nil {
+		_ = s.taskRepo.UpdateStatus(ctx, req.TenantUUID, created.TaskUUID, "failed", map[string]any{
+			"error_message": err.Error(),
+			"finished_at":   time.Now().UTC(),
+		})
+		created.Status = "failed"
+		created.ErrorMessage = err.Error()
+		s.publishTaskProgress(ctx, created)
+		return created, nil
+	}
+	if app == nil || app.ExternalContact == nil {
+		err = errors.New("wecom external contact client unavailable")
+		_ = s.taskRepo.UpdateStatus(ctx, req.TenantUUID, created.TaskUUID, "failed", map[string]any{
+			"error_message": err.Error(),
+			"finished_at":   time.Now().UTC(),
+		})
+		created.Status = "failed"
+		created.ErrorMessage = err.Error()
+		s.publishTaskProgress(ctx, created)
+		return created, nil
+	}
+
+	externalUserCache := make(map[string]string)
+	operatorUserCache := make(map[string]string)
 	accepted := 0
+	rejected := 0
+	upstreamAttempted := 0
+	rejectReasons := map[string]int{
+		"missing_external_userid": 0,
+		"missing_operator_userid": 0,
+		"out_of_order":            0,
+		"payload_filtered":        0,
+		"idempotent_skipped":      0,
+		"upstream_call_failed":    0,
+		"upstream_resp_failed":    0,
+	}
 	var firstErr error
 	for _, item := range req.LeadWriteback {
+		externalUserID := strings.TrimSpace(item.ExternalUserID)
+		if externalUserID == "" {
+			externalUserID = strings.TrimSpace(fieldString(item.Fields, "external_userid"))
+		}
+		if externalUserID == "" {
+			var resolveErr error
+			externalUserID, resolveErr = s.resolveLeadExternalUserID(ctx, req.TenantUUID, channelAccountUUID, item.LeadUUID, externalUserCache)
+			if resolveErr != nil && firstErr == nil {
+				firstErr = resolveErr
+			}
+		}
+		if externalUserID == "" {
+			rejected++
+			rejectReasons["missing_external_userid"]++
+			if firstErr == nil {
+				firstErr = errors.New("lead writeback missing external_userid")
+			}
+			continue
+		}
+
+		operatorUserID := strings.TrimSpace(fieldString(item.Fields, "userid"))
+		if operatorUserID == "" {
+			operatorUserID = strings.TrimSpace(fieldString(item.Fields, "follow_userid"))
+		}
+		if operatorUserID == "" {
+			var resolveErr error
+			operatorUserID, resolveErr = s.resolveLeadOwnerOperatorUserID(ctx, req.TenantUUID, channelAccountUUID, item.Fields, operatorUserCache)
+			if resolveErr != nil && firstErr == nil {
+				firstErr = resolveErr
+			}
+		}
+		if operatorUserID == "" {
+			rejected++
+			rejectReasons["missing_operator_userid"]++
+			if firstErr == nil {
+				firstErr = errors.New("lead writeback missing operator userid")
+			}
+			continue
+		}
+
+		item.ExternalUserID = externalUserID
 		if !s.passWritebackOrder(req.TenantUUID, item.ExternalUserID, item.OrderVersion) {
+			rejected++
+			rejectReasons["out_of_order"]++
 			continue
 		}
 		payload := BuildLeadWritebackPayload(item.Fields, writebackPolicy)
 		if len(payload) == 0 {
+			rejected++
+			rejectReasons["payload_filtered"]++
 			continue
 		}
 		if !s.passWritebackIdempotency(ctx, req.TenantUUID, item, payload) {
+			rejected++
+			rejectReasons["idempotent_skipped"]++
 			continue
 		}
 		if failureFlag(payload) {
 			firstErr = errors.New("lead writeback upstream rejected payload")
 			break
 		}
+		remarkReq := &pwexternalreq.RequestExternalContactRemark{
+			UserID:         operatorUserID,
+			ExternalUserID: externalUserID,
+			Remark:         fieldString(payload, "display_name"),
+		}
+		if phone := strings.TrimSpace(fieldString(payload, "phone")); phone != "" {
+			remarkReq.RemarkMobiles = []string{phone}
+		}
+		email := strings.TrimSpace(fieldString(payload, "email"))
+		statusText := strings.TrimSpace(fieldString(payload, "status"))
+		phoneText := strings.TrimSpace(fieldString(payload, "phone"))
+		descParts := make([]string, 0, 3)
+		if statusText != "" {
+			descParts = append(descParts, fmt.Sprintf("status=%s", statusText))
+		}
+		if email != "" {
+			descParts = append(descParts, fmt.Sprintf("email=%s", email))
+		}
+		// WeCom may not persist remark_mobiles in some tenant/runtime combinations.
+		// Keep mobile in description as a reliable fallback for remote visibility.
+		if phoneText != "" {
+			descParts = append(descParts, fmt.Sprintf("mobile=%s", phoneText))
+		}
+		if len(descParts) > 0 {
+			remarkReq.Description = strings.Join(descParts, ",")
+		}
+		upstreamAttempted++
+		resp, callErr := app.ExternalContact.Remark(ctx, remarkReq)
+		if callErr != nil {
+			rejected++
+			rejectReasons["upstream_call_failed"]++
+			if firstErr == nil {
+				firstErr = fmt.Errorf("lead writeback remark failed: %w", callErr)
+			}
+			continue
+		}
+		if err := validateWeComResponseCode("externalcontact.remark", *resp); err != nil {
+			rejected++
+			rejectReasons["upstream_resp_failed"]++
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		if traceErr := createLeadActivity(ctx, s.taskRepo.DB, req.TenantUUID, item.LeadUUID, leadmodel.LeadActivityTypeSyncTrace, datatypes.JSONMap{
+			"direction":           "push",
+			"source_account_uuid": channelAccountUUID,
+			"external_lead_id":    externalUserID,
+			"status":              "success",
+			"phone":               phoneText,
+		}); traceErr != nil {
+			logger.WithFields(logger.Fields{
+				"component":   "lead_capture_sync",
+				"tenant_uuid": req.TenantUUID,
+				"lead_uuid":   item.LeadUUID,
+				"task_uuid":   created.TaskUUID,
+				"error":       traceErr.Error(),
+			}).Warn("lead writeback sync trace persist failed")
+		}
 		accepted++
 	}
 
-	if firstErr != nil {
+	logger.WithFields(logger.Fields{
+		"component":            "lead_capture_sync",
+		"tenant_uuid":          req.TenantUUID,
+		"channel_account_uuid": channelAccountUUID,
+		"task_uuid":            created.TaskUUID,
+		"writeback_total":      len(req.LeadWriteback),
+		"upstream_attempted":   upstreamAttempted,
+		"accepted":             accepted,
+		"rejected":             rejected,
+		"reject_reasons":       rejectReasons,
+	}).Info("lead writeback summary")
+
+	if upstreamAttempted == 0 && len(req.LeadWriteback) > 0 {
+		if firstErr == nil {
+			firstErr = fmt.Errorf("no upstream write attempted (rejected=%d)", rejected)
+		}
+	}
+
+	if firstErr != nil && accepted == 0 {
 		_ = s.taskRepo.UpdateStatus(ctx, req.TenantUUID, created.TaskUUID, "failed", map[string]any{
 			"error_message": firstErr.Error(),
+			"stats_total":   len(req.LeadWriteback),
+			"stats_updated": accepted,
+			"stats_failed":  rejected,
 			"finished_at":   time.Now().UTC(),
 		})
 		if s.retrySvc != nil {
@@ -679,12 +921,19 @@ func (s *WeComSyncService) triggerLeadWriteback(ctx context.Context, req Trigger
 		}
 		created.Status = "failed"
 		created.ErrorMessage = firstErr.Error()
+		created.StatsTotal = len(req.LeadWriteback)
+		created.StatsUpdated = accepted
+		created.ProgressTotal = len(req.LeadWriteback)
+		created.ProgressCurrent = len(req.LeadWriteback)
+		created.ProgressPercent = 100
+		s.publishTaskProgress(ctx, created)
 		return created, nil
 	}
 
 	_ = s.taskRepo.UpdateStatus(ctx, req.TenantUUID, created.TaskUUID, "success", map[string]any{
 		"stats_total":      len(req.LeadWriteback),
 		"stats_updated":    accepted,
+		"stats_failed":     rejected,
 		"progress_total":   len(req.LeadWriteback),
 		"progress_current": len(req.LeadWriteback),
 		"progress_percent": 100,
@@ -696,7 +945,35 @@ func (s *WeComSyncService) triggerLeadWriteback(ctx context.Context, req Trigger
 	created.ProgressTotal = len(req.LeadWriteback)
 	created.ProgressCurrent = len(req.LeadWriteback)
 	created.ProgressPercent = 100
+	s.publishTaskProgress(ctx, created)
 	return created, nil
+}
+
+func (s *WeComSyncService) publishTaskProgress(ctx context.Context, task *leadmodel.LeadSyncTask) {
+	if s == nil || s.realtime == nil || task == nil {
+		return
+	}
+	tenantUUID := strings.TrimSpace(task.TenantUUID)
+	if tenantUUID == "" {
+		return
+	}
+	payload := LeadSyncProgressEvent{
+		TenantUUID:         tenantUUID,
+		TaskUUID:           strings.TrimSpace(task.TaskUUID),
+		Channel:            strings.TrimSpace(task.Channel),
+		AppType:            strings.TrimSpace(task.AppType),
+		ChannelAccountUUID: strings.TrimSpace(task.ChannelAccountUUID),
+		Status:             strings.TrimSpace(task.Status),
+		ProgressTotal:      task.ProgressTotal,
+		ProgressCurrent:    task.ProgressCurrent,
+		ProgressPercent:    task.ProgressPercent,
+		StatsTotal:         task.StatsTotal,
+		StatsCreated:       task.StatsCreated,
+		StatsUpdated:       task.StatsUpdated,
+		StatsMerged:        task.StatsMerged,
+		ErrorMessage:       strings.TrimSpace(task.ErrorMessage),
+	}
+	_ = s.realtime.PublishLeadSyncProgress(ctx, tenantUUID, payload)
 }
 
 func (s *WeComSyncService) GetLeadWritebackPolicy(ctx context.Context, tenantUUID, channel, appType string) (*socialmodel.SyncWritebackPolicy, error) {
@@ -954,17 +1231,18 @@ func appendSyncTraceActivityTx(
 		return fmt.Errorf("lead activity table missing: %s", leadmodel.LeadActivity{}.TableName())
 	}
 	payload := datatypes.JSONMap{
-		"trace_id":             strings.TrimSpace(req.TraceID),
-		"source_channel":       strings.ToLower(strings.TrimSpace(req.Channel)),
-		"source_app_type":      strings.ToLower(strings.TrimSpace(req.AppType)),
-		"source_account_uuid":  strings.TrimSpace(channelAccountUUID),
-		"external_lead_id":     strings.TrimSpace(item.ExternalLeadID),
-		"external_wechat_id":   strings.TrimSpace(item.WechatID),
-		"display_name":         strings.TrimSpace(item.DisplayName),
-		"phone":                strings.TrimSpace(item.Phone),
-		"email":                strings.ToLower(strings.TrimSpace(item.Email)),
-		"dedup_exists_before":  existsBefore,
-		"ingestion_entrypoint": "wecom_sync",
+		"trace_id":              strings.TrimSpace(req.TraceID),
+		"source_channel":        strings.ToLower(strings.TrimSpace(req.Channel)),
+		"source_app_type":       strings.ToLower(strings.TrimSpace(req.AppType)),
+		"source_account_uuid":   strings.TrimSpace(channelAccountUUID),
+		"external_lead_id":      strings.TrimSpace(item.ExternalLeadID),
+		"external_wechat_id":    strings.TrimSpace(item.WechatID),
+		"owner_external_userid": strings.TrimSpace(item.OwnerMemberUUID),
+		"display_name":          strings.TrimSpace(item.DisplayName),
+		"phone":                 strings.TrimSpace(item.Phone),
+		"email":                 strings.ToLower(strings.TrimSpace(item.Email)),
+		"dedup_exists_before":   existsBefore,
+		"ingestion_entrypoint":  "wecom_sync",
 	}
 	if !item.OccurredAt.IsZero() {
 		payload["occurred_at"] = item.OccurredAt.UTC().Format(time.RFC3339)
@@ -1045,6 +1323,233 @@ func payloadString(payload datatypes.JSONMap, key string) string {
 		return ""
 	}
 	raw, ok := payload[key]
+	if !ok || raw == nil {
+		return ""
+	}
+	switch v := raw.(type) {
+	case string:
+		return strings.TrimSpace(v)
+	case fmt.Stringer:
+		return strings.TrimSpace(v.String())
+	default:
+		return strings.TrimSpace(fmt.Sprintf("%v", v))
+	}
+}
+
+func (s *WeComSyncService) resolveWeComWritebackCredentials(
+	ctx context.Context,
+	tenantUUID, channelAccountUUID string,
+) (map[string]string, string, error) {
+	if s == nil || s.taskRepo == nil || s.taskRepo.DB == nil {
+		return nil, "", errors.New("account repository not configured")
+	}
+	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
+	channelAccountUUID = strings.ToLower(strings.TrimSpace(channelAccountUUID))
+	if tenantUUID == "" || channelAccountUUID == "" {
+		return nil, "", errors.New("tenant_uuid and channel_account_uuid are required")
+	}
+
+	accountRepo := socialrepo.NewAccountRepository(s.taskRepo.DB)
+	account, err := accountRepo.GetByAccountUUID(ctx, tenantUUID, channelAccountUUID)
+	if err != nil {
+		return nil, "", err
+	}
+	if account == nil {
+		return nil, "", socialrepo.ErrAccountNotFound
+	}
+	if !strings.EqualFold(strings.TrimSpace(account.ChannelCode), "wechat") || !strings.EqualFold(strings.TrimSpace(account.AppType), "wecom") {
+		return nil, "", fmt.Errorf("unsupported wecom account identity: %s/%s", strings.TrimSpace(account.ChannelCode), strings.TrimSpace(account.AppType))
+	}
+
+	credentials := credentialsToStringMap(account.Credentials)
+	openworkRepo := socialrepo.NewOpenWorkFoundationRepository(s.taskRepo.DB)
+	platformRepo := socialrepo.NewChannelPlatformSettingRepository(s.taskRepo.DB)
+	resolver := NewDefaultWeComLeadAdapterWithResolvers(accountRepo, openworkRepo, platformRepo)
+	credentials = resolver.mergeDelegatedCredentials(ctx, tenantUUID, channelAccountUUID, credentials)
+
+	authMode := detectWeComWritebackAuthMode(credentials)
+	if authMode != "delegated_template" && openworkRepo != nil {
+		binding, bindErr := openworkRepo.ResolveBindingByChannelAccount(ctx, tenantUUID, channelAccountUUID)
+		if bindErr == nil && binding != nil && strings.TrimSpace(binding.Status) == socialmodel.WeComAuthBindingStatusActive {
+			authMode = "delegated_template"
+		}
+	}
+	return credentials, authMode, nil
+}
+
+func detectWeComWritebackAuthMode(credentials map[string]string) string {
+	if strings.TrimSpace(credentials["template_id"]) != "" ||
+		strings.TrimSpace(credentials["provider_corpid"]) != "" ||
+		strings.TrimSpace(credentials["provider_secret"]) != "" ||
+		strings.TrimSpace(credentials["permanent_code"]) != "" {
+		return "delegated_template"
+	}
+	return "app_detail"
+}
+
+func (s *WeComSyncService) resolveLeadExternalUserID(
+	ctx context.Context,
+	tenantUUID, channelAccountUUID, leadUUID string,
+	cache map[string]string,
+) (string, error) {
+	if s == nil || s.taskRepo == nil || s.taskRepo.DB == nil {
+		return "", errors.New("repository database is not initialized")
+	}
+	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
+	channelAccountUUID = strings.ToLower(strings.TrimSpace(channelAccountUUID))
+	leadUUID = strings.TrimSpace(leadUUID)
+	if tenantUUID == "" || leadUUID == "" {
+		return "", nil
+	}
+
+	cacheKey := channelAccountUUID + ":" + leadUUID
+	if cache != nil {
+		if hit := strings.TrimSpace(cache[cacheKey]); hit != "" {
+			return hit, nil
+		}
+	}
+
+	activities := make([]leadmodel.LeadActivity, 0, 16)
+	if err := s.taskRepo.DB.WithContext(ctx).
+		Where(
+			"tenant_uuid = ? AND lead_uuid = ? AND activity_type = ?",
+			tenantUUID,
+			leadUUID,
+			leadmodel.LeadActivityTypeSyncTrace,
+		).
+		Order("updated_at DESC").
+		Limit(30).
+		Find(&activities).Error; err != nil {
+		return "", err
+	}
+
+	for _, activity := range activities {
+		payload := activity.Payload
+		if payload == nil {
+			continue
+		}
+		if channelAccountUUID != "" && payloadString(payload, "source_account_uuid") != channelAccountUUID {
+			continue
+		}
+		externalUserID := payloadString(payload, "external_lead_id")
+		if externalUserID == "" {
+			externalUserID = payloadString(payload, "external_wechat_id")
+		}
+		externalUserID = strings.TrimSpace(externalUserID)
+		if externalUserID == "" {
+			continue
+		}
+		if cache != nil {
+			cache[cacheKey] = externalUserID
+		}
+		return externalUserID, nil
+	}
+	return "", nil
+}
+
+func (s *WeComSyncService) resolveLeadOwnerOperatorUserID(
+	ctx context.Context,
+	tenantUUID, channelAccountUUID string,
+	fields map[string]any,
+	cache map[string]string,
+) (string, error) {
+	if s == nil || s.taskRepo == nil || s.taskRepo.DB == nil {
+		return "", errors.New("repository database is not initialized")
+	}
+	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
+	channelAccountUUID = strings.ToLower(strings.TrimSpace(channelAccountUUID))
+	if tenantUUID == "" {
+		return "", nil
+	}
+
+	ownerUserUUID := strings.TrimSpace(fieldString(fields, "owner_user_uuid"))
+	if ownerUserUUID == "" {
+		ownerUserUUID = strings.TrimSpace(fieldString(fields, "assignee_user_uuid"))
+	}
+	if ownerUserUUID == "" {
+		ownerUserUUID = strings.TrimSpace(fieldString(fields, "main_member_id"))
+	}
+	if ownerUserUUID == "" {
+		return "", nil
+	}
+
+	cacheKey := channelAccountUUID + ":" + ownerUserUUID
+	if cache != nil {
+		if hit := strings.TrimSpace(cache[cacheKey]); hit != "" {
+			return hit, nil
+		}
+	}
+
+	var bound struct {
+		ExternalMemberID string `gorm:"column:external_member_id"`
+	}
+	err := s.taskRepo.DB.WithContext(ctx).
+		Table(orgmodel.MemberBinding{}.TableName()).
+		Where("tenant_uuid = ? AND channel_account_uuid = ? AND main_member_id = ?", tenantUUID, channelAccountUUID, ownerUserUUID).
+		Order("updated_at DESC").
+		Limit(1).
+		Select("external_member_id").
+		Scan(&bound).Error
+	if err != nil {
+		return "", err
+	}
+	operatorUserID := strings.TrimSpace(bound.ExternalMemberID)
+	if operatorUserID != "" {
+		if cache != nil {
+			cache[cacheKey] = operatorUserID
+		}
+		return operatorUserID, nil
+	}
+	return "", nil
+}
+
+func (s *WeComSyncService) resolveLeadOwnerUserUUIDFromExternalMember(
+	ctx context.Context,
+	tenantUUID, channelAccountUUID, externalMemberID string,
+	cache map[string]string,
+) (string, error) {
+	if s == nil || s.taskRepo == nil || s.taskRepo.DB == nil {
+		return "", errors.New("repository database is not initialized")
+	}
+	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
+	channelAccountUUID = strings.ToLower(strings.TrimSpace(channelAccountUUID))
+	externalMemberID = strings.TrimSpace(externalMemberID)
+	if tenantUUID == "" || externalMemberID == "" {
+		return "", nil
+	}
+
+	cacheKey := channelAccountUUID + ":" + externalMemberID
+	if cache != nil {
+		if hit, ok := cache[cacheKey]; ok {
+			return strings.TrimSpace(hit), nil
+		}
+	}
+
+	var bound struct {
+		MainMemberID string `gorm:"column:main_member_id"`
+	}
+	err := s.taskRepo.DB.WithContext(ctx).
+		Table(orgmodel.MemberBinding{}.TableName()).
+		Where("tenant_uuid = ? AND channel_account_uuid = ? AND external_member_id = ?", tenantUUID, channelAccountUUID, externalMemberID).
+		Order("updated_at DESC").
+		Limit(1).
+		Select("main_member_id").
+		Scan(&bound).Error
+	if err != nil {
+		return "", err
+	}
+	ownerUserUUID := strings.TrimSpace(bound.MainMemberID)
+	if cache != nil {
+		cache[cacheKey] = ownerUserUUID
+	}
+	return ownerUserUUID, nil
+}
+
+func fieldString(input map[string]any, key string) string {
+	if input == nil {
+		return ""
+	}
+	raw, ok := input[key]
 	if !ok || raw == nil {
 		return ""
 	}

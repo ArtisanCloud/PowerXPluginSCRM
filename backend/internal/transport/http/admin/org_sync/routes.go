@@ -56,33 +56,20 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		unitRepo := orgrepo.NewSourceUnitRepository(deps.DB)
 		memberRepo := orgrepo.NewSourceMemberRepository(deps.DB)
 		memberProfileRepo := orgrepo.NewSourceMemberProfileRepository(deps.DB)
-		unitMappingRepo := orgrepo.NewUnitMappingRepository(deps.DB)
-		memberMappingRepo := orgrepo.NewMemberMappingRepository(deps.DB)
 		syncLogRepo := orgrepo.NewSyncLogRepository(deps.DB)
 		accountRepo := socialrepo.NewAccountRepository(deps.DB)
 		openworkRepo := socialrepo.NewOpenWorkFoundationRepository(deps.DB)
 		platformRepo := socialrepo.NewChannelPlatformSettingRepository(deps.DB)
-		syncSvc = orgsvc.NewSyncService(sourceRepo, unitRepo, memberRepo, unitMappingRepo, memberMappingRepo, syncLogRepo, openworkRepo, platformRepo, publisher)
+		syncSvc = orgsvc.NewSyncService(sourceRepo, unitRepo, memberRepo, syncLogRepo, openworkRepo, platformRepo, publisher)
 		unitSvc = orgsvc.NewSourceUnitService(unitRepo)
 		memberSvc = orgsvc.NewSourceMemberService(memberRepo, memberProfileRepo)
 		syncLogSvc = orgsvc.NewSyncLogService(syncLogRepo, sourceRepo)
 		defaultSvc = orgsvc.NewDefaultSourceAccountService(accountRepo)
 	}
 	handler := NewOrgSyncHandler(syncSvc, unitSvc, memberSvc, syncLogSvc, defaultSvc)
-	var mappingHandler *MappingHandler
 	var mainViewHandler *MainViewHandler
 	if deps.DB != nil {
-		memberRepo := orgrepo.NewSourceMemberRepository(deps.DB)
-		memberMappingRepo := orgrepo.NewMemberMappingRepository(deps.DB)
-		unitRepo := orgrepo.NewSourceUnitRepository(deps.DB)
-		unitMappingRepo := orgrepo.NewUnitMappingRepository(deps.DB)
-		matchSvc := orgsvc.NewMatchService(deps.DB, unitRepo, unitMappingRepo, memberRepo, memberMappingRepo)
-		mappingSvc := orgsvc.NewMappingService(unitRepo, memberRepo, unitMappingRepo, memberMappingRepo)
-		mappingHandler = NewMappingHandler(matchSvc, mappingSvc)
-		mainViewHandler = NewMainViewHandler(orgsvc.NewMainViewService(deps.DB, memberMappingRepo))
-	}
-	if mappingHandler == nil {
-		mappingHandler = NewMappingHandler(nil, nil)
+		mainViewHandler = NewMainViewHandler(orgsvc.NewMainViewService(deps.DB))
 	}
 	if mainViewHandler == nil {
 		mainViewHandler = NewMainViewHandler(nil)
@@ -98,9 +85,6 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		group.GET("/source-units", handler.ListSourceUnits)
 		group.GET("/source-members", handler.ListSourceMembers)
 		group.GET("/sync-logs", handler.ListSyncLogs)
-		group.GET("/mappings/suggestions", mappingHandler.Suggestions)
-		group.POST("/mappings/confirm", mappingHandler.Confirm)
-		group.POST("/mappings/auto-sync", mappingHandler.AutoSync)
 		group.GET("/main-org-view", mainViewHandler.List)
 	}
 }

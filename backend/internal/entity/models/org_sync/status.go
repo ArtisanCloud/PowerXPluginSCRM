@@ -9,11 +9,6 @@ const (
 	SyncStatusSuccess = "success"
 	SyncStatusFailed  = "failed"
 
-	MappingStatusPending   = "pending"
-	MappingStatusConfirmed = "confirmed"
-	MappingStatusConflict  = "conflict"
-	MappingStatusDisabled  = "disabled"
-
 	ProfileStatusLimited = "limited"
 	ProfileStatusFull    = "full"
 )

@@ -115,6 +115,47 @@ func (h *LeadHandler) Get(c *gin.Context) {
 	contracts.ResponseSuccess(c, item)
 }
 
+func (h *LeadHandler) Update(c *gin.Context) {
+	if h.svc == nil {
+		contracts.ResponseServiceUnavailable(c, "lead service unavailable", nil)
+		return
+	}
+	leadUUID := strings.TrimSpace(c.Param("lead_id"))
+	if leadUUID == "" {
+		contracts.ResponseBadRequest(c, "lead_id is required")
+		return
+	}
+	var req dto.LeadUpdateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		contracts.ResponseBadRequest(c, "invalid body: "+err.Error())
+		return
+	}
+	tenantUUID, ok := middleware.TenantUUIDFromContext(c)
+	if !ok || tenantUUID == "" {
+		contracts.ResponseUnauthorized(c, "tenant context missing")
+		return
+	}
+	updated, err := h.svc.Update(c.Request.Context(), tenantUUID, leadUUID, leadsvc.LeadUpdateRequest{
+		DisplayName: req.DisplayName,
+		Phone:       req.Phone,
+		Email:       req.Email,
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, leadsvc.ErrInvalidLeadPayload):
+			contracts.ResponseError(c, http.StatusBadRequest, contracts.ErrCodeValidationFailed, "invalid lead payload")
+		case errors.Is(err, leadrepo.ErrLeadNotFound):
+			contracts.ResponseNotFound(c, "lead not found")
+		case errors.Is(err, repository.ErrTenantUuidRequired):
+			contracts.ResponseBadRequest(c, "tenant_uuid is required")
+		default:
+			contracts.ResponseInternalError(c, err)
+		}
+		return
+	}
+	contracts.ResponseSuccess(c, updated)
+}
+
 func (h *LeadHandler) Import(c *gin.Context) {
 	if h.svc == nil {
 		contracts.ResponseServiceUnavailable(c, "lead service unavailable", nil)
@@ -299,6 +340,42 @@ func (h *LeadHandler) Assign(c *gin.Context) {
 		return
 	}
 	contracts.ResponseSuccess(c, updated)
+}
+
+func (h *LeadHandler) BatchAssign(c *gin.Context) {
+	if h.svc == nil {
+		contracts.ResponseServiceUnavailable(c, "lead service unavailable", nil)
+		return
+	}
+	var req dto.LeadBatchAssignRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		contracts.ResponseBadRequest(c, "invalid body: "+err.Error())
+		return
+	}
+	tenantUUID, ok := middleware.TenantUUIDFromContext(c)
+	if !ok || tenantUUID == "" {
+		contracts.ResponseUnauthorized(c, "tenant context missing")
+		return
+	}
+	result, err := h.svc.BatchAssign(c.Request.Context(), tenantUUID, leadsvc.LeadBatchAssignRequest{
+		LeadUUIDs:     req.LeadUUIDs,
+		OwnerUserUUID: req.OwnerUserUUID,
+		Reason:        req.Reason,
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, leadsvc.ErrInvalidAssignee):
+			contracts.ResponseError(c, http.StatusBadRequest, contracts.ErrCodeValidationFailed, "invalid assignee")
+		case errors.Is(err, leadsvc.ErrAssigneeNotFound):
+			contracts.ResponseError(c, http.StatusBadRequest, contracts.ErrCodeValidationFailed, "assignee not found")
+		case errors.Is(err, repository.ErrTenantUuidRequired):
+			contracts.ResponseBadRequest(c, "tenant_uuid is required")
+		default:
+			contracts.ResponseInternalError(c, err)
+		}
+		return
+	}
+	contracts.ResponseSuccess(c, result)
 }
 
 func (h *LeadHandler) UpdateStatus(c *gin.Context) {

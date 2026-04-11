@@ -96,14 +96,9 @@ func (s *UserService) List(ctx context.Context, filter UserFilter) ([]UserView, 
 	}
 	if filter.OrgSyncBound != nil && *filter.OrgSyncBound {
 		query = query.Joins(
-			"JOIN "+orgmodel.MemberMapping{}.TableName()+" mm ON mm.main_member_id = CAST(u.id AS TEXT) AND mm.mapping_status = ?",
-			orgmodel.MappingStatusConfirmed,
-		).
-			Joins(
-				"JOIN "+orgmodel.SourceMember{}.TableName()+" sm ON sm.source_member_uuid = mm.source_member_uuid AND sm.profile_status = ? AND sm.status = ?",
-				orgmodel.ProfileStatusFull,
-				"active",
-			)
+			"JOIN "+orgmodel.MemberBinding{}.TableName()+" mb ON mb.main_member_id = CAST(u.id AS TEXT) AND mb.tenant_uuid = ?",
+			tenantUUID,
+		)
 	}
 	if search := strings.TrimSpace(filter.Query); search != "" {
 		like := "%" + strings.ToLower(search) + "%"

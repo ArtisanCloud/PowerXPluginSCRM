@@ -27,6 +27,11 @@ type ListWeComSyncTasksQuery struct {
 	Limit              int    `form:"limit" binding:"omitempty,min=1,max=200"`
 }
 
+type ClearWeComSyncTasksRequest struct {
+	ChannelAccountUUID string `json:"channel_account_uuid" binding:"omitempty,uuid4"`
+	Status             string `json:"status" binding:"omitempty,oneof=queued running success failed"`
+}
+
 type WeComWritebackPolicyResponse struct {
 	Domain           string         `json:"domain"`
 	CapabilityStatus string         `json:"capability_status"`

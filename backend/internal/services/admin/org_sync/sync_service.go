@@ -36,16 +36,14 @@ import (
 
 // SyncService handles source org sync triggers.
 type SyncService struct {
-	repo              *orgrepo.SourceAccountRepository
-	unitRepo          *orgrepo.SourceUnitRepository
-	memberRepo        *orgrepo.SourceMemberRepository
-	unitMappingRepo   *orgrepo.UnitMappingRepository
-	memberMappingRepo *orgrepo.MemberMappingRepository
-	logRepo           *orgrepo.SyncLogRepository
-	openworkRepo      *socialrepo.OpenWorkFoundationRepository
-	platformRepo      *socialrepo.ChannelPlatformSettingRepository
-	driverRegistry    *orgdriver.Registry
-	publisher         fwwsbus.Publisher
+	repo           *orgrepo.SourceAccountRepository
+	unitRepo       *orgrepo.SourceUnitRepository
+	memberRepo     *orgrepo.SourceMemberRepository
+	logRepo        *orgrepo.SyncLogRepository
+	openworkRepo   *socialrepo.OpenWorkFoundationRepository
+	platformRepo   *socialrepo.ChannelPlatformSettingRepository
+	driverRegistry *orgdriver.Registry
+	publisher      fwwsbus.Publisher
 }
 
 type DelegatedScopeSetResult struct {
@@ -133,8 +131,6 @@ func NewSyncService(
 	repo *orgrepo.SourceAccountRepository,
 	unitRepo *orgrepo.SourceUnitRepository,
 	memberRepo *orgrepo.SourceMemberRepository,
-	unitMappingRepo *orgrepo.UnitMappingRepository,
-	memberMappingRepo *orgrepo.MemberMappingRepository,
 	logRepo *orgrepo.SyncLogRepository,
 	openworkRepo *socialrepo.OpenWorkFoundationRepository,
 	platformRepo *socialrepo.ChannelPlatformSettingRepository,
@@ -143,16 +139,14 @@ func NewSyncService(
 	registry := orgdriver.NewRegistry()
 	registry.Register("wechat", "wecom", &orgdriver.WeComDriver{})
 	return &SyncService{
-		repo:              repo,
-		unitRepo:          unitRepo,
-		memberRepo:        memberRepo,
-		unitMappingRepo:   unitMappingRepo,
-		memberMappingRepo: memberMappingRepo,
-		logRepo:           logRepo,
-		openworkRepo:      openworkRepo,
-		platformRepo:      platformRepo,
-		driverRegistry:    registry,
-		publisher:         publisher,
+		repo:           repo,
+		unitRepo:       unitRepo,
+		memberRepo:     memberRepo,
+		logRepo:        logRepo,
+		openworkRepo:   openworkRepo,
+		platformRepo:   platformRepo,
+		driverRegistry: registry,
+		publisher:      publisher,
 	}
 }
 
@@ -243,12 +237,6 @@ func (s *SyncService) SyncOrgLocalToRemote(ctx context.Context, tenantUUID, sour
 		return nil, err
 	}
 	autoChanges, err := s.buildDefaultPushbackChangesFromIAM(ctx, tenantUUID, sourceAccountUUID, channelAccount.AccountUUID)
-	if err != nil {
-		return nil, err
-	}
-	if len(autoChanges) == 0 {
-		autoChanges, err = s.buildDefaultPushbackChanges(ctx, tenantUUID, sourceAccountUUID)
-	}
 	if err != nil {
 		return nil, err
 	}
@@ -403,22 +391,6 @@ func (s *SyncService) PreviewLocalToRemote(ctx context.Context, tenantUUID, sour
 		result.Items = result.Items[:50]
 	}
 	return result, nil
-}
-
-type confirmedUnitMappingRow struct {
-	SourceUnitUUID string `gorm:"column:source_unit_uuid"`
-	MainUnitID     string `gorm:"column:main_unit_id"`
-	ExternalUnitID string `gorm:"column:external_unit_id"`
-	Name           string `gorm:"column:name"`
-}
-
-type confirmedMemberMappingRow struct {
-	SourceMemberUUID  string `gorm:"column:source_member_uuid"`
-	MainMemberID      string `gorm:"column:main_member_id"`
-	ExternalMemberID  string `gorm:"column:external_member_id"`
-	Name              string `gorm:"column:name"`
-	MainDepartmentID  string `gorm:"column:main_department_id"`
-	SourceAccountUUID string `gorm:"column:source_account_uuid"`
 }
 
 type localDepartmentRow struct {
@@ -713,69 +685,6 @@ func (s *SyncService) buildDefaultPushbackChangesFromIAM(ctx context.Context, te
 	return changes, nil
 }
 
-func (s *SyncService) buildDefaultPushbackChanges(ctx context.Context, tenantUUID, sourceAccountUUID string) ([]OrgWritebackChange, error) {
-	if s == nil || s.memberMappingRepo == nil || s.unitMappingRepo == nil || s.memberRepo == nil || s.unitRepo == nil {
-		return []OrgWritebackChange{}, nil
-	}
-	if s.memberMappingRepo.DB == nil || s.unitMappingRepo.DB == nil {
-		return []OrgWritebackChange{}, nil
-	}
-	unitRows := []confirmedUnitMappingRow{}
-	if err := s.unitMappingRepo.DB.WithContext(ctx).
-		Table(model.UnitMapping{}.TableName()+" AS um").
-		Joins("JOIN "+model.SourceUnit{}.TableName()+" AS su ON su.source_unit_uuid = um.source_unit_uuid").
-		Where("um.tenant_uuid = ? AND su.source_account_uuid = ? AND um.mapping_status = ?", tenantUUID, sourceAccountUUID, model.MappingStatusConfirmed).
-		Select("um.source_unit_uuid, um.main_unit_id, su.external_unit_id, su.name").
-		Scan(&unitRows).Error; err != nil {
-		return nil, err
-	}
-	memberRows := []confirmedMemberMappingRow{}
-	if err := s.memberMappingRepo.DB.WithContext(ctx).
-		Table(model.MemberMapping{}.TableName()+" AS mm").
-		Joins("JOIN "+model.SourceMember{}.TableName()+" AS sm ON sm.source_member_uuid = mm.source_member_uuid").
-		Joins("LEFT JOIN "+model.SourceMemberProfile{}.TableName()+" AS smp ON smp.source_member_uuid = sm.source_member_uuid").
-		Where("mm.tenant_uuid = ? AND sm.source_account_uuid = ? AND mm.mapping_status = ?", tenantUUID, sourceAccountUUID, model.MappingStatusConfirmed).
-		Select("mm.source_member_uuid, mm.main_member_id, sm.external_member_id, sm.name, COALESCE(smp.main_department_id, '') AS main_department_id, sm.source_account_uuid").
-		Scan(&memberRows).Error; err != nil {
-		return nil, err
-	}
-	changes := make([]OrgWritebackChange, 0, len(unitRows)+len(memberRows))
-	for _, row := range unitRows {
-		if strings.TrimSpace(row.SourceUnitUUID) == "" {
-			continue
-		}
-		changes = append(changes, OrgWritebackChange{
-			EntityType: "unit",
-			EntityID:   row.SourceUnitUUID,
-			Action:     "upsert",
-			Payload: map[string]any{
-				"source_unit_uuid": row.SourceUnitUUID,
-				"main_unit_id":     row.MainUnitID,
-				"external_unit_id": row.ExternalUnitID,
-				"name":             row.Name,
-			},
-		})
-	}
-	for _, row := range memberRows {
-		if strings.TrimSpace(row.SourceMemberUUID) == "" {
-			continue
-		}
-		changes = append(changes, OrgWritebackChange{
-			EntityType: "member",
-			EntityID:   row.SourceMemberUUID,
-			Action:     "upsert",
-			Payload: map[string]any{
-				"source_member_uuid": row.SourceMemberUUID,
-				"main_member_id":     row.MainMemberID,
-				"external_member_id": row.ExternalMemberID,
-				"name":               row.Name,
-				"main_department_id": row.MainDepartmentID,
-			},
-		})
-	}
-	return changes, nil
-}
-
 func isConflictPayload(payload map[string]any) bool {
 	if payload == nil {
 		return false
@@ -799,8 +708,23 @@ func normalizePushEntityType(entityType string) string {
 	}
 }
 
+func weComPushAPIError(apiName string, errCode int, errMsg string) error {
+	msg := strings.TrimSpace(errMsg)
+	if msg == "" {
+		msg = "unknown error"
+	}
+	if errCode == 48002 {
+		return fmt.Errorf(
+			"%s 被企业微信拒绝（errcode=48002）。请为当前使用的 Secret 开通通讯录写权限（部门/成员创建与编辑），并确认应用可见范围覆盖目标部门/成员；若为代开发模式，请确认套件授权含通讯录管理权限。原始错误：%s",
+			apiName,
+			msg,
+		)
+	}
+	return fmt.Errorf("%s failed: %d %s", apiName, errCode, msg)
+}
+
 func (s *SyncService) buildWeComPushClient(ctx context.Context, tenantUUID, channelAccountUUID string, credentials map[string]string) (*work.Work, error) {
-	authMode := detectWeComAuthMode(credentials)
+	authMode := s.resolveWeComAuthMode(ctx, tenantUUID, channelAccountUUID, credentials)
 	if authMode == weComAuthModeDelegatedTemplate {
 		templateID := strings.TrimSpace(credentials["template_id"])
 		templateSecret := strings.TrimSpace(credentials["template_secret"])
@@ -835,6 +759,8 @@ func (s *SyncService) buildWeComPushClient(ctx context.Context, tenantUUID, chan
 		if memCache == nil {
 			return nil, errors.New("初始化缓存失败")
 		}
+		httpDebug := parseDelegatedBool(credentials["http_debug"])
+		debug := resolveSDKDebug(credentials)
 		app, err := openwork.NewOpenWork(&openwork.UserConfig{
 			AppID:          templateID,
 			Secret:         templateSecret,
@@ -842,7 +768,8 @@ func (s *SyncService) buildWeComPushClient(ctx context.Context, tenantUUID, chan
 			ProviderSecret: providerSecret,
 			CallbackURL:    callback,
 			Cache:          kernel.CacheInterface(memCache),
-			HttpDebug:      parseDelegatedBool(credentials["http_debug"]),
+			HttpDebug:      httpDebug,
+			Debug:          debug,
 		})
 		if err != nil {
 			return nil, err
@@ -871,13 +798,16 @@ func (s *SyncService) buildWeComPushClient(ctx context.Context, tenantUUID, chan
 	if memCache == nil {
 		return nil, errors.New("初始化缓存失败")
 	}
+	httpDebug := parseDelegatedBool(credentials["http_debug"])
+	debug := resolveSDKDebug(credentials)
 	return work.NewWork(&work.UserConfig{
 		CorpID:      corpID,
 		Secret:      secret,
 		AgentID:     agentID,
 		CallbackURL: callback,
 		Cache:       kernel.CacheInterface(memCache),
-		HttpDebug:   parseDelegatedBool(credentials["http_debug"]),
+		HttpDebug:   httpDebug,
+		Debug:       debug,
 	})
 }
 
@@ -927,7 +857,7 @@ func (s *SyncService) applyPushChangeToWeCom(ctx context.Context, tenantUUID, ch
 				return err
 			}
 			if resp != nil && resp.ErrCode != 0 {
-				return fmt.Errorf("department/create failed: %d %s", resp.ErrCode, resp.ErrMsg)
+				return weComPushAPIError("department/create", resp.ErrCode, resp.ErrMsg)
 			}
 			if resp != nil && resp.ID > 0 {
 				externalUnitID = strconv.Itoa(resp.ID)
@@ -943,7 +873,7 @@ func (s *SyncService) applyPushChangeToWeCom(ctx context.Context, tenantUUID, ch
 				return err
 			}
 			if resp != nil && resp.ErrCode != 0 {
-				return fmt.Errorf("department/update failed: %d %s", resp.ErrCode, resp.ErrMsg)
+				return weComPushAPIError("department/update", resp.ErrCode, resp.ErrMsg)
 			}
 		}
 		if strings.TrimSpace(externalUnitID) != "" {
@@ -996,7 +926,7 @@ func (s *SyncService) applyPushChangeToWeCom(ctx context.Context, tenantUUID, ch
 				return err
 			}
 			if resp != nil && resp.ErrCode != 0 {
-				return fmt.Errorf("user/update failed: %d %s", resp.ErrCode, resp.ErrMsg)
+				return weComPushAPIError("user/update", resp.ErrCode, resp.ErrMsg)
 			}
 		} else {
 			resp, err := workApp.User.Create(ctx, userPayload)
@@ -1004,7 +934,7 @@ func (s *SyncService) applyPushChangeToWeCom(ctx context.Context, tenantUUID, ch
 				return err
 			}
 			if resp != nil && resp.ErrCode != 0 {
-				return fmt.Errorf("user/create failed: %d %s", resp.ErrCode, resp.ErrMsg)
+				return weComPushAPIError("user/create", resp.ErrCode, resp.ErrMsg)
 			}
 		}
 		return s.upsertMemberBinding(ctx, tenantUUID, channelAccountUUID, mainMemberID, externalMemberID, "synced", true, false)
@@ -1118,7 +1048,8 @@ func (s *SyncService) TriggerSync(ctx context.Context, tenantUUID, sourceAccount
 		DisplayName:        channelAccount.DisplayName,
 		Credentials:        credentialsToMap(channelAccount.Credentials),
 	}
-	authMode := detectWeComAuthMode(driverContext.Credentials)
+	detectedAuthMode := detectWeComAuthMode(driverContext.Credentials)
+	authMode := s.resolveWeComAuthMode(ctx, tenantUUID, channelAccount.AccountUUID, driverContext.Credentials)
 	logger.WithFields(logger.Fields{
 		"component":             "org_sync",
 		"trace_id":              traceID,
@@ -1127,6 +1058,7 @@ func (s *SyncService) TriggerSync(ctx context.Context, tenantUUID, sourceAccount
 		"channel_account_uuid":  channelAccount.AccountUUID,
 		"channel_code":          channelAccount.ChannelCode,
 		"app_type":              channelAccount.AppType,
+		"auth_mode_detected":    detectedAuthMode,
 		"auth_mode":             authMode,
 		"has_app_secret":        strings.TrimSpace(driverContext.Credentials["app_secret"]) != "",
 		"has_permanent_code":    strings.TrimSpace(driverContext.Credentials["permanent_code"]) != "",
@@ -1274,7 +1206,7 @@ func (s *SyncService) TriggerSync(ctx context.Context, tenantUUID, sourceAccount
 	memberTotal := int64(len(memberPayloads))
 	unitNew, unitUpdated := s.classifyUnitChanges(ctx, tenantUUID, sourceAccountUUID, unitPayloads)
 	memberNew, memberUpdated := s.classifyMemberChanges(ctx, tenantUUID, sourceAccountUUID, memberPayloads)
-	unitPending, unitConflict, memberPending, memberConflict := s.collectMappingStats(ctx, tenantUUID, sourceAccountUUID, channelAccount.AccountUUID)
+	unitPending, unitConflict, memberPending, memberConflict := s.collectBindingStats(ctx, tenantUUID, sourceAccountUUID, channelAccount.AccountUUID)
 	logUpdates := map[string]any{
 		"status":           status,
 		"message":          message,
@@ -1406,7 +1338,7 @@ func (s *SyncService) SetDelegatedScope(ctx context.Context, tenantUUID, sourceA
 		return nil, err
 	}
 	credentials := s.mergeDelegatedCredentialsFromPlatform(ctx, credentialsToMap(channelAccount.Credentials))
-	if detectWeComAuthMode(credentials) != weComAuthModeDelegatedTemplate {
+	if s.resolveWeComAuthMode(ctx, tenantUUID, channelAccount.AccountUUID, credentials) != weComAuthModeDelegatedTemplate {
 		return nil, errors.New("当前账号不是代开发授权模式，无法设置可见范围")
 	}
 
@@ -1466,6 +1398,7 @@ func (s *SyncService) SetDelegatedScope(ctx context.Context, tenantUUID, sourceA
 		return nil, errors.New("代开发组织同步初始化缓存失败")
 	}
 	httpDebug := parseDelegatedBool(credentials["http_debug"])
+	debug := resolveSDKDebug(credentials)
 	app, err := openwork.NewOpenWork(&openwork.UserConfig{
 		AppID:          templateID,
 		Secret:         templateSecret,
@@ -1474,6 +1407,7 @@ func (s *SyncService) SetDelegatedScope(ctx context.Context, tenantUUID, sourceA
 		CallbackURL:    callback,
 		Cache:          kernel.CacheInterface(memCache),
 		HttpDebug:      httpDebug,
+		Debug:          debug,
 		Log: openwork.Log{
 			Level:  "debug",
 			Stdout: httpDebug,
@@ -1683,6 +1617,86 @@ func detectWeComAuthMode(credentials map[string]string) string {
 	return weComAuthModeAppDetail
 }
 
+func (s *SyncService) resolveWeComAuthMode(ctx context.Context, tenantUUID, channelAccountUUID string, credentials map[string]string) string {
+	mode := detectWeComAuthMode(credentials)
+	if mode == weComAuthModeDelegatedTemplate {
+		logger.WithFields(logger.Fields{
+			"component":            "org_sync",
+			"tenant_uuid":          strings.TrimSpace(strings.ToLower(tenantUUID)),
+			"channel_account_uuid": strings.TrimSpace(strings.ToLower(channelAccountUUID)),
+			"auth_mode_detected":   mode,
+			"auth_mode":            mode,
+			"reason":               "credential_detected_delegated",
+		}).Info("org sync auth mode resolved")
+		return mode
+	}
+	if s == nil || s.openworkRepo == nil {
+		logger.WithFields(logger.Fields{
+			"component":            "org_sync",
+			"tenant_uuid":          strings.TrimSpace(strings.ToLower(tenantUUID)),
+			"channel_account_uuid": strings.TrimSpace(strings.ToLower(channelAccountUUID)),
+			"auth_mode_detected":   mode,
+			"auth_mode":            mode,
+			"reason":               "openwork_repo_unavailable",
+		}).Info("org sync auth mode resolved")
+		return mode
+	}
+	tenantUUID = strings.TrimSpace(strings.ToLower(tenantUUID))
+	channelAccountUUID = strings.TrimSpace(strings.ToLower(channelAccountUUID))
+	if tenantUUID == "" || channelAccountUUID == "" {
+		logger.WithFields(logger.Fields{
+			"component":            "org_sync",
+			"tenant_uuid":          tenantUUID,
+			"channel_account_uuid": channelAccountUUID,
+			"auth_mode_detected":   mode,
+			"auth_mode":            mode,
+			"reason":               "tenant_or_channel_empty",
+		}).Info("org sync auth mode resolved")
+		return mode
+	}
+	binding, err := s.openworkRepo.ResolveBindingByChannelAccount(ctx, tenantUUID, channelAccountUUID)
+	if err != nil {
+		logger.WithFields(logger.Fields{
+			"component":            "org_sync",
+			"tenant_uuid":          tenantUUID,
+			"channel_account_uuid": channelAccountUUID,
+			"stage":                "resolve_auth_mode",
+		}).WithError(err).Warn("org sync auth mode fallback to app_detail because binding lookup failed")
+		logger.WithFields(logger.Fields{
+			"component":            "org_sync",
+			"tenant_uuid":          tenantUUID,
+			"channel_account_uuid": channelAccountUUID,
+			"auth_mode_detected":   mode,
+			"auth_mode":            mode,
+			"reason":               "binding_lookup_error",
+		}).Info("org sync auth mode resolved")
+		return mode
+	}
+	if binding != nil && strings.TrimSpace(binding.Status) == socialModel.WeComAuthBindingStatusActive {
+		logger.WithFields(logger.Fields{
+			"component":            "org_sync",
+			"tenant_uuid":          tenantUUID,
+			"channel_account_uuid": channelAccountUUID,
+			"auth_mode_detected":   mode,
+			"auth_mode":            weComAuthModeDelegatedTemplate,
+			"reason":               "active_binding_override",
+			"binding_status":       strings.TrimSpace(binding.Status),
+			"binding_uuid":         strings.TrimSpace(binding.BindingUUID),
+		}).Info("org sync auth mode resolved")
+		return weComAuthModeDelegatedTemplate
+	}
+	logger.WithFields(logger.Fields{
+		"component":            "org_sync",
+		"tenant_uuid":          tenantUUID,
+		"channel_account_uuid": channelAccountUUID,
+		"auth_mode_detected":   mode,
+		"auth_mode":            mode,
+		"reason":               "binding_not_active",
+		"binding_status":       strings.TrimSpace(binding.Status),
+	}).Info("org sync auth mode resolved")
+	return mode
+}
+
 func (s *SyncService) handleDelegatedTemplateSync(ctx context.Context, tenantUUID, sourceAccountUUID string, account *model.SourceAccount, channelAccountUUID string, credentials map[string]string) (*model.SourceAccount, error) {
 	now := time.Now().UTC()
 	traceID := traceIDFromContext(ctx)
@@ -1771,7 +1785,7 @@ func (s *SyncService) handleDelegatedTemplateSync(ctx context.Context, tenantUUI
 	memberTotal := int64(len(memberPayloads))
 	unitNew, unitUpdated := s.classifyUnitChanges(ctx, tenantUUID, sourceAccountUUID, unitPayloads)
 	memberNew, memberUpdated := s.classifyMemberChanges(ctx, tenantUUID, sourceAccountUUID, memberPayloads)
-	unitPending, unitConflict, memberPending, memberConflict := s.collectMappingStats(ctx, tenantUUID, sourceAccountUUID, channelAccountUUID)
+	unitPending, unitConflict, memberPending, memberConflict := s.collectBindingStats(ctx, tenantUUID, sourceAccountUUID, channelAccountUUID)
 	logUpdates := map[string]any{
 		"status":           status,
 		"message":          message,
@@ -1983,6 +1997,7 @@ func (s *SyncService) fetchDelegatedOrgPayloads(ctx context.Context, tenantUUID,
 		return nil, nil, errors.New("代开发组织同步初始化缓存失败")
 	}
 	httpDebug := parseDelegatedBool(credentials["http_debug"])
+	debug := resolveSDKDebug(credentials)
 	app, err := openwork.NewOpenWork(&openwork.UserConfig{
 		AppID:          templateID,
 		Secret:         templateSecret,
@@ -1991,6 +2006,7 @@ func (s *SyncService) fetchDelegatedOrgPayloads(ctx context.Context, tenantUUID,
 		CallbackURL:    callback,
 		Cache:          kernel.CacheInterface(memCache),
 		HttpDebug:      httpDebug,
+		Debug:          debug,
 		Log: openwork.Log{
 			Level:  "debug",
 			Stdout: httpDebug,
@@ -2053,6 +2069,9 @@ func (s *SyncService) fetchDelegatedOrgPayloads(ctx context.Context, tenantUUID,
 		"id":           "1",
 		"access_token": accessTokenValue,
 	}
+	if httpDebug {
+		deptQuery["debug"] = "1"
+	}
 	if _, err := baseClient.HttpGet(ctx, "cgi-bin/department/list", &deptQuery, nil, deptResp); err != nil {
 		return nil, nil, err
 	}
@@ -2088,6 +2107,9 @@ func (s *SyncService) fetchDelegatedOrgPayloads(ctx context.Context, tenantUUID,
 			"department_id": strconv.Itoa(deptID),
 			"fetch_child":   "0",
 			"access_token":  accessTokenValue,
+		}
+		if httpDebug {
+			req["debug"] = "1"
 		}
 		userResp := &delegatedUserListResp{}
 		if _, err := baseClient.HttpGet(ctx, "cgi-bin/user/list", &req, nil, userResp); err != nil {
@@ -2155,6 +2177,9 @@ func (s *SyncService) fetchDelegatedOrgPayloads(ctx context.Context, tenantUUID,
 		req := object.StringMap{
 			"userid":       userID,
 			"access_token": accessTokenValue,
+		}
+		if httpDebug {
+			req["debug"] = "1"
 		}
 		detailResp := &delegatedUserGetResp{}
 		if _, err := baseClient.HttpGet(ctx, "cgi-bin/user/get", &req, nil, detailResp); err != nil {
@@ -2302,6 +2327,10 @@ func (s *SyncService) mergeDelegatedCredentialsFromPlatform(ctx context.Context,
 		strings.TrimSpace(fmt.Sprintf("%v", pick["http_debug"])),
 		strings.TrimSpace(fmt.Sprintf("%v", cfg["http_debug"])),
 	)
+	applyIfMissing("debug",
+		strings.TrimSpace(fmt.Sprintf("%v", pick["debug"])),
+		strings.TrimSpace(fmt.Sprintf("%v", cfg["debug"])),
+	)
 	return out
 }
 
@@ -2312,6 +2341,13 @@ func parseDelegatedBool(value string) bool {
 	default:
 		return false
 	}
+}
+
+func resolveSDKDebug(credentials map[string]string) bool {
+	if parseDelegatedBool(credentials["debug"]) {
+		return true
+	}
+	return parseDelegatedBool(credentials["http_debug"])
 }
 
 func mergeDeptIDs(existing []string, list []int, mainDepartment int) []string {
@@ -2370,104 +2406,18 @@ func resolveDelegatedMemberStatus(status int) string {
 	}
 }
 
-func (s *SyncService) collectMappingStats(ctx context.Context, tenantUUID, sourceAccountUUID, channelAccountUUID string) (int64, int64, int64, int64) {
-	if s == nil {
-		return 0, 0, 0, 0
-	}
-	var (
-		unitsPending    int64
-		unitsConflict   int64
-		membersPending  int64
-		membersConflict int64
-	)
-	if s.unitMappingRepo != nil {
-		if channelAccountUUID != "" {
-			if count, err := s.unitMappingRepo.CountByStatusForChannelAccount(ctx, tenantUUID, channelAccountUUID, model.MappingStatusPending); err == nil {
-				unitsPending = count
-			}
-			if count, err := s.unitMappingRepo.CountByStatusForChannelAccount(ctx, tenantUUID, channelAccountUUID, model.MappingStatusConflict); err == nil {
-				unitsConflict = count
-			}
-		} else {
-			if count, err := s.unitMappingRepo.CountByStatusForAccount(ctx, tenantUUID, sourceAccountUUID, model.MappingStatusPending); err == nil {
-				unitsPending = count
-			}
-			if count, err := s.unitMappingRepo.CountByStatusForAccount(ctx, tenantUUID, sourceAccountUUID, model.MappingStatusConflict); err == nil {
-				unitsConflict = count
-			}
-		}
-	}
-	if s.memberMappingRepo != nil {
-		if channelAccountUUID != "" {
-			if count, err := s.memberMappingRepo.CountByStatusForChannelAccount(ctx, tenantUUID, channelAccountUUID, model.MappingStatusPending); err == nil {
-				membersPending = count
-			}
-			if count, err := s.memberMappingRepo.CountByStatusForChannelAccount(ctx, tenantUUID, channelAccountUUID, model.MappingStatusConflict); err == nil {
-				membersConflict = count
-			}
-		} else {
-			if count, err := s.memberMappingRepo.CountByStatusForAccount(ctx, tenantUUID, sourceAccountUUID, model.MappingStatusPending); err == nil {
-				membersPending = count
-			}
-			if count, err := s.memberMappingRepo.CountByStatusForAccount(ctx, tenantUUID, sourceAccountUUID, model.MappingStatusConflict); err == nil {
-				membersConflict = count
-			}
-		}
-	}
-	return unitsPending, unitsConflict, membersPending, membersConflict
+func (s *SyncService) collectBindingStats(ctx context.Context, tenantUUID, sourceAccountUUID, channelAccountUUID string) (int64, int64, int64, int64) {
+	_ = s
+	_ = ctx
+	_ = tenantUUID
+	_ = sourceAccountUUID
+	_ = channelAccountUUID
+	return 0, 0, 0, 0
 }
 
 func (s *SyncService) syncIAMAndBindingsFromPull(ctx context.Context, tenantUUID, channelAccountUUID string) error {
-	if s == nil || s.repo == nil || s.repo.DB == nil {
-		return nil
-	}
-	mappingSvc := NewMappingService(s.unitRepo, s.memberRepo, s.unitMappingRepo, s.memberMappingRepo)
-	if mappingSvc != nil {
-		if _, err := mappingSvc.AutoSyncFromChannel(ctx, tenantUUID, channelAccountUUID, "system"); err != nil {
-			return err
-		}
-	}
-	return s.refreshBindingsFromLegacyMappings(ctx, tenantUUID, channelAccountUUID)
-}
-
-func (s *SyncService) refreshBindingsFromLegacyMappings(ctx context.Context, tenantUUID, channelAccountUUID string) error {
-	if s == nil || s.repo == nil || s.repo.DB == nil {
-		return nil
-	}
-	db := s.repo.DB.WithContext(ctx)
-	unitRows := make([]struct {
-		MainUnitID           string `gorm:"column:main_unit_id"`
-		ExternalUnitID       string `gorm:"column:external_unit_id"`
-		ParentExternalUnitID string `gorm:"column:parent_external_unit_id"`
-	}, 0)
-	if err := db.Table(model.UnitMapping{}.TableName()+" AS um").
-		Joins("JOIN "+model.SourceUnit{}.TableName()+" AS su ON su.source_unit_uuid = um.source_unit_uuid").
-		Where("um.tenant_uuid = ? AND su.channel_account_uuid = ? AND um.mapping_status = ?", tenantUUID, channelAccountUUID, model.MappingStatusConfirmed).
-		Select("um.main_unit_id, su.external_unit_id, COALESCE(su.parent_external_unit_id,'') AS parent_external_unit_id").
-		Scan(&unitRows).Error; err != nil {
-		return err
-	}
-	for _, row := range unitRows {
-		if err := s.upsertUnitBinding(ctx, tenantUUID, channelAccountUUID, row.MainUnitID, row.ExternalUnitID, row.ParentExternalUnitID, "synced", false, true); err != nil {
-			return err
-		}
-	}
-	memberRows := make([]struct {
-		MainMemberID     string `gorm:"column:main_member_id"`
-		ExternalMemberID string `gorm:"column:external_member_id"`
-	}, 0)
-	if err := db.Table(model.MemberMapping{}.TableName()+" AS mm").
-		Joins("JOIN "+model.SourceMember{}.TableName()+" AS sm ON sm.source_member_uuid = mm.source_member_uuid").
-		Where("mm.tenant_uuid = ? AND sm.channel_account_uuid = ? AND mm.mapping_status = ?", tenantUUID, channelAccountUUID, model.MappingStatusConfirmed).
-		Select("mm.main_member_id, sm.external_member_id").
-		Scan(&memberRows).Error; err != nil {
-		return err
-	}
-	for _, row := range memberRows {
-		if err := s.upsertMemberBinding(ctx, tenantUUID, channelAccountUUID, row.MainMemberID, row.ExternalMemberID, "synced", false, true); err != nil {
-			return err
-		}
-	}
+	// Legacy sync helper tables are deprecated. Pull flow now directly upserts source tables and
+	// bindings in the new sync path, so no legacy backfill is required.
 	return nil
 }
 
@@ -2620,7 +2570,7 @@ func upsertSourceMembers(ctx context.Context, tx *gorm.DB, tenantUUID, sourceAcc
 	if len(externalIDs) == 0 {
 		return nil
 	}
-	var mapping []struct {
+	var sourceMemberRows []struct {
 		SourceMemberUUID string
 		ExternalMemberID string
 	}
@@ -2628,11 +2578,11 @@ func upsertSourceMembers(ctx context.Context, tx *gorm.DB, tenantUUID, sourceAcc
 		Model(&model.SourceMember{}).
 		Select("source_member_uuid, external_member_id").
 		Where("tenant_uuid = ? AND source_account_uuid = ? AND external_member_id IN ?", tenantUUID, sourceAccountUUID, externalIDs).
-		Find(&mapping).Error; err != nil {
+		Find(&sourceMemberRows).Error; err != nil {
 		return err
 	}
-	profiles := make([]*model.SourceMemberProfile, 0, len(mapping))
-	for _, row := range mapping {
+	profiles := make([]*model.SourceMemberProfile, 0, len(sourceMemberRows))
+	for _, row := range sourceMemberRows {
 		profile := profileCandidates[row.ExternalMemberID]
 		if profile == nil || strings.TrimSpace(row.SourceMemberUUID) == "" {
 			continue

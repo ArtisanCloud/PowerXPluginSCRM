@@ -12,6 +12,12 @@ export interface LeadRecord {
   source_channel?: string;
   source_app_type?: string;
   source_account_uuid?: string;
+  external_userid?: string;
+  external_wechat_id?: string;
+  lead_origin_type?: "channel" | "local";
+  channel_sync_status?: "synced" | "unsynced" | "pending_push";
+  owner_binding_status?: "not_channel" | "missing_owner" | "mapped" | "unmapped";
+  owner_mapping_status?: "not_channel" | "missing_owner" | "mapped" | "unmapped";
   created_at?: string;
   updated_at?: string;
 }
@@ -24,6 +30,12 @@ export interface LeadCreatePayload {
   source_app_type?: string;
   source_account_uuid?: string;
   owner_user_uuid?: string;
+}
+
+export interface LeadUpdatePayload {
+  display_name?: string;
+  phone?: string;
+  email?: string;
 }
 
 export interface LeadSourceCatalogRecord {
@@ -60,6 +72,26 @@ export interface LeadListResponse {
 export interface LeadAssignPayload {
   owner_user_uuid: string;
   reason?: string;
+}
+
+export interface LeadBatchAssignPayload {
+  lead_uuids: string[];
+  owner_user_uuid: string;
+  reason?: string;
+}
+
+export interface LeadBatchAssignResultItem {
+  lead_uuid: string;
+  success: boolean;
+  error_code?: string;
+  error_message?: string;
+}
+
+export interface LeadBatchAssignResult {
+  total: number;
+  success_count: number;
+  failed_count: number;
+  items: LeadBatchAssignResultItem[];
 }
 
 export interface LeadStatusUpdatePayload {
@@ -193,6 +225,11 @@ export interface WeComSyncTaskRecord {
 
 export interface WeComSyncTaskListResponse {
   items: WeComSyncTaskRecord[];
+}
+
+export interface WeComSyncTaskClearPayload {
+  channel_account_uuid?: string;
+  status?: "queued" | "running" | "success" | "failed";
 }
 
 export interface WeComWritebackPolicy {
@@ -341,6 +378,8 @@ export const useLeadCaptureService = () => {
     getLead: (leadId: string) => apiClient.get<ApiResponse<LeadRecord>>(`${baseUrl}/${leadId}`),
     createLead: (payload: LeadCreatePayload) =>
       apiClient.post<ApiResponse<LeadRecord>>(baseUrl, payload),
+    updateLead: (leadId: string, payload: LeadUpdatePayload) =>
+      apiClient.put<ApiResponse<LeadRecord>>(`${baseUrl}/${leadId}`, payload),
     importLeads: (file: File) => {
       const form = new FormData();
       form.append("file", file);
@@ -359,6 +398,8 @@ export const useLeadCaptureService = () => {
     },
     assignLead: (leadId: string, payload: LeadAssignPayload) =>
       apiClient.post<ApiResponse<LeadRecord>>(`${baseUrl}/${leadId}/assign`, payload),
+    batchAssignLeads: (payload: LeadBatchAssignPayload) =>
+      apiClient.post<ApiResponse<LeadBatchAssignResult>>(`${baseUrl}/assign/batch`, payload),
     updateLeadStatus: (leadId: string, payload: LeadStatusUpdatePayload) =>
       apiClient.post<ApiResponse<LeadRecord>>(`${baseUrl}/${leadId}/status`, payload),
     listAssignments: (leadId: string) =>
@@ -398,6 +439,8 @@ export const useLeadCaptureService = () => {
       apiClient.get<ApiResponse<WeComSyncTaskListResponse>>(`${baseUrl}/wecom/sync-tasks`, {
         params,
       }),
+    clearWeComSyncTasks: (payload?: WeComSyncTaskClearPayload) =>
+      apiClient.post<ApiResponse<{ deleted: number }>>(`${baseUrl}/wecom/sync-tasks/clear`, payload || {}),
     getWeComWritebackPolicy: (params?: { channel?: string; app_type?: string }) =>
       apiClient.get<ApiResponse<WeComWritebackPolicy>>(`${baseUrl}/wecom/writeback-policy`, { params }),
     updateWeComWritebackPolicy: (

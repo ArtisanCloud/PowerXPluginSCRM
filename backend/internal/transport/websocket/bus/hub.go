@@ -10,6 +10,7 @@ import (
 const (
 	TopicOrgSyncProgress    = "org_sync.progress"
 	TopicOpenWorkAuthStatus = "openwork.auth.status"
+	TopicLeadSyncProgress   = "lead_sync.progress"
 )
 
 // Hub manages WS sessions and topic subscriptions.

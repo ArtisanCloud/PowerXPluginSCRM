@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -32,6 +33,8 @@ type InvokeParams struct {
 	Headers           map[string]string
 	RequestID         string
 	TenantUUID        string
+	AuthRequired      bool
+	TenantScoped      bool
 }
 
 // InvokeResult 描述能力调用的输出。
@@ -159,6 +162,48 @@ func (c *Client) Invoke(ctx context.Context, params InvokeParams) (*InvokeResult
 	if c.transport == nil {
 		return nil, c.unavailableError(params.CapabilityID)
 	}
+	authRequired := params.AuthRequired
+	tenantScoped := params.TenantScoped
+	if !authRequired && !tenantScoped {
+		// Backward-compatible defaults for legacy callers.
+		authRequired = true
+		tenantScoped = true
+	}
+	requestAuthHeader := headerValue(params.Headers, "Authorization")
+	tokenSource := "none"
+	if strings.TrimSpace(requestAuthHeader) != "" {
+		tokenSource = "request"
+	}
+	tokenTID := ""
+	if authRequired && strings.TrimSpace(requestAuthHeader) == "" {
+		return nil, &PolicyError{
+			Code:    "GW_POLICY_AUTH_REQUIRED",
+			Message: "auth_required=true 时必须提供请求态 Authorization（Bearer STS token）",
+		}
+	}
+	if tenantScoped {
+		tid, ok := tenantUUIDFromAuthHeader(requestAuthHeader)
+		if !ok || strings.TrimSpace(tid) == "" {
+			return nil, &PolicyError{
+				Code:    "GW_POLICY_TENANT_TOKEN_REQUIRED",
+				Message: "tenant_scoped=true 时 Authorization 必须为包含 tid claim 的 Bearer token",
+			}
+		}
+		if isZeroTenantUUID(tid) {
+			return nil, &PolicyError{
+				Code:    "GW_POLICY_ZERO_TENANT_FORBIDDEN",
+				Message: "tenant_scoped=true 时不允许使用零租户 token（tid=00000000-...）",
+			}
+		}
+		if wanted := strings.TrimSpace(params.TenantUUID); wanted != "" && !strings.EqualFold(wanted, tid) {
+			return nil, &PolicyError{
+				Code:    "GW_POLICY_TENANT_MISMATCH",
+				Message: fmt.Sprintf("tenant token tid(%s) 与请求 tenant_uuid(%s) 不一致", tid, wanted),
+			}
+		}
+		params.TenantUUID = tid
+		tokenTID = tid
+	}
 
 	req := frameworkgateway.InvokeRequest{
 		CapabilityID:      params.CapabilityID,
@@ -168,6 +213,19 @@ func (c *Client) Invoke(ctx context.Context, params InvokeParams) (*InvokeResult
 		RequestID:         params.RequestID,
 		Headers:           copyHeaders(params.Headers),
 		TenantUUID:        params.TenantUUID,
+		DisableAuth:       !authRequired,
+	}
+	if c.logger != nil {
+		c.logger.WithFields(logrus.Fields{
+			"capability":         params.CapabilityID,
+			"action":             params.Action,
+			"request_id":         params.RequestID,
+			"auth_required":      authRequired,
+			"tenant_scoped":      tenantScoped,
+			"token_source":       tokenSource,
+			"token_tid":          maskTenantUUID(tokenTID),
+			"preferred_protocol": params.PreferredProtocol,
+		}).Info("gateway invoke dispatch")
 	}
 	resp, err := c.transport.Invoke(ctx, req)
 	if err != nil {
@@ -307,6 +365,22 @@ func (e *UnavailableError) Error() string {
 	return "gateway 不可用: " + e.Reason
 }
 
+// PolicyError 表示调用策略不满足（例如缺少请求态鉴权信息）。
+type PolicyError struct {
+	Code    string
+	Message string
+}
+
+func (e *PolicyError) Error() string {
+	if e == nil {
+		return ""
+	}
+	if strings.TrimSpace(e.Code) == "" {
+		return strings.TrimSpace(e.Message)
+	}
+	return strings.TrimSpace(e.Code) + ": " + strings.TrimSpace(e.Message)
+}
+
 func (c *Client) unavailableError(capabilityID string) error {
 	reason := c.offlineReason
 	if reason == "" {
@@ -393,6 +467,78 @@ func copyHeaders(src map[string]string) map[string]string {
 		dest[k] = v
 	}
 	return dest
+}
+
+func headerValue(headers map[string]string, key string) string {
+	if len(headers) == 0 {
+		return ""
+	}
+	for k, v := range headers {
+		if strings.EqualFold(strings.TrimSpace(k), key) {
+			return strings.TrimSpace(v)
+		}
+	}
+	return ""
+}
+
+func tenantUUIDFromAuthHeader(authHeader string) (string, bool) {
+	header := strings.TrimSpace(authHeader)
+	if header == "" {
+		return "", false
+	}
+	if !strings.HasPrefix(strings.ToLower(header), "bearer ") {
+		return "", false
+	}
+	token := strings.TrimSpace(header[len("Bearer "):])
+	tid := tenantUUIDFromJWT(token)
+	if strings.TrimSpace(tid) == "" {
+		return "", false
+	}
+	return tid, true
+}
+
+func tenantUUIDFromJWT(token string) string {
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return ""
+	}
+	parts := strings.Split(token, ".")
+	if len(parts) < 2 {
+		return ""
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return ""
+	}
+	data := map[string]any{}
+	if err := json.Unmarshal(payload, &data); err != nil {
+		return ""
+	}
+	for _, key := range []string{"tid", "tenant_uuid", "tenantUuid", "tenant"} {
+		raw, ok := data[key]
+		if !ok || raw == nil {
+			continue
+		}
+		if value := strings.TrimSpace(fmt.Sprintf("%v", raw)); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func isZeroTenantUUID(value string) bool {
+	return strings.EqualFold(strings.TrimSpace(value), "00000000-0000-0000-0000-000000000000")
+}
+
+func maskTenantUUID(value string) string {
+	clean := strings.TrimSpace(value)
+	if clean == "" {
+		return ""
+	}
+	if len(clean) <= 8 {
+		return clean
+	}
+	return clean[:8] + "..."
 }
 
 func ensureLogger(entry *logrus.Entry) *logrus.Entry {

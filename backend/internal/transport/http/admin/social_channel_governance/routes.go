@@ -1,7 +1,6 @@
 package social_channel_governance
 
 import (
-	orgrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/org_sync"
 	SocialRepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/social_channel_governance"
 	orgsync "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/services/admin/org_sync"
 	orgdriver "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/services/admin/org_sync/driver"
@@ -35,10 +34,7 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		openworkRepo := SocialRepo.NewOpenWorkFoundationRepository(deps.DB)
 		syncRepo := SocialRepo.NewSyncFoundationRepository(deps.DB)
 		platformSettingRepo := SocialRepo.NewChannelPlatformSettingRepository(deps.DB)
-		accountStatus := orgsync.NewAccountStatusService(
-			orgrepo.NewMemberMappingRepository(deps.DB),
-			orgrepo.NewUnitMappingRepository(deps.DB),
-		)
+		accountStatus := orgsync.NewAccountStatusService(deps.DB)
 		accountSvc = SocialService.NewChannelAccountService(repo, openworkRepo, nil, schemaLoader, accountStatus, deps.Config)
 		memberSvc = SocialService.NewChannelAccountMemberService(repo)
 		capabilitySvc = SocialService.NewChannelAccountCapabilityService(repo)

@@ -24,13 +24,14 @@ import (
 
 // WeComLeadRecord is a normalized lead payload fetched from WeCom.
 type WeComLeadRecord struct {
-	ExternalLeadID string
-	WechatID       string
-	CorpID         string
-	DisplayName    string
-	Phone          string
-	Email          string
-	OccurredAt     time.Time
+	ExternalLeadID  string
+	WechatID        string
+	CorpID          string
+	DisplayName     string
+	Phone           string
+	Email           string
+	OwnerMemberUUID string
+	OccurredAt      time.Time
 }
 
 type LeadWritebackPolicy struct {
@@ -216,6 +217,7 @@ func normalizeWeComLeadRecord(in WeComLeadRecord) WeComLeadRecord {
 	in.DisplayName = strings.TrimSpace(in.DisplayName)
 	in.Phone = strings.TrimSpace(in.Phone)
 	in.Email = strings.ToLower(strings.TrimSpace(in.Email))
+	in.OwnerMemberUUID = strings.TrimSpace(in.OwnerMemberUUID)
 	if in.OccurredAt.IsZero() {
 		in.OccurredAt = time.Now().UTC()
 	}
@@ -272,6 +274,10 @@ func mapWeComExternalContactRecord(item *pwexternalresp.ResponseExternalContact)
 		record.Email, record.Phone, record.WechatID = extractWeComExternalProfileAttrs(item.ExternalContact.ExternalProfile)
 	}
 	if item.FollowInfo != nil {
+		record.OwnerMemberUUID = strings.TrimSpace(item.FollowInfo.UserID)
+		if record.OwnerMemberUUID == "" {
+			record.OwnerMemberUUID = strings.TrimSpace(item.FollowInfo.OperUserID)
+		}
 		if record.DisplayName == "" {
 			record.DisplayName = strings.TrimSpace(item.FollowInfo.Remark)
 		}

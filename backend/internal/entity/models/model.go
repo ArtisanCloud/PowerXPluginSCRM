@@ -99,8 +99,6 @@ const (
 	TableOrgSyncSourceMembers                = "org_sync_source_members"
 	TableOrgSyncSourceMemberUnits            = "org_sync_source_member_units"
 	TableOrgSyncMemberProfiles               = "org_sync_member_profiles"
-	TableOrgSyncUnitMappings                 = "org_sync_unit_mappings"
-	TableOrgSyncMemberMappings               = "org_sync_member_mappings"
 	TableOrgSyncUnitBindings                 = "org_sync_unit_bindings"
 	TableOrgSyncMemberBindings               = "org_sync_member_bindings"
 	TableOrgSyncSyncLogs                     = "org_sync_sync_logs"

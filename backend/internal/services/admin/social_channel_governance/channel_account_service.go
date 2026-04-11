@@ -347,7 +347,7 @@ func (s *ChannelAccountService) DeleteAccount(ctx context.Context, tenantUUID, a
 		orgdriver.InvalidateCache(current.ChannelCode, current.AppType, current.AccountUUID)
 	}
 	if s.accountStatus != nil {
-		_, _, _ = s.accountStatus.MarkMappingsDisabled(ctx, tenantUUID, accountUUID)
+		_, _, _ = s.accountStatus.MarkBindingsDisabled(ctx, tenantUUID, accountUUID)
 	}
 	return nil
 }

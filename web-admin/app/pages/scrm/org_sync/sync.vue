@@ -8,7 +8,7 @@
             {{ wsConnected ? 'WS 已连接' : 'WS 未连接' }}
           </UBadge>
         </div>
-        <p class="text-sm text-gray-600 dark:text-slate-300">同步完成后查看结果、日志与匹配建议。</p>
+        <p class="text-sm text-gray-600 dark:text-slate-300">同步完成后查看结果、日志与冲突处理。</p>
       </div>
       <UButton variant="ghost" @click="goPreview">返回组织预览</UButton>
     </div>
@@ -29,6 +29,14 @@
           readonly
           class="w-full"
         />
+        <div
+          v-if="selectedAccountAuthModeLabel"
+          class="mt-2 text-xs"
+          :class="isDelegatedTemplateAccount ? 'text-amber-500' : 'text-gray-600 dark:text-slate-300'"
+        >
+          账号模式：{{ selectedAccountAuthModeLabel }}
+          <span v-if="isDelegatedTemplateAccount">（当前仅支持单向拉取，推送已禁用）</span>
+        </div>
       </div>
       <div class="mt-4 flex flex-wrap items-end gap-3">
         <UFormField label="同步方向" class="min-w-[260px]">
@@ -51,7 +59,13 @@
         >
           {{ syncDirection === "pull" ? "同步组织与成员（拉取）" : "回写组织变更到渠道（推送）" }}
         </UButton>
-        <span class="text-xs text-gray-600 dark:text-slate-300 pb-1">统一管理组织拉取、组织回写、映射与冲突重放。</span>
+        <span class="text-xs text-gray-600 dark:text-slate-300 pb-1">统一管理组织拉取、组织回写与冲突重放。</span>
+      </div>
+      <div
+        v-if="isDelegatedTemplateAccount"
+        class="mt-2 rounded-md border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-500"
+      >
+        当前识别为代开发应用账号：组织同步仅支持“拉取：渠道 -> 本地”。若需使用“推送：本地 -> 渠道”，请切换为自建应用账号。
       </div>
       <div v-if="lastPushResult" class="mt-2 text-xs text-gray-600 dark:text-slate-300">
         最近一次推送结果：方向 {{ lastPushResult.direction }}，模式 {{ lastPushResult.mode }}，应用 {{ lastPushResult.applied }} 条，冲突 {{ lastPushResult.conflicts }} 条。
@@ -230,45 +244,6 @@
       </ul>
     </UCard>
 
-    <UCard>
-      <template #header>
-        <div class="flex items-center justify-between">
-          <span class="font-medium text-gray-700 dark:text-slate-200">匹配建议</span>
-          <div class="flex items-center gap-2">
-            <UBadge variant="soft" color="primary">{{ memberSuggestions.length }}</UBadge>
-            <UButton size="xs" variant="ghost" @click="suggestionsCollapsed = !suggestionsCollapsed">
-              {{ suggestionsCollapsed ? "展开" : "收起" }}
-            </UButton>
-          </div>
-        </div>
-      </template>
-      <div v-show="!suggestionsCollapsed">
-      <UTable
-        :columns="suggestionColumns"
-        :data="memberSuggestions"
-        :loading="loadingSuggestions"
-        :ui="{ table: 'min-w-full table-fixed divide-y divide-gray-200 dark:divide-gray-700' }"
-      >
-        <template #matched_by-cell="{ row }">
-          <UBadge variant="soft" color="primary">{{ row.original.matched_by }}</UBadge>
-        </template>
-        <template #actions-cell="{ row }">
-          <UButton
-            size="xs"
-            color="primary"
-            :loading="confirming === row.original.source_member_uuid"
-            @click="confirmMember(row.original)"
-          >
-            确认映射
-          </UButton>
-        </template>
-      </UTable>
-      <div v-if="!loadingSuggestions && memberSuggestions.length === 0" class="text-xs text-gray-600 dark:text-slate-300 mt-3">
-        暂无匹配建议。
-      </div>
-      </div>
-    </UCard>
-
     <ToastAlert
       v-model="toast.visible"
       :title="toast.title"
@@ -288,7 +263,6 @@ import {
   type OrgBidirectionalResult,
   type OrgPushPreviewItem,
   type OrgPushPreviewResult,
-  type OrgSyncMemberSuggestion,
   type OrgSyncSourceAccount,
   type OrgSyncSyncLog,
   useOrgSyncService,
@@ -309,9 +283,6 @@ const selectedAccountUUID = ref("");
 const syncDirection = ref<"pull" | "push">("pull");
 const syncing = ref(false);
 const loading = ref(false);
-const loadingSuggestions = ref(false);
-const confirming = ref<string | null>(null);
-const memberSuggestions = ref<OrgSyncMemberSuggestion[]>([]);
 const syncStatus = ref<OrgSyncSourceAccount | null>(null);
 const syncLogs = ref<OrgSyncSyncLog[]>([]);
 const orgConflicts = ref<any[]>([]);
@@ -325,7 +296,6 @@ const loadingPushPreview = ref(false);
 const selectedPushKeys = ref<string[]>([]);
 const overviewCollapsed = ref(false);
 const syncLogsCollapsed = ref(true);
-const suggestionsCollapsed = ref(true);
 
 const toast = ref({
   visible: false,
@@ -377,12 +347,25 @@ const accountOptions = computed(() => {
 const selectedAccount = computed(() =>
   channelAccounts.value.find((acc) => acc.account_uuid === selectedAccountUUID.value)
 );
+const selectedAccountAuthMode = computed(() => {
+  const raw = (selectedAccount.value?.credentials as Record<string, unknown> | undefined)?.auth_mode;
+  return String(raw || "").trim().toLowerCase();
+});
+const isDelegatedTemplateAccount = computed(() => selectedAccountAuthMode.value === "delegated_template");
+const selectedAccountAuthModeLabel = computed(() => {
+  if (!selectedAccount.value) return "";
+  if (isDelegatedTemplateAccount.value) return "代开发应用";
+  if (selectedAccountAuthMode.value === "manual") return "自建应用";
+  if (selectedAccountAuthMode.value) return selectedAccountAuthMode.value;
+  return "未标注";
+});
 const isDefaultAccount = computed(() => Boolean(selectedAccount.value?.org_sync_default));
 const defaultAccount = computed(() => channelAccounts.value.find((acc) => acc.org_sync_default));
 const allPushItems = computed(() => pushPreview.value?.items || []);
 const selectedPushCount = computed(() => selectedPushKeys.value.length);
 const canTriggerSync = computed(() =>
   Boolean(selectedAccountUUID.value) &&
+  (isDelegatedTemplateAccount.value ? syncDirection.value === "pull" : true) &&
   (syncDirection.value !== "push" || selectedPushCount.value > 0)
 );
 const defaultSyncAccountLabel = computed(() => {
@@ -426,15 +409,6 @@ const displayProgressPercent = computed(() => {
 const gl = useGlobalLoadingAdapter();
 const wsBus = useWsBusClient();
 const wsConnected = wsBus.connected;
-
-const suggestionColumns = [
-  { accessorKey: "source_name", header: "来源成员" },
-  { accessorKey: "phone", header: "手机号" },
-  { accessorKey: "email", header: "邮箱" },
-  { accessorKey: "main_member_name", header: "匹配成员" },
-  { accessorKey: "matched_by", header: "匹配方式" },
-  { accessorKey: "actions", header: "操作" },
-] as const;
 
 const pushUnitColumns = [
   { accessorKey: "select", header: "" },
@@ -489,10 +463,16 @@ const selectPushItemsByAction = (action: "create" | "update") => {
     .map((item) => pushItemKey(item));
 };
 
-const syncDirectionOptions = [
-  { label: "拉取：渠道 -> 本地", value: "pull" },
-  { label: "推送：本地 -> 渠道", value: "push" },
-];
+const syncDirectionOptions = computed(() => {
+  const items = [{ label: "拉取：渠道 -> 本地", value: "pull" }] as Array<{
+    label: string;
+    value: "pull" | "push";
+  }>;
+  if (!isDelegatedTemplateAccount.value) {
+    items.push({ label: "推送：本地 -> 渠道", value: "push" });
+  }
+  return items;
+});
 
 const showToast = (title: string, color: typeof toast.value.color, message = "") => {
   toast.value.title = title;
@@ -690,7 +670,7 @@ const triggerSync = async () => {
     const resp = await service.triggerPushSync(selectedAccountUUID.value, { changes: selectedChanges });
     lastPushResult.value = ((resp as any)?.data || null) as OrgBidirectionalResult | null;
     showToast("组织回写已执行", "success");
-    await loadMappingData();
+    await loadSyncData();
   } catch (err: any) {
     showToast(syncDirection.value === "pull" ? "同步失败" : "回写失败", "error", err?.message ?? "");
     releaseSyncOverlay("failed");
@@ -699,14 +679,14 @@ const triggerSync = async () => {
   }
 };
 
-const loadMappingData = async () => {
+const loadSyncData = async () => {
   if (!selectedAccountUUID.value) {
     showToast("请选择账号", "warning");
     return;
   }
   loading.value = true;
   try {
-    await Promise.all([loadSuggestions(), loadSyncLogs(), loadOrgConflicts(), loadPushPreview()]);
+    await Promise.all([loadSyncLogs(), loadOrgConflicts(), loadPushPreview()]);
   } finally {
     loading.value = false;
   }
@@ -836,24 +816,7 @@ const handleWsProgress = (payload: any) => {
     if (finalEventKey && finalEventKey === lastFinalSyncEventKey.value) return;
     lastFinalSyncEventKey.value = finalEventKey;
     releaseSyncOverlay(patch.status);
-    loadMappingData();
-  }
-};
-
-const loadSuggestions = async () => {
-  if (!selectedAccountUUID.value) {
-    memberSuggestions.value = [];
-    return;
-  }
-  loadingSuggestions.value = true;
-  try {
-    const service = useOrgSyncService();
-    const resp = await service.getMappingSuggestions(selectedAccountUUID.value);
-    memberSuggestions.value = (resp as any)?.data?.member_suggestions ?? [];
-  } catch (err: any) {
-    showToast("获取匹配建议失败", "error", err?.message ?? "");
-  } finally {
-    loadingSuggestions.value = false;
+    loadSyncData();
   }
 };
 
@@ -887,32 +850,6 @@ const updateGlobalLoadingFromLog = (fromLiveEvent = false) => {
   }
   if (log.status === "success" || log.status === "failed") {
     releaseSyncOverlay(log.status);
-  }
-};
-
-const confirmMember = async (item: OrgSyncMemberSuggestion) => {
-  if (!item?.source_member_uuid || !item?.main_member_id) {
-    showToast("映射数据不完整", "warning");
-    return;
-  }
-  confirming.value = item.source_member_uuid;
-  try {
-    const service = useOrgSyncService();
-    await service.confirmMappings({
-      unit_mappings: [],
-      member_mappings: [
-        {
-          source_member_id: item.source_member_uuid,
-          main_member_id: item.main_member_id,
-        },
-      ],
-    });
-    showToast("映射已确认", "success");
-    await loadMappingData();
-  } catch (err: any) {
-    showToast("确认映射失败", "error", err?.message ?? "");
-  } finally {
-    confirming.value = null;
   }
 };
 
@@ -951,18 +888,28 @@ watch(selectedAppType, () => {
 });
 
 watch(selectedAccountUUID, (value) => {
-  memberSuggestions.value = [];
   syncLogs.value = [];
   pushPreview.value = null;
   clearPushSelection();
   if (value) {
-    loadMappingData();
+    loadSyncData();
   }
 });
 
 watch(syncDirection, (value) => {
+  if (value === "push" && isDelegatedTemplateAccount.value) {
+    syncDirection.value = "pull";
+    showToast("当前账号仅支持拉取同步", "warning", "代开发应用账号不支持组织推送，请切换自建应用账号");
+    return;
+  }
   if (value === "push" && selectedAccountUUID.value) {
     loadPushPreview();
+  }
+});
+
+watch(isDelegatedTemplateAccount, (value) => {
+  if (value && syncDirection.value === "push") {
+    syncDirection.value = "pull";
   }
 });
 
@@ -972,7 +919,7 @@ onMounted(async () => {
   await loadChannelAccounts();
   ensureWsSubscription();
   if (selectedAccountUUID.value) {
-    await loadMappingData();
+    await loadSyncData();
   }
 });
 

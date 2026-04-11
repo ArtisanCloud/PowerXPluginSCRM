@@ -36,9 +36,19 @@
 
     <UCard>
       <template #header>
-        <div class="flex items-center gap-2">
-          <UIcon name="i-heroicons-user" class="text-primary" />
-          <span class="font-medium">基础信息</span>
+        <div class="flex items-center justify-between gap-3">
+          <div class="flex items-center gap-2">
+            <UIcon name="i-heroicons-user" class="text-primary" />
+            <span class="font-medium">基础信息</span>
+          </div>
+          <UButton
+            color="primary"
+            variant="soft"
+            :disabled="!lead"
+            @click="openInfoModal"
+          >
+            编辑信息
+          </UButton>
         </div>
       </template>
 
@@ -388,6 +398,45 @@
     />
 
     <UModal
+      v-model:open="infoModalOpen"
+      :prevent-close="true"
+      :dismissible="false"
+      :modal="true"
+      :title="'编辑基础信息'"
+      :description="'修改姓名、手机号、邮箱后可在同步中心触发回写。'"
+      :ui="{ content: 'max-w-2xl w-full' }"
+    >
+      <template #body>
+        <UForm :state="editForm" class="space-y-4 p-4 sm:p-5">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <UFormField label="姓名">
+              <UInput v-model="editForm.display_name" placeholder="姓名" />
+            </UFormField>
+            <UFormField label="手机号">
+              <UInput v-model="editForm.phone" placeholder="手机号" />
+            </UFormField>
+          </div>
+          <UFormField label="邮箱">
+            <UInput v-model="editForm.email" placeholder="邮箱" />
+          </UFormField>
+          <p class="text-xs text-gray-500">
+            说明：若该线索没有 external_userid，仅能保存本地信息，无法回写到渠道。
+          </p>
+        </UForm>
+      </template>
+      <template #footer>
+        <div class="flex w-full flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
+          <UButton color="neutral" variant="subtle" :disabled="infoSaving" @click="closeInfoModal">
+            取消
+          </UButton>
+          <UButton color="primary" :loading="infoSaving" @click="submitInfoForm">
+            保存
+          </UButton>
+        </div>
+      </template>
+    </UModal>
+
+    <UModal
       v-model:open="assignModalOpen"
       :prevent-close="true"
       :dismissible="false"
@@ -493,6 +542,8 @@ const latestAssignmentReason = computed(() => assignments.value[0]?.reason || ""
 const members = ref<Member[]>([]);
 const selectedOwner = ref<string>("");
 const memberSearch = ref("");
+const infoModalOpen = ref(false);
+const infoSaving = ref(false);
 const assignModalOpen = ref(false);
 const conversationLoading = ref(false);
 const conversationBinding = ref(false);
@@ -511,6 +562,11 @@ const assignForm = reactive<{
 }>({
   owner_user_uuid: "",
   reason: "",
+});
+const editForm = reactive({
+  display_name: "",
+  phone: "",
+  email: "",
 });
 
 type ToastColor =
@@ -652,6 +708,43 @@ const submitBindConversation = async () => {
 
 const backToList = () => {
   router.push("/scrm/lead_capture");
+};
+
+const openInfoModal = () => {
+  if (!lead.value) return;
+  editForm.display_name = lead.value.display_name || "";
+  editForm.phone = lead.value.phone || "";
+  editForm.email = lead.value.email || "";
+  infoModalOpen.value = true;
+};
+
+const closeInfoModal = () => {
+  blurActiveElement();
+  infoModalOpen.value = false;
+};
+
+const submitInfoForm = async () => {
+  if (!leadId.value) return;
+  const payload = {
+    display_name: editForm.display_name.trim() || undefined,
+    phone: editForm.phone.trim() || undefined,
+    email: editForm.email.trim() || undefined,
+  };
+  if (!payload.display_name && !payload.phone && !payload.email) {
+    showToast("姓名 / 手机号 / 邮箱至少填写一项", "warning");
+    return;
+  }
+  infoSaving.value = true;
+  try {
+    await leadCaptureService.updateLead(leadId.value, payload);
+    closeInfoModal();
+    await refreshLead();
+    showToast("基础信息已保存。若存在 external_userid，可在同步中心执行回写。", "success");
+  } catch (err: any) {
+    showToast(err?.message || "保存失败", "error");
+  } finally {
+    infoSaving.value = false;
+  }
 };
 
 const openAssignModal = () => {

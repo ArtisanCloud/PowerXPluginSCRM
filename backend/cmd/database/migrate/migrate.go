@@ -86,8 +86,6 @@ var businessTables = []interface{}{
 	&OrgSyncModel.SourceMember{},
 	&OrgSyncModel.SourceMemberUnit{},
 	&OrgSyncModel.SourceMemberProfile{},
-	&OrgSyncModel.UnitMapping{},
-	&OrgSyncModel.MemberMapping{},
 	&OrgSyncModel.UnitBinding{},
 	&OrgSyncModel.MemberBinding{},
 	&OrgSyncModel.SyncLog{},

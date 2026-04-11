@@ -10,6 +10,7 @@ import (
 const (
 	LeadActivityTypeIntake       = "intake"
 	LeadActivityTypeMerge        = "merge"
+	LeadActivityTypeProfileEdit  = "profile_edit"
 	LeadActivityTypeStatusChange = "status_change"
 	LeadActivityTypeAssign       = "assign"
 	LeadActivityTypeBotCommand   = "bot_command"

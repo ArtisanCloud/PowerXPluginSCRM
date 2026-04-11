@@ -56,50 +56,13 @@ export interface OrgSyncSourceMember {
   updated_at?: string;
 }
 
-export interface OrgSyncUnitSuggestion {
-  source_unit_uuid: string;
-  main_unit_id: string;
-}
-
-export interface OrgSyncMemberSuggestion {
-  source_member_uuid: string;
-  source_name: string;
-  phone?: string;
-  email?: string;
-  main_member_id: string;
-  main_member_name: string;
-  matched_by: string;
-}
-
-export interface OrgSyncMappingSuggestions {
-  unit_suggestions: OrgSyncUnitSuggestion[];
-  member_suggestions: OrgSyncMemberSuggestion[];
-}
-
-export interface OrgSyncMappingConfirmPayload {
-  unit_mappings: Array<{ source_unit_id: string; main_unit_id: string }>;
-  member_mappings: Array<{ source_member_id: string; main_member_id: string }>;
-}
-
-export interface OrgSyncMappingConfirmResult {
-  unit_mappings: number;
-  member_mappings: number;
-}
-
-export interface OrgSyncAutoSyncResult {
-  departments_created: number;
-  members_created: number;
-  unit_mappings: number;
-  member_mappings: number;
-}
-
 export interface OrgSyncMainMemberView {
   main_member_id: string;
   main_member_name: string;
-  mapping_status?: "mapped" | "unmapped";
-  mapped_count?: number;
-  source_accounts: string[];
-  source_member_uuids: string[];
+  binding_status?: "bound" | "unbound";
+  bound_count?: number;
+  channel_accounts: string[];
+  external_member_ids: string[];
 }
 
 export interface OrgSyncSyncLog {
@@ -220,23 +183,6 @@ export const useOrgSyncService = () => {
       apiClient.post<ApiResponse<{ account_uuid: string }>>(
         `${baseUrl}/source-accounts/default/${accountUUID}`,
         {}
-      ),
-    getMappingSuggestions: (sourceAccountUUID: string, channelAccountUUID?: string) =>
-      apiClient.get<ApiResponse<OrgSyncMappingSuggestions>>(`${baseUrl}/mappings/suggestions`, {
-        params: {
-          source_account_uuid: sourceAccountUUID || undefined,
-          channel_account_uuid: channelAccountUUID || undefined,
-        },
-      }),
-    confirmMappings: (payload: OrgSyncMappingConfirmPayload) =>
-      apiClient.post<ApiResponse<OrgSyncMappingConfirmResult>>(
-        `${baseUrl}/mappings/confirm`,
-        payload
-      ),
-    autoSyncMappings: (channelAccountUUID: string) =>
-      apiClient.post<ApiResponse<OrgSyncAutoSyncResult>>(
-        `${baseUrl}/mappings/auto-sync`,
-        { channel_account_uuid: channelAccountUUID }
       ),
     listMainOrgView: (q?: string) =>
       apiClient.get<ApiResponse<{ items: OrgSyncMainMemberView[] }>>(
