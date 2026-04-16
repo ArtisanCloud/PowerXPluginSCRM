@@ -1,6 +1,7 @@
 package social_channel_governance
 
 import (
+	leadrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/lead_capture"
 	SocialRepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/social_channel_governance"
 	orgsync "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/services/admin/org_sync"
 	orgdriver "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/services/admin/org_sync/driver"
@@ -41,14 +42,25 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		openworkHandler = NewOpenWorkFoundationHandler(SocialService.NewOpenWorkFoundationService(openworkRepo, repo))
 		platformSettingHandler = NewChannelPlatformSettingHandler(SocialService.NewChannelPlatformSettingService(platformSettingRepo))
 		factory := SocialService.NewChannelFactory()
+		_ = factory.Register("wechat", "wecom", SocialService.NewWeComFoundationAdapter())
 		capabilityMatrixSvc := SocialService.NewCapabilityService(factory)
 		idempotencySvc := SocialService.NewIdempotencyService()
 		scheduler := SocialService.NewSyncScheduler()
-		syncJobSvc := SocialService.NewSyncJobService(syncRepo, idempotencySvc, scheduler, capabilityMatrixSvc)
-		orchestrator := SocialService.NewSyncOrchestrator(factory, scheduler, syncJobSvc)
 		conflictSvc := SocialService.NewConflictResolutionService(syncRepo)
+		tagMappingRepo := SocialRepo.NewTagMappingRepository(syncRepo)
+		tagRecordRepo := SocialRepo.NewTagRecordRepository(deps.DB)
+		tagSyncSvc := SocialService.NewTagSyncService(tagMappingRepo, conflictSvc).
+			WithWeComSupport(repo, nil).
+			WithCredentialResolvers(openworkRepo, platformSettingRepo).
+			WithTagRecordRepository(tagRecordRepo)
+		leadRepository := leadrepo.NewLeadRepository(deps.DB)
+		customerTagBindingSvc := SocialService.NewCustomerTagBindingService(leadRepository, tagSyncSvc)
+		syncJobSvc := SocialService.NewSyncJobService(syncRepo, idempotencySvc, scheduler, capabilityMatrixSvc, tagSyncSvc).
+			WithCustomerTagBindingService(customerTagBindingSvc)
+		orchestrator := SocialService.NewSyncOrchestrator(factory, scheduler, syncJobSvc)
+		tagRecordSvc := SocialService.NewTagRecordService(tagRecordRepo)
 		deadletterSvc := SocialService.NewRetryDeadletterService(syncRepo)
-		syncJobHandler = NewSyncJobHandler(syncJobSvc, orchestrator, capabilityMatrixSvc, conflictSvc)
+		syncJobHandler = NewSyncJobHandler(syncJobSvc, orchestrator, capabilityMatrixSvc, conflictSvc, tagRecordSvc, customerTagBindingSvc)
 		conflictHandler = NewConflictHandler(conflictSvc, deadletterSvc)
 		metricsHandler = NewMetricsHandler(syncRepo)
 	}
@@ -92,6 +104,9 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		if syncJobHandler != nil && conflictHandler != nil {
 			group.POST("/openwork/foundation/sync/jobs", syncJobHandler.Create)
 			group.GET("/openwork/foundation/sync/jobs", syncJobHandler.List)
+			group.GET("/openwork/foundation/tags", syncJobHandler.ListTags)
+			group.GET("/openwork/foundation/customer-tag-bindings", syncJobHandler.ListCustomerTagBindings)
+			group.DELETE("/openwork/foundation/sync/jobs", syncJobHandler.ClearTerminal)
 			group.GET("/openwork/foundation/sync/overview", syncJobHandler.Overview)
 			if metricsHandler != nil {
 				group.GET("/openwork/foundation/sync/metrics", metricsHandler.GetSyncMetrics)

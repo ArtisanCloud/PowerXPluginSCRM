@@ -34,7 +34,14 @@ func TestTagSyncConflictContract(t *testing.T) {
 		socialsvc.NewSyncScheduler(),
 		socialsvc.NewCapabilityService(socialsvc.NewChannelFactory()),
 	)
-	handler := socialhttp.NewSyncJobHandler(jobSvc, socialsvc.NewSyncOrchestrator(nil, socialsvc.NewSyncScheduler(), jobSvc), socialsvc.NewCapabilityService(socialsvc.NewChannelFactory()), socialsvc.NewConflictResolutionService(syncRepo))
+	handler := socialhttp.NewSyncJobHandler(
+		jobSvc,
+		socialsvc.NewSyncOrchestrator(nil, socialsvc.NewSyncScheduler(), jobSvc),
+		socialsvc.NewCapabilityService(socialsvc.NewChannelFactory()),
+		socialsvc.NewConflictResolutionService(syncRepo),
+		nil,
+		nil,
+	)
 	conflictHandler := socialhttp.NewConflictHandler(socialsvc.NewConflictResolutionService(syncRepo), socialsvc.NewRetryDeadletterService(syncRepo))
 
 	r := gin.New()

@@ -69,5 +69,8 @@ func (s *SyncOrchestrator) Submit(ctx context.Context, in OrchestrateInput) (str
 	if job == nil {
 		return "", errors.New("failed to create sync job")
 	}
+	if strings.TrimSpace(strings.ToLower(job.Status)) == "pending" {
+		_ = s.jobService.Execute(ctx, job)
+	}
 	return job.JobUUID, nil
 }

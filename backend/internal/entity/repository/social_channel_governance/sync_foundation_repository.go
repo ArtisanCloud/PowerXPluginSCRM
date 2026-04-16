@@ -87,6 +87,39 @@ func (r *SyncFoundationRepository) ListJobs(ctx context.Context, tenantUUID, dom
 	return items, err
 }
 
+func (r *SyncFoundationRepository) DeleteTerminalJobs(ctx context.Context, tenantUUID, domain string) (int64, error) {
+	return r.DeleteJobsByDomain(ctx, tenantUUID, domain, false)
+}
+
+func (r *SyncFoundationRepository) DeleteJobsByDomain(ctx context.Context, tenantUUID, domain string, includeInFlight bool) (int64, error) {
+	if r == nil || r.DB == nil {
+		return 0, errors.New("repository database is not initialized")
+	}
+	tenantUUID = strings.TrimSpace(strings.ToLower(tenantUUID))
+	domain = strings.TrimSpace(strings.ToLower(domain))
+	if tenantUUID == "" {
+		return 0, repository.ErrTenantUuidRequired
+	}
+	if domain == "" {
+		return 0, errors.New("domain is required")
+	}
+	var affected int64
+	err := r.WithTenantTx(ctx, tenantUUID, func(tx *gorm.DB) error {
+		q := tx.Model(&model.SyncJob{}).Where("tenant_uuid = ? AND domain = ?", tenantUUID, domain)
+		if !includeInFlight {
+			q = q.Where("status IN ?", []string{
+				model.SyncJobStatusSuccess,
+				model.SyncJobStatusFailed,
+				model.SyncJobStatusDeadLetter,
+			})
+		}
+		res := q.Delete(&model.SyncJob{})
+		affected = res.RowsAffected
+		return res.Error
+	})
+	return affected, err
+}
+
 func (r *SyncFoundationRepository) UpdateJobStatus(ctx context.Context, tenantUUID, jobUUID, status, errorCode, errorMessage string, attemptNo int) error {
 	if r == nil || r.DB == nil {
 		return errors.New("repository database is not initialized")
@@ -113,6 +146,44 @@ func (r *SyncFoundationRepository) UpdateJobStatus(ctx context.Context, tenantUU
 		res := tx.Model(&model.SyncJob{}).
 			Where("tenant_uuid = ? AND job_uuid = ?", tenantUUID, strings.TrimSpace(jobUUID)).
 			Updates(updates)
+		return res.Error
+	})
+}
+
+func (r *SyncFoundationRepository) UpdateJobResultSummary(ctx context.Context, tenantUUID, jobUUID string, summary map[string]any) error {
+	if r == nil || r.DB == nil {
+		return errors.New("repository database is not initialized")
+	}
+	tenantUUID = strings.TrimSpace(strings.ToLower(tenantUUID))
+	jobUUID = strings.TrimSpace(jobUUID)
+	if tenantUUID == "" {
+		return repository.ErrTenantUuidRequired
+	}
+	if jobUUID == "" {
+		return errors.New("job_uuid is required")
+	}
+	return r.WithTenantTx(ctx, tenantUUID, func(tx *gorm.DB) error {
+		var job model.SyncJob
+		if err := tx.Model(&model.SyncJob{}).
+			Where("tenant_uuid = ? AND job_uuid = ?", tenantUUID, jobUUID).
+			First(&job).Error; err != nil {
+			return err
+		}
+		payload := datatypes.JSONMap{}
+		for k, v := range job.Payload {
+			payload[k] = v
+		}
+		result := map[string]any{}
+		for k, v := range summary {
+			result[k] = v
+		}
+		payload["result_summary"] = result
+		res := tx.Model(&model.SyncJob{}).
+			Where("tenant_uuid = ? AND job_uuid = ?", tenantUUID, jobUUID).
+			Updates(map[string]any{
+				"payload":    payload,
+				"updated_at": time.Now().UTC(),
+			})
 		return res.Error
 	})
 }

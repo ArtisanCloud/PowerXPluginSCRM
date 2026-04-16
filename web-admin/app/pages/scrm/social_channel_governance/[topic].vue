@@ -710,6 +710,30 @@ const tagPushing = ref(false)
 const tagConflicts = ref<any[]>([])
 const replayingTagConflictUUID = ref('')
 const tagOpenConflicts = computed(() => tagConflicts.value.length)
+const defaultTagSyncAccountUUID = computed(() => {
+  const connectedSet = connectedWeComAccountUUIDSet.value
+  if (connectedSet.size === 0) {
+    return ''
+  }
+  for (const binding of openworkBindings.value || []) {
+    const status = String(binding?.status || '').trim().toLowerCase()
+    const accountUUID = String(binding?.channel_account_uuid || '').trim()
+    if (status === 'active' && accountUUID && connectedSet.has(accountUUID)) {
+      return accountUUID
+    }
+  }
+  const defaultAccount = (accounts.value || []).find((account) =>
+    String(account?.org_sync_default || '').toLowerCase() === 'true'
+    && String(account?.channel_code || '').trim().toLowerCase() === 'wechat'
+    && String(account?.app_type || '').trim().toLowerCase() === 'wecom'
+    && String(account?.status || '').trim().toLowerCase() === 'connected'
+    && String(account?.account_uuid || '').trim() !== ''
+  )
+  if (defaultAccount?.account_uuid) {
+    return String(defaultAccount.account_uuid).trim()
+  }
+  return Array.from(connectedSet)[0] || ''
+})
 
 const accountForm = reactive({
   channel: '',
@@ -1093,6 +1117,15 @@ const refreshTagSyncPanel = async () => {
 
 const triggerTagSync = async (direction: 'pull' | 'push') => {
   const service = useSocialChannelGovernanceService()
+  const channelAccountUUID = defaultTagSyncAccountUUID.value
+  if (!channelAccountUUID) {
+    toast.add({
+      title: '缺少可用渠道账号',
+      description: '请先连接并授权一个企业微信渠道账号（状态需为 connected）',
+      color: 'warning',
+    })
+    return
+  }
   if (direction === 'pull') {
     tagPulling.value = true
   } else {
@@ -1105,7 +1138,9 @@ const triggerTagSync = async (direction: 'pull' | 'push') => {
       domain: 'tags',
       direction,
       mode: direction === 'pull' ? 'incremental' : 'pushback',
-      payload: {},
+      payload: {
+        channel_account_uuid: channelAccountUUID,
+      },
     })
     toast.add({
       title: direction === 'pull' ? '标签拉取任务已创建' : '标签回写任务已创建',

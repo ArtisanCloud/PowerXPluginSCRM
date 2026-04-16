@@ -16,46 +16,6 @@ export interface OrgSyncSourceAccount {
   updated_at?: string;
 }
 
-export interface OrgSyncSourceUnit {
-  source_unit_uuid: string;
-  tenant_uuid: string;
-  source_account_uuid: string;
-  channel_account_uuid?: string;
-  external_unit_id: string;
-  parent_external_unit_id?: string;
-  name: string;
-  order?: number;
-  status: string;
-  created_at?: string;
-  updated_at?: string;
-}
-
-export interface OrgSyncSourceMember {
-  source_member_uuid: string;
-  tenant_uuid: string;
-  source_account_uuid: string;
-  channel_account_uuid?: string;
-  external_member_id: string;
-  name: string;
-  phone?: string;
-  email?: string;
-  profile_status?: string;
-  status: string;
-  profile?: {
-    name?: string;
-    phone?: string;
-    email?: string;
-    biz_mail?: string;
-    position?: string;
-    main_department_id?: string;
-    address?: string;
-    avatar_url?: string;
-    updated_at?: string;
-  };
-  created_at?: string;
-  updated_at?: string;
-}
-
 export interface OrgSyncMainMemberView {
   main_member_id: string;
   main_member_name: string;
@@ -137,39 +97,6 @@ export const useOrgSyncService = () => {
     previewPushSync: (sourceAccountUUID: string) =>
       apiClient.get<ApiResponse<OrgPushPreviewResult>>(
         `${baseUrl}/source-accounts/${sourceAccountUUID}/push-preview`
-      ),
-    listSourceUnits: (sourceAccountUUID: string, status?: string, channelAccountUUID?: string) =>
-      apiClient.get<ApiResponse<{ items: OrgSyncSourceUnit[] }>>(
-        `${baseUrl}/source-units`,
-        {
-          params: {
-            source_account_uuid: sourceAccountUUID,
-            channel_account_uuid: channelAccountUUID,
-            status,
-          },
-        }
-      ),
-    listSourceMembers: (
-      sourceAccountUUID: string,
-      status?: string,
-      q?: string,
-      channelAccountUUID?: string,
-      sourceUnitUUID?: string,
-      sourceUnitUUIDs?: string[]
-    ) =>
-      apiClient.get<ApiResponse<{ items: OrgSyncSourceMember[] }>>(
-        `${baseUrl}/source-members`,
-        {
-          params: {
-            source_account_uuid: sourceAccountUUID,
-            channel_account_uuid: channelAccountUUID,
-            source_unit_uuid: sourceUnitUUID,
-            source_unit_uuids:
-              sourceUnitUUIDs && sourceUnitUUIDs.length > 0 ? sourceUnitUUIDs.join(",") : undefined,
-            status,
-            q,
-          },
-        }
       ),
     listSyncLogs: (sourceAccountUUID: string, limit = 10, channelAccountUUID?: string) =>
       apiClient.get<ApiResponse<{ items: OrgSyncSyncLog[] }>>(`${baseUrl}/sync-logs`, {

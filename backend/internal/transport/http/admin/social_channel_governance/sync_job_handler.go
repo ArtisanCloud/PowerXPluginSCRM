@@ -12,10 +12,12 @@ import (
 )
 
 type SyncJobHandler struct {
-	jobSvc        *socialsvc.SyncJobService
-	orchestrator  *socialsvc.SyncOrchestrator
-	capabilitySvc *socialsvc.CapabilityService
-	conflictSvc   *socialsvc.ConflictResolutionService
+	jobSvc               *socialsvc.SyncJobService
+	tagRecordSvc         *socialsvc.TagRecordService
+	customerTagBindingSv *socialsvc.CustomerTagBindingService
+	orchestrator         *socialsvc.SyncOrchestrator
+	capabilitySvc        *socialsvc.CapabilityService
+	conflictSvc          *socialsvc.ConflictResolutionService
 }
 
 func NewSyncJobHandler(
@@ -23,12 +25,16 @@ func NewSyncJobHandler(
 	orchestrator *socialsvc.SyncOrchestrator,
 	capabilitySvc *socialsvc.CapabilityService,
 	conflictSvc *socialsvc.ConflictResolutionService,
+	tagRecordSvc *socialsvc.TagRecordService,
+	customerTagBindingSvc *socialsvc.CustomerTagBindingService,
 ) *SyncJobHandler {
 	return &SyncJobHandler{
-		jobSvc:        jobSvc,
-		orchestrator:  orchestrator,
-		capabilitySvc: capabilitySvc,
-		conflictSvc:   conflictSvc,
+		jobSvc:               jobSvc,
+		tagRecordSvc:         tagRecordSvc,
+		customerTagBindingSv: customerTagBindingSvc,
+		orchestrator:         orchestrator,
+		capabilitySvc:        capabilitySvc,
+		conflictSvc:          conflictSvc,
 	}
 }
 
@@ -87,6 +93,88 @@ func (h *SyncJobHandler) List(c *gin.Context) {
 		return
 	}
 	contracts.ResponseSuccess(c, gin.H{"items": items})
+}
+
+func (h *SyncJobHandler) ListTags(c *gin.Context) {
+	if h == nil || h.tagRecordSvc == nil {
+		contracts.ResponseServiceUnavailable(c, "tag record service unavailable", nil)
+		return
+	}
+	tenantUUID, ok := httpmw.TenantUUIDFromContext(c)
+	if !ok || strings.TrimSpace(tenantUUID) == "" {
+		contracts.ResponseUnauthorized(c, "tenant context missing")
+		return
+	}
+	limit, _ := strconv.Atoi(strings.TrimSpace(c.Query("limit")))
+	items, err := h.tagRecordSvc.List(
+		c.Request.Context(),
+		tenantUUID,
+		strings.TrimSpace(c.Query("channel_account_uuid")),
+		limit,
+	)
+	if err != nil {
+		contracts.ResponseError(c, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
+		return
+	}
+	contracts.ResponseSuccess(c, gin.H{"items": items})
+}
+
+func (h *SyncJobHandler) ListCustomerTagBindings(c *gin.Context) {
+	if h == nil || h.customerTagBindingSv == nil {
+		contracts.ResponseServiceUnavailable(c, "customer tag binding service unavailable", nil)
+		return
+	}
+	tenantUUID, ok := httpmw.TenantUUIDFromContext(c)
+	if !ok || strings.TrimSpace(tenantUUID) == "" {
+		contracts.ResponseUnauthorized(c, "tenant context missing")
+		return
+	}
+	channelAccountUUID := strings.TrimSpace(c.Query("channel_account_uuid"))
+	if channelAccountUUID == "" {
+		contracts.ResponseBadRequest(c, "channel_account_uuid is required")
+		return
+	}
+	limit, _ := strconv.Atoi(strings.TrimSpace(c.Query("limit")))
+	items, err := h.customerTagBindingSv.ListByChannel(
+		c.Request.Context(),
+		tenantUUID,
+		channelAccountUUID,
+		limit,
+	)
+	if err != nil {
+		contracts.ResponseError(c, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
+		return
+	}
+	contracts.ResponseSuccess(c, gin.H{"items": items})
+}
+
+func (h *SyncJobHandler) ClearTerminal(c *gin.Context) {
+	if h == nil || h.jobSvc == nil {
+		contracts.ResponseServiceUnavailable(c, "sync job service unavailable", nil)
+		return
+	}
+	tenantUUID, ok := httpmw.TenantUUIDFromContext(c)
+	if !ok || strings.TrimSpace(tenantUUID) == "" {
+		contracts.ResponseUnauthorized(c, "tenant context missing")
+		return
+	}
+	domain := strings.TrimSpace(c.Query("domain"))
+	if domain == "" {
+		contracts.ResponseBadRequest(c, "domain is required")
+		return
+	}
+	includeInFlight := strings.EqualFold(strings.TrimSpace(c.Query("include_inflight")), "true") ||
+		strings.TrimSpace(c.Query("include_inflight")) == "1"
+	affected, err := h.jobSvc.ClearJobs(c.Request.Context(), tenantUUID, domain, includeInFlight)
+	if err != nil {
+		contracts.ResponseError(c, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
+		return
+	}
+	contracts.ResponseSuccess(c, gin.H{
+		"domain":           domain,
+		"include_inflight": includeInFlight,
+		"deleted_count":    affected,
+	})
 }
 
 func (h *SyncJobHandler) Capabilities(c *gin.Context) {

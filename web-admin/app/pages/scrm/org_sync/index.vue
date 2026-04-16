@@ -56,34 +56,6 @@
       </UCard>
     </div>
 
-    <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      <UCard>
-        <template #header>
-          <div class="flex items-center justify-between">
-            <span class="font-medium text-gray-700 dark:text-slate-200">渠道部门预览</span>
-            <UBadge variant="soft" color="neutral">{{ sourceUnits.length }}</UBadge>
-          </div>
-        </template>
-        <div v-if="sourceUnits.length === 0" class="text-xs text-gray-600 dark:text-slate-300">暂无渠道部门数据。</div>
-        <ul v-else class="space-y-1 text-sm text-gray-700 dark:text-slate-200 max-h-[320px] overflow-auto">
-          <li v-for="item in sourceUnits" :key="item.source_unit_uuid">{{ item.name || item.external_unit_id }}</li>
-        </ul>
-      </UCard>
-
-      <UCard>
-        <template #header>
-          <div class="flex items-center justify-between">
-            <span class="font-medium text-gray-700 dark:text-slate-200">渠道成员预览</span>
-            <UBadge variant="soft" color="neutral">{{ sourceMembers.length }}</UBadge>
-          </div>
-        </template>
-        <div v-if="sourceMembers.length === 0" class="text-xs text-gray-600 dark:text-slate-300">暂无渠道成员数据。</div>
-        <ul v-else class="space-y-1 text-sm text-gray-700 dark:text-slate-200 max-h-[320px] overflow-auto">
-          <li v-for="item in sourceMembers" :key="item.source_member_uuid">{{ item.profile?.name || item.name || item.external_member_id }}</li>
-        </ul>
-      </UCard>
-    </div>
-
     <ToastAlert
       v-model="toast.visible"
       :title="toast.title"
@@ -97,7 +69,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import ToastAlert from "~/components/ToastAlert.vue";
-import { type OrgSyncMainMemberView, type OrgSyncSourceMember, type OrgSyncSourceUnit, useOrgSyncService } from "~/composables/api/services/orgSync";
+import { type OrgSyncMainMemberView, useOrgSyncService } from "~/composables/api/services/orgSync";
 import { useDepartmentService } from "~/composables/api/services/departmentService";
 import { type ChannelAccount, type ChannelSchemaDocument, useSocialChannelGovernanceService } from "~/composables/api/services/socialChannelGovernance";
 
@@ -107,8 +79,6 @@ const loading = ref(false);
 const channelAccounts = ref<ChannelAccount[]>([]);
 const channelSchema = ref<ChannelSchemaDocument | null>(null);
 const selectedAccountUUID = ref("");
-const sourceMembers = ref<OrgSyncSourceMember[]>([]);
-const sourceUnits = ref<OrgSyncSourceUnit[]>([]);
 const mainOrgViewItems = ref<OrgSyncMainMemberView[]>([]);
 const localDepartments = ref<Array<{ id: string; label: string }>>([]);
 
@@ -172,36 +142,6 @@ const loadChannelAccounts = async () => {
   }
 };
 
-const loadSourceUnits = async () => {
-  if (!selectedAccountUUID.value) {
-    sourceUnits.value = [];
-    return;
-  }
-  try {
-    const service = useOrgSyncService();
-    const resp = await service.listSourceUnits("", undefined, selectedAccountUUID.value);
-    sourceUnits.value = (resp as any)?.data?.items ?? [];
-  } catch (err: any) {
-    sourceUnits.value = [];
-    showToast("加载渠道部门失败", "error", err?.message ?? "");
-  }
-};
-
-const loadSourceMembers = async () => {
-  if (!selectedAccountUUID.value) {
-    sourceMembers.value = [];
-    return;
-  }
-  try {
-    const service = useOrgSyncService();
-    const resp = await service.listSourceMembers("", undefined, undefined, selectedAccountUUID.value);
-    sourceMembers.value = (resp as any)?.data?.items ?? [];
-  } catch (err: any) {
-    sourceMembers.value = [];
-    showToast("加载渠道成员失败", "error", err?.message ?? "");
-  }
-};
-
 const loadMainOrgView = async () => {
   try {
     const service = useOrgSyncService();
@@ -241,7 +181,7 @@ const loadLocalDepartments = async () => {
 const refreshData = async () => {
   loading.value = true;
   try {
-    await Promise.all([loadSourceUnits(), loadSourceMembers(), loadMainOrgView(), loadLocalDepartments()]);
+    await Promise.all([loadMainOrgView(), loadLocalDepartments()]);
   } finally {
     loading.value = false;
   }

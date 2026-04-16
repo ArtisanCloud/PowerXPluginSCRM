@@ -11,6 +11,8 @@ const (
 	TopicOrgSyncProgress    = "org_sync.progress"
 	TopicOpenWorkAuthStatus = "openwork.auth.status"
 	TopicLeadSyncProgress   = "lead_sync.progress"
+	TopicTagSyncProgress    = "tag_sync.progress"
+	TopicTagSyncProgressV1  = "powerx.tag_sync.progress.v1"
 )
 
 // Hub manages WS sessions and topic subscriptions.

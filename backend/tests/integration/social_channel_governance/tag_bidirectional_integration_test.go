@@ -31,8 +31,10 @@ func TestTagBidirectionalSyncAndConflictQueue(t *testing.T) {
 		"cursor-pull-1",
 	)
 	require.NoError(t, err)
-	require.Equal(t, 1, pullRes.Pulled)
+	require.Equal(t, 2, pullRes.Pulled)
 	require.Equal(t, 1, pullRes.Conflicts)
+	require.Equal(t, 1, pullRes.Created)
+	require.Equal(t, 1, pullRes.Updated)
 	require.Equal(t, "v1", pullRes.SnapshotVersion)
 
 	pushRes, err := tagSvc.SyncLocalToRemote(context.Background(), tenantUUID,
@@ -47,6 +49,7 @@ func TestTagBidirectionalSyncAndConflictQueue(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, pushRes.Pushed)
 	require.Equal(t, 0, pushRes.Conflicts)
+	require.Equal(t, 1, pushRes.Created)
 	require.Equal(t, "v1", pushRes.SnapshotVersion)
 
 	conflicts, err := syncRepo.ListConflicts(context.Background(), tenantUUID, "tags", "open", 20)
@@ -58,6 +61,24 @@ func TestTagBidirectionalSyncAndConflictQueue(t *testing.T) {
 	require.Equal(t, "cursor-pull-1", cpPull.Cursor)
 	require.Equal(t, "v1", cpPull.SnapshotVersion)
 	require.WithinDuration(t, time.Now().UTC(), cpPull.LastEventTime, 2*time.Second)
+
+	// no-op sync should keep snapshot version unchanged
+	noopRes, err := tagSvc.SyncRemoteToLocal(context.Background(), tenantUUID,
+		[]socialsvc.TagRecord{
+			{TagID: "tag-a", Name: "远端-A", Version: "r1"},
+			{TagID: "tag-b", Name: "远端-B", Version: "r1"},
+		},
+		[]socialsvc.TagRecord{
+			{TagID: "tag-a", Name: "远端-A", Version: "r1"},
+			{TagID: "tag-b", Name: "远端-B", Version: "r1"},
+		},
+		"",
+	)
+	require.NoError(t, err)
+	require.Equal(t, 0, noopRes.Pulled)
+	require.Equal(t, 0, noopRes.Conflicts)
+	require.Equal(t, "v1", noopRes.SnapshotVersion)
+	require.Equal(t, "cursor-pull-1", noopRes.Cursor)
 }
 
 func openTagSyncIntegrationDB(t *testing.T, name string) *gorm.DB {

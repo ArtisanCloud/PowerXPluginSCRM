@@ -90,6 +90,7 @@ const (
 	TableSocialSyncConflictRecords           = "social_sync_conflict_records"
 	TableSocialSyncFoundationBindings        = "social_sync_foundation_bindings"
 	TableSocialSyncJobs                      = "social_sync_jobs"
+	TableSocialSyncTagRecords                = "social_sync_tag_records"
 	TableSocialSyncCheckpoints               = "social_sync_checkpoints"
 	TableSocialSyncConflicts                 = "social_sync_conflicts"
 	TableSocialSyncWritebackPolicies         = "social_sync_writeback_policies"

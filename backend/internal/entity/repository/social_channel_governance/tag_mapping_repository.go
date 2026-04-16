@@ -73,3 +73,24 @@ func (r *TagMappingRepository) NextSnapshotVersion(ctx context.Context, tenantUU
 	}
 	return fmt.Sprintf("v%d", n+1), nil
 }
+
+// ResolveSnapshotVersion returns current version, or bumps to next version when bump=true.
+func (r *TagMappingRepository) ResolveSnapshotVersion(ctx context.Context, tenantUUID, direction string, bump bool) (string, error) {
+	if r == nil || r.foundation == nil {
+		return "v1", nil
+	}
+	curr, err := r.GetCheckpoint(ctx, tenantUUID, direction)
+	if err != nil {
+		return "", err
+	}
+	currentVersion := "v1"
+	if curr != nil {
+		if s := strings.TrimSpace(curr.SnapshotVersion); s != "" {
+			currentVersion = s
+		}
+	}
+	if !bump {
+		return currentVersion, nil
+	}
+	return r.NextSnapshotVersion(ctx, tenantUUID, direction)
+}

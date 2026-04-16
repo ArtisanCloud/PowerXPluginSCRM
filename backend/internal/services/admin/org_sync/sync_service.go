@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -20,6 +21,7 @@ import (
 	workdeptreq "github.com/ArtisanCloud/PowerWeChat/v3/src/work/department/request"
 	workuserreq "github.com/ArtisanCloud/PowerWeChat/v3/src/work/user/request"
 	fwwsbus "github.com/ArtisanCloud/PowerXPlugin/framework/backend/go/runtime/wsbus"
+	basemodels "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models"
 	iammodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/iam"
 	model "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/org_sync"
 	socialModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/social_channel_governance"
@@ -1008,6 +1010,16 @@ func (s *SyncService) upsertMemberBinding(ctx context.Context, tenantUUID, chann
 		Create(&record).Error
 }
 
+// UpsertUnitBinding persists unit binding state for sync workflows.
+func (s *SyncService) UpsertUnitBinding(ctx context.Context, tenantUUID, channelAccountUUID, mainUnitID, externalUnitID, parentExternalUnitID, status string, push bool, pull bool) error {
+	return s.upsertUnitBinding(ctx, tenantUUID, channelAccountUUID, mainUnitID, externalUnitID, parentExternalUnitID, status, push, pull)
+}
+
+// UpsertMemberBinding persists member binding state for sync workflows.
+func (s *SyncService) UpsertMemberBinding(ctx context.Context, tenantUUID, channelAccountUUID, mainMemberID, externalMemberID, status string, push bool, pull bool) error {
+	return s.upsertMemberBinding(ctx, tenantUUID, channelAccountUUID, mainMemberID, externalMemberID, status, push, pull)
+}
+
 func (s *SyncService) TriggerSync(ctx context.Context, tenantUUID, sourceAccountUUID string) (*model.SourceAccount, error) {
 	if s == nil || s.repo == nil {
 		return nil, errors.New("source account repository not configured")
@@ -1294,7 +1306,7 @@ func (s *SyncService) TriggerSync(ctx context.Context, tenantUUID, sourceAccount
 		return nil, err
 	}
 	if status == model.SyncStatusSuccess {
-		if err := s.syncIAMAndBindingsFromPull(ctx, tenantUUID, channelAccount.AccountUUID); err != nil {
+		if err := s.SyncIAMAndBindingsFromPull(ctx, tenantUUID, channelAccount.AccountUUID); err != nil {
 			return nil, err
 		}
 	}
@@ -1846,7 +1858,7 @@ func (s *SyncService) handleDelegatedTemplateSync(ctx context.Context, tenantUUI
 		return nil, err
 	}
 	if status == model.SyncStatusSuccess {
-		if err := s.syncIAMAndBindingsFromPull(ctx, tenantUUID, channelAccountUUID); err != nil {
+		if err := s.SyncIAMAndBindingsFromPull(ctx, tenantUUID, channelAccountUUID); err != nil {
 			return nil, err
 		}
 	}
@@ -2415,10 +2427,458 @@ func (s *SyncService) collectBindingStats(ctx context.Context, tenantUUID, sourc
 	return 0, 0, 0, 0
 }
 
-func (s *SyncService) syncIAMAndBindingsFromPull(ctx context.Context, tenantUUID, channelAccountUUID string) error {
-	// Legacy sync helper tables are deprecated. Pull flow now directly upserts source tables and
-	// bindings in the new sync path, so no legacy backfill is required.
-	return nil
+func (s *SyncService) SyncIAMAndBindingsFromPull(ctx context.Context, tenantUUID, channelAccountUUID string) error {
+	if s == nil || s.repo == nil || s.repo.DB == nil {
+		return nil
+	}
+	tenantUUID = strings.TrimSpace(strings.ToLower(tenantUUID))
+	channelAccountUUID = strings.TrimSpace(strings.ToLower(channelAccountUUID))
+	if tenantUUID == "" || channelAccountUUID == "" {
+		return nil
+	}
+	type sourceUnitRow struct {
+		ExternalUnitID       string
+		ParentExternalUnitID *string
+		Name                 string
+		Order                int
+	}
+	type sourceMemberRow struct {
+		ExternalMemberID string
+		Name             string
+		Phone            string
+		Email            string
+		Status           string
+	}
+	type sourceMemberUnitRow struct {
+		ExternalMemberID string
+		ExternalUnitID   string
+		Order            int
+	}
+	now := time.Now().UTC()
+	return s.repo.WithTenantTx(ctx, tenantUUID, func(tx *gorm.DB) error {
+		units := make([]sourceUnitRow, 0)
+		if err := tx.WithContext(ctx).
+			Table(model.SourceUnit{}.TableName()).
+			Select("external_unit_id, parent_external_unit_id, name, \"order\"").
+			Where("tenant_uuid = ? AND channel_account_uuid = ? AND status = ?", tenantUUID, channelAccountUUID, "active").
+			Order(`"order" ASC, external_unit_id ASC`).
+			Scan(&units).Error; err != nil {
+			return err
+		}
+		members := make([]sourceMemberRow, 0)
+		if err := tx.WithContext(ctx).
+			Table(model.SourceMember{}.TableName()).
+			Select("external_member_id, name, phone, email, status").
+			Where("tenant_uuid = ? AND channel_account_uuid = ? AND status = ?", tenantUUID, channelAccountUUID, "active").
+			Order("external_member_id ASC").
+			Scan(&members).Error; err != nil {
+			return err
+		}
+		memberUnits := make([]sourceMemberUnitRow, 0)
+		if err := tx.WithContext(ctx).
+			Table(model.SourceMemberUnit{}.TableName()).
+			Select("external_member_id, external_unit_id, \"order\"").
+			Where("tenant_uuid = ? AND channel_account_uuid = ?", tenantUUID, channelAccountUUID).
+			Order(`"order" ASC, source_member_unit_uuid ASC`).
+			Scan(&memberUnits).Error; err != nil {
+			return err
+		}
+		unitByExternal := make(map[string]sourceUnitRow, len(units))
+		for _, unit := range units {
+			externalID := strings.TrimSpace(unit.ExternalUnitID)
+			if externalID == "" {
+				continue
+			}
+			unit.ExternalUnitID = externalID
+			unitByExternal[externalID] = unit
+		}
+
+		unitBindingRows := make([]model.UnitBinding, 0)
+		if err := tx.WithContext(ctx).
+			Table(model.UnitBinding{}.TableName()).
+			Where("tenant_uuid = ? AND channel_account_uuid = ?", tenantUUID, channelAccountUUID).
+			Find(&unitBindingRows).Error; err != nil {
+			return err
+		}
+		unitBindingByExternal := make(map[string]model.UnitBinding, len(unitBindingRows))
+		for _, binding := range unitBindingRows {
+			externalID := strings.TrimSpace(binding.ExternalUnitID)
+			if externalID == "" {
+				continue
+			}
+			unitBindingByExternal[externalID] = binding
+		}
+		departments := make([]iammodel.Department, 0)
+		if err := tx.WithContext(ctx).
+			Where("tenant_uuid = ?", tenantUUID).
+			Find(&departments).Error; err != nil {
+			return err
+		}
+		departmentByID := make(map[uint64]*iammodel.Department, len(departments))
+		for i := range departments {
+			departmentByID[departments[i].ID] = &departments[i]
+		}
+		mainUnitByExternal := make(map[string]uint64, len(units))
+		upsertUnitBindingTx := func(mainID uint64, externalID string, parentExternalID string) error {
+			mainIDText := strconv.FormatUint(mainID, 10)
+			record := model.UnitBinding{
+				TenantUUID:           tenantUUID,
+				ChannelAccountUUID:   channelAccountUUID,
+				MainUnitID:           mainIDText,
+				ExternalUnitID:       externalID,
+				ParentExternalUnitID: parentExternalID,
+				SyncStatus:           "synced",
+				LastPulledAt:         &now,
+				UpdatedAt:            now,
+			}
+			return tx.WithContext(ctx).
+				Clauses(clause.OnConflict{
+					Columns: []clause.Column{
+						{Name: "tenant_uuid"},
+						{Name: "channel_account_uuid"},
+						{Name: "main_unit_id"},
+						{Name: "external_unit_id"},
+					},
+					DoUpdates: clause.AssignmentColumns([]string{"parent_external_unit_id", "sync_status", "last_pulled_at", "updated_at"}),
+				}).
+				Create(&record).Error
+		}
+		var ensureDepartment func(externalID string, visiting map[string]struct{}) (uint64, error)
+		ensureDepartment = func(externalID string, visiting map[string]struct{}) (uint64, error) {
+			externalID = strings.TrimSpace(externalID)
+			if externalID == "" {
+				return 0, nil
+			}
+			if existingID, ok := mainUnitByExternal[externalID]; ok && existingID > 0 {
+				return existingID, nil
+			}
+			unit, ok := unitByExternal[externalID]
+			if !ok {
+				return 0, nil
+			}
+			if _, inStack := visiting[externalID]; inStack {
+				return 0, nil
+			}
+			visiting[externalID] = struct{}{}
+			defer delete(visiting, externalID)
+			parentID := uint64(0)
+			parentExternalID := ""
+			if unit.ParentExternalUnitID != nil {
+				parentExternalID = strings.TrimSpace(*unit.ParentExternalUnitID)
+			}
+			if parentExternalID != "" && parentExternalID != externalID {
+				if resolvedParentID, err := ensureDepartment(parentExternalID, visiting); err != nil {
+					return 0, err
+				} else if resolvedParentID > 0 {
+					parentID = resolvedParentID
+				}
+			}
+			name := strings.TrimSpace(unit.Name)
+			if name == "" {
+				name = externalID
+			}
+			code := buildOrgSyncDepartmentCode(channelAccountUUID, externalID)
+			path := code
+			parentIDPtr := (*uint64)(nil)
+			if parentID > 0 {
+				parentIDPtr = &parentID
+				if parentDept := departmentByID[parentID]; parentDept != nil && strings.TrimSpace(parentDept.Path) != "" {
+					path = parentDept.Path + "." + code
+				}
+			}
+			deptID := uint64(0)
+			if binding, ok := unitBindingByExternal[externalID]; ok {
+				if parsedID, err := strconv.ParseUint(strings.TrimSpace(binding.MainUnitID), 10, 64); err == nil && parsedID > 0 {
+					deptID = parsedID
+				}
+			}
+			if deptID > 0 {
+				if err := tx.WithContext(ctx).
+					Model(&iammodel.Department{}).
+					Where("id = ? AND tenant_uuid = ?", deptID, tenantUUID).
+					Updates(map[string]any{
+						"name":        name,
+						"code":        code,
+						"parent_id":   parentIDPtr,
+						"path":        path,
+						"sort_order":  unit.Order,
+						"updated_at":  now,
+						"deleted_at":  nil,
+						"tenant_uuid": tenantUUID,
+					}).Error; err != nil {
+					return 0, err
+				}
+			} else {
+				dept := &iammodel.Department{
+					BaseModel: basemodels.BaseModel{
+						TenantUuid: tenantUUID,
+					},
+					Name:      name,
+					Code:      code,
+					ParentID:  parentIDPtr,
+					Path:      path,
+					SortOrder: unit.Order,
+				}
+				if err := tx.WithContext(ctx).Create(dept).Error; err != nil {
+					return 0, err
+				}
+				deptID = dept.ID
+			}
+			departmentByID[deptID] = &iammodel.Department{
+				BaseModel: basemodels.BaseModel{
+					ID:         deptID,
+					TenantUuid: tenantUUID,
+					CreatedAt:  now,
+					UpdatedAt:  now,
+				},
+				Name:      name,
+				Code:      code,
+				ParentID:  parentIDPtr,
+				Path:      path,
+				SortOrder: unit.Order,
+			}
+			mainUnitByExternal[externalID] = deptID
+			if err := upsertUnitBindingTx(deptID, externalID, parentExternalID); err != nil {
+				return 0, err
+			}
+			return deptID, nil
+		}
+		for externalID := range unitByExternal {
+			if _, err := ensureDepartment(externalID, map[string]struct{}{}); err != nil {
+				return err
+			}
+		}
+
+		primaryDeptByMemberExternal := make(map[string]string)
+		for _, memberUnit := range memberUnits {
+			memberExternal := strings.TrimSpace(memberUnit.ExternalMemberID)
+			deptExternal := strings.TrimSpace(memberUnit.ExternalUnitID)
+			if memberExternal == "" || deptExternal == "" {
+				continue
+			}
+			if _, exists := primaryDeptByMemberExternal[memberExternal]; exists {
+				continue
+			}
+			primaryDeptByMemberExternal[memberExternal] = deptExternal
+		}
+		memberBindingRows := make([]model.MemberBinding, 0)
+		if err := tx.WithContext(ctx).
+			Table(model.MemberBinding{}.TableName()).
+			Where("tenant_uuid = ? AND channel_account_uuid = ?", tenantUUID, channelAccountUUID).
+			Find(&memberBindingRows).Error; err != nil {
+			return err
+		}
+		memberBindingByExternal := make(map[string]model.MemberBinding, len(memberBindingRows))
+		for _, binding := range memberBindingRows {
+			externalID := strings.TrimSpace(binding.ExternalMemberID)
+			if externalID == "" {
+				continue
+			}
+			memberBindingByExternal[externalID] = binding
+		}
+		existingMembers := make([]iammodel.Member, 0)
+		if err := tx.WithContext(ctx).
+			Where("tenant_uuid = ?", tenantUUID).
+			Find(&existingMembers).Error; err != nil {
+			return err
+		}
+		memberByID := make(map[uint64]iammodel.Member, len(existingMembers))
+		for _, member := range existingMembers {
+			memberByID[member.ID] = member
+		}
+		upsertMemberBindingTx := func(mainID uint64, externalID string) error {
+			record := model.MemberBinding{
+				TenantUUID:         tenantUUID,
+				ChannelAccountUUID: channelAccountUUID,
+				MainMemberID:       strconv.FormatUint(mainID, 10),
+				ExternalMemberID:   externalID,
+				SyncStatus:         "synced",
+				LastPulledAt:       &now,
+				UpdatedAt:          now,
+			}
+			return tx.WithContext(ctx).
+				Clauses(clause.OnConflict{
+					Columns: []clause.Column{
+						{Name: "tenant_uuid"},
+						{Name: "channel_account_uuid"},
+						{Name: "main_member_id"},
+						{Name: "external_member_id"},
+					},
+					DoUpdates: clause.AssignmentColumns([]string{"sync_status", "last_pulled_at", "updated_at"}),
+				}).
+				Create(&record).Error
+		}
+		findOrCreateUser := func(name, email, phone string) (uint64, error) {
+			var user iammodel.User
+			if strings.TrimSpace(email) != "" {
+				err := tx.WithContext(ctx).
+					Where("lower(email) = ?", strings.ToLower(strings.TrimSpace(email))).
+					First(&user).Error
+				if err == nil {
+					return user.ID, nil
+				}
+				if !errors.Is(err, gorm.ErrRecordNotFound) {
+					return 0, err
+				}
+			}
+			if strings.TrimSpace(phone) != "" {
+				err := tx.WithContext(ctx).Where("phone = ?", strings.TrimSpace(phone)).First(&user).Error
+				if err == nil {
+					return user.ID, nil
+				}
+				if !errors.Is(err, gorm.ErrRecordNotFound) {
+					return 0, err
+				}
+			}
+			user = iammodel.User{
+				Email:        strings.TrimSpace(email),
+				Phone:        strings.TrimSpace(phone),
+				DisplayName:  strings.TrimSpace(name),
+				Status:       iammodel.StatusActive,
+				PasswordHash: "org_sync_pull_placeholder_hash",
+			}
+			if user.DisplayName == "" {
+				user.DisplayName = "Org Sync User"
+			}
+			if err := tx.WithContext(ctx).Create(&user).Error; err != nil {
+				return 0, err
+			}
+			return user.ID, nil
+		}
+		for _, sourceMember := range members {
+			externalMemberID := strings.TrimSpace(sourceMember.ExternalMemberID)
+			if externalMemberID == "" {
+				continue
+			}
+			displayName := strings.TrimSpace(sourceMember.Name)
+			if displayName == "" {
+				displayName = externalMemberID
+			}
+			email := strings.TrimSpace(sourceMember.Email)
+			phone := strings.TrimSpace(sourceMember.Phone)
+			status := strings.ToLower(strings.TrimSpace(sourceMember.Status))
+			if status == "" || status == "active" {
+				status = iammodel.StatusActive
+			} else {
+				status = iammodel.StatusDisabled
+			}
+			var departmentID *uint64
+			if deptExternal := strings.TrimSpace(primaryDeptByMemberExternal[externalMemberID]); deptExternal != "" {
+				if deptID, ok := mainUnitByExternal[deptExternal]; ok && deptID > 0 {
+					departmentID = &deptID
+				}
+			}
+			memberID := uint64(0)
+			if binding, ok := memberBindingByExternal[externalMemberID]; ok {
+				if parsedID, err := strconv.ParseUint(strings.TrimSpace(binding.MainMemberID), 10, 64); err == nil && parsedID > 0 {
+					memberID = parsedID
+				}
+			}
+			if memberID > 0 {
+				member, exists := memberByID[memberID]
+				if exists {
+					if err := tx.WithContext(ctx).
+						Model(&iammodel.User{}).
+						Where("id = ?", member.UserID).
+						Updates(map[string]any{
+							"display_name": displayName,
+							"email":        email,
+							"phone":        phone,
+							"status":       status,
+							"updated_at":   now,
+						}).Error; err != nil {
+						return err
+					}
+					if err := tx.WithContext(ctx).
+						Model(&iammodel.Member{}).
+						Where("id = ? AND tenant_uuid = ?", memberID, tenantUUID).
+						Updates(map[string]any{
+							"username":      externalMemberID,
+							"display_name":  displayName,
+							"department_id": departmentID,
+							"status":        status,
+							"updated_at":    now,
+							"deleted_at":    nil,
+						}).Error; err != nil {
+						return err
+					}
+					if err := upsertMemberBindingTx(memberID, externalMemberID); err != nil {
+						return err
+					}
+					continue
+				}
+			}
+			userID, err := findOrCreateUser(displayName, email, phone)
+			if err != nil {
+				return err
+			}
+			newMember := &iammodel.Member{
+				BaseModel: basemodels.BaseModel{
+					TenantUuid: tenantUUID,
+				},
+				UserID:       userID,
+				Username:     externalMemberID,
+				DisplayName:  displayName,
+				Status:       status,
+				DepartmentID: departmentID,
+			}
+			if err := tx.WithContext(ctx).Create(newMember).Error; err != nil {
+				return err
+			}
+			if err := upsertMemberBindingTx(newMember.ID, externalMemberID); err != nil {
+				return err
+			}
+		}
+		if tx.Migrator().HasTable(&socialModel.SyncCheckpoint{}) {
+			checkpoint := &socialModel.SyncCheckpoint{
+				TenantUUID:      tenantUUID,
+				Domain:          socialModel.SyncDomainOrg,
+				Direction:       "pull",
+				Cursor:          fmt.Sprintf("org_pull:%d", now.UnixNano()),
+				SnapshotVersion: fmt.Sprintf("%d:%d", len(units), len(members)),
+				LastEventTime:   now,
+				UpdatedAt:       now,
+			}
+			if err := tx.WithContext(ctx).
+				Clauses(clause.OnConflict{
+					Columns: []clause.Column{
+						{Name: "tenant_uuid"},
+						{Name: "domain"},
+						{Name: "direction"},
+					},
+					DoUpdates: clause.Assignments(map[string]any{
+						"cursor":           checkpoint.Cursor,
+						"snapshot_version": checkpoint.SnapshotVersion,
+						"last_event_time":  checkpoint.LastEventTime,
+						"updated_at":       now,
+					}),
+				}).
+				Create(checkpoint).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+var orgSyncCodeCleaner = regexp.MustCompile(`[^a-z0-9_]+`)
+
+func buildOrgSyncDepartmentCode(channelAccountUUID, externalUnitID string) string {
+	channelSuffix := strings.ReplaceAll(strings.TrimSpace(strings.ToLower(channelAccountUUID)), "-", "")
+	if len(channelSuffix) > 8 {
+		channelSuffix = channelSuffix[:8]
+	}
+	base := strings.TrimSpace(strings.ToLower(externalUnitID))
+	base = orgSyncCodeCleaner.ReplaceAllString(base, "_")
+	base = strings.Trim(base, "_")
+	if base == "" {
+		base = "unit"
+	}
+	code := "org_" + channelSuffix + "_" + base
+	if len(code) > 64 {
+		code = code[:64]
+	}
+	return strings.Trim(code, "_")
 }
 
 func (s *SyncService) resolveDriver(account orgdriver.AccountContext) (orgdriver.OrgSyncDriver, error) {

@@ -47,6 +47,10 @@ func (a *DefaultAuthorizer) Authorize(ctx context.Context, client *Client, topic
 		return nil
 	case "powerx.openwork.auth.status.v1":
 		return nil
+	case TopicTagSyncProgress:
+		return nil
+	case TopicTagSyncProgressV1:
+		return nil
 	default:
 		return ErrTopicNotAllowed
 	}

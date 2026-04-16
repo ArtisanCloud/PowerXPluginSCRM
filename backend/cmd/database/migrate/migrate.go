@@ -77,6 +77,7 @@ var businessTables = []interface{}{
 	&socialModel.SyncConflictRecord{},
 	&socialModel.SyncFoundationBinding{},
 	&socialModel.SyncJob{},
+	&socialModel.SyncTagRecord{},
 	&socialModel.SyncCheckpoint{},
 	&socialModel.SyncConflict{},
 	&socialModel.SyncWritebackPolicy{},

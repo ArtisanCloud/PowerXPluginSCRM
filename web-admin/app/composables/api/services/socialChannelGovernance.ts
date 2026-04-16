@@ -184,6 +184,65 @@ export interface FoundationSyncJobPayload {
   payload?: Record<string, any>;
 }
 
+export interface FoundationTagRecord {
+  tag_uuid: string;
+  tenant_uuid: string;
+  channel_account_uuid: string;
+  channel_code: string;
+  app_type: string;
+  remote_tag_id: string;
+  remote_group_id: string;
+  remote_group_name: string;
+  tag_name: string;
+  version: string;
+  tag_order: number;
+  snapshot_version: string;
+  last_pulled_at?: string;
+  source: string;
+  updated_at?: string;
+}
+
+export interface FoundationCustomerTagBindingTag {
+  tag_id: string;
+  tag_name: string;
+  group_name: string;
+}
+
+export interface FoundationCustomerTagBindingFollowUser {
+  userid: string;
+  remark: string;
+  description: string;
+  oper_userid: string;
+  remark_mobiles: string[];
+  tags: FoundationCustomerTagBindingTag[];
+}
+
+export interface FoundationCustomerTagBindingItem {
+  lead_uuid: string;
+  display_name: string;
+  external_userid: string;
+  owner_user_uuid: string;
+  source_account_uuid: string;
+  channel_sync_status: string;
+  follow_users: FoundationCustomerTagBindingFollowUser[];
+  remote_error?: string;
+}
+
+export interface FoundationCustomerTagOperation {
+  external_userid: string;
+  userid: string;
+  add_tag: string[];
+  remove_tag: string[];
+}
+
+export interface FoundationTagOperation {
+  operation: "rename" | "delete" | "rename_group" | "create";
+  tag_id?: string;
+  group_id?: string;
+  group_name?: string;
+  name?: string;
+}
+
 export const useSocialChannelGovernanceService = () => {
   const apiClient = useApiClient();
   const baseUrl = "/admin/social/channel-accounts";
@@ -333,6 +392,21 @@ export const useSocialChannelGovernanceService = () => {
     },
     listFoundationSyncJobs: (params?: { domain?: string; status?: string; limit?: number }) => {
       return apiClient.get<ApiResponse<{ items: any[] }>>(`${foundationBase}/sync/jobs`, { params });
+    },
+    listFoundationTags: (params?: { channel_account_uuid?: string; limit?: number }) => {
+      return apiClient.get<ApiResponse<{ items: FoundationTagRecord[] }>>(`${foundationBase}/tags`, { params });
+    },
+    listFoundationCustomerTagBindings: (params: { channel_account_uuid: string; limit?: number }) => {
+      return apiClient.get<ApiResponse<{ items: FoundationCustomerTagBindingItem[] }>>(
+        `${foundationBase}/customer-tag-bindings`,
+        { params }
+      );
+    },
+    clearFoundationSyncJobs: (params: { domain: string; include_inflight?: boolean }) => {
+      return apiClient.delete<ApiResponse<{ domain: string; include_inflight?: boolean; deleted_count: number }>>(
+        `${foundationBase}/sync/jobs`,
+        { params }
+      );
     },
     getFoundationSyncOverview: () => {
       return apiClient.get<ApiResponse<{ jobs: Record<string, Record<string, number>>; open_conflicts: Record<string, number> }>>(

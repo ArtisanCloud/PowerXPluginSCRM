@@ -45,6 +45,7 @@ type SyncJob struct {
 	MaxAttempts     int               `gorm:"column:max_attempts;type:int;not null;default:3" json:"max_attempts"`
 	IdempotencyKey  string            `gorm:"column:idempotency_key;type:text;not null;default:'';uniqueIndex:uq_social_sync_jobs_idempotency,priority:2" json:"idempotency_key"`
 	Payload         datatypes.JSONMap `gorm:"column:payload;type:jsonb;default:'{}'::jsonb" json:"payload"`
+	ResultSummary   datatypes.JSONMap `gorm:"-" json:"result_summary,omitempty"`
 	ErrorCode       string            `gorm:"column:error_code;type:varchar(64);not null;default:''" json:"error_code"`
 	ErrorMessage    string            `gorm:"column:error_message;type:text;not null;default:''" json:"error_message"`
 	StartedAt       *time.Time        `gorm:"column:started_at;type:timestamptz" json:"started_at,omitempty"`
