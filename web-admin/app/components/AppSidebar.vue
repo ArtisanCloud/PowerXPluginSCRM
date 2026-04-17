@@ -523,7 +523,7 @@ const scrmSections: ScrmNavSection[] = [
             icon: "i-heroicons-home-modern",
           },
           {
-            to: "/scrm/org_sync/sync",
+            to: "/scrm/sync_center?domain=org",
             labelKey: "navigation.scrmOrgSyncSub",
             icon: "i-heroicons-arrow-path",
           },
@@ -531,6 +531,11 @@ const scrmSections: ScrmNavSection[] = [
             to: "/scrm/org_staff_tags",
             labelKey: "navigation.scrmOrgStaffTags",
             icon: "i-heroicons-tag",
+          },
+          {
+            to: "/scrm/org_staff_tag_sync",
+            labelKey: "navigation.scrmOrgStaffTagSync",
+            icon: "i-heroicons-arrow-path-rounded-square",
           },
         ],
       },
@@ -580,7 +585,7 @@ const scrmSections: ScrmNavSection[] = [
             icon: "i-heroicons-hashtag",
           },
           {
-            to: "/scrm/tag_sync_center",
+            to: "/scrm/sync_center?domain=tags",
             labelKey: "navigation.scrmTagSyncCenter",
             icon: "i-heroicons-arrow-path-rounded-square",
           },
@@ -881,12 +886,13 @@ watch(
     } else if (newPath.startsWith("/settings/channel-platform")) {
       showChannelMenus.value.wecom = true;
     }
-    if (newPath.startsWith("/scrm/org_sync") || newPath.startsWith("/scrm/org_staff_tags")) {
+    if (newPath.startsWith("/scrm/org_sync") || newPath.startsWith("/scrm/org_staff_tags") || newPath.startsWith("/scrm/org_staff_tag_sync") || newPath.startsWith("/scrm/sync_center")) {
       showScrmMenus.value.orgManagement = true;
     }
     if (
       newPath.startsWith("/scrm/enterprise_customer_tags")
       || newPath.startsWith("/scrm/tag_sync_center")
+      || newPath.startsWith("/scrm/sync_center")
       || newPath.startsWith("/scrm/smart_tagging_customer_segmentation")
     ) {
       showScrmMenus.value.smartTagging = true;

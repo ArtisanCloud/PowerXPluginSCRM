@@ -874,11 +874,22 @@ func (s *TagSyncService) fetchRemoteTagsWithClient(ctx context.Context, client w
 }
 
 func (s *TagSyncService) resolveWeComTagClient(ctx context.Context, tenantUUID, channelAccountUUID string) (weComTagClient, error) {
-	if s == nil || s.accountRepo == nil {
-		return nil, errors.New("tag sync account repository unavailable")
+	if s == nil {
+		return nil, errors.New("tag sync service unavailable")
 	}
 	if s.clientFactory == nil {
 		return nil, errors.New("wecom tag client factory unavailable")
+	}
+	credentials, err := s.resolveCredentialMap(ctx, tenantUUID, channelAccountUUID)
+	if err != nil {
+		return nil, err
+	}
+	return s.clientFactory(credentials)
+}
+
+func (s *TagSyncService) resolveCredentialMap(ctx context.Context, tenantUUID, channelAccountUUID string) (map[string]string, error) {
+	if s == nil || s.accountRepo == nil {
+		return nil, errors.New("tag sync account repository unavailable")
 	}
 	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
 	channelAccountUUID = strings.ToLower(strings.TrimSpace(channelAccountUUID))
@@ -894,7 +905,7 @@ func (s *TagSyncService) resolveWeComTagClient(ctx context.Context, tenantUUID, 
 	}
 	credentials := credentialsToStringMap(account.Credentials)
 	credentials = s.mergeDelegatedCredentials(ctx, tenantUUID, channelAccountUUID, credentials)
-	return s.clientFactory(credentials)
+	return credentials, nil
 }
 
 func (s *TagSyncService) mergeDelegatedCredentials(

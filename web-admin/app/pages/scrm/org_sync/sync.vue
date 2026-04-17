@@ -3,14 +3,16 @@
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="space-y-1">
         <div class="flex items-center gap-2">
-          <h1 class="text-xl font-semibold text-slate-100">组织同步结果</h1>
+          <h1 class="text-xl font-semibold text-slate-100">同步中心</h1>
           <UBadge :color="wsConnected ? 'success' : 'warning'" variant="soft">
             {{ wsConnected ? 'WS 已连接' : 'WS 未连接' }}
           </UBadge>
         </div>
-        <p class="text-sm text-gray-600 dark:text-slate-300">同步完成后查看结果、日志与冲突处理。</p>
+        <p class="text-sm text-gray-600 dark:text-slate-300">组织域：同步完成后查看结果、日志与冲突处理。</p>
       </div>
-      <UButton variant="ghost" @click="goPreview">返回组织预览</UButton>
+      <div class="flex items-center gap-2">
+        <UButton variant="ghost" @click="goPreview">返回组织预览</UButton>
+      </div>
     </div>
 
     <UCard>
@@ -296,6 +298,7 @@ const loadingPushPreview = ref(false);
 const selectedPushKeys = ref<string[]>([]);
 const overviewCollapsed = ref(false);
 const syncLogsCollapsed = ref(true);
+const route = useRoute();
 
 const toast = ref({
   visible: false,
@@ -858,7 +861,6 @@ const goPreview = async () => {
 };
 
 const hydrateFromQuery = () => {
-  const route = useRoute();
   const accountUUID = String(route.query.account_uuid || "");
   const channelCode = String(route.query.channel_code || "");
   const appType = String(route.query.app_type || "");

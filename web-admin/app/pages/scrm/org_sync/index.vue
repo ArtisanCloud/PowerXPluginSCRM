@@ -190,7 +190,7 @@ const refreshData = async () => {
 const goSync = async () => {
   const query: Record<string, string> = {};
   if (selectedAccountUUID.value) query.account_uuid = selectedAccountUUID.value;
-  await navigateTo({ path: "/scrm/org_sync/sync", query });
+  await navigateTo({ path: "/scrm/sync_center", query: { ...query, domain: "org" } });
 };
 
 const goChannelEmployeeHome = () => {

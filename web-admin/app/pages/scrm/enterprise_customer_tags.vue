@@ -3,7 +3,7 @@
     <div class="flex items-start justify-between gap-3">
       <div class="space-y-2">
         <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">企业客户标签</h1>
-        <p class="text-gray-600 dark:text-gray-200">以标签清单为主视图，支持管理客户-标签关系，并通过同步中心任务回写企业微信。</p>
+        <p class="text-gray-600 dark:text-gray-200">以标签清单为主视图，支持管理客户-标签关系，并自动增量同步到企业微信。</p>
       </div>
       <div class="flex items-center gap-2">
         <UButton size="sm" color="primary" variant="soft" @click="openCreateGroupModal">
@@ -19,10 +19,7 @@
           :disabled="pendingTotal === 0 || !activeTagAccountUUID"
           @click="submitPushbackJob"
         >
-          提交回写任务
-        </UButton>
-        <UButton size="sm" color="primary" variant="soft" to="/scrm/tag_sync_center">
-          前往标签同步中心
+          立即同步
         </UButton>
       </div>
     </div>
@@ -33,7 +30,7 @@
           <span class="font-medium text-gray-800 dark:text-gray-100">标签列表（企业客户）</span>
           <div class="flex items-center gap-2">
             <UBadge variant="soft" color="primary">关系视图</UBadge>
-            <UBadge variant="soft" color="warning">待回写 {{ pendingTotal }}</UBadge>
+            <UBadge variant="soft" color="warning">待同步 {{ pendingTotal }}</UBadge>
             <UBadge variant="soft" color="info">{{ `关系 ${relationRows.length}` }}</UBadge>
           </div>
         </div>
@@ -41,8 +38,12 @@
 
       <div v-if="pendingTotal > 0" class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-700/40 dark:bg-amber-950/20 dark:text-amber-200">
         <div class="flex items-center justify-between gap-2">
-          <span>存在 {{ pendingTotal }} 条待回写变更（关系 {{ pendingOperations.length }} / 标签 {{ pendingTagOperations.length }}）。</span>
-          <UButton size="xs" color="neutral" variant="soft" @click="clearPendingOperations">清空待回写</UButton>
+          <span>存在 {{ pendingTotal }} 条待同步变更（关系 {{ pendingOperations.length }} / 标签 {{ pendingTagOperations.length }}），系统将自动增量同步。</span>
+          <UButton size="xs" color="neutral" variant="soft" @click="clearPendingOperations">清空待同步</UButton>
+        </div>
+        <div v-if="autoSyncLastError" class="mt-2 flex items-center justify-between gap-2 rounded border border-rose-200/70 bg-rose-50/80 px-2 py-1 text-[11px] text-rose-700 dark:border-rose-800/50 dark:bg-rose-950/20 dark:text-rose-200">
+          <span>最近自动同步失败（{{ autoSyncFailCount }} 次，{{ autoSyncLastFailedAt ? new Date(autoSyncLastFailedAt).toLocaleTimeString() : "--" }}）：{{ autoSyncLastError }}</span>
+          <UButton size="2xs" color="error" variant="soft" :loading="submitLoading" @click="submitPushbackJob()">重试同步</UButton>
         </div>
         <div v-if="pendingTagOperationSummaries.length > 0" class="mt-2 rounded border border-amber-200/80 bg-white/70 p-2 text-[11px] text-gray-800 dark:border-amber-700/40 dark:bg-gray-900/40 dark:text-gray-100">
           <div class="mb-1 font-medium">标签操作明细</div>
@@ -70,7 +71,7 @@
               :disabled="danglingRelationRows.length === 0"
               @click="queueDanglingRemovals"
             >
-              清理失效关系到待回写
+              清理失效关系到待同步
             </UButton>
           </div>
         </div>
@@ -218,7 +219,7 @@
       <template #footer>
         <div class="ml-auto flex items-center gap-2">
           <UButton variant="ghost" @click="customerTagEditor.open = false">取消</UButton>
-          <UButton color="primary" @click="saveCustomerTagEditor">保存到待回写</UButton>
+          <UButton color="primary" @click="saveCustomerTagEditor">保存并同步</UButton>
         </div>
       </template>
     </UModal>
@@ -249,7 +250,7 @@
       <template #footer>
         <div class="ml-auto flex items-center gap-2">
           <UButton variant="ghost" @click="tagCustomerEditor.open = false">取消</UButton>
-          <UButton color="primary" @click="saveTagCustomerEditor">保存到待回写</UButton>
+          <UButton color="primary" @click="saveTagCustomerEditor">保存并同步</UButton>
         </div>
       </template>
     </UModal>
@@ -271,7 +272,7 @@
       <template #footer>
         <div class="ml-auto flex items-center gap-2">
           <UButton variant="ghost" @click="tagRenameEditor.open = false">取消</UButton>
-          <UButton color="primary" @click="saveRenameTag">保存到待回写</UButton>
+          <UButton color="primary" @click="saveRenameTag">保存并同步</UButton>
         </div>
       </template>
     </UModal>
@@ -290,7 +291,7 @@
       <template #footer>
         <div class="ml-auto flex items-center gap-2">
           <UButton variant="ghost" @click="groupRenameEditor.open = false">取消</UButton>
-          <UButton color="primary" @click="saveRenameGroup">保存到待回写</UButton>
+          <UButton color="primary" @click="saveRenameGroup">保存并同步</UButton>
         </div>
       </template>
     </UModal>
@@ -309,7 +310,7 @@
       <template #footer>
         <div class="ml-auto flex items-center gap-2">
           <UButton variant="ghost" @click="groupCreateEditor.open = false">取消</UButton>
-          <UButton color="primary" @click="saveCreateGroup">保存到待回写</UButton>
+          <UButton color="primary" @click="saveCreateGroup">保存并同步</UButton>
         </div>
       </template>
     </UModal>
@@ -328,6 +329,7 @@ definePageMeta({ layout: "default" });
 
 const toast = useToast();
 const gl = useGlobalLoadingAdapter();
+const service = useSocialChannelGovernanceService();
 const PUSHBACK_DRAFT_KEY = "scrm:enterprise_tag_pushback_draft.v1";
 const loading = ref(false);
 const submitLoading = ref(false);
@@ -340,6 +342,10 @@ const bindingsLoadedAccountUUID = ref("");
 const initializing = ref(true);
 let bindingInflight: Promise<void> | null = null;
 const globalLoadingDepth = ref(0);
+const autoSyncTimer = ref<ReturnType<typeof setTimeout> | null>(null);
+const autoSyncLastError = ref("");
+const autoSyncLastFailedAt = ref("");
+const autoSyncFailCount = ref(0);
 
 const beginGlobalLoading = (message = "加载中...") => {
   if (globalLoadingDepth.value === 0) {
@@ -964,7 +970,7 @@ const queueDanglingRemovals = () => {
     count++;
   });
   if (count > 0) {
-    toast.add({ title: "已加入待回写", description: `已加入 ${count} 条失效关系清理`, color: "success" });
+    toast.add({ title: "已加入待同步", description: `已加入 ${count} 条失效关系清理`, color: "success" });
   } else {
     toast.add({ title: "没有可清理的失效关系", color: "warning" });
   }
@@ -1117,7 +1123,7 @@ const saveRenameTag = () => {
     name: nextName,
   });
   tagRenameEditor.open = false;
-  toast.add({ title: "标签改名已加入待回写", color: "success" });
+  toast.add({ title: "标签改名已加入待同步", color: "success" });
 };
 
 const saveRenameGroup = () => {
@@ -1143,7 +1149,7 @@ const saveRenameGroup = () => {
     group_name: nextName,
   });
   groupRenameEditor.open = false;
-  toast.add({ title: "标签组改名已加入待回写", color: "success" });
+  toast.add({ title: "标签组改名已加入待同步", color: "success" });
 };
 
 const saveCreateGroup = () => {
@@ -1164,7 +1170,7 @@ const saveCreateGroup = () => {
     name: tagName,
   });
   groupCreateEditor.open = false;
-  toast.add({ title: "新建标签组已加入待回写", color: "success" });
+  toast.add({ title: "新建标签组已加入待同步", color: "success" });
 };
 
 const queueDeleteTag = () => {
@@ -1172,7 +1178,7 @@ const queueDeleteTag = () => {
   const tag = selectedRelationGroup.value;
   const tagID = String(tag.tagID || "").trim();
   if (!tagID) return;
-  const confirmed = window.confirm(`确认删除标签“${tag.tagLabel}”？\n将同步清理该标签的所有客户关系，并在回写任务中推送到企业微信。`);
+  const confirmed = window.confirm(`确认删除标签“${tag.tagLabel}”？\n将同步清理该标签的所有客户关系，并自动增量同步到企业微信。`);
   if (!confirmed) return;
   relationRows.value
     .filter((row) => row.tagID === tagID)
@@ -1182,30 +1188,59 @@ const queueDeleteTag = () => {
     tag_id: tagID,
     group_name: String(tag.groupName || "").trim() || undefined,
   });
-  toast.add({ title: "标签删除已加入待回写", description: "将先清理关系再删除标签", color: "success" });
+  toast.add({ title: "标签删除已加入待同步", description: "将先清理关系再删除标签", color: "success" });
 };
 
-const submitPushbackJob = async () => {
+const submitPushbackJob = async (options?: { silent?: boolean }) => {
   if (submitLoading.value) return;
   const accountUUID = activeTagAccountUUID.value;
   if (!accountUUID) {
-    toast.add({ title: "缺少可用渠道账号", color: "warning" });
+    if (!options?.silent) toast.add({ title: "缺少可用渠道账号", color: "warning" });
     return;
   }
   if (pendingTotal.value === 0) {
-    toast.add({ title: "暂无待回写变更", color: "warning" });
+    if (!options?.silent) toast.add({ title: "暂无待同步变更", color: "warning" });
     return;
   }
+
+  submitLoading.value = true;
   try {
     persistPushbackDraft(accountUUID);
-    toast.add({ title: "已进入同步中心并开始回写", description: "若失败会保留本次待回写内容", color: "info" });
-    if (process.client) {
-      window.location.href = "/scrm/tag_sync_center?domain=tags&auto_pushback=1&source=enterprise";
-      return;
+    await service.createFoundationSyncJob({
+      channel: "wechat",
+      app_type: "wecom",
+      domain: "tags",
+      direction: "push",
+      mode: "pushback",
+      payload: {
+        channel_account_uuid: accountUUID,
+        customer_tag_operations: pendingOperations.value || [],
+        tag_operations: pendingTagOperations.value || [],
+        source: "enterprise_auto_sync",
+      },
+    });
+
+    pendingOperations.value = [];
+    pendingTagOperations.value = [];
+    autoSyncLastError.value = "";
+    autoSyncLastFailedAt.value = "";
+    autoSyncFailCount.value = 0;
+    persistPushbackDraft(accountUUID);
+
+    await Promise.all([refreshTagRecords(), ensureCustomerBindings(true)]);
+    if (!options?.silent) {
+      toast.add({ title: "已提交并完成增量同步", color: "success" });
     }
-    await navigateTo("/scrm/tag_sync_center?domain=tags&auto_pushback=1&source=enterprise", { replace: true });
   } catch (err: any) {
-    toast.add({ title: "提交回写任务失败", description: err?.message || "请稍后重试", color: "error" });
+    const msg = String(err?.message || "请稍后重试").trim();
+    autoSyncLastError.value = msg;
+    autoSyncLastFailedAt.value = new Date().toISOString();
+    autoSyncFailCount.value += 1;
+    if (!options?.silent) {
+      toast.add({ title: "立即同步失败", description: msg, color: "error" });
+    }
+  } finally {
+    submitLoading.value = false;
   }
 };
 
@@ -1245,7 +1280,17 @@ watch(
 
 watch(
   [pendingOperations, pendingTagOperations, activeTagAccountUUID],
-  () => persistPushbackDraft(),
+  () => {
+    persistPushbackDraft();
+    if (autoSyncTimer.value) {
+      clearTimeout(autoSyncTimer.value);
+      autoSyncTimer.value = null;
+    }
+    if (pendingTotal.value <= 0 || !activeTagAccountUUID.value) return;
+    autoSyncTimer.value = setTimeout(() => {
+      submitPushbackJob({ silent: true });
+    }, 600);
+  },
   { deep: true },
 );
 </script>

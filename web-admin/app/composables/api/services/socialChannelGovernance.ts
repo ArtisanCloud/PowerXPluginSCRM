@@ -243,6 +243,41 @@ export interface FoundationTagOperation {
   name?: string;
 }
 
+export interface FoundationStaffTagRecord {
+  tag_id: number;
+  tag_name: string;
+  writable?: boolean;
+  writable_reason?: string;
+}
+
+export interface FoundationStaffTagDetail {
+  tag_id: number;
+  tag_name: string;
+  user_ids: string[];
+  party_ids: number[];
+  user_count: number;
+  party_count: number;
+}
+
+export interface FoundationStaffTagPatchPayload {
+  channel_account_uuid: string;
+  add_user_ids?: string[];
+  remove_user_ids?: string[];
+}
+
+export interface FoundationSourceMember {
+  source_member_uuid: string;
+  tenant_uuid: string;
+  source_account_uuid: string;
+  channel_account_uuid: string;
+  external_member_id: string;
+  name: string;
+  phone?: string;
+  email?: string;
+  status: string;
+  profile_status?: string;
+}
+
 export const useSocialChannelGovernanceService = () => {
   const apiClient = useApiClient();
   const baseUrl = "/admin/social/channel-accounts";
@@ -399,6 +434,48 @@ export const useSocialChannelGovernanceService = () => {
     listFoundationCustomerTagBindings: (params: { channel_account_uuid: string; limit?: number }) => {
       return apiClient.get<ApiResponse<{ items: FoundationCustomerTagBindingItem[] }>>(
         `${foundationBase}/customer-tag-bindings`,
+        { params }
+      );
+    },
+    listFoundationStaffTags: (params: { channel_account_uuid: string; include_writable?: boolean }) => {
+      return apiClient.get<ApiResponse<{ items: FoundationStaffTagRecord[] }>>(
+        `${foundationBase}/staff-tags`,
+        { params }
+      );
+    },
+    getFoundationStaffTagMembers: (tagID: number, params: { channel_account_uuid: string }) => {
+      return apiClient.get<ApiResponse<FoundationStaffTagDetail>>(
+        `${foundationBase}/staff-tags/${tagID}/members`,
+        { params }
+      );
+    },
+    createFoundationStaffTag: (payload: { channel_account_uuid: string; tag_name: string }) => {
+      return apiClient.post<ApiResponse<FoundationStaffTagRecord>>(
+        `${foundationBase}/staff-tags`,
+        payload
+      );
+    },
+    updateFoundationStaffTag: (tagID: number, payload: { channel_account_uuid: string; tag_name: string }) => {
+      return apiClient.put<ApiResponse<{ tag_id: number; tag_name: string }>>(
+        `${foundationBase}/staff-tags/${tagID}`,
+        payload
+      );
+    },
+    deleteFoundationStaffTag: (tagID: number, params: { channel_account_uuid: string }) => {
+      return apiClient.delete<ApiResponse<{ tag_id: number; deleted: boolean }>>(
+        `${foundationBase}/staff-tags/${tagID}`,
+        { params }
+      );
+    },
+    patchFoundationStaffTagMembers: (tagID: number, payload: FoundationStaffTagPatchPayload) => {
+      return apiClient.post<ApiResponse<any>>(
+        `${foundationBase}/staff-tags/${tagID}/members`,
+        payload
+      );
+    },
+    listFoundationStaffMembers: (params: { channel_account_uuid: string; q?: string }) => {
+      return apiClient.get<ApiResponse<{ items: FoundationSourceMember[] }>>(
+        `${foundationBase}/staff-members`,
         { params }
       );
     },

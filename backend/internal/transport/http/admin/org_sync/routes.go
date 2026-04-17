@@ -22,6 +22,8 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 	orgdriver.ConfigureWeComCache(deps.Config)
 	var (
 		syncSvc    *orgsvc.SyncService
+		unitSvc    *orgsvc.SourceUnitService
+		memberSvc  *orgsvc.SourceMemberService
 		syncLogSvc *orgsvc.SyncLogService
 		defaultSvc *orgsvc.DefaultSourceAccountService
 	)
@@ -53,15 +55,18 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		sourceRepo := orgrepo.NewSourceAccountRepository(deps.DB)
 		unitRepo := orgrepo.NewSourceUnitRepository(deps.DB)
 		memberRepo := orgrepo.NewSourceMemberRepository(deps.DB)
+		profileRepo := orgrepo.NewSourceMemberProfileRepository(deps.DB)
 		syncLogRepo := orgrepo.NewSyncLogRepository(deps.DB)
 		accountRepo := socialrepo.NewAccountRepository(deps.DB)
 		openworkRepo := socialrepo.NewOpenWorkFoundationRepository(deps.DB)
 		platformRepo := socialrepo.NewChannelPlatformSettingRepository(deps.DB)
 		syncSvc = orgsvc.NewSyncService(sourceRepo, unitRepo, memberRepo, syncLogRepo, openworkRepo, platformRepo, publisher)
+		unitSvc = orgsvc.NewSourceUnitService(unitRepo)
+		memberSvc = orgsvc.NewSourceMemberService(memberRepo, profileRepo)
 		syncLogSvc = orgsvc.NewSyncLogService(syncLogRepo, sourceRepo)
 		defaultSvc = orgsvc.NewDefaultSourceAccountService(accountRepo)
 	}
-	handler := NewOrgSyncHandler(syncSvc, nil, nil, syncLogSvc, defaultSvc)
+	handler := NewOrgSyncHandler(syncSvc, unitSvc, memberSvc, syncLogSvc, defaultSvc)
 	var mainViewHandler *MainViewHandler
 	if deps.DB != nil {
 		mainViewHandler = NewMainViewHandler(orgsvc.NewMainViewService(deps.DB))
@@ -78,6 +83,8 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		group.POST("/source-accounts/:source_account_uuid/set-scope", handler.SetDelegatedScope)
 		group.POST("/source-accounts/default/:account_uuid", handler.SetDefaultSourceAccount)
 		group.GET("/sync-logs", handler.ListSyncLogs)
+		group.GET("/source-units", handler.ListSourceUnits)
+		group.GET("/source-members", handler.ListSourceMembers)
 		group.GET("/main-org-view", mainViewHandler.List)
 	}
 }

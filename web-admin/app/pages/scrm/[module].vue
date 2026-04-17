@@ -258,7 +258,7 @@ const jobStatusMeta = (status?: string) => {
   return { label: value || "未知", color: "neutral" as const };
 };
 
-const openSyncCenter = () => navigateTo("/scrm/tag_sync_center");
+const openSyncCenter = () => navigateTo("/scrm/sync_center?domain=tags");
 
 const visibleTagJobs = computed(() =>
   tagJobs.value || []

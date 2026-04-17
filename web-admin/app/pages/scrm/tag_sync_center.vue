@@ -1,14 +1,16 @@
 <template>
   <UContainer class="py-10 space-y-6">
-    <div class="space-y-2">
-      <h1 class="text-2xl font-semibold text-gray-900 dark:text-slate-100">标签同步中心</h1>
-      <p class="text-gray-600 dark:text-slate-300">查看任务状态、失败原因和冲突重放。</p>
+    <div class="flex items-start justify-between gap-3">
+      <div class="space-y-2">
+        <h1 class="text-2xl font-semibold text-gray-900 dark:text-slate-100">同步中心</h1>
+        <p class="text-gray-600 dark:text-slate-300">外部联系人标签域：查看任务状态、失败原因和冲突重放。</p>
+      </div>
     </div>
 
     <UCard>
       <template #header>
         <div class="flex items-center justify-between gap-3">
-          <span class="font-medium text-gray-800 dark:text-slate-100">同步操作</span>
+          <span class="font-medium text-gray-800 dark:text-slate-100">同步操作（外部联系人标签）</span>
           <div class="flex items-center gap-2">
             <UButton size="xs" color="primary" :loading="tagPulling" :disabled="!activeTagAccountUUID" @click="triggerSync('pull')">
               发起拉取
@@ -30,7 +32,7 @@
     <UCard>
       <template #header>
         <div class="flex items-center justify-between gap-3">
-          <span class="font-medium text-gray-800 dark:text-slate-100">任务队列（tags）</span>
+          <span class="font-medium text-gray-800 dark:text-slate-100">任务队列（外部联系人标签）</span>
           <div class="flex items-center gap-2">
             <UButton size="xs" variant="soft" :loading="panelLoading" @click="refreshPanel">刷新</UButton>
             <UButton
@@ -86,7 +88,7 @@
     <UCard>
       <template #header>
         <div class="flex items-center justify-between gap-3">
-          <span class="font-medium text-gray-800 dark:text-slate-100">冲突队列（tags）</span>
+          <span class="font-medium text-gray-800 dark:text-slate-100">冲突队列（外部联系人标签）</span>
           <div class="flex items-center gap-2">
             <UButton
               size="xs"
