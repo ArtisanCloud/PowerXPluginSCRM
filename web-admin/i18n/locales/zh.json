@@ -299,7 +299,10 @@
     "iamSettings": "租户配置",
     "profile": "个人中心",
     "help": "帮助",
-    "logout": "退出"
+    "logout": "退出",
+    "scrmAcquisitionGroupManage": "群管理",
+    "scrmAcquisitionGroupTags": "群标签",
+    "scrmAcquisitionGroupAnalysis": "群分析"
   },
   "scrm": {
     "placeholderTitle": "模块规划页面",
@@ -633,8 +636,6 @@
       "confirmPassword": "确认密码"
     },
     "hasAccount": "已经有账号？",
-    "signInNow": "立即登录",
-    "backToLogin": "返回登录",
     "reading": {
       "complete": "已阅读完整内容",
       "scroll": "请滚动到底部",
@@ -979,7 +980,6 @@
         "rpm": "每分钟请求数",
         "burst": "突发上限",
         "concurrency": "并发数",
-        "tenant": "租户",
         "tenantId": "租户 ID",
         "tenantName": "租户名称",
         "quota": "额度",
@@ -1220,5 +1220,8 @@
     "noData": "暂无数据",
     "networkError": "网络异常，请检查连接",
     "templateCreated": "模板创建成功"
+  },
+  "acquisition": {
+    "groupTagsLocalOnly": "本地群标签不回写企业微信官方群标签，仅用于本地运营分析。"
   }
 }

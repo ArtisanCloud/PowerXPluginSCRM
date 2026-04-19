@@ -272,12 +272,12 @@ Task: T023 web-admin/app/composables/api/services/leadCapture.ts
 
 ### Implementation for V2.1 Frontend
 
-- [ ] T083 [V2.1] 扩展 acquisition API client（群活码、群同步、群标签）到 `web-admin/app/composables/api/services/acquisition.ts`
-- [ ] T084 [V2.1] 实装群活码页面（列表 + 设置 + 发布状态）到 `web-admin/app/pages/scrm/acquisition_group_code.vue`
-- [ ] T085 [V2.1] 实装群管理页面（筛选、详情、来源活码透视）到 `web-admin/app/pages/scrm/acquisition_group_manage.vue`
-- [ ] T086 [V2.1] 实装群标签页面（手工打标 + 自动规则 + 绑定关系）到 `web-admin/app/pages/scrm/acquisition_group_tags.vue`
-- [ ] T087 [V2.1] 实装群分析页面（来源活码维度统计 + 导出）到 `web-admin/app/pages/scrm/acquisition_group_analysis.vue`
-- [ ] T088 [V2.1] 更新导航与 i18n 文案，明确“本地群标签不回写企微”到 `web-admin/app/components/AppSidebar.vue` 与 `web-admin/i18n/locales/zh.json`
+- [X] T083 [V2.1] 扩展 acquisition API client（群活码、群同步、群标签）到 `web-admin/app/composables/api/services/acquisition.ts`
+- [X] T084 [V2.1] 实装群活码页面（列表 + 设置 + 发布状态）到 `web-admin/app/pages/scrm/acquisition_group_code.vue`
+- [X] T085 [V2.1] 实装群管理页面（筛选、详情、来源活码透视）到 `web-admin/app/pages/scrm/acquisition_group_manage.vue`
+- [X] T086 [V2.1] 实装群标签页面（手工打标 + 自动规则 + 绑定关系）到 `web-admin/app/pages/scrm/acquisition_group_tags.vue`
+- [X] T087 [V2.1] 实装群分析页面（来源活码维度统计 + 导出）到 `web-admin/app/pages/scrm/acquisition_group_analysis.vue`
+- [X] T088 [V2.1] 更新导航与 i18n 文案，明确“本地群标签不回写企微”到 `web-admin/app/components/AppSidebar.vue` 与 `web-admin/i18n/locales/zh.json`
 
 ### Polish for V2.1
 

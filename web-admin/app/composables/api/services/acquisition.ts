@@ -76,10 +76,90 @@ export interface GroupLiveCodeRecord {
   app_type: string;
   channel_account_uuid: string;
   activity_name: string;
+  state?: string;
+  config_id?: string;
+  join_scene?: number;
+  skip_verify?: boolean;
+  auto_create_room?: boolean;
+  qr_code?: string;
   status: LiveCodeStatus;
+  sync_status?: "pending" | "syncing" | "success" | "failed" | "manual_required";
+  last_sync_error?: string;
+  last_synced_at?: string;
   capability_status: string;
   created_at?: string;
   updated_at?: string;
+}
+
+export interface GroupLiveCodeCreatePayload {
+  channel: string;
+  app_type: string;
+  channel_account_uuid: string;
+  activity_name: string;
+  join_scene?: number;
+  skip_verify?: boolean;
+  auto_create_room?: boolean;
+}
+
+export interface GroupLiveCodeUpdatePayload {
+  activity_name?: string;
+  skip_verify?: boolean;
+  auto_create_room?: boolean;
+  status?: LiveCodeStatus;
+}
+
+export interface GroupChatSnapshotRecord {
+  snapshot_uuid?: string;
+  tenant_uuid: string;
+  channel_account_uuid: string;
+  chat_id: string;
+  name?: string;
+  owner_userid?: string;
+  member_count: number;
+  create_time?: string;
+  last_activity_at?: string;
+  source_group_code_uuid?: string;
+  source_config_id?: string;
+  payload?: Record<string, any>;
+  updated_at?: string;
+}
+
+export interface GroupTagDefinitionRecord {
+  group_tag_uuid: string;
+  tenant_uuid: string;
+  tag_name: string;
+  color?: string;
+  rule_mode: "manual" | "rule_based";
+  rule_payload?: Record<string, any>;
+  status: "active" | "disabled";
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface GroupTagBindingRecord {
+  binding_uuid?: string;
+  tenant_uuid: string;
+  group_tag_uuid: string;
+  chat_id: string;
+  bind_source: "manual" | "rule_engine";
+  rule_run_uuid?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface GroupTagRuleRunRecord {
+  rule_run_uuid: string;
+  tenant_uuid: string;
+  group_tag_uuid: string;
+  rule_version: number;
+  trigger_source: string;
+  matched_count: number;
+  scanned_count: number;
+  run_status: "success" | "failed";
+  error_message?: string;
+  started_at?: string;
+  finished_at?: string;
+  created_at?: string;
 }
 
 export const useAcquisitionService = () => {
@@ -116,5 +196,37 @@ export const useAcquisitionService = () => {
       apiClient.get<ApiResponse<{ items: GroupLiveCodeRecord[] }>>(`${baseUrl}/group-codes`, {
         params: { limit },
       }),
+    getGroupCode: (groupCodeUUID: string) =>
+      apiClient.get<ApiResponse<GroupLiveCodeRecord>>(`${baseUrl}/group-codes/${groupCodeUUID}`),
+    createGroupCode: (payload: GroupLiveCodeCreatePayload) =>
+      apiClient.post<ApiResponse<GroupLiveCodeRecord>>(`${baseUrl}/group-codes`, payload),
+    updateGroupCode: (groupCodeUUID: string, payload: GroupLiveCodeUpdatePayload) =>
+      apiClient.put<ApiResponse<GroupLiveCodeRecord>>(`${baseUrl}/group-codes/${groupCodeUUID}`, payload),
+    deleteGroupCode: (groupCodeUUID: string) =>
+      apiClient.delete<ApiResponse<{ deleted: boolean }>>(`${baseUrl}/group-codes/${groupCodeUUID}`),
+    syncGroupCode: (groupCodeUUID: string) =>
+      apiClient.post<ApiResponse<GroupLiveCodeRecord>>(`${baseUrl}/group-codes/${groupCodeUUID}/sync`),
+    syncGroupChats: (payload: { channel_account_uuid: string; mode?: "full" | "incremental" }) =>
+      apiClient.post<ApiResponse<{ job_status: string; synced_count: number }>>(`${baseUrl}/group-chats/sync`, payload),
+    listGroupChats: (limit = 100) =>
+      apiClient.get<ApiResponse<{ items: GroupChatSnapshotRecord[] }>>(`${baseUrl}/group-chats`, {
+        params: { limit },
+      }),
+    getGroupChat: (chatID: string) =>
+      apiClient.get<ApiResponse<GroupChatSnapshotRecord>>(`${baseUrl}/group-chats/${chatID}`),
+    createGroupTag: (payload: { tag_name: string; color?: string; rule_mode?: "manual" | "rule_based"; rule_payload?: Record<string, any> }) =>
+      apiClient.post<ApiResponse<GroupTagDefinitionRecord>>(`${baseUrl}/group-tags`, payload),
+    listGroupTags: (limit = 100) =>
+      apiClient.get<ApiResponse<{ items: GroupTagDefinitionRecord[] }>>(`${baseUrl}/group-tags`, {
+        params: { limit },
+      }),
+    bindGroupTag: (groupTagUUID: string, payload: { chat_ids: string[]; bind_source?: "manual" | "rule_engine" }) =>
+      apiClient.post<ApiResponse<{ bound: number }>>(`${baseUrl}/group-tags/${groupTagUUID}/bindings`, payload),
+    listGroupTagBindings: (groupTagUUID: string, limit = 300) =>
+      apiClient.get<ApiResponse<{ items: GroupTagBindingRecord[] }>>(`${baseUrl}/group-tags/${groupTagUUID}/bindings`, {
+        params: { limit },
+      }),
+    replayGroupTagRule: (groupTagUUID: string, payload: { trigger_source?: string } = {}) =>
+      apiClient.post<ApiResponse<GroupTagRuleRunRecord>>(`${baseUrl}/group-tags/${groupTagUUID}/rules/replay`, payload),
   };
 };
