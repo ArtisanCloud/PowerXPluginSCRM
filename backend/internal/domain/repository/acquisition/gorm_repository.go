@@ -162,8 +162,8 @@ func (r *staffLiveCodeRepository) CountConfirmedMappings(ctx context.Context, te
 	}
 	var count int64
 	err = r.db.WithContext(ctx).
-		Model(&orgsyncmodel.MemberMapping{}).
-		Where("tenant_uuid = ? AND mapping_status = ? AND source_member_uuid IN ?", tenantUUID, orgsyncmodel.MappingStatusConfirmed, cleanIDs).
+		Model(&orgsyncmodel.MemberBinding{}).
+		Where("tenant_uuid = ? AND main_member_id IN ?", tenantUUID, cleanIDs).
 		Count(&count).Error
 	if err != nil {
 		return 0, err

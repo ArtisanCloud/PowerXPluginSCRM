@@ -24,12 +24,19 @@ import (
 
 // WeComLeadRecord is a normalized lead payload fetched from WeCom.
 type WeComLeadRecord struct {
-	ExternalLeadID string
-	WechatID       string
-	DisplayName    string
-	Phone          string
-	Email          string
-	OccurredAt     time.Time
+	ExternalLeadID  string
+	WechatID        string
+	CorpID          string
+	DisplayName     string
+	Phone           string
+	Email           string
+	OwnerMemberUUID string
+	OccurredAt      time.Time
+}
+
+type LeadWritebackPolicy struct {
+	WhitelistedFields []string
+	ProtectedFields   []string
 }
 
 // WeComLeadAdapter fetches leads from WeCom channel accounts.
@@ -144,6 +151,7 @@ func (a *DefaultWeComLeadAdapter) FetchLeads(ctx context.Context, req TriggerSyn
 
 	credentials := credentialsToStringMap(account.Credentials)
 	credentials = a.mergeDelegatedCredentials(ctx, tenantUUID, channelAccountUUID, credentials)
+	corpID := strings.TrimSpace(credentials["corp_id"])
 	client, err := a.clientFactory(credentials)
 	if err != nil {
 		return nil, err
@@ -181,6 +189,9 @@ func (a *DefaultWeComLeadAdapter) FetchLeads(ctx context.Context, req TriggerSyn
 		}
 		for _, item := range batchResp.ExternalContactList {
 			record := mapWeComExternalContactRecord(item)
+			if record.CorpID == "" {
+				record.CorpID = corpID
+			}
 			if record.ExternalLeadID == "" {
 				continue
 			}
@@ -202,13 +213,47 @@ func (a *DefaultWeComLeadAdapter) FetchLeads(ctx context.Context, req TriggerSyn
 
 func normalizeWeComLeadRecord(in WeComLeadRecord) WeComLeadRecord {
 	in.ExternalLeadID = strings.TrimSpace(in.ExternalLeadID)
+	in.CorpID = strings.TrimSpace(in.CorpID)
 	in.DisplayName = strings.TrimSpace(in.DisplayName)
 	in.Phone = strings.TrimSpace(in.Phone)
 	in.Email = strings.ToLower(strings.TrimSpace(in.Email))
+	in.OwnerMemberUUID = strings.TrimSpace(in.OwnerMemberUUID)
 	if in.OccurredAt.IsZero() {
 		in.OccurredAt = time.Now().UTC()
 	}
 	return in
+}
+
+func BuildLeadWritebackPayload(input map[string]any, policy LeadWritebackPolicy) map[string]any {
+	allowed := map[string]struct{}{}
+	protected := map[string]struct{}{}
+	for _, key := range policy.WhitelistedFields {
+		if clean := strings.TrimSpace(key); clean != "" {
+			allowed[clean] = struct{}{}
+		}
+	}
+	for _, key := range policy.ProtectedFields {
+		if clean := strings.TrimSpace(key); clean != "" {
+			protected[clean] = struct{}{}
+		}
+	}
+	out := map[string]any{}
+	for key, val := range input {
+		k := strings.TrimSpace(key)
+		if k == "" {
+			continue
+		}
+		if len(allowed) > 0 {
+			if _, ok := allowed[k]; !ok {
+				continue
+			}
+		}
+		if _, blocked := protected[k]; blocked {
+			continue
+		}
+		out[k] = val
+	}
+	return out
 }
 
 func validateWeComResponseCode(action string, res response.ResponseWork) error {
@@ -229,6 +274,10 @@ func mapWeComExternalContactRecord(item *pwexternalresp.ResponseExternalContact)
 		record.Email, record.Phone, record.WechatID = extractWeComExternalProfileAttrs(item.ExternalContact.ExternalProfile)
 	}
 	if item.FollowInfo != nil {
+		record.OwnerMemberUUID = strings.TrimSpace(item.FollowInfo.UserID)
+		if record.OwnerMemberUUID == "" {
+			record.OwnerMemberUUID = strings.TrimSpace(item.FollowInfo.OperUserID)
+		}
 		if record.DisplayName == "" {
 			record.DisplayName = strings.TrimSpace(item.FollowInfo.Remark)
 		}

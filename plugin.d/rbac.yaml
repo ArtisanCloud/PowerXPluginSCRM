@@ -11,6 +11,10 @@ permissions:
       - update
     resource: channel_code
   - actions:
+      - create
+      - read
+    resource: integration
+  - actions:
       - read
       - publish
     resource: channel_welcome_sync
@@ -28,10 +32,20 @@ rbac:
         - update
       resource: channel_code
     - actions:
+        - create
+        - read
+      resource: integration
+    - actions:
         - read
         - publish
       resource: channel_welcome_sync
 routes:
   adminManifest: /api/v1/admin/manifest
   basePath: /api/v1
+  permissions:
+    - method: POST
+      path: /api/v1/integration/capabilities/invoke
+      permission:
+        action: create
+        resource: integration
   rbac: /api/v1/admin/rbac

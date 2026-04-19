@@ -123,8 +123,41 @@
           </template>
         </UTable>
 
-        <div v-if="!accountsLoading && accounts.length === 0" class="py-6 text-center text-sm text-gray-500 dark:text-gray-400">
-          暂无已连接的渠道账号。
+      <div v-if="!accountsLoading && accounts.length === 0" class="py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+        暂无已连接的渠道账号。
+      </div>
+    </UCard>
+
+      <UCard v-if="isUnifiedAccessTopic">
+        <template #header>
+          <div class="flex items-center justify-between">
+            <span class="font-medium">标签双向同步</span>
+            <div class="flex items-center gap-2">
+              <UBadge variant="soft" color="primary">Open: {{ tagOpenConflicts }}</UBadge>
+              <UButton size="xs" variant="soft" color="primary" :loading="tagPanelLoading" @click="refreshTagSyncPanel">
+                刷新
+              </UButton>
+            </div>
+          </div>
+        </template>
+        <div class="space-y-3">
+          <div class="flex flex-wrap gap-2">
+            <UButton size="sm" color="primary" :loading="tagPulling" @click="triggerTagSync('pull')">
+              远端拉取标签
+            </UButton>
+            <UButton size="sm" variant="soft" color="primary" :loading="tagPushing" @click="triggerTagSync('push')">
+              本地回写标签
+            </UButton>
+          </div>
+          <div v-if="tagConflicts.length === 0" class="text-xs text-gray-500 dark:text-gray-300">暂无标签冲突</div>
+          <ul v-else class="space-y-2 text-xs">
+            <li v-for="item in tagConflicts" :key="item.conflict_uuid" class="flex items-center justify-between rounded border border-amber-200/60 bg-amber-50/50 p-2 dark:border-amber-700/40 dark:bg-amber-950/20">
+              <span class="truncate">{{ item.entity_key || item.conflict_uuid }}</span>
+              <UButton size="xs" color="warning" variant="soft" :loading="replayingTagConflictUUID === item.conflict_uuid" @click="replayTagConflict(item.conflict_uuid)">
+                重放
+              </UButton>
+            </li>
+          </ul>
         </div>
       </UCard>
 
@@ -671,6 +704,36 @@ let accountRefreshTimer: ReturnType<typeof setTimeout> | null = null
 let openworkWsUnsubscribe: (() => void) | null = null
 const wsBus = useWsBusClient()
 const openworkWsTopics = ['openwork.auth.status', 'powerx.openwork.auth.status.v1']
+const tagPanelLoading = ref(false)
+const tagPulling = ref(false)
+const tagPushing = ref(false)
+const tagConflicts = ref<any[]>([])
+const replayingTagConflictUUID = ref('')
+const tagOpenConflicts = computed(() => tagConflicts.value.length)
+const defaultTagSyncAccountUUID = computed(() => {
+  const connectedSet = connectedWeComAccountUUIDSet.value
+  if (connectedSet.size === 0) {
+    return ''
+  }
+  for (const binding of openworkBindings.value || []) {
+    const status = String(binding?.status || '').trim().toLowerCase()
+    const accountUUID = String(binding?.channel_account_uuid || '').trim()
+    if (status === 'active' && accountUUID && connectedSet.has(accountUUID)) {
+      return accountUUID
+    }
+  }
+  const defaultAccount = (accounts.value || []).find((account) =>
+    String(account?.org_sync_default || '').toLowerCase() === 'true'
+    && String(account?.channel_code || '').trim().toLowerCase() === 'wechat'
+    && String(account?.app_type || '').trim().toLowerCase() === 'wecom'
+    && String(account?.status || '').trim().toLowerCase() === 'connected'
+    && String(account?.account_uuid || '').trim() !== ''
+  )
+  if (defaultAccount?.account_uuid) {
+    return String(defaultAccount.account_uuid).trim()
+  }
+  return Array.from(connectedSet)[0] || ''
+})
 
 const accountForm = reactive({
   channel: '',
@@ -1025,6 +1088,100 @@ const refreshOpenWorkBindings = async () => {
     openworkBindings.value = ((resp as any)?.data?.items ?? []) as OpenWorkBinding[]
   } catch {
     openworkBindings.value = []
+  }
+}
+
+const refreshTagSyncPanel = async () => {
+  if (!isUnifiedAccessTopic.value) {
+    return
+  }
+  tagPanelLoading.value = true
+  try {
+    const service = useSocialChannelGovernanceService()
+    const resp = await service.listFoundationConflicts({
+      domain: 'tags',
+      status: 'open',
+      limit: 20,
+    })
+    tagConflicts.value = ((resp as any)?.data?.items ?? []) as any[]
+  } catch (err: any) {
+    toast.add({
+      title: '加载标签冲突失败',
+      description: err?.message || '请稍后重试',
+      color: 'error',
+    })
+  } finally {
+    tagPanelLoading.value = false
+  }
+}
+
+const triggerTagSync = async (direction: 'pull' | 'push') => {
+  const service = useSocialChannelGovernanceService()
+  const channelAccountUUID = defaultTagSyncAccountUUID.value
+  if (!channelAccountUUID) {
+    toast.add({
+      title: '缺少可用渠道账号',
+      description: '请先连接并授权一个企业微信渠道账号（状态需为 connected）',
+      color: 'warning',
+    })
+    return
+  }
+  if (direction === 'pull') {
+    tagPulling.value = true
+  } else {
+    tagPushing.value = true
+  }
+  try {
+    await service.createFoundationSyncJob({
+      channel: 'wechat',
+      app_type: 'wecom',
+      domain: 'tags',
+      direction,
+      mode: direction === 'pull' ? 'incremental' : 'pushback',
+      payload: {
+        channel_account_uuid: channelAccountUUID,
+      },
+    })
+    toast.add({
+      title: direction === 'pull' ? '标签拉取任务已创建' : '标签回写任务已创建',
+      color: 'success',
+    })
+    await refreshTagSyncPanel()
+  } catch (err: any) {
+    toast.add({
+      title: '标签同步触发失败',
+      description: err?.message || '请稍后重试',
+      color: 'error',
+    })
+  } finally {
+    if (direction === 'pull') {
+      tagPulling.value = false
+    } else {
+      tagPushing.value = false
+    }
+  }
+}
+
+const replayTagConflict = async (conflictUUID: string) => {
+  const id = String(conflictUUID || '').trim()
+  if (!id) return
+  replayingTagConflictUUID.value = id
+  try {
+    const service = useSocialChannelGovernanceService()
+    await service.replayFoundationConflict(id, { resolved_by: 'topic_page' })
+    toast.add({
+      title: '标签冲突已重放',
+      color: 'success',
+    })
+    await refreshTagSyncPanel()
+  } catch (err: any) {
+    toast.add({
+      title: '重放标签冲突失败',
+      description: err?.message || '请稍后重试',
+      color: 'error',
+    })
+  } finally {
+    replayingTagConflictUUID.value = ''
   }
 }
 
@@ -1582,6 +1739,7 @@ const handleOpenWorkAuthorized = async () => {
   await Promise.allSettled([
     refreshChannelAccounts(),
     refreshOpenWorkBindings(),
+    refreshTagSyncPanel(),
   ])
 }
 
@@ -1616,6 +1774,7 @@ onMounted(async () => {
     await Promise.allSettled([
       refreshChannelAccounts(),
       refreshOpenWorkBindings(),
+      refreshTagSyncPanel(),
     ])
     ensureOpenWorkWsSubscription()
   }

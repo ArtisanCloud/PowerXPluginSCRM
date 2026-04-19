@@ -132,6 +132,32 @@ func (r *LeadSyncTaskRepository) ListByFilter(ctx context.Context, tenantUUID, c
 	return out, nil
 }
 
+func (r *LeadSyncTaskRepository) ClearByFilter(ctx context.Context, tenantUUID, channelAccountUUID, status string) (int64, error) {
+	if r == nil || r.DB == nil {
+		return 0, errors.New("repository database is not initialized")
+	}
+	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
+	channelAccountUUID = strings.ToLower(strings.TrimSpace(channelAccountUUID))
+	status = strings.ToLower(strings.TrimSpace(status))
+	if tenantUUID == "" {
+		return 0, repository.ErrTenantUuidRequired
+	}
+	query := r.DB.WithContext(ctx).
+		Where("tenant_uuid = ?", tenantUUID).
+		Model(&model.LeadSyncTask{})
+	if channelAccountUUID != "" {
+		query = query.Where("channel_account_uuid = ?", channelAccountUUID)
+	}
+	if status != "" {
+		query = query.Where("status = ?", status)
+	}
+	res := query.Delete(&model.LeadSyncTask{})
+	if res.Error != nil {
+		return 0, res.Error
+	}
+	return res.RowsAffected, nil
+}
+
 func (r *LeadSyncTaskRepository) ResolveChannelAccount(ctx context.Context, tenantUUID, channel, appType, explicitAccountUUID string) (string, string, error) {
 	if r == nil || r.accountRepo == nil {
 		return "", "", errors.New("account repository not configured")

@@ -12,8 +12,8 @@ import (
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository"
 	SocialRepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/social_channel_governance"
 	SocialObs "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/social_channel_governance"
-	orgdriver "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/services/admin/org_sync/driver"
 	orgsync "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/services/admin/org_sync"
+	orgdriver "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/services/admin/org_sync/driver"
 	"gorm.io/datatypes"
 )
 
@@ -46,21 +46,21 @@ func NewChannelAccountService(repo *SocialRepo.AccountRepository, openworkRepo *
 
 // ChannelAccountCreateRequest captures required fields for onboarding.
 type ChannelAccountCreateRequest struct {
-	Channel       string
-	AppType       string
-	AccountID     string
-	DisplayName   string
+	Channel         string
+	AppType         string
+	AccountID       string
+	DisplayName     string
 	OwnerMemberUUID string
-	Credentials   map[string]string
+	Credentials     map[string]string
 	CallbackBaseURL string
 }
 
 type ChannelAccountUpdateRequest struct {
-	AccountID     string
-	DisplayName   string
+	AccountID       string
+	DisplayName     string
 	OwnerMemberUUID string
-	Status        string
-	Credentials   map[string]string
+	Status          string
+	Credentials     map[string]string
 	CallbackBaseURL string
 }
 
@@ -125,7 +125,7 @@ func (s *ChannelAccountService) CreateAccount(ctx context.Context, tenantUUID st
 		AccountID:       accountID,
 		DisplayName:     displayName,
 		Status:          status,
-		OwnerMemberUUID:   ownerUUID,
+		OwnerMemberUUID: ownerUUID,
 		MemberUserUUIDs: []string{},
 		Capabilities:    datatypes.JSONMap{},
 		Credentials:     credentialsToJSON(credentials),
@@ -272,6 +272,59 @@ func (s *ChannelAccountService) UpdateAccount(ctx context.Context, tenantUUID, a
 	return updated, nil
 }
 
+// MigrateManualToDelegated marks an existing manual account as delegated-template mode and stores migration metadata.
+func (s *ChannelAccountService) MigrateManualToDelegated(ctx context.Context, tenantUUID, accountUUID, bindingUUID string) (*model.ChannelAccount, error) {
+	if s == nil || s.repo == nil {
+		return nil, errors.New("account repository not configured")
+	}
+	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
+	accountUUID = strings.ToLower(strings.TrimSpace(accountUUID))
+	bindingUUID = strings.TrimSpace(bindingUUID)
+	if tenantUUID == "" || accountUUID == "" {
+		return nil, repository.ErrTenantUuidRequired
+	}
+	account, err := s.repo.GetByAccountUUID(ctx, tenantUUID, accountUUID)
+	if err != nil {
+		return nil, err
+	}
+	cred := mergeCredentials(account.Credentials, nil)
+	cred["auth_mode"] = "delegated_template"
+	if bindingUUID != "" {
+		cred["foundation_binding_uuid"] = bindingUUID
+	}
+	cred["migration_state"] = "manual_to_delegated"
+	updated, err := s.repo.UpdateAccountCredentials(ctx, tenantUUID, accountUUID, credentialsToJSON(cred))
+	if err != nil {
+		return nil, err
+	}
+	return updated, nil
+}
+
+// RollbackDelegatedToManual restores account auth_mode to manual when delegated flow must be reverted.
+func (s *ChannelAccountService) RollbackDelegatedToManual(ctx context.Context, tenantUUID, accountUUID string) (*model.ChannelAccount, error) {
+	if s == nil || s.repo == nil {
+		return nil, errors.New("account repository not configured")
+	}
+	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
+	accountUUID = strings.ToLower(strings.TrimSpace(accountUUID))
+	if tenantUUID == "" || accountUUID == "" {
+		return nil, repository.ErrTenantUuidRequired
+	}
+	account, err := s.repo.GetByAccountUUID(ctx, tenantUUID, accountUUID)
+	if err != nil {
+		return nil, err
+	}
+	cred := mergeCredentials(account.Credentials, nil)
+	cred["auth_mode"] = "manual"
+	delete(cred, "foundation_binding_uuid")
+	cred["migration_state"] = "delegated_rollback_manual"
+	updated, err := s.repo.UpdateAccountCredentials(ctx, tenantUUID, accountUUID, credentialsToJSON(cred))
+	if err != nil {
+		return nil, err
+	}
+	return updated, nil
+}
+
 func (s *ChannelAccountService) DeleteAccount(ctx context.Context, tenantUUID, accountUUID string) error {
 	if s == nil || s.repo == nil {
 		return errors.New("account repository not configured")
@@ -294,7 +347,7 @@ func (s *ChannelAccountService) DeleteAccount(ctx context.Context, tenantUUID, a
 		orgdriver.InvalidateCache(current.ChannelCode, current.AppType, current.AccountUUID)
 	}
 	if s.accountStatus != nil {
-		_, _, _ = s.accountStatus.MarkMappingsDisabled(ctx, tenantUUID, accountUUID)
+		_, _, _ = s.accountStatus.MarkBindingsDisabled(ctx, tenantUUID, accountUUID)
 	}
 	return nil
 }

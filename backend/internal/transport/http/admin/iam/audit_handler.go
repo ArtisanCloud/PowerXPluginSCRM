@@ -70,7 +70,7 @@ func (h *AuditHandler) List(c *gin.Context) {
 func isSystemAdmin(tc authmw.TenantContext) bool {
 	for _, role := range tc.Roles {
 		switch strings.ToLower(strings.TrimSpace(role)) {
-		case "superadmin", "system.admin":
+		case "superadmin", "system.admin", "system_admin":
 			return true
 		}
 	}

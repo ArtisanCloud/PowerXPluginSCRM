@@ -25,7 +25,7 @@ func (a *WelcomeSyncAuthz) EnsureCanPublish(tc authx.TenantContext) error {
 func canPublishWelcomeSync(tc authx.TenantContext) bool {
 	for _, role := range tc.Roles {
 		switch strings.ToLower(strings.TrimSpace(role)) {
-		case "superadmin", "system.admin", "tenant.admin", "tenant_admin", "channel.operator", "channel_operator":
+		case "superadmin", "system.admin", "system_admin", "tenant.admin", "tenant_admin", "role_admin", "role_owner", "channel.operator", "channel_operator":
 			return true
 		}
 	}

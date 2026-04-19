@@ -24,6 +24,13 @@ type SeedOptions struct {
 	AdminName  string
 }
 
+type defaultRoleSeed struct {
+	Code        string
+	Name        string
+	Description string
+	ScopeType   string
+}
+
 func SeedLocalAdmin(ctx context.Context, db *gorm.DB, cfg *config.Config, mode IAMMode) error {
 	if mode != IAMModeLocal {
 		log.Printf("[iam] skip local admin seed (mode=%s)", mode)
@@ -155,46 +162,20 @@ func SeedLocalAdmin(ctx context.Context, db *gorm.DB, cfg *config.Config, mode I
 			}
 		}
 
-		var role iamm.Role
-		if err := tx.Where("tenant_uuid = ? AND code = ?", tenantUUID, "system.admin").First(&role).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				role = iamm.Role{
-					BaseModel:     basemodels.BaseModel{TenantUuid: tenantUUID},
-					Code:          "system.admin",
-					Name:          "System Admin",
-					Description:   "Default administrator role",
-					ScopeType:     iamm.RoleScopeSystem,
-					PolicyVersion: defaultPolicyVersion,
-				}
-				if err := tx.Create(&role).Error; err != nil {
-					return err
-				}
-			} else {
-				return err
-			}
-		} else {
-			update := map[string]any{}
-			if strings.TrimSpace(role.ScopeType) == "" {
-				update["scope_type"] = iamm.RoleScopeSystem
-			}
-			if strings.TrimSpace(role.PolicyVersion) == "" {
-				update["policy_version"] = defaultPolicyVersion
-			}
-			if len(update) > 0 {
-				if err := tx.Model(&role).Updates(update).Error; err != nil {
-					return err
-				}
-			}
+		rolesByCode, err := ensureDefaultRoles(tx, tenantUUID)
+		if err != nil {
+			return err
+		}
+		adminRole, ok := rolesByCode["system.admin"]
+		if !ok {
+			return fmt.Errorf("system.admin role missing after seed")
 		}
 
-		var rel iamm.MemberRole
-		if err := tx.Where("member_id = ? AND role_id = ?", member.ID, role.ID).First(&rel).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				rel = iamm.MemberRole{UserID: member.ID, RoleID: role.ID}
-				if err := tx.Create(&rel).Error; err != nil {
-					return err
-				}
-			} else {
+		if err := ensureMemberRoleBinding(tx, member.ID, adminRole.ID); err != nil {
+			return err
+		}
+		if tenantAdminRole, exists := rolesByCode["role_admin"]; exists {
+			if err := ensureMemberRoleBinding(tx, member.ID, tenantAdminRole.ID); err != nil {
 				return err
 			}
 		}
@@ -208,7 +189,19 @@ func SeedLocalAdmin(ctx context.Context, db *gorm.DB, cfg *config.Config, mode I
 				return err
 			}
 		}
-		return seedDefaultPermissions(tx, role.ID, tenantUUID)
+		if err := seedDefaultPermissions(tx, adminRole.ID, tenantUUID); err != nil {
+			return err
+		}
+		if tenantAdminRole, exists := rolesByCode["role_admin"]; exists {
+			if err := seedDefaultPermissions(tx, tenantAdminRole.ID, tenantUUID); err != nil {
+				return err
+			}
+		} else if tenantAdminRole, exists := rolesByCode["tenant.admin"]; exists {
+			if err := seedDefaultPermissions(tx, tenantAdminRole.ID, tenantUUID); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 }
 
@@ -306,6 +299,97 @@ func ensureDefaultDepartment(tx *gorm.DB, tenantUUID string) (*uint64, error) {
 		}
 	}
 	return &dept.ID, nil
+}
+
+func ensureMemberRoleBinding(tx *gorm.DB, memberID, roleID uint64) error {
+	var rel iamm.MemberRole
+	if err := tx.Where("member_id = ? AND role_id = ?", memberID, roleID).First(&rel).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		rel = iamm.MemberRole{UserID: memberID, RoleID: roleID}
+		if err := tx.Create(&rel).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func ensureDefaultRoles(tx *gorm.DB, tenantUUID string) (map[string]iamm.Role, error) {
+	definitions := []defaultRoleSeed{
+		{
+			Code:        "system.admin",
+			Name:        "System Admin",
+			Description: "Default administrator role",
+			ScopeType:   iamm.RoleScopeSystem,
+		},
+		{
+			Code:        "role_admin",
+			Name:        "Tenant Admin",
+			Description: "Tenant administrator role",
+			ScopeType:   iamm.RoleScopeTenant,
+		},
+		{
+			Code:        "role_user",
+			Name:        "Tenant User",
+			Description: "Tenant member role",
+			ScopeType:   iamm.RoleScopeTenant,
+		},
+		{
+			Code:        "role_owner",
+			Name:        "Tenant Owner",
+			Description: "Tenant owner role (optional)",
+			ScopeType:   iamm.RoleScopeTenant,
+		},
+	}
+
+	result := make(map[string]iamm.Role, len(definitions))
+	for _, def := range definitions {
+		var role iamm.Role
+		err := tx.Where("tenant_uuid = ? AND code = ?", tenantUUID, def.Code).First(&role).Error
+		if err != nil {
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, err
+			}
+			role = iamm.Role{
+				BaseModel:     basemodels.BaseModel{TenantUuid: tenantUUID},
+				Code:          def.Code,
+				Name:          def.Name,
+				Description:   def.Description,
+				ScopeType:     def.ScopeType,
+				PolicyVersion: defaultPolicyVersion,
+			}
+			if err := tx.Create(&role).Error; err != nil {
+				return nil, err
+			}
+			result[def.Code] = role
+			continue
+		}
+
+		updates := map[string]any{}
+		if strings.TrimSpace(role.Name) == "" {
+			updates["name"] = def.Name
+		}
+		if strings.TrimSpace(role.Description) == "" {
+			updates["description"] = def.Description
+		}
+		if strings.TrimSpace(role.ScopeType) == "" {
+			updates["scope_type"] = def.ScopeType
+		}
+		if strings.TrimSpace(role.PolicyVersion) == "" {
+			updates["policy_version"] = defaultPolicyVersion
+		}
+		if len(updates) > 0 {
+			if err := tx.Model(&role).Updates(updates).Error; err != nil {
+				return nil, err
+			}
+			if err := tx.Where("id = ?", role.ID).First(&role).Error; err != nil {
+				return nil, err
+			}
+		}
+		result[def.Code] = role
+	}
+	return result, nil
 }
 
 func seedDefaultPermissions(tx *gorm.DB, roleID uint64, tenantUUID string) error {

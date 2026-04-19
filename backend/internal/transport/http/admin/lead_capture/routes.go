@@ -68,6 +68,7 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		taskRepo := leadrepo.NewLeadSyncTaskRepository(deps.DB)
 		channelAccountRepo := socialrepo.NewAccountRepository(deps.DB)
 		openworkRepo := socialrepo.NewOpenWorkFoundationRepository(deps.DB)
+		syncFoundationRepo := socialrepo.NewSyncFoundationRepository(deps.DB)
 		platformRepo := socialrepo.NewChannelPlatformSettingRepository(deps.DB)
 		providerAdapter := leadsvc.NewDefaultSyncTaskProviderAdapter(deps.Config, deps.EventEmitter)
 		channelFactory := leadsvc.NewChannelSyncFactory()
@@ -78,16 +79,6 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 			leadsvc.NewDefaultWeComLeadAdapterWithResolvers(channelAccountRepo, openworkRepo, platformRepo),
 			providerAdapter,
 		)
-		wecomSyncSvc = leadsvc.NewWeComSyncService(taskRepo, metrics, nil).
-			WithChannelFactory(channelFactory).
-			WithLeadIngestion(leadRepository, nil).
-			WithLeadService(leadSvc)
-
-		eventRepo := leadrepo.NewConversationEventRepository(deps.DB)
-		bindingRepo := leadrepo.NewLeadConversationBindingRepository(deps.DB)
-		pendingRepo := leadrepo.NewLeadConversationPendingRepository(deps.DB)
-		projectionRepo := leadrepo.NewLeadRealtimeProjectionRepository(deps.DB)
-
 		publisher := fwwsbus.NewAdapter(
 			fwwsbus.NewLocalPublisher(deps.WSBusHub, nil),
 			"",
@@ -111,6 +102,19 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 				publisher = fwwsbus.NewAdapter(hostClient, "", nil)
 			}
 		}
+
+		wecomSyncRealtime := leadsvc.NewLeadSyncRealtimePublisher(publisher, metrics)
+		wecomSyncSvc = leadsvc.NewWeComSyncService(taskRepo, metrics, nil).
+			WithChannelFactory(channelFactory).
+			WithLeadIngestion(leadRepository, nil).
+			WithLeadService(leadSvc).
+			WithSyncFoundation(syncFoundationRepo).
+			WithRealtimePublisher(wecomSyncRealtime)
+
+		eventRepo := leadrepo.NewConversationEventRepository(deps.DB)
+		bindingRepo := leadrepo.NewLeadConversationBindingRepository(deps.DB)
+		pendingRepo := leadrepo.NewLeadConversationPendingRepository(deps.DB)
+		projectionRepo := leadrepo.NewLeadRealtimeProjectionRepository(deps.DB)
 		realtime := leadsvc.NewConversationRealtimePublisher(publisher, metrics)
 		conversationSvc = leadsvc.NewConversationService(eventRepo, bindingRepo, pendingRepo, projectionRepo, realtime, metrics).
 			WithLeadRepository(leadRepository).
@@ -138,7 +142,9 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		group.POST("/import", handler.Import)
 		group.POST("/import/preview", handler.ImportPreview)
 		group.POST("/import/confirm", handler.ImportConfirm)
+		group.POST("/assign/batch", handler.BatchAssign)
 		group.GET("/:lead_id", handler.Get)
+		group.PUT("/:lead_id", handler.Update)
 		group.POST("/:lead_id/assign", handler.Assign)
 		group.POST("/:lead_id/status", handler.UpdateStatus)
 		group.GET("/:lead_id/assignments", handler.ListAssignments)
@@ -148,6 +154,11 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 
 		group.POST("/wecom/sync", wecomSyncHandler.TriggerSync)
 		group.GET("/wecom/sync-tasks", wecomSyncHandler.ListSyncTasks)
+		group.POST("/wecom/sync-tasks/clear", wecomSyncHandler.ClearSyncTasks)
+		group.GET("/wecom/writeback-policy", wecomSyncHandler.GetWritebackPolicy)
+		group.PUT("/wecom/writeback-policy", wecomSyncHandler.UpdateWritebackPolicy)
+		group.GET("/wecom/writeback-dead-letters", wecomSyncHandler.ListWritebackDeadLetters)
+		group.POST("/wecom/writeback-dead-letters/:dead_letter_uuid/replay", wecomSyncHandler.ReplayWritebackDeadLetter)
 		group.GET("/channel-rules/wecom/customer-dm", channelRuleHandler.GetWeComCustomerDMRule)
 		group.PUT("/channel-rules/wecom/customer-dm", channelRuleHandler.UpdateWeComCustomerDMRule)
 		group.POST("/channel-codes", channelCodeHandler.Create)

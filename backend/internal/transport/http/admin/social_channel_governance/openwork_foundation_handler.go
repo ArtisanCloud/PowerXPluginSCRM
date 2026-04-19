@@ -89,6 +89,11 @@ func (h *OpenWorkFoundationHandler) StartAuthorization(c *gin.Context) {
 	contracts.ResponseSuccess(c, result)
 }
 
+func (h *OpenWorkFoundationHandler) RestartAuthorization(c *gin.Context) {
+	// Reauthorize entry reuses start flow with latest template config overrides.
+	h.StartAuthorization(c)
+}
+
 func (h *OpenWorkFoundationHandler) CompleteAuthorization(c *gin.Context) {
 	if h == nil || h.svc == nil {
 		contracts.ResponseServiceUnavailable(c, "openwork foundation service unavailable", nil)
@@ -159,6 +164,25 @@ func (h *OpenWorkFoundationHandler) GetAuthorizationStatus(c *gin.Context) {
 		State:      state,
 		StartedAt:  startedAt,
 	})
+	if err != nil {
+		h.handleError(c, err)
+		return
+	}
+	contracts.ResponseSuccess(c, data)
+}
+
+func (h *OpenWorkFoundationHandler) GetFoundationAccessStatus(c *gin.Context) {
+	if h == nil || h.svc == nil {
+		contracts.ResponseServiceUnavailable(c, "openwork foundation service unavailable", nil)
+		return
+	}
+	tenantUUID, ok := httpmw.TenantUUIDFromContext(c)
+	if !ok || tenantUUID == "" {
+		contracts.ResponseUnauthorized(c, "tenant context missing")
+		return
+	}
+	templateID := strings.TrimSpace(c.Query("template_id"))
+	data, err := h.svc.FoundationAccessStatus(c.Request.Context(), tenantUUID, templateID)
 	if err != nil {
 		h.handleError(c, err)
 		return

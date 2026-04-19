@@ -18,7 +18,7 @@ var (
 	ErrInvalidStaffLiveCodePayload    = errors.New("invalid staff live code payload")
 	ErrStaffLiveCodeStatusInvalid     = errors.New("invalid staff live code status")
 	ErrStaffLiveCodeAlreadyExists     = errors.New("staff live code already exists")
-	ErrStaffMemberMappingNotConfirmed = errors.New("member mapping is not confirmed")
+	ErrStaffMemberBindingNotConfirmed = errors.New("member binding is not confirmed")
 	ErrDefaultChannelAccountNotFound  = errors.New("default channel account not found")
 )
 
@@ -106,7 +106,7 @@ func (s *StaffLiveCodeService) Create(ctx context.Context, req StaffLiveCodeCrea
 		return nil, err
 	}
 	if totalConfirmed != int64(len(uniqueStrings(req.MemberUUIDs))) {
-		return nil, ErrStaffMemberMappingNotConfirmed
+		return nil, ErrStaffMemberBindingNotConfirmed
 	}
 
 	buildItem := func(codeKey string) *acqmodel.StaffLiveCode {

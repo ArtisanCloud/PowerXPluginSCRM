@@ -133,6 +133,7 @@ func (r *Router) setupRoutes() {
 	// API 分组 + 鉴权 + RBAC（Admin / Integration / Marketplace 等）
 	gProtected := r.engine.Group(prefix)
 	gProtected.Use(middleware2.RequestTrace())
+	gProtected.Use(middleware.AdminSignatureGuard())
 	gProtected.Use(middleware2.JWTAuth(jwtCfg))
 	gProtected.Use(middleware2.RBAC(rbacCfg, nil, nil))
 	apiRegistry.RegisterAPIRoutes(gProtected)

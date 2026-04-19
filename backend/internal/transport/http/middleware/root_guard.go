@@ -29,7 +29,7 @@ func EnsureRootRole() gin.HandlerFunc {
 func isRootRole(tc authx.TenantContext) bool {
 	for _, role := range tc.Roles {
 		switch strings.ToLower(strings.TrimSpace(role)) {
-		case "root", "superadmin", "admin", "system.admin":
+		case "root", "superadmin", "admin", "system.admin", "system_admin":
 			return true
 		}
 	}

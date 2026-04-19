@@ -533,7 +533,7 @@ func normalizeStringSlice(values []string) []string {
 func hasAdminRole(roles []string) bool {
 	for _, role := range roles {
 		switch strings.ToLower(strings.TrimSpace(role)) {
-		case "system.admin", "tenant.admin", "admin":
+		case "system.admin", "system_admin", "tenant.admin", "tenant_admin", "role_admin", "role_owner", "admin":
 			return true
 		}
 	}

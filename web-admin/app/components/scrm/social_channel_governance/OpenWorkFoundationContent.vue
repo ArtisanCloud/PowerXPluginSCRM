@@ -40,6 +40,16 @@
               </UButton>
               <UButton
                 type="button"
+                color="warning"
+                variant="soft"
+                icon="i-heroicons-shield-exclamation"
+                :loading="starting"
+                @click="restartAuthorize"
+              >
+                重新授权
+              </UButton>
+              <UButton
+                type="button"
                 v-if="authorizeUrl"
                 color="neutral"
                 variant="soft"
@@ -52,6 +62,8 @@
             <div class="rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
               <div>授权状态：{{ authStatusLabel }}</div>
               <div>状态说明：{{ authMessage || '等待生成授权链接' }}</div>
+              <div>Token 状态：{{ foundationAccess.token_status || '-' }}</div>
+              <div>回调状态：{{ foundationAccess.callback_status || '-' }}</div>
               <div v-if="currentTemplateID">Template ID：{{ currentTemplateID }}</div>
               <div v-if="expiresAtUnix > 0">预授权过期倒计时：{{ expiresInLabel }}</div>
             </div>
@@ -234,6 +246,7 @@ const dashboard = ref<any>({})
 const syncJobs = ref<any[]>([])
 const conflicts = ref<any[]>([])
 const goLiveGates = ref<any>({})
+const foundationAccess = ref<any>({})
 
 const containerClass = computed(() =>
   props.inModal ? 'space-y-6' : 'mx-auto w-full max-w-7xl space-y-6 py-8',
@@ -418,18 +431,21 @@ const refreshAll = async () => {
   loading.value = true
   error.value = ''
   try {
-    const [bindingsResp, dashboardResp, jobsResp, conflictsResp, gatesResp] = await Promise.all([
+    const templateID = currentTemplateID.value || startForm.value.template_id || undefined
+    const [bindingsResp, dashboardResp, jobsResp, conflictsResp, gatesResp, foundationResp] = await Promise.all([
       service.listOpenWorkBindings(),
       service.getSyncDashboard(),
       service.listSyncBaselineJobs({ limit: 20 }),
       service.listSyncConflicts({ limit: 20 }),
       service.getOpenWorkGoLiveGates(),
+      service.getOpenWorkFoundationAccessStatus({ template_id: templateID }),
     ])
     bindings.value = (bindingsResp as any)?.data?.items ?? []
     dashboard.value = (dashboardResp as any)?.data ?? {}
     syncJobs.value = (jobsResp as any)?.data?.items ?? []
     conflicts.value = (conflictsResp as any)?.data?.items ?? []
     goLiveGates.value = (gatesResp as any)?.data ?? {}
+    foundationAccess.value = (foundationResp as any)?.data ?? {}
   } catch (err: any) {
     error.value = extractApiErrorMessage(err, '加载失败')
   } finally {
@@ -608,6 +624,40 @@ const startAuthorize = async () => {
 
 const refreshAuthorizeQr = async () => {
   await startAuthorize()
+}
+
+const restartAuthorize = async () => {
+  if (starting.value) {
+    return
+  }
+  starting.value = true
+  error.value = ''
+  try {
+    await hydrateStartFormFromPlatform()
+    const resp = await service.restartOpenWorkAuthorization({
+      template_id: startForm.value.template_id || undefined,
+      template_secret: startForm.value.template_secret || undefined,
+      template_ticket: startForm.value.template_ticket || undefined,
+      provider_corpid: startForm.value.provider_corpid || undefined,
+      provider_secret: startForm.value.provider_secret || undefined,
+      state: `openwork-restart-${Date.now()}`,
+    })
+    const data = (resp as any)?.data ?? {}
+    currentTemplateID.value = String(data?.template_id || startForm.value.template_id || '').trim()
+    authorizeUrl.value = data?.authorize_url ?? ''
+    authState.value = data?.state ?? ''
+    authStartedAt.value = Math.floor(Date.now() / 1000)
+    authExpiresIn.value = Number(data?.expires_in ?? 1200)
+    authStatus.value = 'pending'
+    authMessage.value = 'waiting_callback'
+    await refreshAuthorizationStatus()
+    startAuthPolling()
+  } catch (err: any) {
+    error.value = extractApiErrorMessage(err, '重新授权失败')
+    authStatus.value = 'failed'
+  } finally {
+    starting.value = false
+  }
 }
 
 const completeAuthorize = async () => {

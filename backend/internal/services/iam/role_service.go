@@ -297,8 +297,9 @@ func (s *RoleService) Delete(ctx context.Context, id uint64, actorID *uint64) er
 	if err != nil {
 		return err
 	}
-	if strings.EqualFold(role.Code, "system.admin") {
-		return errors.New("system admin role cannot be deleted")
+	switch strings.ToLower(strings.TrimSpace(role.Code)) {
+	case "system.admin", "role_admin", "role_user", "role_owner":
+		return errors.New("built-in role cannot be deleted")
 	}
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var count int64

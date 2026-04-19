@@ -3,7 +3,7 @@
     <div class="flex flex-wrap items-start justify-between gap-4">
       <div class="space-y-2">
         <h1 class="acq-page-title text-2xl font-semibold">员工活码</h1>
-        <p class="acq-page-subtitle">独立域 V2：管理员工活码、成员映射与状态。</p>
+        <p class="acq-page-subtitle">独立域 V2：管理员工活码、成员绑定与状态。</p>
       </div>
       <div class="flex items-center gap-2">
         <UButton icon="i-heroicons-arrow-path" variant="soft" :loading="loading" @click="loadData">刷新</UButton>

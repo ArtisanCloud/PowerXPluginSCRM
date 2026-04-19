@@ -1,6 +1,7 @@
 package social_channel_governance
 
 import (
+	leadrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/lead_capture"
 	orgrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/org_sync"
 	SocialRepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/social_channel_governance"
 	orgsync "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/services/admin/org_sync"
@@ -24,22 +25,52 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 	var capabilitySvc *SocialService.ChannelAccountCapabilityService
 	var openworkHandler *OpenWorkFoundationHandler
 	var platformSettingHandler *ChannelPlatformSettingHandler
+	var syncJobHandler *SyncJobHandler
+	var staffTagHandler *StaffTagHandler
+	var conflictHandler *ConflictHandler
+	var metricsHandler *MetricsHandler
 	schemaLoader := SocialService.NewChannelSchemaLoader(SocialService.ChannelSchemaLoaderOptions{
 		Logger: logrus.WithField("module", "social_channel_governance"),
 	})
 	if deps.DB != nil {
 		repo := SocialRepo.NewAccountRepository(deps.DB)
 		openworkRepo := SocialRepo.NewOpenWorkFoundationRepository(deps.DB)
+		syncRepo := SocialRepo.NewSyncFoundationRepository(deps.DB)
 		platformSettingRepo := SocialRepo.NewChannelPlatformSettingRepository(deps.DB)
-		accountStatus := orgsync.NewAccountStatusService(
-			orgrepo.NewMemberMappingRepository(deps.DB),
-			orgrepo.NewUnitMappingRepository(deps.DB),
-		)
+		accountStatus := orgsync.NewAccountStatusService(deps.DB)
 		accountSvc = SocialService.NewChannelAccountService(repo, openworkRepo, nil, schemaLoader, accountStatus, deps.Config)
 		memberSvc = SocialService.NewChannelAccountMemberService(repo)
 		capabilitySvc = SocialService.NewChannelAccountCapabilityService(repo)
 		openworkHandler = NewOpenWorkFoundationHandler(SocialService.NewOpenWorkFoundationService(openworkRepo, repo))
 		platformSettingHandler = NewChannelPlatformSettingHandler(SocialService.NewChannelPlatformSettingService(platformSettingRepo))
+		factory := SocialService.NewChannelFactory()
+		_ = factory.Register("wechat", "wecom", SocialService.NewWeComFoundationAdapter())
+		capabilityMatrixSvc := SocialService.NewCapabilityService(factory)
+		idempotencySvc := SocialService.NewIdempotencyService()
+		scheduler := SocialService.NewSyncScheduler()
+		conflictSvc := SocialService.NewConflictResolutionService(syncRepo)
+		tagMappingRepo := SocialRepo.NewTagMappingRepository(syncRepo)
+		tagRecordRepo := SocialRepo.NewTagRecordRepository(deps.DB)
+		tagSyncSvc := SocialService.NewTagSyncService(tagMappingRepo, conflictSvc).
+			WithWeComSupport(repo, nil).
+			WithCredentialResolvers(openworkRepo, platformSettingRepo).
+			WithTagRecordRepository(tagRecordRepo)
+		staffTagSvc := SocialService.NewStaffTagService(tagSyncSvc, nil)
+		sourceMemberSvc := orgsync.NewSourceMemberService(
+			orgrepo.NewSourceMemberRepository(deps.DB),
+			orgrepo.NewSourceMemberProfileRepository(deps.DB),
+		)
+		staffTagHandler = NewStaffTagHandler(staffTagSvc, sourceMemberSvc)
+		leadRepository := leadrepo.NewLeadRepository(deps.DB)
+		customerTagBindingSvc := SocialService.NewCustomerTagBindingService(leadRepository, tagSyncSvc)
+		syncJobSvc := SocialService.NewSyncJobService(syncRepo, idempotencySvc, scheduler, capabilityMatrixSvc, tagSyncSvc).
+			WithCustomerTagBindingService(customerTagBindingSvc)
+		orchestrator := SocialService.NewSyncOrchestrator(factory, scheduler, syncJobSvc)
+		tagRecordSvc := SocialService.NewTagRecordService(tagRecordRepo)
+		deadletterSvc := SocialService.NewRetryDeadletterService(syncRepo)
+		syncJobHandler = NewSyncJobHandler(syncJobSvc, orchestrator, capabilityMatrixSvc, conflictSvc, tagRecordSvc, customerTagBindingSvc)
+		conflictHandler = NewConflictHandler(conflictSvc, deadletterSvc)
+		metricsHandler = NewMetricsHandler(syncRepo)
 	}
 	accountHandler := NewAccountHandler(accountSvc)
 	schemaHandler := NewChannelSchemaHandler(schemaLoader, deps.Config)
@@ -65,8 +96,10 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		if openworkHandler != nil {
 			group.POST("/openwork/wecom/events", openworkHandler.IngestEvent)
 			group.POST("/openwork/wecom/authorize/start", openworkHandler.StartAuthorization)
+			group.POST("/openwork/wecom/authorize/restart", openworkHandler.RestartAuthorization)
 			group.POST("/openwork/wecom/authorize/complete", openworkHandler.CompleteAuthorization)
 			group.GET("/openwork/wecom/authorize/status", openworkHandler.GetAuthorizationStatus)
+			group.GET("/openwork/wecom/foundation/access/status", openworkHandler.GetFoundationAccessStatus)
 			group.GET("/openwork/wecom/bindings", openworkHandler.ListBindings)
 			group.POST("/openwork/wecom/bindings/:binding_uuid/default", openworkHandler.SetDefaultBinding)
 			group.POST("/openwork/wecom/sync/jobs", openworkHandler.CreateSyncJob)
@@ -75,6 +108,31 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 			group.POST("/openwork/wecom/sync/conflicts/:conflict_uuid/replay", openworkHandler.ReplaySyncConflict)
 			group.GET("/openwork/wecom/sync/dashboard", openworkHandler.GetDashboard)
 			group.GET("/openwork/wecom/go-live-gates", openworkHandler.GetGoLiveGates)
+		}
+		if syncJobHandler != nil && conflictHandler != nil {
+			group.POST("/openwork/foundation/sync/jobs", syncJobHandler.Create)
+			group.GET("/openwork/foundation/sync/jobs", syncJobHandler.List)
+			group.GET("/openwork/foundation/tags", syncJobHandler.ListTags)
+			group.GET("/openwork/foundation/customer-tag-bindings", syncJobHandler.ListCustomerTagBindings)
+			group.DELETE("/openwork/foundation/sync/jobs", syncJobHandler.ClearTerminal)
+			group.GET("/openwork/foundation/sync/overview", syncJobHandler.Overview)
+			if metricsHandler != nil {
+				group.GET("/openwork/foundation/sync/metrics", metricsHandler.GetSyncMetrics)
+			}
+			group.GET("/openwork/foundation/capabilities", syncJobHandler.Capabilities)
+			group.GET("/openwork/foundation/sync/conflicts", conflictHandler.List)
+			group.POST("/openwork/foundation/sync/conflicts/:conflict_uuid/replay", conflictHandler.Replay)
+			group.GET("/openwork/foundation/sync/dead-letters", conflictHandler.ListDeadLetters)
+			group.POST("/openwork/foundation/sync/dead-letters/:dead_letter_uuid/replay", conflictHandler.ReplayDeadLetter)
+		}
+		if staffTagHandler != nil {
+			group.GET("/openwork/foundation/staff-tags", staffTagHandler.ListTags)
+			group.POST("/openwork/foundation/staff-tags", staffTagHandler.CreateTag)
+			group.GET("/openwork/foundation/staff-tags/:tag_id/members", staffTagHandler.GetTagMembers)
+			group.PUT("/openwork/foundation/staff-tags/:tag_id", staffTagHandler.UpdateTag)
+			group.DELETE("/openwork/foundation/staff-tags/:tag_id", staffTagHandler.DeleteTag)
+			group.POST("/openwork/foundation/staff-tags/:tag_id/members", staffTagHandler.PatchTagMembers)
+			group.GET("/openwork/foundation/staff-members", staffTagHandler.ListSourceMembers)
 		}
 		if platformSettingHandler != nil {
 			platformGroup := group.Group("/channel-platform/wecom/openwork", httpmw.EnsureRootRole())

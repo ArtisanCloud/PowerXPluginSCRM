@@ -41,21 +41,65 @@
             {{ t(section.titleKey) }}
           </div>
           <div class="space-y-1">
-            <UButton
+            <template
               v-for="item in section.items"
-              :key="item.to"
-              :to="item.to"
-              variant="ghost"
-              color="neutral"
-              class="w-full justify-start"
-              :class="{
-                'bg-primary-50 text-primary-600 dark:bg-primary-950 dark:text-primary-400 is-active':
-                  isExactActive(item.to),
-              }"
+              :key="item.to || item.expandKey || item.labelKey"
             >
-              <UIcon :name="item.icon" class="w-4 h-4 mr-3" />
-              {{ t(item.labelKey) }}
-            </UButton>
+              <UButton
+                v-if="!item.children?.length"
+                :to="item.to"
+                variant="ghost"
+                color="neutral"
+                class="w-full justify-start"
+                :class="{
+                  'bg-primary-50 text-primary-600 dark:bg-primary-950 dark:text-primary-400 is-active':
+                    item.to ? isExactActive(item.to) : false,
+                }"
+              >
+                <UIcon :name="item.icon" class="w-4 h-4 mr-3" />
+                {{ t(item.labelKey) }}
+              </UButton>
+              <template v-else>
+                <UButton
+                  variant="ghost"
+                  color="neutral"
+                  class="w-full justify-start"
+                  :class="{
+                    'bg-primary-50 text-primary-600 dark:bg-primary-950 dark:text-primary-400 is-active':
+                      isScrmItemActive(item),
+                  }"
+                  @click="toggleScrmMenu(item.expandKey || item.labelKey)"
+                >
+                  <UIcon :name="item.icon" class="w-4 h-4 mr-3" />
+                  {{ t(item.labelKey) }}
+                  <UIcon
+                    :name="isScrmMenuOpen(item.expandKey || item.labelKey) ? 'i-heroicons-chevron-down' : 'i-heroicons-chevron-right'"
+                    class="w-4 h-4 ml-auto"
+                  />
+                </UButton>
+                <div
+                  v-show="isScrmMenuOpen(item.expandKey || item.labelKey)"
+                  class="ml-6 mt-1 space-y-1"
+                >
+                  <UButton
+                    v-for="child in item.children"
+                    :key="child.to"
+                    :to="child.to"
+                    variant="ghost"
+                    color="neutral"
+                    size="sm"
+                    class="w-full justify-start text-sm"
+                    :class="{
+                      'bg-primary-50 text-primary-600 dark:bg-primary-950 dark:text-primary-400 is-active':
+                        isExactActive(child.to),
+                    }"
+                  >
+                    <UIcon :name="child.icon" class="w-3 h-3 mr-2" />
+                    {{ t(child.labelKey) }}
+                  </UButton>
+                </div>
+              </template>
+            </template>
           </div>
         </div>
       </div>
@@ -415,7 +459,31 @@ const showChannelMenus = ref({
   feishu: false,
   dingding: false,
 });
-const scrmSections = [
+const showScrmMenus = ref<Record<string, boolean>>({
+  orgManagement: true,
+  smartTagging: true,
+});
+
+type ScrmNavChild = {
+  to: string;
+  labelKey: string;
+  icon: string;
+};
+
+type ScrmNavItem = {
+  to?: string;
+  labelKey: string;
+  icon: string;
+  expandKey?: string;
+  children?: ScrmNavChild[];
+};
+
+type ScrmNavSection = {
+  titleKey: string;
+  items: ScrmNavItem[];
+};
+
+const scrmSections: ScrmNavSection[] = [
   {
     titleKey: "navigation.scrmSectionChannelsLeads",
     items: [
@@ -445,9 +513,31 @@ const scrmSections = [
         icon: "i-heroicons-chat-bubble-left-ellipsis",
       },
       {
-        to: "/scrm/org_sync",
-        labelKey: "navigation.scrmOrgSync",
+        labelKey: "navigation.scrmOrgManagement",
         icon: "i-heroicons-squares-2x2",
+        expandKey: "orgManagement",
+        children: [
+          {
+            to: "/scrm/org_sync",
+            labelKey: "navigation.scrmOrgManagementOverview",
+            icon: "i-heroicons-home-modern",
+          },
+          {
+            to: "/scrm/sync_center?domain=org",
+            labelKey: "navigation.scrmOrgSyncSub",
+            icon: "i-heroicons-arrow-path",
+          },
+          {
+            to: "/scrm/org_staff_tags",
+            labelKey: "navigation.scrmOrgStaffTags",
+            icon: "i-heroicons-tag",
+          },
+          {
+            to: "/scrm/org_staff_tag_sync",
+            labelKey: "navigation.scrmOrgStaffTagSync",
+            icon: "i-heroicons-arrow-path-rounded-square",
+          },
+        ],
       },
     ],
   },
@@ -485,9 +575,21 @@ const scrmSections = [
         icon: "i-heroicons-users",
       },
       {
-        to: "/scrm/smart_tagging_customer_segmentation",
         labelKey: "navigation.scrmSmartTaggingCustomerSegmentation",
         icon: "i-heroicons-tag",
+        expandKey: "smartTagging",
+        children: [
+          {
+            to: "/scrm/enterprise_customer_tags",
+            labelKey: "navigation.scrmEnterpriseCustomerTags",
+            icon: "i-heroicons-hashtag",
+          },
+          {
+            to: "/scrm/sync_center?domain=tags",
+            labelKey: "navigation.scrmTagSyncCenter",
+            icon: "i-heroicons-arrow-path-rounded-square",
+          },
+        ],
       },
       {
         to: "/scrm/customer_service_collaboration_loop",
@@ -564,24 +666,37 @@ const scrmSections = [
 ];
 
 const normalizePath = (value: string) => {
-  if (!value) {
+  const raw = String(value || "").trim();
+  const stripped = raw.split("?")[0]?.split("#")[0] || "";
+  if (!stripped) {
     return "/";
   }
-  if (value !== "/" && value.endsWith("/")) {
-    return value.replace(/\/+$/, "");
+  if (stripped !== "/" && stripped.endsWith("/")) {
+    return stripped.replace(/\/+$/, "");
   }
-  return value.startsWith("/") ? value : `/${value}`;
+  return stripped.startsWith("/") ? stripped : `/${stripped}`;
 };
 
 const navEntries = computed(() => {
   const entries: Array<{ path: string; labelKey: string; groupKey?: string }> = [];
   scrmSections.forEach((section) => {
     section.items.forEach((item) => {
-      entries.push({
-        path: item.to,
-        labelKey: item.labelKey,
-        groupKey: section.titleKey,
-      });
+      if (item.to) {
+        entries.push({
+          path: item.to,
+          labelKey: item.labelKey,
+          groupKey: section.titleKey,
+        });
+      }
+      if (item.children?.length) {
+        item.children.forEach((child) => {
+          entries.push({
+            path: child.to,
+            labelKey: child.labelKey,
+            groupKey: item.labelKey,
+          });
+        });
+      }
     });
   });
   entries.push({ path: "/intro", labelKey: "navigation.intro" });
@@ -692,6 +807,24 @@ const toggleChannelMenu = (channel: "wecom" | "feishu" | "dingding") => {
   showChannelMenus.value[channel] = !showChannelMenus.value[channel];
 };
 
+const isScrmMenuOpen = (key: string) => {
+  return showScrmMenus.value[key] ?? true;
+};
+
+const toggleScrmMenu = (key: string) => {
+  showScrmMenus.value[key] = !isScrmMenuOpen(key);
+};
+
+const isScrmItemActive = (item: ScrmNavItem) => {
+  if (item.children?.length) {
+    return isGroupActive(item.children.map((child) => child.to));
+  }
+  if (item.to) {
+    return isExactActive(item.to);
+  }
+  return false;
+};
+
 const updateScrollIndicator = () => {
   const container = navRef.value;
   const thumb = scrollThumbRef.value;
@@ -752,6 +885,17 @@ watch(
       showChannelMenus.value.dingding = true;
     } else if (newPath.startsWith("/settings/channel-platform")) {
       showChannelMenus.value.wecom = true;
+    }
+    if (newPath.startsWith("/scrm/org_sync") || newPath.startsWith("/scrm/org_staff_tags") || newPath.startsWith("/scrm/org_staff_tag_sync") || newPath.startsWith("/scrm/sync_center")) {
+      showScrmMenus.value.orgManagement = true;
+    }
+    if (
+      newPath.startsWith("/scrm/enterprise_customer_tags")
+      || newPath.startsWith("/scrm/tag_sync_center")
+      || newPath.startsWith("/scrm/sync_center")
+      || newPath.startsWith("/scrm/smart_tagging_customer_segmentation")
+    ) {
+      showScrmMenus.value.smartTagging = true;
     }
     updateScrollIndicator();
   }

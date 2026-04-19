@@ -9,6 +9,8 @@ import (
 
 	frameworkgateway "github.com/ArtisanCloud/PowerXPlugin/framework/backend/go/gateway"
 	capgateway "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/integrations/gateway"
+	authx "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/middleware"
+	iamservice "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/services/iam"
 	integrationService "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/services/integration"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/shared/app"
 	"github.com/gin-gonic/gin"
@@ -20,6 +22,7 @@ type Handler struct {
 	deps     *app.Deps
 	dispatch *integrationService.DispatchService
 	logger   *logrus.Entry
+	sts      *iamservice.STSService
 }
 
 type capabilityInvokeRequest struct {
@@ -28,6 +31,11 @@ type capabilityInvokeRequest struct {
 	PreferredProtocol string                 `json:"preferredProtocol"`
 	Payload           map[string]any         `json:"payload"`
 	Metadata          map[string]interface{} `json:"metadata,omitempty"`
+}
+
+type gatewayAuthPolicy struct {
+	AuthRequired bool
+	TenantScoped bool
 }
 
 // NewHandler 构造新的 Handler。
@@ -39,6 +47,9 @@ func NewHandler(deps *app.Deps) *Handler {
 	h := &Handler{
 		deps:   deps,
 		logger: logger,
+	}
+	if deps != nil {
+		h.sts = iamservice.NewSTSService(deps.Config, nil, app.PluginID, "")
 	}
 	h.dispatch = h.buildDispatchService()
 	return h
@@ -131,8 +142,23 @@ func (h *Handler) InvokeCapability(c *gin.Context) {
 	}
 
 	headers := collectCapabilityHeaders(c)
+	policy := resolveGatewayAuthPolicy(req.Metadata, payload)
+	headers, err := h.resolveGatewayAuthHeaders(c, headers, policy)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": gin.H{
+				"code":    "GW_POLICY_AUTH_REQUIRED",
+				"message": err.Error(),
+			},
+		})
+		return
+	}
 	warnings := collectCapabilityWarnings(headers)
 	requestID := strings.TrimSpace(c.GetHeader("X-Request-ID"))
+	tenantUUID := ""
+	if tc, ok := authx.GetTenantContext(c); ok {
+		tenantUUID = strings.TrimSpace(tc.TenantUUID)
+	}
 
 	result, err := h.deps.CapabilityGateway.Invoke(c.Request.Context(), capgateway.InvokeParams{
 		CapabilityID:      capabilityID,
@@ -141,6 +167,9 @@ func (h *Handler) InvokeCapability(c *gin.Context) {
 		Payload:           payload,
 		Headers:           headers,
 		RequestID:         requestID,
+		TenantUUID:        tenantUUID,
+		AuthRequired:      policy.AuthRequired,
+		TenantScoped:      policy.TenantScoped,
 	})
 	if err != nil {
 		h.writeCapabilityError(c, err, warnings)
@@ -189,10 +218,17 @@ func collectCapabilityHeaders(c *gin.Context) map[string]string {
 	if c == nil {
 		return nil
 	}
-	forward := []string{"X-PX-Use-Mock"}
+	forward := []string{"X-PX-Use-Mock", "Authorization"}
 	headers := make(map[string]string)
 	for _, name := range forward {
 		if value := strings.TrimSpace(c.GetHeader(name)); value != "" {
+			if strings.EqualFold(name, "Authorization") {
+				switch authSchemeFromHeader(value) {
+				case "bearer", "apikey":
+					headers[name] = value
+				}
+				continue
+			}
 			headers[name] = value
 		}
 	}
@@ -263,6 +299,21 @@ func (h *Handler) writeCapabilityError(c *gin.Context, err error, warnings []str
 			payload["warnings"] = warnings
 		}
 		c.JSON(http.StatusServiceUnavailable, payload)
+		return
+	}
+	var policyErr *capgateway.PolicyError
+	if errors.As(err, &policyErr) {
+		payload := gin.H{
+			"error": gin.H{
+				"code":    strings.TrimSpace(policyErr.Code),
+				"message": strings.TrimSpace(policyErr.Message),
+			},
+			"traceId": "",
+		}
+		if len(warnings) > 0 {
+			payload["warnings"] = warnings
+		}
+		c.JSON(http.StatusBadRequest, payload)
 		return
 	}
 
@@ -354,4 +405,117 @@ func parseGatewayBody(body []byte) any {
 		return decoded
 	}
 	return text
+}
+
+func (h *Handler) resolveGatewayAuthHeaders(c *gin.Context, headers map[string]string, policy gatewayAuthPolicy) (map[string]string, error) {
+	if !policy.AuthRequired {
+		if headers != nil {
+			delete(headers, "Authorization")
+		}
+		return headers, nil
+	}
+	if headers == nil {
+		headers = make(map[string]string)
+	}
+	rawBearer, _ := authx.GetRawBearerToken(c)
+	tc, hasTC := authx.GetTenantContext(c)
+	if strings.TrimSpace(rawBearer) != "" && hasTC && strings.TrimSpace(tc.TenantUUID) != "" {
+		token, err := h.mintRequestSTSToken(c, tc)
+		if err != nil {
+			return nil, fmt.Errorf("请求态 STS exchange 失败: %w", err)
+		}
+		headers["Authorization"] = "Bearer " + token
+		return headers, nil
+	}
+	if policy.TenantScoped {
+		return nil, errors.New("tenant_scoped=true 需要有效请求上下文（tenant/user）用于 STS exchange")
+	}
+	if strings.TrimSpace(headers["Authorization"]) == "" {
+		return nil, errors.New("auth_required=true 需要请求态 Authorization")
+	}
+	return headers, nil
+}
+
+func (h *Handler) mintRequestSTSToken(c *gin.Context, tc authx.TenantContext) (string, error) {
+	if h == nil {
+		return "", errors.New("handler unavailable")
+	}
+	if h.sts == nil {
+		if h.deps == nil {
+			return "", errors.New("sts service unavailable")
+		}
+		h.sts = iamservice.NewSTSService(h.deps.Config, nil, app.PluginID, "")
+	}
+	token, err := h.sts.Mint(c.Request.Context(), tc)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(token.AccessToken), nil
+}
+
+func resolveGatewayAuthPolicy(metadata map[string]interface{}, payload map[string]any) gatewayAuthPolicy {
+	policy := gatewayAuthPolicy{
+		AuthRequired: true,
+		TenantScoped: true,
+	}
+	readBool := func(m map[string]interface{}, key string) (bool, bool) {
+		if len(m) == 0 {
+			return false, false
+		}
+		raw, ok := m[key]
+		if !ok || raw == nil {
+			return false, false
+		}
+		switch v := raw.(type) {
+		case bool:
+			return v, true
+		case string:
+			s := strings.TrimSpace(strings.ToLower(v))
+			switch s {
+			case "1", "true", "yes", "on", "y":
+				return true, true
+			case "0", "false", "no", "off", "n":
+				return false, true
+			}
+		case float64:
+			if v == 1 {
+				return true, true
+			}
+			if v == 0 {
+				return false, true
+			}
+		}
+		return false, false
+	}
+	if v, ok := readBool(metadata, "auth_required"); ok {
+		policy.AuthRequired = v
+	} else if len(payload) > 0 {
+		if raw, exists := payload["auth_required"]; exists {
+			if vv, ok := raw.(bool); ok {
+				policy.AuthRequired = vv
+			}
+		}
+	}
+	if v, ok := readBool(metadata, "tenant_scoped"); ok {
+		policy.TenantScoped = v
+	} else if len(payload) > 0 {
+		if raw, exists := payload["tenant_scoped"]; exists {
+			if vv, ok := raw.(bool); ok {
+				policy.TenantScoped = vv
+			}
+		}
+	}
+	return policy
+}
+
+func authSchemeFromHeader(authHeader string) string {
+	auth := strings.TrimSpace(strings.ToLower(authHeader))
+	switch {
+	case strings.HasPrefix(auth, "bearer "):
+		return "bearer"
+	case strings.HasPrefix(auth, "apikey "), strings.HasPrefix(auth, "api_key "), strings.HasPrefix(auth, "api-key "):
+		return "apikey"
+	default:
+		return "none"
+	}
 }

@@ -55,8 +55,8 @@ func (h *StaffLiveCodeHandler) Create(c *gin.Context) {
 			contracts.ResponseError(c, http.StatusBadRequest, contracts.ErrCodeValidationFailed, "default channel account not found")
 		case errors.Is(err, acqsvc.ErrStaffLiveCodeAlreadyExists):
 			contracts.ResponseError(c, http.StatusConflict, contracts.ErrCodeConflict, "staff live code already exists")
-		case errors.Is(err, acqsvc.ErrStaffMemberMappingNotConfirmed):
-			contracts.ResponseError(c, http.StatusBadRequest, contracts.ErrCodeValidationFailed, "member mappings must be confirmed")
+		case errors.Is(err, acqsvc.ErrStaffMemberBindingNotConfirmed):
+			contracts.ResponseError(c, http.StatusBadRequest, contracts.ErrCodeValidationFailed, "member bindings must be confirmed")
 		default:
 			contracts.ResponseInternalError(c, err)
 		}

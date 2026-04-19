@@ -11,6 +11,7 @@ import (
 
 	iammodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/iam"
 	model "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/lead_capture"
+	orgmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/org_sync"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository"
 	leadrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/lead_capture"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/logger"
@@ -62,6 +63,32 @@ type LeadCreateRequest struct {
 type LeadAssignRequest struct {
 	OwnerUserUUID string
 	Reason        string
+}
+
+type LeadBatchAssignRequest struct {
+	LeadUUIDs     []string
+	OwnerUserUUID string
+	Reason        string
+}
+
+type LeadBatchAssignItem struct {
+	LeadUUID     string `json:"lead_uuid"`
+	Success      bool   `json:"success"`
+	ErrorCode    string `json:"error_code,omitempty"`
+	ErrorMessage string `json:"error_message,omitempty"`
+}
+
+type LeadBatchAssignResult struct {
+	Total        int                   `json:"total"`
+	SuccessCount int                   `json:"success_count"`
+	FailedCount  int                   `json:"failed_count"`
+	Items        []LeadBatchAssignItem `json:"items"`
+}
+
+type LeadUpdateRequest struct {
+	DisplayName string
+	Phone       string
+	Email       string
 }
 
 type LeadStatusUpdateRequest struct {
@@ -259,6 +286,9 @@ func (s *LeadService) List(ctx context.Context, tenantUUID string) ([]*model.Lea
 	if err := s.attachMergeFlags(ctx, tenantUUID, items); err != nil {
 		return nil, err
 	}
+	if err := s.attachChannelSyncState(ctx, tenantUUID, items); err != nil {
+		return nil, err
+	}
 	elapsed := time.Since(start)
 	if elapsed > 300*time.Millisecond {
 		logger.WithFields(logrus.Fields{
@@ -287,7 +317,280 @@ func (s *LeadService) Get(ctx context.Context, tenantUUID, leadUUID string) (*mo
 	if err := s.attachMergeFlag(ctx, tenantUUID, item); err != nil {
 		return nil, err
 	}
+	if err := s.attachChannelSyncState(ctx, tenantUUID, []*model.Lead{item}); err != nil {
+		return nil, err
+	}
 	return item, nil
+}
+
+func (s *LeadService) Update(ctx context.Context, tenantUUID, leadUUID string, req LeadUpdateRequest) (*model.Lead, error) {
+	if s == nil || s.repo == nil {
+		return nil, errors.New("lead repository not configured")
+	}
+	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
+	leadUUID = strings.ToLower(strings.TrimSpace(leadUUID))
+	if tenantUUID == "" || leadUUID == "" {
+		return nil, repository.ErrTenantUuidRequired
+	}
+	normalized := LeadCreateRequest{
+		DisplayName: req.DisplayName,
+		Phone:       req.Phone,
+		Email:       req.Email,
+	}
+	if s.normalizationSvc != nil {
+		n := s.normalizationSvc.NormalizeLeadCreateRequest(normalized)
+		normalized.DisplayName = n.DisplayName
+		normalized.Phone = n.Phone
+		normalized.Email = n.Email
+	}
+	if strings.TrimSpace(normalized.DisplayName) == "" &&
+		strings.TrimSpace(normalized.Phone) == "" &&
+		strings.TrimSpace(normalized.Email) == "" {
+		return nil, ErrInvalidLeadPayload
+	}
+
+	var updated *model.Lead
+	err := s.repo.WithTenantTx(ctx, tenantUUID, func(tx *gorm.DB) error {
+		lead, err := getLeadByUUIDTx(ctx, tx, tenantUUID, leadUUID)
+		if err != nil {
+			return err
+		}
+		lead.DisplayName = normalized.DisplayName
+		lead.Phone = normalized.Phone
+		lead.Email = normalized.Email
+		lead.UpdatedAt = time.Now().UTC()
+		if err := tx.Model(&model.Lead{}).
+			Where("tenant_uuid = ? AND lead_uuid = ?", tenantUUID, leadUUID).
+			Updates(map[string]interface{}{
+				"display_name": lead.DisplayName,
+				"phone":        lead.Phone,
+				"email":        lead.Email,
+				"updated_at":   lead.UpdatedAt,
+			}).Error; err != nil {
+			return err
+		}
+		if err := createLeadActivity(ctx, tx, tenantUUID, leadUUID, model.LeadActivityTypeProfileEdit, datatypes.JSONMap{
+			"display_name": lead.DisplayName,
+			"phone":        lead.Phone,
+			"email":        lead.Email,
+		}); err != nil {
+			return err
+		}
+		updated = lead
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if updated != nil {
+		if err := s.attachMergeFlag(ctx, tenantUUID, updated); err != nil {
+			return nil, err
+		}
+		if err := s.attachChannelSyncState(ctx, tenantUUID, []*model.Lead{updated}); err != nil {
+			return nil, err
+		}
+	}
+	return updated, nil
+}
+
+func (s *LeadService) attachChannelSyncState(ctx context.Context, tenantUUID string, items []*model.Lead) error {
+	if s == nil || s.repo == nil || s.repo.DB == nil || len(items) == 0 {
+		return nil
+	}
+	leadUUIDs := make([]string, 0, len(items))
+	indexByUUID := make(map[string]*model.Lead, len(items))
+	latestSyncAt := make(map[string]time.Time, len(items))
+	for _, item := range items {
+		if item == nil {
+			continue
+		}
+		leadUUID := strings.TrimSpace(item.LeadUUID)
+		if leadUUID == "" {
+			continue
+		}
+		leadUUIDs = append(leadUUIDs, leadUUID)
+		indexByUUID[leadUUID] = item
+		item.ExternalUserID = ""
+		item.ExternalWechatID = ""
+		item.ChannelSyncStatus = "unsynced"
+		setOwnerBindingStatus(item, "not_channel")
+		if strings.TrimSpace(sourceAccountUUIDString(item)) != "" {
+			item.LeadOriginType = "channel"
+			if strings.TrimSpace(item.OwnerUserUUID) == "" {
+				setOwnerBindingStatus(item, "missing_owner")
+			} else {
+				setOwnerBindingStatus(item, "unmapped")
+			}
+		} else {
+			item.LeadOriginType = "local"
+		}
+	}
+	if len(leadUUIDs) == 0 {
+		return nil
+	}
+
+	var acts []model.LeadActivity
+	if err := s.repo.DB.WithContext(ctx).
+		Where("tenant_uuid = ? AND activity_type = ? AND lead_uuid IN ?", tenantUUID, model.LeadActivityTypeSyncTrace, leadUUIDs).
+		Order("updated_at DESC").
+		Limit(len(leadUUIDs) * 8).
+		Find(&acts).Error; err != nil {
+		return err
+	}
+
+	seen := map[string]struct{}{}
+	for _, act := range acts {
+		leadUUID := strings.TrimSpace(act.LeadUUID)
+		if leadUUID == "" {
+			continue
+		}
+		if _, ok := seen[leadUUID]; ok {
+			continue
+		}
+		lead := indexByUUID[leadUUID]
+		if lead == nil {
+			continue
+		}
+		payload := act.Payload
+		if payload == nil {
+			continue
+		}
+		externalUserID := strings.TrimSpace(payloadString(payload, "external_lead_id"))
+		externalWechatID := strings.TrimSpace(payloadString(payload, "external_wechat_id"))
+		sourceAccountUUID := strings.TrimSpace(payloadString(payload, "source_account_uuid"))
+		if externalUserID != "" {
+			lead.ExternalUserID = externalUserID
+			lead.ChannelSyncStatus = "synced"
+			latestSyncAt[leadUUID] = act.UpdatedAt
+		}
+		if externalWechatID != "" {
+			lead.ExternalWechatID = externalWechatID
+		}
+		if sourceAccountUUID != "" {
+			lead.LeadOriginType = "channel"
+			if lead.SourceAccountUUID == nil || strings.TrimSpace(*lead.SourceAccountUUID) == "" {
+				src := sourceAccountUUID
+				lead.SourceAccountUUID = &src
+			}
+		}
+		if lead.LeadOriginType == "" {
+			lead.LeadOriginType = "local"
+		}
+		if lead.LeadOriginType == "channel" {
+			if strings.TrimSpace(lead.OwnerUserUUID) == "" {
+				setOwnerBindingStatus(lead, "missing_owner")
+			} else {
+				setOwnerBindingStatus(lead, "unmapped")
+			}
+		}
+		seen[leadUUID] = struct{}{}
+	}
+
+	var editActs []model.LeadActivity
+	if err := s.repo.DB.WithContext(ctx).
+		Select("lead_uuid, max(updated_at) AS updated_at").
+		Where("tenant_uuid = ? AND activity_type = ? AND lead_uuid IN ?", tenantUUID, model.LeadActivityTypeProfileEdit, leadUUIDs).
+		Group("lead_uuid").
+		Find(&editActs).Error; err != nil {
+		return err
+	}
+	for _, act := range editActs {
+		leadUUID := strings.TrimSpace(act.LeadUUID)
+		if leadUUID == "" {
+			continue
+		}
+		lead := indexByUUID[leadUUID]
+		if lead == nil {
+			continue
+		}
+		syncAt, ok := latestSyncAt[leadUUID]
+		if !ok {
+			continue
+		}
+		if act.UpdatedAt.After(syncAt) {
+			lead.ChannelSyncStatus = "pending_push"
+		}
+	}
+
+	ownerIDs := make([]string, 0, len(items))
+	accountIDs := make([]string, 0, len(items))
+	ownerSeen := map[string]struct{}{}
+	accountSeen := map[string]struct{}{}
+	leadOwnerAccount := map[string]string{}
+	for _, lead := range indexByUUID {
+		if lead == nil || lead.LeadOriginType != "channel" {
+			continue
+		}
+		ownerUserUUID := strings.TrimSpace(lead.OwnerUserUUID)
+		if ownerUserUUID == "" {
+			setOwnerBindingStatus(lead, "missing_owner")
+			continue
+		}
+		sourceAccountUUID := strings.TrimSpace(sourceAccountUUIDString(lead))
+		if sourceAccountUUID == "" {
+			setOwnerBindingStatus(lead, "unmapped")
+			continue
+		}
+		if _, ok := ownerSeen[ownerUserUUID]; !ok {
+			ownerSeen[ownerUserUUID] = struct{}{}
+			ownerIDs = append(ownerIDs, ownerUserUUID)
+		}
+		if _, ok := accountSeen[sourceAccountUUID]; !ok {
+			accountSeen[sourceAccountUUID] = struct{}{}
+			accountIDs = append(accountIDs, sourceAccountUUID)
+		}
+		leadOwnerAccount[lead.LeadUUID] = sourceAccountUUID + ":" + ownerUserUUID
+		setOwnerBindingStatus(lead, "unmapped")
+	}
+	if len(ownerIDs) == 0 || len(accountIDs) == 0 {
+		return nil
+	}
+	var rows []struct {
+		MainMemberID      string `gorm:"column:main_member_id"`
+		SourceAccountUUID string `gorm:"column:channel_account_uuid"`
+	}
+	if err := s.repo.DB.WithContext(ctx).
+		Table(orgmodel.MemberBinding{}.TableName()).
+		Where("tenant_uuid = ?", tenantUUID).
+		Where("main_member_id IN ?", ownerIDs).
+		Where("channel_account_uuid IN ?", accountIDs).
+		Select("main_member_id, channel_account_uuid").
+		Find(&rows).Error; err != nil {
+		return err
+	}
+	confirmed := make(map[string]struct{}, len(rows))
+	for _, row := range rows {
+		key := strings.TrimSpace(row.SourceAccountUUID) + ":" + strings.TrimSpace(row.MainMemberID)
+		if key != ":" {
+			confirmed[key] = struct{}{}
+		}
+	}
+	for leadUUID, key := range leadOwnerAccount {
+		lead := indexByUUID[leadUUID]
+		if lead == nil {
+			continue
+		}
+		if _, ok := confirmed[key]; ok {
+			setOwnerBindingStatus(lead, "mapped")
+		}
+	}
+	return nil
+}
+
+func sourceAccountUUIDString(l *model.Lead) string {
+	if l == nil || l.SourceAccountUUID == nil {
+		return ""
+	}
+	return strings.TrimSpace(*l.SourceAccountUUID)
+}
+
+func setOwnerBindingStatus(lead *model.Lead, status string) {
+	if lead == nil {
+		return
+	}
+	clean := strings.TrimSpace(strings.ToLower(status))
+	lead.OwnerBindingStatus = clean
+	lead.OwnerMappingStatus = clean
 }
 
 func (s *LeadService) Assign(ctx context.Context, tenantUUID, leadUUID string, req LeadAssignRequest) (*model.Lead, error) {
@@ -313,7 +616,7 @@ func (s *LeadService) Assign(ctx context.Context, tenantUUID, leadUUID string, r
 		if err := ensureMemberExists(ctx, tx, tenantUUID, memberID); err != nil {
 			return err
 		}
-		if s.assignmentSvc != nil {
+		if s.assignmentSvc != nil && shouldEnforceAssigneeBinding(lead) {
 			if err := s.assignmentSvc.EnsureMemberBound(ctx, tx, tenantUUID, memberID); err != nil {
 				return err
 			}
@@ -374,6 +677,98 @@ func (s *LeadService) Assign(ctx context.Context, tenantUUID, leadUUID string, r
 		"reason":          strings.TrimSpace(req.Reason),
 	})
 	return updated, nil
+}
+
+func (s *LeadService) BatchAssign(ctx context.Context, tenantUUID string, req LeadBatchAssignRequest) (*LeadBatchAssignResult, error) {
+	if s == nil || s.repo == nil {
+		return nil, errors.New("lead repository not configured")
+	}
+	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
+	if tenantUUID == "" {
+		return nil, repository.ErrTenantUuidRequired
+	}
+	ownerUserUUID := strings.TrimSpace(req.OwnerUserUUID)
+	memberID, err := parseMemberID(ownerUserUUID)
+	if err != nil {
+		return nil, ErrInvalidAssignee
+	}
+	if err := s.repo.WithTenantTx(ctx, tenantUUID, func(tx *gorm.DB) error {
+		return ensureMemberExists(ctx, tx, tenantUUID, memberID)
+	}); err != nil {
+		return nil, err
+	}
+	seen := make(map[string]struct{}, len(req.LeadUUIDs))
+	leadUUIDs := make([]string, 0, len(req.LeadUUIDs))
+	for _, item := range req.LeadUUIDs {
+		id := strings.ToLower(strings.TrimSpace(item))
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		leadUUIDs = append(leadUUIDs, id)
+	}
+	result := &LeadBatchAssignResult{
+		Total: len(leadUUIDs),
+		Items: make([]LeadBatchAssignItem, 0, len(leadUUIDs)),
+	}
+	for _, leadUUID := range leadUUIDs {
+		_, assignErr := s.Assign(ctx, tenantUUID, leadUUID, LeadAssignRequest{
+			OwnerUserUUID: ownerUserUUID,
+			Reason:        req.Reason,
+		})
+		if assignErr != nil {
+			code, message := mapAssignError(assignErr)
+			result.FailedCount++
+			result.Items = append(result.Items, LeadBatchAssignItem{
+				LeadUUID:     leadUUID,
+				Success:      false,
+				ErrorCode:    code,
+				ErrorMessage: message,
+			})
+			continue
+		}
+		result.SuccessCount++
+		result.Items = append(result.Items, LeadBatchAssignItem{
+			LeadUUID: leadUUID,
+			Success:  true,
+		})
+	}
+	return result, nil
+}
+
+func mapAssignError(err error) (string, string) {
+	switch {
+	case errors.Is(err, ErrInvalidAssignee):
+		return "INVALID_ASSIGNEE", "invalid assignee"
+	case errors.Is(err, ErrAssigneeNotFound):
+		return "ASSIGNEE_NOT_FOUND", "assignee not found"
+	case errors.Is(err, ErrAssigneeNotBound):
+		return "ASSIGNEE_NOT_BOUND", "assignee not bound to source member"
+	case errors.Is(err, leadrepo.ErrLeadNotFound):
+		return "LEAD_NOT_FOUND", "lead not found"
+	case errors.Is(err, repository.ErrTenantUuidRequired):
+		return "TENANT_REQUIRED", "tenant_uuid is required"
+	default:
+		return "INTERNAL_ERROR", strings.TrimSpace(err.Error())
+	}
+}
+
+func shouldEnforceAssigneeBinding(lead *model.Lead) bool {
+	if lead == nil {
+		return false
+	}
+	channel := strings.ToLower(strings.TrimSpace(lead.SourceChannel))
+	appType := strings.ToLower(strings.TrimSpace(lead.SourceAppType))
+	if channel != "wechat" || appType != "wecom" {
+		return false
+	}
+	if lead.SourceAccountUUID == nil {
+		return false
+	}
+	return strings.TrimSpace(*lead.SourceAccountUUID) != ""
 }
 
 func (s *LeadService) UpdateStatus(ctx context.Context, tenantUUID, leadUUID string, req LeadStatusUpdateRequest) (*model.Lead, error) {

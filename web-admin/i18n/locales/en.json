@@ -66,6 +66,168 @@
       "untitled": "Untitled Section"
     }
   },
+  "organization": {
+    "description": "Manage your organization, members and permissions.",
+    "common": {
+      "cancel": "Cancel",
+      "save": "Save",
+      "reset": "Reset",
+      "up": "Up",
+      "down": "Down",
+      "edit": "Edit",
+      "delete": "Delete",
+      "none": "None",
+      "enabled": "Enabled",
+      "disabled": "Disabled"
+    },
+    "tabs": {
+      "departments": "Departments",
+      "users": "Users",
+      "permissions": "Permissions"
+    },
+    "department": {
+      "title": "Departments",
+      "description": "Organize teams and hierarchy.",
+      "modalDesc": "Create or edit a department",
+      "search": "Search departments…",
+      "add": "Add department",
+      "edit": "Edit department",
+      "empty": {
+        "title": "No departments yet",
+        "noResults": "No departments found"
+      },
+      "table": {
+        "name": "Name",
+        "actions": "Actions"
+      },
+      "form": {
+        "name": "Name",
+        "parent": "Parent",
+        "noParent": "No parent",
+        "moveParent": "Move to parent",
+        "key": "Key",
+        "sort": "Sort order",
+        "leader": "Leader",
+        "status": "Status",
+        "meta": "Meta (JSON)"
+      },
+      "confirmDelete": "Delete this department?",
+      "pagination": {
+        "showing": "Showing {start}-{end} of {total}"
+      }
+    },
+    "user": {
+      "description": "Manage tenant members, roles and permissions.",
+      "status": {
+        "active": "Active",
+        "inactive": "Inactive",
+        "suspended": "Suspended"
+      },
+      "title": "Tenant management",
+      "rootManagement": "Root management",
+      "selectTenantDesc": "Select a tenant to manage its users and roles.",
+      "searchTenants": "Search tenants…",
+      "filter": {
+        "status": "Status",
+        "plan": "Plan",
+        "allStatus": "All status",
+        "allPlans": "All plans",
+        "active": "Active",
+        "inactive": "Inactive",
+        "reset": "Reset filters"
+      },
+      "plan": {
+        "free": "Free",
+        "pro": "Pro",
+        "enterprise": "Enterprise"
+      },
+      "table": {
+        "name": "Name",
+        "username": "Username",
+        "email": "Email",
+        "phone": "Phone",
+        "department": "Department",
+        "status": "Status",
+        "actions": "Actions"
+      },
+      "form": {
+        "name": "Name",
+        "username": "Username",
+        "email": "Email",
+        "phone": "Phone",
+        "phonePlaceholder": "Enter phone number",
+        "password": "Initial password",
+        "confirmPassword": "Confirm password",
+        "department": "Department",
+        "role": "Role",
+        "status": "Status",
+        "active": "Active",
+        "inactive": "Inactive",
+        "selectDepartment": "Select department",
+        "selectRole": "Select role",
+        "addUser": "Add user",
+        "addUserDesc": "Create a new user in current tenant.",
+        "editUser": "Edit user",
+        "editUserDesc": "Update current user profile."
+      },
+      "role": {
+        "admin": "Admin",
+        "editor": "Editor",
+        "user": "Member"
+      },
+      "pagination": {
+        "showing": "Showing {start}-{end} of {total}",
+        "previous": "Previous",
+        "next": "Next"
+      },
+      "noTenantsFound": "No tenants found",
+      "noDomain": "No domain",
+      "userCount": "Users",
+      "createdAt": "Created at",
+      "loadFailed": "Failed to load tenants",
+      "userCountText": "{count} members",
+      "backToTenantList": "Back to tenant list",
+      "search": "Search by username, email or phone…",
+      "add": "Add user",
+      "importExport": "Import / Export",
+      "enable": "Enable",
+      "disable": "Disable",
+      "confirmDelete": "Delete this user?",
+      "resetPassword": {
+        "action": "Reset password",
+        "title": "Reset password",
+        "description": "Set a new password for {name}",
+        "defaultName": "this user",
+        "newPassword": "New password",
+        "confirmPassword": "Confirm new password",
+        "submit": "Confirm reset"
+      },
+      "export": {
+        "csv": "Export CSV",
+        "json": "Export JSON"
+      },
+      "import": {
+        "button": "Import users"
+      },
+      "validation": {
+        "requiredFields": "Please fill required fields",
+        "passwordMismatch": "Passwords do not match"
+      }
+    },
+    "permission": {
+      "title": "Permission Management",
+      "description": "Manage roles and permission assignments.",
+      "roleList": "Role list",
+      "search": "Search roles…",
+      "roleConfig": "Role Permission Config",
+      "configDesc": "Select permissions for the current role and save.",
+      "add": "Add role",
+      "empty": {
+        "title": "No roles yet",
+        "create": "Create the first role"
+      }
+    }
+  },
   "navigation": {
     "intro": "Plugin Intro",
     "scrm": "SCRM Modules",
@@ -79,8 +241,13 @@
     "scrmLeadEntry": "Lead Tracking",
     "scrmWecomSync": "WeCom Lead Sync",
     "scrmConversationBinding": "Conversation Binding",
-    "scrmOrgSync": "Org Mapping",
+    "scrmOrgSync": "Org Sync",
     "scrmOrgSyncMainView": "Main Org View",
+    "scrmOrgManagement": "Org Management",
+    "scrmOrgManagementOverview": "Org Management Overview",
+    "scrmOrgSyncSub": "Org Sync",
+    "scrmOrgStaffTags": "Staff Tag Management",
+    "scrmOrgStaffTagSync": "Staff Tag Sync",
     "scrmLeadCaptureSmartAssignment": "Lead Capture & Smart Assignment",
     "scrmAcquisitionStaffCode": "Staff QR Code",
     "scrmAcquisitionStaffWelcome": "Staff Welcome Message",
@@ -91,6 +258,8 @@
     "scrmSocialSellingFieldCollab": "Social Selling & Field Collaboration",
     "scrmMobileFrontlineCapabilities": "Mobile Frontline Capabilities",
     "scrmSmartTaggingCustomerSegmentation": "Smart Tagging & Segmentation",
+    "scrmEnterpriseCustomerTags": "Enterprise Customer Tags",
+    "scrmTagSyncCenter": "Tag Sync",
     "scrmCustomerServiceCollaborationLoop": "Customer Service Collaboration Loop",
     "scrmSystemIntegrationDataOrchestration": "System Integration & Data Orchestration",
     "scrmSocialCommerceDistribution": "Social Commerce & Distribution",
@@ -407,129 +576,6 @@
     "add": "Add Tenant",
     "tooltips": {
       "saasSupport": "SaaS support enabled"
-    }
-  },
-  "organization": {
-    "description": "Manage organization, members, and permissions.",
-    "common": {
-      "cancel": "Cancel",
-      "save": "Save",
-      "reset": "Reset",
-      "up": "Move up",
-      "down": "Move down",
-      "edit": "Edit",
-      "delete": "Delete",
-      "none": "None",
-      "enabled": "Enabled",
-      "disabled": "Disabled"
-    },
-    "tabs": {
-      "departments": "Departments",
-      "users": "Users",
-      "permissions": "Permissions"
-    },
-    "department": {
-      "title": "Department management",
-      "description": "Maintain the organizational hierarchy and owners.",
-      "search": "Search departments…",
-      "add": "Add department",
-      "edit": "Edit department",
-      "empty": {
-        "title": "No departments yet",
-        "noResults": "No matching departments"
-      },
-      "table": {
-        "name": "Name",
-        "actions": "Actions"
-      },
-      "form": {
-        "name": "Name",
-        "parent": "Parent",
-        "noParent": "No parent",
-        "moveParent": "Move to",
-        "key": "Unique key",
-        "sort": "Sort order",
-        "leader": "Owner",
-        "status": "Status",
-        "meta": "Meta (JSON)"
-      },
-      "confirmDelete": "Delete this department?",
-      "pagination": {
-        "showing": "Showing {start}-{end} of {total}"
-      }
-    },
-    "user": {
-      "status": {
-        "active": "Active",
-        "inactive": "Inactive",
-        "suspended": "Suspended"
-      },
-      "title": "Tenant directory",
-      "rootManagement": "Root view",
-      "selectTenantDesc": "Pick a tenant to manage its users and roles.",
-      "searchTenants": "Search tenants…",
-      "filter": {
-        "status": "Status",
-        "plan": "Plan",
-        "allStatus": "All statuses",
-        "allPlans": "All plans"
-      },
-      "plan": {
-        "free": "Free",
-        "pro": "Pro",
-        "enterprise": "Enterprise"
-      },
-      "noTenantsFound": "No tenants found",
-      "noDomain": "No domain configured",
-      "userCount": "Users",
-      "createdAt": "Created at",
-      "loadFailed": "Failed to load tenants",
-      "description": "Manage tenant members, roles, and permissions.",
-      "importExport": "Import/Export",
-      "form": {
-        "title": "Invite member",
-        "name": "Name",
-        "username": "Username",
-        "email": "Email",
-        "phone": "Phone",
-        "department": "Department",
-        "role": "Role",
-        "status": "Status",
-        "selectRole": "Select role"
-      },
-      "export": {
-        "csv": "Export CSV",
-        "json": "Export JSON"
-      },
-      "import": {
-        "button": "Import members"
-      }
-    },
-    "permission": {
-      "title": "Permission governance",
-      "description": "Bundle common role templates and keep authorization consistent.",
-      "roleList": "Role list",
-      "search": "Search roles or keywords",
-      "systemRole": "System role",
-      "userCount": "{count} members",
-      "empty": {
-        "title": "No roles yet",
-        "create": "Create role",
-        "noResults": "No matching roles"
-      },
-      "add": "Add role template",
-      "edit": "Edit role template",
-      "roleConfig": "Role permission config",
-      "configDesc": "Select plugin resources that should be granted to this role.",
-      "form": {
-        "name": "Role name",
-        "namePlaceholder": "e.g. Admin / Reviewer",
-        "code": "Role code",
-        "codePlaceholder": "Lowercase letters, numbers, dots, or hyphen only",
-        "description": "Description",
-        "descriptionPlaceholder": "Explain usage scenario or scope",
-        "permissions": "Available permissions"
-      }
     }
   },
   "theme": {
@@ -1093,6 +1139,14 @@
       "description": "Description",
       "content": "Content"
     }
+  },
+  "openworkFoundation": {
+    "accessStatus": "Access Status",
+    "authStatus": "Auth Status",
+    "tokenStatus": "Token Status",
+    "callbackStatus": "Callback Status",
+    "lastSyncAt": "Last Sync Time",
+    "reauthorize": "Reauthorize"
   },
   "message": {
     "saveSuccess": "Saved successfully",

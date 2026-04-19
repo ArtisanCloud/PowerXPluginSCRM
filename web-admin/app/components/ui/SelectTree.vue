@@ -110,10 +110,20 @@ const collectExpanded = (items: TreeNode[], acc: string[] = []) => {
   }
   return acc;
 };
+const collectParentNodes = (items: TreeNode[], acc: string[] = []) => {
+  for (const it of items) {
+    if (it.children?.length && it.value) {
+      acc.push(it.value);
+      collectParentNodes(it.children, acc);
+    }
+  }
+  return acc;
+};
 watch(
   () => props.items,
   (v) => {
-    expanded.value = collectExpanded(v);
+    const explicit = collectExpanded(v);
+    expanded.value = explicit.length > 0 ? explicit : collectParentNodes(v);
   },
   { immediate: true }
 );
@@ -269,18 +279,24 @@ const handleClose = () => {
     </UButton>
 
     <template #content>
-      <div class="p-2">
+      <div
+        class="select-tree-content rounded-md border border-gray-200 bg-white p-2 text-gray-900 shadow-lg dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+      >
         <div v-if="searchable" class="mb-2">
           <UInput
             v-model="searchQuery"
             icon="i-heroicons-magnifying-glass-20-solid"
             placeholder="搜索..."
             size="sm"
+            :ui="{
+              base: 'text-gray-900 placeholder:text-gray-500 dark:text-slate-100 dark:placeholder:text-slate-400',
+            }"
           />
         </div>
 
         <!-- 用受控 expanded；避免 v-model 直接塞入对象，改为 :model-value + @update -->
         <UTree
+          v-if="interactiveItems.length > 0"
           :model-value="internalValue"
           @update:modelValue="onTreeUpdate"
           v-model:expanded="expanded"
@@ -288,8 +304,15 @@ const handleClose = () => {
           :multiple="multiple"
           value-key="value"
           label-key="label"
-          :class="treeClass"
+          :class="`${treeClass} min-h-24 text-gray-900 dark:text-slate-100 [&_*]:text-inherit`"
         />
+
+        <div
+          v-else
+          class="rounded-md border border-dashed border-gray-300/50 px-3 py-4 text-center text-sm text-gray-500 dark:border-slate-600/50 dark:text-slate-300"
+        >
+          暂无可选项
+        </div>
 
         <div
           v-if="searchable && searchQuery && filteredItems.length === 0"
