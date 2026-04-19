@@ -263,12 +263,12 @@ Task: T023 web-admin/app/composables/api/services/leadCapture.ts
 
 ### Implementation for V2.1 Backend
 
-- [ ] T077 [V2.1] 新增 V2.1 群运营模型与迁移（group code/chat snapshot/group tags）到 `backend/internal/domain/models/acquisition/` 与 `backend/cmd/database/migrate/migrate.go`
-- [ ] T078 [V2.1] 实装群活码服务（add/get/update/del join-way + sync status）到 `backend/internal/services/admin/acquisition/group_live_code_service.go`
-- [ ] T079 [V2.1] 实装群聊同步服务（list/get + callback merge）到 `backend/internal/services/admin/acquisition/group_chat_sync_service.go`
-- [ ] T080 [V2.1] 实装本地群标签服务（definition/binding/rule-run）到 `backend/internal/services/admin/acquisition/group_tag_service.go`
-- [ ] T081 [V2.1] 实装群标签规则引擎（来源活码/群主/成员结构）到 `backend/internal/services/admin/acquisition/group_tag_rule_service.go`
-- [ ] T082 [V2.1] 新增/更新 admin 与 webhook 路由到 `backend/internal/transport/http/admin/acquisition/routes.go` 与 `backend/internal/transport/http/webhooks/routes.go`
+- [X] T077 [V2.1] 新增 V2.1 群运营模型与迁移（group code/chat snapshot/group tags）到 `backend/internal/domain/models/acquisition/` 与 `backend/cmd/database/migrate/migrate.go`
+- [X] T078 [V2.1] 实装群活码服务（add/get/update/del join-way + sync status）到 `backend/internal/services/admin/acquisition/group_live_code_service.go`
+- [X] T079 [V2.1] 实装群聊同步服务（list/get + callback merge）到 `backend/internal/services/admin/acquisition/group_chat_sync_service.go`
+- [X] T080 [V2.1] 实装本地群标签服务（definition/binding/rule-run）到 `backend/internal/services/admin/acquisition/group_tag_service.go`
+- [X] T081 [V2.1] 实装群标签规则引擎（来源活码/群主/成员结构）到 `backend/internal/services/admin/acquisition/group_tag_rule_service.go`
+- [X] T082 [V2.1] 新增/更新 admin 与 webhook 路由到 `backend/internal/transport/http/admin/acquisition/routes.go` 与 `backend/internal/transport/http/webhooks/routes.go`
 
 ### Implementation for V2.1 Frontend
 

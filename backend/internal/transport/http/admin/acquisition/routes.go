@@ -31,10 +31,14 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 	staffSvc := acqsvc.NewStaffLiveCodeService(repos.StaffLiveCodes, accountResolver)
 	staffWelcomeSvc := acqsvc.NewStaffWelcomeService(repos.StaffLiveCodes, repos.StaffWelcomeConfigs, repos.StaffWelcomeAttempt)
 	groupSvc := acqsvc.NewGroupLiveCodeService(repos.GroupLiveCodes)
+	groupChatSvc := acqsvc.NewGroupChatSyncService(repos.GroupChatSnapshots)
+	groupTagSvc := acqsvc.NewGroupTagService(repos.GroupTags, repos.GroupChatSnapshots, acqsvc.NewGroupTagRuleService())
 
 	staffHandler := NewStaffLiveCodeHandler(staffSvc)
 	staffWelcomeHandler := NewStaffWelcomeHandler(staffWelcomeSvc)
 	groupHandler := NewGroupLiveCodeHandler(groupSvc)
+	groupChatHandler := NewGroupChatSyncHandler(groupChatSvc)
+	groupTagHandler := NewGroupTagHandler(groupTagSvc)
 
 	group := rg.Group("/leads/acquisition", httpmw.EnsureTenant())
 	{
@@ -45,6 +49,22 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		group.PUT("/staff-codes/:staff_code_uuid/welcome-config", staffWelcomeHandler.Save)
 		group.POST("/staff-codes/:staff_code_uuid/welcome-config/sync", staffWelcomeHandler.TriggerSync)
 		group.GET("/staff-codes/:staff_code_uuid/welcome-config/sync-status", staffWelcomeHandler.GetSyncStatus)
+
+		group.POST("/group-codes", groupHandler.Create)
 		group.GET("/group-codes", groupHandler.List)
+		group.GET("/group-codes/:group_code_uuid", groupHandler.Get)
+		group.PUT("/group-codes/:group_code_uuid", groupHandler.Update)
+		group.DELETE("/group-codes/:group_code_uuid", groupHandler.Delete)
+		group.POST("/group-codes/:group_code_uuid/sync", groupHandler.Sync)
+
+		group.POST("/group-chats/sync", groupChatHandler.Sync)
+		group.GET("/group-chats", groupChatHandler.List)
+		group.GET("/group-chats/:chat_id", groupChatHandler.Get)
+
+		group.POST("/group-tags", groupTagHandler.Create)
+		group.GET("/group-tags", groupTagHandler.List)
+		group.POST("/group-tags/:group_tag_uuid/bindings", groupTagHandler.Bind)
+		group.GET("/group-tags/:group_tag_uuid/bindings", groupTagHandler.ListBindings)
+		group.POST("/group-tags/:group_tag_uuid/rules/replay", groupTagHandler.ReplayRule)
 	}
 }

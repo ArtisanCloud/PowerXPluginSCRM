@@ -43,7 +43,26 @@ type StaffWelcomeSyncAttemptRepository interface {
 }
 
 type GroupLiveCodeRepository interface {
+	Create(ctx context.Context, item *acqmodel.GroupLiveCode) error
+	GetByUUID(ctx context.Context, tenantUUID, groupCodeUUID string) (*acqmodel.GroupLiveCode, error)
+	Update(ctx context.Context, item *acqmodel.GroupLiveCode) error
+	Delete(ctx context.Context, tenantUUID, groupCodeUUID string) error
 	List(ctx context.Context, tenantUUID string, limit int) ([]*acqmodel.GroupLiveCode, error)
+}
+
+type GroupChatSnapshotRepository interface {
+	Upsert(ctx context.Context, item *acqmodel.GroupChatSnapshot) error
+	GetByChatID(ctx context.Context, tenantUUID, chatID string) (*acqmodel.GroupChatSnapshot, error)
+	List(ctx context.Context, tenantUUID string, limit int) ([]*acqmodel.GroupChatSnapshot, error)
+}
+
+type GroupTagRepository interface {
+	CreateDefinition(ctx context.Context, item *acqmodel.GroupTagDefinition) error
+	ListDefinitions(ctx context.Context, tenantUUID string, limit int) ([]*acqmodel.GroupTagDefinition, error)
+	GetDefinitionByUUID(ctx context.Context, tenantUUID, groupTagUUID string) (*acqmodel.GroupTagDefinition, error)
+	BindChats(ctx context.Context, tenantUUID, groupTagUUID string, chatIDs []string, bindSource, ruleRunUUID string) (int, error)
+	ListBindings(ctx context.Context, tenantUUID, groupTagUUID string, limit int) ([]*acqmodel.GroupTagBinding, error)
+	CreateRuleRun(ctx context.Context, item *acqmodel.GroupTagRuleRun) error
 }
 
 type Bundle struct {
@@ -51,6 +70,8 @@ type Bundle struct {
 	StaffWelcomeConfigs StaffWelcomeConfigRepository
 	StaffWelcomeAttempt StaffWelcomeSyncAttemptRepository
 	GroupLiveCodes      GroupLiveCodeRepository
+	GroupChatSnapshots  GroupChatSnapshotRepository
+	GroupTags           GroupTagRepository
 }
 
 func NewBundle(db *gorm.DB) *Bundle {
@@ -62,6 +83,8 @@ func NewBundle(db *gorm.DB) *Bundle {
 		StaffWelcomeConfigs: NewStaffWelcomeConfigRepository(db),
 		StaffWelcomeAttempt: NewStaffWelcomeSyncAttemptRepository(db),
 		GroupLiveCodes:      NewGroupLiveCodeRepository(db),
+		GroupChatSnapshots:  NewGroupChatSnapshotRepository(db),
+		GroupTags:           NewGroupTagRepository(db),
 	}
 }
 
