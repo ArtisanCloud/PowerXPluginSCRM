@@ -246,3 +246,41 @@ Task: T023 web-admin/app/composables/api/services/leadCapture.ts
 - `[P]` 任务仅表示可并行，不代表可跳过依赖顺序。
 - 严格遵守租户隔离、幂等键口径、首触主归因、发布权限边界。
 - 每个用户故事完成后都应保证“可单独测试、可单独演示、可单独交付”。
+
+---
+
+## Phase 8: V2.1 群运营闭环（活码优先）
+
+**Purpose**: 将“群活码/群欢迎语骨架”升级为可运营闭环能力
+
+### Tests for V2.1
+
+- [X] T072 [P] [V2.1] 新增合同测试：群活码 CRUD + 发布同步状态到 `backend/tests/contract/group_live_code_contract_test.go`
+- [X] T073 [P] [V2.1] 新增合同测试：群聊同步列表与详情查询到 `backend/tests/contract/group_chat_sync_contract_test.go`
+- [X] T074 [P] [V2.1] 新增合同测试：本地群标签 CRUD/绑定/查询到 `backend/tests/contract/group_tag_contract_test.go`
+- [X] T075 [P] [V2.1] 新增服务单测：群标签规则命中与幂等绑定到 `backend/internal/services/admin/acquisition/group_tag_rule_service_test.go`
+- [X] T076 [V2.1] 新增集成测试：群回调 + 拉取最终一致性到 `backend/tests/integration/group_chat_sync_consistency_integration_test.go`
+
+### Implementation for V2.1 Backend
+
+- [ ] T077 [V2.1] 新增 V2.1 群运营模型与迁移（group code/chat snapshot/group tags）到 `backend/internal/domain/models/acquisition/` 与 `backend/cmd/database/migrate/migrate.go`
+- [ ] T078 [V2.1] 实装群活码服务（add/get/update/del join-way + sync status）到 `backend/internal/services/admin/acquisition/group_live_code_service.go`
+- [ ] T079 [V2.1] 实装群聊同步服务（list/get + callback merge）到 `backend/internal/services/admin/acquisition/group_chat_sync_service.go`
+- [ ] T080 [V2.1] 实装本地群标签服务（definition/binding/rule-run）到 `backend/internal/services/admin/acquisition/group_tag_service.go`
+- [ ] T081 [V2.1] 实装群标签规则引擎（来源活码/群主/成员结构）到 `backend/internal/services/admin/acquisition/group_tag_rule_service.go`
+- [ ] T082 [V2.1] 新增/更新 admin 与 webhook 路由到 `backend/internal/transport/http/admin/acquisition/routes.go` 与 `backend/internal/transport/http/webhooks/routes.go`
+
+### Implementation for V2.1 Frontend
+
+- [ ] T083 [V2.1] 扩展 acquisition API client（群活码、群同步、群标签）到 `web-admin/app/composables/api/services/acquisition.ts`
+- [ ] T084 [V2.1] 实装群活码页面（列表 + 设置 + 发布状态）到 `web-admin/app/pages/scrm/acquisition_group_code.vue`
+- [ ] T085 [V2.1] 实装群管理页面（筛选、详情、来源活码透视）到 `web-admin/app/pages/scrm/acquisition_group_manage.vue`
+- [ ] T086 [V2.1] 实装群标签页面（手工打标 + 自动规则 + 绑定关系）到 `web-admin/app/pages/scrm/acquisition_group_tags.vue`
+- [ ] T087 [V2.1] 实装群分析页面（来源活码维度统计 + 导出）到 `web-admin/app/pages/scrm/acquisition_group_analysis.vue`
+- [ ] T088 [V2.1] 更新导航与 i18n 文案，明确“本地群标签不回写企微”到 `web-admin/app/components/AppSidebar.vue` 与 `web-admin/i18n/locales/zh.json`
+
+### Polish for V2.1
+
+- [ ] T089 [V2.1] 更新 quickstart（群运营闭环联调脚本）到 `specs/005-channel-code-acquisition/quickstart.md`
+- [ ] T090 [V2.1] 更新研究结论与风险项到 `specs/005-channel-code-acquisition/research.md`
+- [ ] T091 [V2.1] 补充可观测文档（群同步/规则命中/导出口径）到 `backend/internal/observability/lead_capture/README.md`

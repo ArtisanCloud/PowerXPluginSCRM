@@ -19,6 +19,8 @@ var (
 	ErrStaffLiveCodeStatusInvalid     = errors.New("invalid staff live code status")
 	ErrStaffLiveCodeAlreadyExists     = errors.New("staff live code already exists")
 	ErrStaffMemberBindingNotConfirmed = errors.New("member binding is not confirmed")
+	// 保留旧错误名兼容既有测试/调用方，后续统一迁移到 ErrStaffMemberBindingNotConfirmed。
+	ErrStaffMemberMappingNotConfirmed = ErrStaffMemberBindingNotConfirmed
 	ErrDefaultChannelAccountNotFound  = errors.New("default channel account not found")
 )
 
