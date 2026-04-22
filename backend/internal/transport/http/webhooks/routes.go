@@ -65,7 +65,7 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 	channelCodeEventHandler := NewChannelCodeEventsWebhookHandler(channelCodeEventSvc)
 	acquisitionCodeEventHandler := NewAcquisitionCodeEventsWebhookHandler()
 	groupChatWebhookHandler := NewAcquisitionGroupChatWebhookHandler(
-		acqsvc.NewGroupChatSyncService(acqrepo.NewGroupChatSnapshotRepository(deps.DB)),
+		acqsvc.NewGroupChatSyncService(acqrepo.NewGroupChatSnapshotRepository(deps.DB), nil),
 	)
 
 	group := rg.Group("/webhooks")

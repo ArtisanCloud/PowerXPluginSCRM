@@ -20,6 +20,7 @@ import (
 	pwtagresp "github.com/ArtisanCloud/PowerWeChat/v3/src/work/externalContact/tag/response"
 	socialmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/social_channel_governance"
 	socialrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/social_channel_governance"
+	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/shared/wecomauth"
 )
 
 type TagRecord struct {
@@ -303,7 +304,7 @@ type weComTagClient interface {
 	MarkTag(ctx context.Context, options *pwtagreq.RequestTagMarkTag) (*pwresp.ResponseWork, error)
 }
 
-type weComTagClientFactory func(credentials map[string]string) (weComTagClient, error)
+type weComTagClientFactory func(appType string, credentials map[string]string) (weComTagClient, error)
 
 type powerWeComTagClient struct {
 	client  *pwtag.Client
@@ -352,8 +353,8 @@ func (c *powerWeComTagClient) MarkTag(ctx context.Context, options *pwtagreq.Req
 	return c.client.MarkTag(ctx, options)
 }
 
-var defaultWeComTagClientFactory weComTagClientFactory = func(credentials map[string]string) (weComTagClient, error) {
-	app, err := newWeComTagSyncApp(credentials)
+var defaultWeComTagClientFactory weComTagClientFactory = func(appType string, credentials map[string]string) (weComTagClient, error) {
+	app, err := newWeComTagSyncApp("wechat", appType, credentials)
 	if err != nil {
 		return nil, err
 	}
@@ -422,6 +423,14 @@ func (s *TagSyncService) SyncRemoteToLocalByChannel(
 		return nil, syncErr
 	}
 	if s.tagRecordRepo != nil {
+		resolvedAppType := "wecom"
+		if s.accountRepo != nil {
+			if account, accountErr := s.accountRepo.GetByAccountUUID(ctx, strings.ToLower(strings.TrimSpace(tenantUUID)), strings.ToLower(strings.TrimSpace(channelAccountUUID))); accountErr == nil && account != nil {
+				if v := strings.ToLower(strings.TrimSpace(account.AppType)); v != "" {
+					resolvedAppType = v
+				}
+			}
+		}
 		records := make([]socialmodel.SyncTagRecord, 0, len(remoteTags))
 		for _, tag := range remoteTags {
 			tag = normalizeTagRecord(tag)
@@ -431,7 +440,7 @@ func (s *TagSyncService) SyncRemoteToLocalByChannel(
 			records = append(records, socialmodel.SyncTagRecord{
 				ChannelAccountUUID: strings.TrimSpace(channelAccountUUID),
 				ChannelCode:        "wechat",
-				AppType:            "wecom",
+				AppType:            resolvedAppType,
 				RemoteTagID:        strings.TrimSpace(tag.TagID),
 				RemoteGroupID:      strings.TrimSpace(tag.GroupID),
 				RemoteGroupName:    strings.TrimSpace(tag.GroupName),
@@ -446,7 +455,7 @@ func (s *TagSyncService) SyncRemoteToLocalByChannel(
 			tenantUUID,
 			channelAccountUUID,
 			"wechat",
-			"wecom",
+			resolvedAppType,
 			strings.TrimSpace(res.SnapshotVersion),
 			records,
 			time.Now().UTC(),
@@ -880,32 +889,37 @@ func (s *TagSyncService) resolveWeComTagClient(ctx context.Context, tenantUUID, 
 	if s.clientFactory == nil {
 		return nil, errors.New("wecom tag client factory unavailable")
 	}
-	credentials, err := s.resolveCredentialMap(ctx, tenantUUID, channelAccountUUID)
+	credentials, appType, err := s.resolveCredentialMap(ctx, tenantUUID, channelAccountUUID)
 	if err != nil {
 		return nil, err
 	}
-	return s.clientFactory(credentials)
+	return s.clientFactory(appType, credentials)
 }
 
-func (s *TagSyncService) resolveCredentialMap(ctx context.Context, tenantUUID, channelAccountUUID string) (map[string]string, error) {
+func (s *TagSyncService) resolveCredentialMap(ctx context.Context, tenantUUID, channelAccountUUID string) (map[string]string, string, error) {
 	if s == nil || s.accountRepo == nil {
-		return nil, errors.New("tag sync account repository unavailable")
+		return nil, "", errors.New("tag sync account repository unavailable")
 	}
 	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
 	channelAccountUUID = strings.ToLower(strings.TrimSpace(channelAccountUUID))
 	if tenantUUID == "" || channelAccountUUID == "" {
-		return nil, errors.New("tenant_uuid and channel_account_uuid are required")
+		return nil, "", errors.New("tenant_uuid and channel_account_uuid are required")
 	}
 	account, err := s.accountRepo.GetByAccountUUID(ctx, tenantUUID, channelAccountUUID)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	if account == nil {
-		return nil, socialrepo.ErrAccountNotFound
+		return nil, "", socialrepo.ErrAccountNotFound
+	}
+	channelCode := strings.ToLower(strings.TrimSpace(account.ChannelCode))
+	appType := strings.ToLower(strings.TrimSpace(account.AppType))
+	if _, err := wecomauth.ResolveKind(channelCode, appType); err != nil {
+		return nil, "", err
 	}
 	credentials := credentialsToStringMap(account.Credentials)
 	credentials = s.mergeDelegatedCredentials(ctx, tenantUUID, channelAccountUUID, credentials)
-	return credentials, nil
+	return credentials, appType, nil
 }
 
 func (s *TagSyncService) mergeDelegatedCredentials(
@@ -921,7 +935,6 @@ func (s *TagSyncService) mergeDelegatedCredentials(
 	if s != nil && s.openworkRepo != nil && strings.TrimSpace(tenantUUID) != "" && strings.TrimSpace(channelAccountUUID) != "" {
 		binding, err := s.openworkRepo.ResolveBindingByChannelAccount(ctx, tenantUUID, channelAccountUUID)
 		if err == nil && binding != nil && strings.TrimSpace(binding.Status) == socialmodel.WeComAuthBindingStatusActive {
-			out["auth_mode"] = "delegated_template"
 			if strings.TrimSpace(out["corp_id"]) == "" {
 				out["corp_id"] = strings.TrimSpace(binding.CorpID)
 			}
@@ -1037,11 +1050,14 @@ func credentialsToStringMap(input map[string]interface{}) map[string]string {
 	return out
 }
 
-func newWeComTagSyncApp(credentials map[string]string) (*work.Work, error) {
+func newWeComTagSyncApp(channelCode, appType string, credentials map[string]string) (*work.Work, error) {
+	authKind, err := wecomauth.ResolveKind(channelCode, appType)
+	if err != nil {
+		return nil, err
+	}
 	corpID := strings.TrimSpace(credentials["corp_id"])
 	appSecret := strings.TrimSpace(credentials["app_secret"])
 	agentIDRaw := strings.TrimSpace(credentials["agent_id"])
-	authMode := strings.ToLower(strings.TrimSpace(credentials["auth_mode"]))
 
 	templateID := strings.TrimSpace(firstNonEmpty(credentials["template_id"], credentials["suite_id"]))
 	templateSecret := strings.TrimSpace(firstNonEmpty(credentials["template_secret"], credentials["suite_secret"]))
@@ -1052,9 +1068,13 @@ func newWeComTagSyncApp(credentials map[string]string) (*work.Work, error) {
 	if corpID == "" {
 		corpID = strings.TrimSpace(credentials["auth_corp_id"])
 	}
-	delegatedReady := corpID != "" && templateID != "" && templateSecret != "" && providerCorpID != "" && providerSecret != "" && permanentCode != "" && templateTicket != ""
-	preferDelegated := authMode == "delegated_template" || authMode == "delegated"
-	if delegatedReady && (preferDelegated || appSecret == "") {
+	if wecomauth.IsDelegated(authKind) {
+		if corpID == "" || templateID == "" || templateSecret == "" || providerCorpID == "" || providerSecret == "" || permanentCode == "" {
+			return nil, errors.New("wecom delegated credentials missing template/provider/corp/permanent_code")
+		}
+		if templateTicket == "" {
+			return nil, errors.New("wecom delegated credentials missing template_ticket")
+		}
 		callback := strings.TrimSpace(credentials["oauth_callback"])
 		if callback == "" {
 			callback = "http://localhost"
@@ -1093,32 +1113,24 @@ func newWeComTagSyncApp(credentials map[string]string) (*work.Work, error) {
 		return openWorkApp.ProviderClient(corpID, permanentCode, nil)
 	}
 
-	if corpID != "" && appSecret != "" {
-		agentID := 0
-		if agentIDRaw != "" {
-			parsed, err := strconv.Atoi(agentIDRaw)
-			if err != nil {
-				return nil, errors.New("wecom credentials invalid agent_id")
-			}
-			agentID = parsed
+	if corpID == "" || appSecret == "" {
+		return nil, errors.New("wecom self-built credentials missing corp_id/app_secret")
+	}
+	agentID := 0
+	if agentIDRaw != "" {
+		parsed, err := strconv.Atoi(agentIDRaw)
+		if err != nil {
+			return nil, errors.New("wecom credentials invalid agent_id")
 		}
-		return work.NewWork(&work.UserConfig{
-			CorpID:    corpID,
-			AgentID:   agentID,
-			Secret:    appSecret,
-			Token:     strings.TrimSpace(credentials["token"]),
-			HttpDebug: parseTagCredentialBool(credentials["http_debug"]),
-		})
+		agentID = parsed
 	}
-
-	if templateTicket == "" {
-		return nil, errors.New("wecom delegated credentials missing template_ticket")
-	}
-	if corpID == "" || templateID == "" || templateSecret == "" || providerCorpID == "" || providerSecret == "" || permanentCode == "" {
-		return nil, errors.New("wecom credentials missing corp_id/app_secret or delegated_template credentials")
-	}
-
-	return nil, errors.New("wecom credentials missing corp_id/app_secret or delegated_template credentials")
+	return work.NewWork(&work.UserConfig{
+		CorpID:    corpID,
+		AgentID:   agentID,
+		Secret:    appSecret,
+		Token:     strings.TrimSpace(credentials["token"]),
+		HttpDebug: parseTagCredentialBool(credentials["http_debug"]),
+	})
 }
 
 func firstNonEmpty(values ...string) string {

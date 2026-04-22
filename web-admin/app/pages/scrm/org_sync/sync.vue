@@ -32,11 +32,11 @@
           class="w-full"
         />
         <div
-          v-if="selectedAccountAuthModeLabel"
+          v-if="selectedAccountTypeLabel"
           class="mt-2 text-xs"
           :class="isDelegatedTemplateAccount ? 'text-amber-500' : 'text-gray-600 dark:text-slate-300'"
         >
-          账号模式：{{ selectedAccountAuthModeLabel }}
+          账号类型：{{ selectedAccountTypeLabel }}
           <span v-if="isDelegatedTemplateAccount">（当前仅支持单向拉取，推送已禁用）</span>
         </div>
       </div>
@@ -350,17 +350,11 @@ const accountOptions = computed(() => {
 const selectedAccount = computed(() =>
   channelAccounts.value.find((acc) => acc.account_uuid === selectedAccountUUID.value)
 );
-const selectedAccountAuthMode = computed(() => {
-  const raw = (selectedAccount.value?.credentials as Record<string, unknown> | undefined)?.auth_mode;
-  return String(raw || "").trim().toLowerCase();
-});
-const isDelegatedTemplateAccount = computed(() => selectedAccountAuthMode.value === "delegated_template");
-const selectedAccountAuthModeLabel = computed(() => {
+const isDelegatedTemplateAccount = computed(() => String(selectedAccount.value?.app_type || "").toLowerCase() === "openwork");
+const selectedAccountTypeLabel = computed(() => {
   if (!selectedAccount.value) return "";
   if (isDelegatedTemplateAccount.value) return "代开发应用";
-  if (selectedAccountAuthMode.value === "manual") return "自建应用";
-  if (selectedAccountAuthMode.value) return selectedAccountAuthMode.value;
-  return "未标注";
+  return "自建应用";
 });
 const isDefaultAccount = computed(() => Boolean(selectedAccount.value?.org_sync_default));
 const defaultAccount = computed(() => channelAccounts.value.find((acc) => acc.org_sync_default));

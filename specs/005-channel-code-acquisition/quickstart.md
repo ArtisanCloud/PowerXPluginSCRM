@@ -297,10 +297,62 @@ curl -X POST "http://127.0.0.1:8092/api/v1/admin/leads/acquisition/group-tags/<g
 
 ### 12.6 群运营导出
 
+当前版本通过前端页面导出 CSV（`/scrm/acquisition_group_analysis`），后端独立导出接口尚未开放。  
+
+操作步骤：
+1. 进入群分析页面，设置筛选条件（群主、来源 config_id、标签关键字）。
+2. 点击“导出 CSV”按钮。
+3. 校验下载文件中 `chat_id/name/owner_userid/member_count/source_config_id/tags/updated_at` 字段与当前筛选结果一致。
+
+---
+
+### 12.7 客户群变更回调（V2.1 webhook）
+
 ```bash
-curl "http://127.0.0.1:8092/api/v1/admin/leads/acquisition/group-chats/export?tag=<group_tag_uuid>&source_config_id=<config_id>" \
-  -H "Authorization: Bearer $USER_TOKEN" \
-  -o group-ops-export.csv
+curl -X POST "http://127.0.0.1:8092/api/v1/webhooks/channels/wechat/group-chat-events" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tenant_uuid":"00000000-0000-0000-0000-000000000001",
+    "channel_account_uuid":"<your-channel-account-uuid>",
+    "chat_id":"chat-001",
+    "name":"活动群A-回调更新",
+    "owner_userid":"owner-a",
+    "member_count":18,
+    "source_config_id":"cfg-demo-001",
+    "occurred_at":"2026-04-19T10:00:00Z",
+    "payload":{"source":"callback"}
+  }'
 ```
 
-预期：导出结果与页面筛选一致。
+预期：
+- 返回 `accepted=true`；
+- `/admin/leads/acquisition/group-chats/:chat_id` 可看到更新后的群快照字段。
+
+---
+
+## 13. V2.2 群成员客户档案增强验收
+
+### 13.1 群管理列表分页与指标列
+
+操作步骤：
+1. 进入 `/scrm/acquisition_group_manage`。
+2. 确认列表默认每页 10 条。
+3. 确认主表列包含：群名、群主、成员数、今日入群、今日退群、来源活码、更新时间、操作。
+4. 确认主表不显示 `chat_id`（仅详情展示）。
+
+预期：
+- 列表分页正常；
+- 筛选后分页总数同步更新；
+- 指标列可显示数值（无数据时为 `0`）。
+
+### 13.2 群详情与客户详情联动
+
+操作步骤：
+1. 点击任意群的“详情”；
+2. 在成员表点击“客户详情”；
+3. 在客户详情中切换标签页：`基础信息`、`所属关系`、`客户动态`。
+
+预期：
+- 群详情为大尺寸弹窗，成员表支持分页；
+- 客户详情显示姓名、userid、入群方式、入群时间、邀请人；
+- `客户动态` 标签页在未接入后端事件流时显示明确占位说明（非空白）。

@@ -238,9 +238,8 @@ const defaultSyncAccountLabel = computed(() => {
   if (!account) return '未识别到可用默认账号';
   return `${account.display_name}（${account.account_id}）`;
 });
-const selectedAccountAuthMode = computed(() => String(selectedAccount.value?.credentials?.auth_mode || '').trim().toLowerCase());
 const isDelegatedTemplateAccount = computed(() =>
-  selectedAccountAuthMode.value === 'delegated_template' || selectedAccountAuthMode.value === 'delegated'
+  String(selectedAccount.value?.app_type || '').trim().toLowerCase() === 'openwork'
 );
 
 const selectedTag = computed(() => tags.value.find((item) => item.tag_id === selectedTagID.value) || null);

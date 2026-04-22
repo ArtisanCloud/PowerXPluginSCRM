@@ -18,6 +18,7 @@ import (
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/logger"
 	leadobs "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/lead_capture"
 	socialsvc "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/services/admin/social_channel_governance"
+	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/shared/wecomauth"
 	"github.com/google/uuid"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -68,6 +69,7 @@ func NewWeComSyncService(taskRepo *leadrepo.LeadSyncTaskRepository, metrics *lea
 		providerAdapter = NewDefaultSyncTaskProviderAdapter(nil, nil)
 	}
 	_ = factory.Register("wechat", "wecom", NewDefaultWeComLeadAdapter(), providerAdapter)
+	_ = factory.Register("wechat", "openwork", NewDefaultWeComLeadAdapter(), providerAdapter)
 	return &WeComSyncService{
 		taskRepo:    taskRepo,
 		metrics:     metrics,
@@ -87,6 +89,7 @@ func (s *WeComSyncService) WithLeadIngestion(leadRepo *leadrepo.LeadRepository, 
 			s.syncFactory = NewChannelSyncFactory()
 		}
 		_ = s.syncFactory.RegisterLeadAdapter("wechat", "wecom", adapter)
+		_ = s.syncFactory.RegisterLeadAdapter("wechat", "openwork", adapter)
 	}
 	return s
 }
@@ -701,7 +704,7 @@ func (s *WeComSyncService) triggerLeadWriteback(ctx context.Context, req Trigger
 		WhitelistedFields: stringSliceFromAny(policy.MappingRules["whitelist"]),
 		ProtectedFields:   stringSliceFromAny(policy.ProtectedFields["fields"]),
 	}
-	credentials, authMode, err := s.resolveWeComWritebackCredentials(ctx, req.TenantUUID, channelAccountUUID)
+	credentials, err := s.resolveWeComWritebackCredentials(ctx, req.TenantUUID, channelAccountUUID)
 	if err != nil {
 		_ = s.taskRepo.UpdateStatus(ctx, req.TenantUUID, created.TaskUUID, "failed", map[string]any{
 			"error_message": err.Error(),
@@ -712,13 +715,7 @@ func (s *WeComSyncService) triggerLeadWriteback(ctx context.Context, req Trigger
 		s.publishTaskProgress(ctx, created)
 		return created, nil
 	}
-	logger.WithFields(logger.Fields{
-		"component":            "lead_capture_sync",
-		"tenant_uuid":          req.TenantUUID,
-		"channel_account_uuid": channelAccountUUID,
-		"auth_mode":            authMode,
-	}).Info("lead writeback auth mode resolved")
-	app, err := newWeComLeadSyncApp(credentials)
+	app, err := newWeComLeadSyncApp("wechat", req.AppType, credentials)
 	if err != nil {
 		_ = s.taskRepo.UpdateStatus(ctx, req.TenantUUID, created.TaskUUID, "failed", map[string]any{
 			"error_message": err.Error(),
@@ -997,7 +994,7 @@ func (s *WeComSyncService) GetLeadWritebackPolicy(ctx context.Context, tenantUUI
 		OverwriteMode:   "safe",
 		Enabled:         true,
 	}
-	if channel != "wechat" || appType != "wecom" {
+	if _, err := wecomauth.ResolveKind(channel, appType); err != nil {
 		defaultPolicy.CapabilityStatus = socialmodel.CapabilityStatusNotSupported
 		return defaultPolicy, nil
 	}
@@ -1339,26 +1336,26 @@ func payloadString(payload datatypes.JSONMap, key string) string {
 func (s *WeComSyncService) resolveWeComWritebackCredentials(
 	ctx context.Context,
 	tenantUUID, channelAccountUUID string,
-) (map[string]string, string, error) {
+) (map[string]string, error) {
 	if s == nil || s.taskRepo == nil || s.taskRepo.DB == nil {
-		return nil, "", errors.New("account repository not configured")
+		return nil, errors.New("account repository not configured")
 	}
 	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
 	channelAccountUUID = strings.ToLower(strings.TrimSpace(channelAccountUUID))
 	if tenantUUID == "" || channelAccountUUID == "" {
-		return nil, "", errors.New("tenant_uuid and channel_account_uuid are required")
+		return nil, errors.New("tenant_uuid and channel_account_uuid are required")
 	}
 
 	accountRepo := socialrepo.NewAccountRepository(s.taskRepo.DB)
 	account, err := accountRepo.GetByAccountUUID(ctx, tenantUUID, channelAccountUUID)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 	if account == nil {
-		return nil, "", socialrepo.ErrAccountNotFound
+		return nil, socialrepo.ErrAccountNotFound
 	}
-	if !strings.EqualFold(strings.TrimSpace(account.ChannelCode), "wechat") || !strings.EqualFold(strings.TrimSpace(account.AppType), "wecom") {
-		return nil, "", fmt.Errorf("unsupported wecom account identity: %s/%s", strings.TrimSpace(account.ChannelCode), strings.TrimSpace(account.AppType))
+	if _, err := wecomauth.ResolveKind(strings.TrimSpace(account.ChannelCode), strings.TrimSpace(account.AppType)); err != nil {
+		return nil, fmt.Errorf("unsupported wecom account identity: %s/%s", strings.TrimSpace(account.ChannelCode), strings.TrimSpace(account.AppType))
 	}
 
 	credentials := credentialsToStringMap(account.Credentials)
@@ -1367,24 +1364,7 @@ func (s *WeComSyncService) resolveWeComWritebackCredentials(
 	resolver := NewDefaultWeComLeadAdapterWithResolvers(accountRepo, openworkRepo, platformRepo)
 	credentials = resolver.mergeDelegatedCredentials(ctx, tenantUUID, channelAccountUUID, credentials)
 
-	authMode := detectWeComWritebackAuthMode(credentials)
-	if authMode != "delegated_template" && openworkRepo != nil {
-		binding, bindErr := openworkRepo.ResolveBindingByChannelAccount(ctx, tenantUUID, channelAccountUUID)
-		if bindErr == nil && binding != nil && strings.TrimSpace(binding.Status) == socialmodel.WeComAuthBindingStatusActive {
-			authMode = "delegated_template"
-		}
-	}
-	return credentials, authMode, nil
-}
-
-func detectWeComWritebackAuthMode(credentials map[string]string) string {
-	if strings.TrimSpace(credentials["template_id"]) != "" ||
-		strings.TrimSpace(credentials["provider_corpid"]) != "" ||
-		strings.TrimSpace(credentials["provider_secret"]) != "" ||
-		strings.TrimSpace(credentials["permanent_code"]) != "" {
-		return "delegated_template"
-	}
-	return "app_detail"
+	return credentials, nil
 }
 
 func (s *WeComSyncService) resolveLeadExternalUserID(

@@ -24,8 +24,6 @@ import (
 
 const wecomAPIBase = "https://qyapi.weixin.qq.com/cgi-bin/service"
 
-const openWorkAuthModeDelegatedTemplate = "delegated_template"
-
 var openWorkTemplateIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{3,128}$`)
 
 type OpenWorkFoundationService struct {
@@ -94,7 +92,6 @@ type OpenWorkAuthorizeStatusInput struct {
 }
 
 type openWorkAuthCredentials struct {
-	AuthMode       string
 	AppID          string
 	TemplateSecret string
 	TemplateTicket string
@@ -278,7 +275,6 @@ func (s *OpenWorkFoundationService) StartAuthorization(ctx context.Context, in O
 		return nil, err
 	}
 	return map[string]any{
-		"auth_mode":      creds.AuthMode,
 		"template_id":    creds.AppID,
 		"expires_in":     1200,
 		"authorize_url":  customizedAuthResp.QRCodeURL,
@@ -378,7 +374,6 @@ func (s *OpenWorkFoundationService) CompleteAuthorization(ctx context.Context, i
 		AuthScope:          mapToJSONMap(permResp.AuthInfo),
 		Metadata: datatypes.JSONMap{
 			"authorization_info": mapToJSONMap(permResp.AuthorizationInfo),
-			"auth_mode":          creds.AuthMode,
 			"template_id":        creds.AppID,
 		},
 	}
@@ -405,7 +400,6 @@ func (s *OpenWorkFoundationService) CompleteAuthorization(ctx context.Context, i
 			existing["suite_access_token"] = tokenResp.SuiteAccessToken
 			existing["permanent_code"] = strings.TrimSpace(permResp.PermanentCode)
 			existing["corp_id"] = strings.TrimSpace(permResp.AuthCorpInfo.CorpID)
-			existing["auth_mode"] = creds.AuthMode
 			if creds.ProviderCorpID != "" {
 				existing["provider_corpid"] = creds.ProviderCorpID
 			}
@@ -1305,7 +1299,6 @@ func (s *OpenWorkFoundationService) resolveOpenWorkCredentials(
 		return nil, errors.New("代开发模板授权缺少 provider_corpid/provider_secret")
 	}
 	return &openWorkAuthCredentials{
-		AuthMode:       openWorkAuthModeDelegatedTemplate,
 		AppID:          appID,
 		TemplateSecret: templateSecret,
 		TemplateTicket: templateTicket,

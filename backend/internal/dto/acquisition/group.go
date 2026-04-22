@@ -23,9 +23,12 @@ type GroupLiveCodeListQuery struct {
 	Limit int `form:"limit" binding:"omitempty,min=1,max=200"`
 }
 
+type GroupLiveCodeSyncRequest struct {
+	ChatIDs []string `json:"chat_ids" binding:"omitempty,dive,min=1"`
+}
+
 type GroupChatSyncRequest struct {
-	ChannelAccountUUID string `json:"channel_account_uuid" binding:"required,uuid4"`
-	Mode               string `json:"mode" binding:"omitempty,oneof=full incremental"`
+	Mode string `json:"mode" binding:"omitempty,oneof=full incremental"`
 }
 
 type GroupChatListQuery struct {

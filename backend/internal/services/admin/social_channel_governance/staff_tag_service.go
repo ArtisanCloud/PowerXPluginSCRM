@@ -46,7 +46,7 @@ type weComStaffTagClient interface {
 	TagDelUsers(ctx context.Context, tagID int64, userList []string, partyList []string) (*workuserresp.ResponseTagDeleteUser, error)
 }
 
-type weComStaffTagClientFactory func(credentials map[string]string) (weComStaffTagClient, error)
+type weComStaffTagClientFactory func(appType string, credentials map[string]string) (weComStaffTagClient, error)
 
 type powerWeComStaffTagClient struct {
 	client *workusertag.Client
@@ -80,8 +80,8 @@ func (c *powerWeComStaffTagClient) TagDelUsers(ctx context.Context, tagID int64,
 	return c.client.TagDelUsers(ctx, tagID, userList, partyList)
 }
 
-var defaultWeComStaffTagClientFactory weComStaffTagClientFactory = func(credentials map[string]string) (weComStaffTagClient, error) {
-	app, err := newWeComTagSyncApp(credentials)
+var defaultWeComStaffTagClientFactory weComStaffTagClientFactory = func(appType string, credentials map[string]string) (weComStaffTagClient, error) {
+	app, err := newWeComTagSyncApp("wechat", appType, credentials)
 	if err != nil {
 		return nil, err
 	}
@@ -295,11 +295,11 @@ func (s *StaffTagService) resolveClient(ctx context.Context, tenantUUID, channel
 	if s.clientFactory == nil {
 		return nil, errors.New("staff tag client factory unavailable")
 	}
-	credentials, err := s.credentialResolver.resolveCredentialMap(ctx, tenantUUID, channelAccountUUID)
+	credentials, appType, err := s.credentialResolver.resolveCredentialMap(ctx, tenantUUID, channelAccountUUID)
 	if err != nil {
 		return nil, err
 	}
-	return s.clientFactory(credentials)
+	return s.clientFactory(appType, credentials)
 }
 
 func (s *StaffTagService) probeTagWritable(ctx context.Context, client weComStaffTagClient, tagID int64, tagName string) (bool, string) {

@@ -54,6 +54,7 @@ type GroupChatSnapshotRepository interface {
 	Upsert(ctx context.Context, item *acqmodel.GroupChatSnapshot) error
 	GetByChatID(ctx context.Context, tenantUUID, chatID string) (*acqmodel.GroupChatSnapshot, error)
 	List(ctx context.Context, tenantUUID string, limit int) ([]*acqmodel.GroupChatSnapshot, error)
+	ListByChannelAccount(ctx context.Context, tenantUUID, channelAccountUUID string, limit int) ([]*acqmodel.GroupChatSnapshot, error)
 }
 
 type GroupTagRepository interface {

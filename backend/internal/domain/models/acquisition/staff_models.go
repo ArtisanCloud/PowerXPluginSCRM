@@ -106,6 +106,12 @@ type GroupLiveCode struct {
 	JoinScene          int        `gorm:"column:join_scene;type:int;not null;default:1" json:"join_scene"`
 	SkipVerify         bool       `gorm:"column:skip_verify;type:boolean;not null;default:false" json:"skip_verify"`
 	AutoCreateRoom     bool       `gorm:"column:auto_create_room;type:boolean;not null;default:false" json:"auto_create_room"`
+	TargetChatCount    int        `gorm:"column:target_chat_count;type:int;not null;default:0" json:"target_chat_count"`
+	TargetChatIDs      []string   `gorm:"column:target_chat_ids;type:jsonb;serializer:json" json:"target_chat_ids,omitempty"`
+	ShardCount         int        `gorm:"column:shard_count;type:int;not null;default:0" json:"shard_count"`
+	CapacityTotal      int        `gorm:"column:capacity_total;type:int;not null;default:0" json:"capacity_total"`
+	CapacityUsed       int        `gorm:"column:capacity_used;type:int;not null;default:0" json:"capacity_used"`
+	ShardConfigIDs     []string   `gorm:"column:shard_config_ids;type:jsonb;serializer:json" json:"shard_config_ids,omitempty"`
 	QRCode             string     `gorm:"column:qr_code;type:text" json:"qr_code,omitempty"`
 	Status             string     `gorm:"column:status;type:varchar(32);not null;default:'draft'" json:"status"`
 	SyncStatus         string     `gorm:"column:sync_status;type:varchar(32);not null;default:'pending';index:idx_acq_group_codes_sync_status" json:"sync_status"`
@@ -132,7 +138,7 @@ type GroupChatSnapshot struct {
 	MemberCount         int            `gorm:"column:member_count;type:int;not null;default:0" json:"member_count"`
 	CreateTime          *time.Time     `gorm:"column:create_time;type:timestamptz" json:"create_time,omitempty"`
 	LastActivityAt      *time.Time     `gorm:"column:last_activity_at;type:timestamptz" json:"last_activity_at,omitempty"`
-	SourceGroupCodeUUID string         `gorm:"column:source_group_code_uuid;type:uuid;index:idx_acq_group_chat_source_code" json:"source_group_code_uuid,omitempty"`
+	SourceGroupCodeUUID *string        `gorm:"column:source_group_code_uuid;type:uuid;index:idx_acq_group_chat_source_code" json:"source_group_code_uuid,omitempty"`
 	SourceConfigID      string         `gorm:"column:source_config_id;type:varchar(128);index:idx_acq_group_chat_source_config" json:"source_config_id,omitempty"`
 	Payload             datatypes.JSON `gorm:"column:payload;type:jsonb;not null;default:'{}'::jsonb" json:"payload"`
 	UpdatedAt           time.Time      `gorm:"column:updated_at;type:timestamptz;not null;default:now()" json:"updated_at"`

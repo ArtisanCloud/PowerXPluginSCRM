@@ -57,7 +57,7 @@ func TestDefaultWeComLeadAdapter_FetchLeadsMappingAndCursor(t *testing.T) {
 			},
 		},
 		batchLimit: 2,
-		clientFactory: func(_ map[string]string) (weComExternalContactClient, error) {
+		clientFactory: func(_ string, _ map[string]string) (weComExternalContactClient, error) {
 			return &stubWeComExternalClient{
 				followResp: &pwexternalresp.ResponseGetFollowUserList{
 					ResponseWork: response.ResponseWork{},

@@ -345,7 +345,6 @@ export const useSocialChannelGovernanceService = () => {
     },
     startOpenWorkAuthorization: (payload: OpenWorkStartAuthorizePayload) => {
       return apiClient.post<ApiResponse<{
-        auth_mode?: string;
         template_id: string;
         expires_in: number;
         authorize_url: string;
@@ -383,7 +382,6 @@ export const useSocialChannelGovernanceService = () => {
     },
     restartOpenWorkAuthorization: (payload: OpenWorkStartAuthorizePayload) => {
       return apiClient.post<ApiResponse<{
-        auth_mode?: string;
         template_id: string;
         expires_in: number;
         authorize_url: string;

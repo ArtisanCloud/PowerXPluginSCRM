@@ -70,7 +70,6 @@ func TestOpenWorkFoundationHandler_StartAuthorization(t *testing.T) {
 	resp := doJSON(t, router, http.MethodPost, "/admin/social/openwork/wecom/authorize/start?tenant_uuid="+tenantUUID, payload)
 	require.Equal(t, http.StatusOK, resp.Code)
 	data := mustDataMap(t, resp.Body.Bytes())
-	require.Equal(t, "delegated_template", data["auth_mode"])
 	require.Equal(t, "dk001", data["template_id"])
 	require.Equal(t, "https://open.work.weixin.qq.com/3rdapp/install?suite_id=dk001", data["authorize_url"])
 }

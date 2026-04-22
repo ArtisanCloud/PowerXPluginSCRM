@@ -103,7 +103,6 @@ func TestOpenWorkFoundationService_StartAuthorization(t *testing.T) {
 		State:          "state-001",
 	})
 	require.NoError(t, err)
-	require.Equal(t, "delegated_template", resp["auth_mode"])
 	require.Equal(t, "dk001", resp["template_id"])
 	require.Equal(t, "https://open.work.weixin.qq.com/3rdapp/install?suite_id=dk001", resp["authorize_url"])
 }

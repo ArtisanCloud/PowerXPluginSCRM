@@ -281,6 +281,31 @@ Task: T023 web-admin/app/composables/api/services/leadCapture.ts
 
 ### Polish for V2.1
 
-- [ ] T089 [V2.1] 更新 quickstart（群运营闭环联调脚本）到 `specs/005-channel-code-acquisition/quickstart.md`
-- [ ] T090 [V2.1] 更新研究结论与风险项到 `specs/005-channel-code-acquisition/research.md`
-- [ ] T091 [V2.1] 补充可观测文档（群同步/规则命中/导出口径）到 `backend/internal/observability/lead_capture/README.md`
+- [X] T089 [V2.1] 更新 quickstart（群运营闭环联调脚本）到 `specs/005-channel-code-acquisition/quickstart.md`
+- [X] T090 [V2.1] 更新研究结论与风险项到 `specs/005-channel-code-acquisition/research.md`
+- [X] T091 [V2.1] 补充可观测文档（群同步/规则命中/导出口径）到 `backend/internal/observability/lead_capture/README.md`
+
+---
+
+## Phase 9: V2.2 群成员客户档案增强（对标群运营工作台）
+
+**Purpose**: 将“群详情/客户详情”从轻量弹窗升级为可运营档案视图，并为客户动态/跟进记录打通数据模型
+
+### Implementation for V2.2 Frontend
+
+- [X] T092 [V2.2] 群管理列表增加分页（默认每页 10 条）并保持筛选一致性到 `web-admin/app/pages/scrm/acquisition_group_manage.vue`
+- [X] T093 [V2.2] 群管理列表增加 `今日入群/今日退群` 指标列并隐藏主表 `chat_id` 到 `web-admin/app/pages/scrm/acquisition_group_manage.vue`
+- [X] T094 [V2.2] 群详情弹窗升级为大尺寸信息面板（指标卡 + 成员分页）到 `web-admin/app/pages/scrm/acquisition_group_manage.vue`
+- [X] T095 [V2.2] 客户详情弹窗升级为标签页结构（基础信息/所属关系/客户动态占位）到 `web-admin/app/pages/scrm/acquisition_group_manage.vue`
+- [X] T096 [V2.2] 客户详情接入“所属群聊”多群关联视图（非单群上下文）到 `web-admin/app/pages/scrm/acquisition_group_manage.vue` 与 `web-admin/app/composables/api/services/acquisition.ts`
+
+### Implementation for V2.2 Backend
+
+- [X] T097 [V2.2] 群同步快照 payload 落库完整 `group_chat` 明细（含成员列表）到 `backend/internal/services/admin/acquisition/group_chat_sync_service.go`
+- [X] T098 [V2.2] 新增客户动态事件查询接口（按 external_userid + chat_id）到 `backend/internal/transport/http/admin/acquisition/routes.go` 与 `backend/internal/services/admin/acquisition/`
+- [X] T099 [V2.2] 新增跟进记录聚合接口占位（接 CRM 域）到 `backend/internal/transport/http/admin/acquisition/routes.go` 与 `backend/internal/services/admin/acquisition/`
+
+### Tests for V2.2
+
+- [X] T100 [P] [V2.2] 新增合同测试：客户动态接口与空态提示契约到 `backend/tests/contract/group_customer_timeline_contract_test.go`
+- [X] T101 [P] [V2.2] 新增前端页面测试：群详情与客户详情交互回归到 `web-admin/tests/pages/acquisition_group_manage.spec.ts`

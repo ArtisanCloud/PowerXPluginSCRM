@@ -2,6 +2,7 @@ package acquisition
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"time"
@@ -10,6 +11,7 @@ import (
 	entitymodels "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models"
 	orgsyncmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/org_sync"
 	"github.com/google/uuid"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -390,6 +392,26 @@ func (r *groupLiveCodeRepository) Update(ctx context.Context, item *acqmodel.Gro
 		return errors.New("group_code_uuid is required")
 	}
 	item.UpdatedAt = utcNow()
+	var shardConfigIDs any
+	if item.ShardConfigIDs == nil {
+		shardConfigIDs = datatypes.JSON([]byte("[]"))
+	} else {
+		if buf, err := json.Marshal(item.ShardConfigIDs); err == nil {
+			shardConfigIDs = datatypes.JSON(buf)
+		} else {
+			return err
+		}
+	}
+	var targetChatIDs any
+	if item.TargetChatIDs == nil {
+		targetChatIDs = datatypes.JSON([]byte("[]"))
+	} else {
+		if buf, err := json.Marshal(item.TargetChatIDs); err == nil {
+			targetChatIDs = datatypes.JSON(buf)
+		} else {
+			return err
+		}
+	}
 	q := r.db.WithContext(ctx).
 		Model(&acqmodel.GroupLiveCode{}).
 		Where("tenant_uuid = ? AND group_code_uuid = ?", item.TenantUUID, item.GroupCodeUUID).
@@ -400,6 +422,12 @@ func (r *groupLiveCodeRepository) Update(ctx context.Context, item *acqmodel.Gro
 			"join_scene":           item.JoinScene,
 			"skip_verify":          item.SkipVerify,
 			"auto_create_room":     item.AutoCreateRoom,
+			"target_chat_count":    item.TargetChatCount,
+			"target_chat_ids":      targetChatIDs,
+			"shard_count":          item.ShardCount,
+			"capacity_total":       item.CapacityTotal,
+			"capacity_used":        item.CapacityUsed,
+			"shard_config_ids":     shardConfigIDs,
 			"qr_code":              item.QRCode,
 			"status":               item.Status,
 			"sync_status":          item.SyncStatus,
@@ -464,6 +492,9 @@ func (r *groupChatSnapshotRepository) Upsert(ctx context.Context, item *acqmodel
 	if item.UpdatedAt.IsZero() {
 		item.UpdatedAt = utcNow()
 	}
+	if item.SourceGroupCodeUUID != nil && strings.TrimSpace(*item.SourceGroupCodeUUID) == "" {
+		item.SourceGroupCodeUUID = nil
+	}
 	return r.db.WithContext(ctx).Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "tenant_uuid"}, {Name: "channel_account_uuid"}, {Name: "chat_id"}},
 		DoUpdates: clause.Assignments(map[string]any{
@@ -515,6 +546,31 @@ func (r *groupChatSnapshotRepository) List(ctx context.Context, tenantUUID strin
 	var out []*acqmodel.GroupChatSnapshot
 	err = r.db.WithContext(ctx).
 		Where("tenant_uuid = ?", tenantUUID).
+		Order("updated_at desc").
+		Limit(limit).
+		Find(&out).Error
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (r *groupChatSnapshotRepository) ListByChannelAccount(ctx context.Context, tenantUUID, channelAccountUUID string, limit int) ([]*acqmodel.GroupChatSnapshot, error) {
+	if r == nil || r.db == nil {
+		return nil, ErrRepositoryDBNotReady
+	}
+	tenantUUID, err := normalizeTenant(tenantUUID)
+	if err != nil {
+		return nil, err
+	}
+	channelAccountUUID = strings.ToLower(strings.TrimSpace(channelAccountUUID))
+	if channelAccountUUID == "" {
+		return nil, errors.New("channel_account_uuid is required")
+	}
+	limit = ensureLimit(limit, 5000)
+	var out []*acqmodel.GroupChatSnapshot
+	err = r.db.WithContext(ctx).
+		Where("tenant_uuid = ? AND channel_account_uuid = ?", tenantUUID, channelAccountUUID).
 		Order("updated_at desc").
 		Limit(limit).
 		Find(&out).Error

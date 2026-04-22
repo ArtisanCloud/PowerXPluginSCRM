@@ -1,6 +1,7 @@
 package acquisition
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 
@@ -68,6 +69,22 @@ func (h *GroupLiveCodeHandler) Get(c *gin.Context) {
 			contracts.ResponseNotFound(c, "group code not found")
 			return
 		}
+		if err == acqsvc.ErrGroupLiveCodeNoTargetChats {
+			contracts.ResponseBadRequest(c, "请先选择至少一个群聊后再启用")
+			return
+		}
+		if err == acqsvc.ErrDefaultChannelAccountNotFound {
+			contracts.ResponseBadRequest(c, "未找到可用默认渠道账号，请先在渠道治理中配置")
+			return
+		}
+		if errors.Is(err, acqsvc.ErrUnsupportedChannelAccountType) {
+			contracts.ResponseBadRequest(c, "当前渠道账号类型暂不支持群活码，请切换为企业微信账号")
+			return
+		}
+		if msg, ok := humanizeGroupLiveCodeError(err); ok {
+			contracts.ResponseBadRequest(c, msg)
+			return
+		}
 		contracts.ResponseInternalError(c, err)
 		return
 	}
@@ -102,6 +119,22 @@ func (h *GroupLiveCodeHandler) Update(c *gin.Context) {
 			contracts.ResponseNotFound(c, "group code not found")
 			return
 		}
+		if err == acqsvc.ErrGroupLiveCodeNoTargetChats {
+			contracts.ResponseBadRequest(c, "请先选择至少一个群聊后再发布")
+			return
+		}
+		if err == acqsvc.ErrDefaultChannelAccountNotFound {
+			contracts.ResponseBadRequest(c, "未找到可用默认渠道账号，请先在渠道治理中配置")
+			return
+		}
+		if errors.Is(err, acqsvc.ErrUnsupportedChannelAccountType) {
+			contracts.ResponseBadRequest(c, "当前渠道账号类型暂不支持群活码，请切换为企业微信账号")
+			return
+		}
+		if msg, ok := humanizeGroupLiveCodeError(err); ok {
+			contracts.ResponseBadRequest(c, msg)
+			return
+		}
 		contracts.ResponseInternalError(c, err)
 		return
 	}
@@ -124,6 +157,22 @@ func (h *GroupLiveCodeHandler) Delete(c *gin.Context) {
 			contracts.ResponseNotFound(c, "group code not found")
 			return
 		}
+		if err == acqsvc.ErrGroupLiveCodeNoTargetChats {
+			contracts.ResponseBadRequest(c, "请先选择至少一个群聊后再同步")
+			return
+		}
+		if err == acqsvc.ErrDefaultChannelAccountNotFound {
+			contracts.ResponseBadRequest(c, "未找到可用默认渠道账号，请先在渠道治理中配置")
+			return
+		}
+		if errors.Is(err, acqsvc.ErrUnsupportedChannelAccountType) {
+			contracts.ResponseBadRequest(c, "当前渠道账号类型暂不支持群活码，请切换为企业微信账号")
+			return
+		}
+		if msg, ok := humanizeGroupLiveCodeError(err); ok {
+			contracts.ResponseBadRequest(c, msg)
+			return
+		}
 		contracts.ResponseInternalError(c, err)
 		return
 	}
@@ -140,9 +189,17 @@ func (h *GroupLiveCodeHandler) Sync(c *gin.Context) {
 		contracts.ResponseUnauthorized(c, "tenant context missing")
 		return
 	}
+	var req dto.GroupLiveCodeSyncRequest
+	if c.Request.ContentLength > 0 {
+		if err := c.ShouldBindJSON(&req); err != nil {
+			contracts.ResponseBadRequest(c, "invalid body: "+err.Error())
+			return
+		}
+	}
 	item, err := h.svc.Sync(c.Request.Context(), acqsvc.GroupLiveCodeSyncRequest{
 		TenantUUID:    tenantUUID,
 		GroupCodeUUID: c.Param("group_code_uuid"),
+		ChatIDs:       req.ChatIDs,
 	})
 	if err != nil {
 		if err == acqrepo.ErrRecordNotFound {
@@ -172,4 +229,25 @@ func (h *GroupLiveCodeHandler) List(c *gin.Context) {
 		return
 	}
 	contracts.ResponseSuccess(c, gin.H{"items": items})
+}
+
+func humanizeGroupLiveCodeError(err error) (string, bool) {
+	if err == nil {
+		return "", false
+	}
+	msg := strings.ToLower(strings.TrimSpace(err.Error()))
+	switch {
+	case strings.Contains(msg, "701170"):
+		return "企业微信“群活码/进群方式”试用已到期（701170），请在企微后台续期或开通正式能力后再同步", true
+	case strings.Contains(msg, "81011"):
+		return "当前账号缺少客户群活码权限，请在企业微信应用权限中开通“客户群/客户联系”后重试", true
+	case strings.Contains(msg, "60011"):
+		return "当前账号缺少客户群访问权限，请检查应用可见范围与客户联系权限", true
+	case strings.Contains(msg, "self-built account requires corp_id and app_secret"):
+		return "当前账号缺少自建应用凭证（corp_id/app_secret），请在渠道账号中补全后重试", true
+	case strings.Contains(msg, "openwork account requires delegated_template credentials"):
+		return "当前代开发账号凭证不完整，请检查模板ID、模板Secret、Provider凭证与永久授权码", true
+	default:
+		return "", false
+	}
 }

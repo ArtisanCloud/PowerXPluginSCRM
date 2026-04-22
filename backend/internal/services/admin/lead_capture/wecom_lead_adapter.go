@@ -20,6 +20,7 @@ import (
 	pwexternalresp "github.com/ArtisanCloud/PowerWeChat/v3/src/work/externalContact/response"
 	socialmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/social_channel_governance"
 	socialrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/social_channel_governance"
+	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/shared/wecomauth"
 )
 
 // WeComLeadRecord is a normalized lead payload fetched from WeCom.
@@ -62,7 +63,7 @@ type weComExternalContactClient interface {
 	BatchGet(ctx context.Context, userID []string, cursor string, limit int) (*pwexternalresp.ResponseBatchGetByUser, error)
 }
 
-type weComExternalContactClientFactory func(credentials map[string]string) (weComExternalContactClient, error)
+type weComExternalContactClientFactory func(appType string, credentials map[string]string) (weComExternalContactClient, error)
 
 type powerWeComExternalContactClient struct {
 	client *pwexternal.Client
@@ -76,8 +77,8 @@ func (c *powerWeComExternalContactClient) BatchGet(ctx context.Context, userID [
 	return c.client.BatchGet(ctx, userID, cursor, limit)
 }
 
-var defaultWeComExternalContactClientFactory weComExternalContactClientFactory = func(credentials map[string]string) (weComExternalContactClient, error) {
-	app, err := newWeComLeadSyncApp(credentials)
+var defaultWeComExternalContactClientFactory weComExternalContactClientFactory = func(appType string, credentials map[string]string) (weComExternalContactClient, error) {
+	app, err := newWeComLeadSyncApp("wechat", appType, credentials)
 	if err != nil {
 		return nil, err
 	}
@@ -145,14 +146,16 @@ func (a *DefaultWeComLeadAdapter) FetchLeads(ctx context.Context, req TriggerSyn
 	if account == nil {
 		return nil, socialrepo.ErrAccountNotFound
 	}
-	if !strings.EqualFold(strings.TrimSpace(account.ChannelCode), "wechat") || !strings.EqualFold(strings.TrimSpace(account.AppType), "wecom") {
+	channelCode := strings.TrimSpace(account.ChannelCode)
+	appType := strings.TrimSpace(account.AppType)
+	if _, err := wecomauth.ResolveKind(channelCode, appType); err != nil {
 		return nil, fmt.Errorf("unsupported wecom account identity: %s/%s", strings.TrimSpace(account.ChannelCode), strings.TrimSpace(account.AppType))
 	}
 
 	credentials := credentialsToStringMap(account.Credentials)
 	credentials = a.mergeDelegatedCredentials(ctx, tenantUUID, channelAccountUUID, credentials)
 	corpID := strings.TrimSpace(credentials["corp_id"])
-	client, err := a.clientFactory(credentials)
+	client, err := a.clientFactory(strings.ToLower(strings.TrimSpace(account.AppType)), credentials)
 	if err != nil {
 		return nil, err
 	}
@@ -477,11 +480,18 @@ func (a *DefaultWeComLeadAdapter) mergeDelegatedCredentials(
 	return out
 }
 
-func newWeComLeadSyncApp(credentials map[string]string) (*work.Work, error) {
+func newWeComLeadSyncApp(channelCode, appType string, credentials map[string]string) (*work.Work, error) {
+	authKind, err := wecomauth.ResolveKind(channelCode, appType)
+	if err != nil {
+		return nil, err
+	}
 	corpID := strings.TrimSpace(credentials["corp_id"])
 	appSecret := strings.TrimSpace(credentials["app_secret"])
 	agentIDRaw := strings.TrimSpace(credentials["agent_id"])
-	if corpID != "" && appSecret != "" {
+	if !wecomauth.IsDelegated(authKind) {
+		if corpID == "" || appSecret == "" {
+			return nil, errors.New("wecom self-built credentials missing corp_id/app_secret")
+		}
 		agentID := 0
 		if agentIDRaw != "" {
 			parsed, err := strconv.Atoi(agentIDRaw)
@@ -527,7 +537,7 @@ func newWeComLeadSyncApp(credentials map[string]string) (*work.Work, error) {
 	}
 
 	if corpID == "" || templateID == "" || templateSecret == "" || providerCorpID == "" || providerSecret == "" || permanentCode == "" {
-		return nil, errors.New("wecom credentials missing corp_id/app_secret or delegated_template credentials")
+		return nil, errors.New("wecom delegated credentials missing template/provider/corp/permanent_code")
 	}
 	if templateTicket == "" {
 		return nil, errors.New("wecom delegated credentials missing template_ticket")

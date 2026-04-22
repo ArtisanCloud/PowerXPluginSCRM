@@ -31,6 +31,7 @@ import (
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/logger"
 	orgobs "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/org_sync"
 	orgdriver "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/services/admin/org_sync/driver"
+	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/shared/wecomauth"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -283,7 +284,7 @@ func (s *SyncService) SyncOrgLocalToRemote(ctx context.Context, tenantUUID, sour
 	}
 	credentials := credentialsToMap(channelAccount.Credentials)
 	credentials = s.mergeDelegatedCredentialsFromPlatform(ctx, credentials)
-	workApp, err := s.buildWeComPushClient(ctx, tenantUUID, channelAccount.AccountUUID, credentials)
+	workApp, err := s.buildWeComPushClient(ctx, tenantUUID, channelAccount.AccountUUID, channelAccount.AppType, credentials)
 	if err != nil {
 		return nil, err
 	}
@@ -725,9 +726,8 @@ func weComPushAPIError(apiName string, errCode int, errMsg string) error {
 	return fmt.Errorf("%s failed: %d %s", apiName, errCode, msg)
 }
 
-func (s *SyncService) buildWeComPushClient(ctx context.Context, tenantUUID, channelAccountUUID string, credentials map[string]string) (*work.Work, error) {
-	authMode := s.resolveWeComAuthMode(ctx, tenantUUID, channelAccountUUID, credentials)
-	if authMode == weComAuthModeDelegatedTemplate {
+func (s *SyncService) buildWeComPushClient(ctx context.Context, tenantUUID, channelAccountUUID, appType string, credentials map[string]string) (*work.Work, error) {
+	if s.resolveWeComDelegatedMode(ctx, tenantUUID, channelAccountUUID, appType, credentials) {
 		templateID := strings.TrimSpace(credentials["template_id"])
 		templateSecret := strings.TrimSpace(credentials["template_secret"])
 		templateTicket := strings.TrimSpace(credentials["template_ticket"])
@@ -1060,8 +1060,7 @@ func (s *SyncService) TriggerSync(ctx context.Context, tenantUUID, sourceAccount
 		DisplayName:        channelAccount.DisplayName,
 		Credentials:        credentialsToMap(channelAccount.Credentials),
 	}
-	detectedAuthMode := detectWeComAuthMode(driverContext.Credentials)
-	authMode := s.resolveWeComAuthMode(ctx, tenantUUID, channelAccount.AccountUUID, driverContext.Credentials)
+	delegatedMode := s.resolveWeComDelegatedMode(ctx, tenantUUID, channelAccount.AccountUUID, channelAccount.AppType, driverContext.Credentials)
 	logger.WithFields(logger.Fields{
 		"component":             "org_sync",
 		"trace_id":              traceID,
@@ -1070,8 +1069,7 @@ func (s *SyncService) TriggerSync(ctx context.Context, tenantUUID, sourceAccount
 		"channel_account_uuid":  channelAccount.AccountUUID,
 		"channel_code":          channelAccount.ChannelCode,
 		"app_type":              channelAccount.AppType,
-		"auth_mode_detected":    detectedAuthMode,
-		"auth_mode":             authMode,
+		"delegated_mode":        delegatedMode,
 		"has_app_secret":        strings.TrimSpace(driverContext.Credentials["app_secret"]) != "",
 		"has_permanent_code":    strings.TrimSpace(driverContext.Credentials["permanent_code"]) != "",
 		"has_provider_secret":   strings.TrimSpace(driverContext.Credentials["provider_secret"]) != "",
@@ -1080,8 +1078,8 @@ func (s *SyncService) TriggerSync(ctx context.Context, tenantUUID, sourceAccount
 		"has_provider_corpid":   strings.TrimSpace(driverContext.Credentials["provider_corpid"]) != "",
 		"has_channel_corp_id":   strings.TrimSpace(driverContext.Credentials["corp_id"]) != "",
 		"has_delegated_traceid": traceID != "",
-	}).Info("org sync auth mode resolved")
-	if authMode == weComAuthModeDelegatedTemplate {
+	}).Info("org sync runtime mode resolved")
+	if delegatedMode {
 		return s.handleDelegatedTemplateSync(ctx, tenantUUID, sourceAccountUUID, account, channelAccount.AccountUUID, driverContext.Credentials)
 	}
 	drv, err := s.resolveDriver(driverContext)
@@ -1350,7 +1348,7 @@ func (s *SyncService) SetDelegatedScope(ctx context.Context, tenantUUID, sourceA
 		return nil, err
 	}
 	credentials := s.mergeDelegatedCredentialsFromPlatform(ctx, credentialsToMap(channelAccount.Credentials))
-	if s.resolveWeComAuthMode(ctx, tenantUUID, channelAccount.AccountUUID, credentials) != weComAuthModeDelegatedTemplate {
+	if !s.resolveWeComDelegatedMode(ctx, tenantUUID, channelAccount.AccountUUID, channelAccount.AppType, credentials) {
 		return nil, errors.New("当前账号不是代开发授权模式，无法设置可见范围")
 	}
 
@@ -1611,102 +1609,39 @@ func (s *SyncService) ListDelegatedScopeCandidates(ctx context.Context, tenantUU
 	return result, nil
 }
 
-const (
-	weComAuthModeAppDetail         = "app_detail"
-	weComAuthModeDelegatedTemplate = "delegated_template"
-)
-
-func detectWeComAuthMode(credentials map[string]string) string {
-	if strings.TrimSpace(credentials["template_id"]) != "" ||
-		strings.TrimSpace(credentials["provider_corpid"]) != "" ||
-		strings.TrimSpace(credentials["provider_secret"]) != "" ||
-		strings.TrimSpace(credentials["permanent_code"]) != "" {
-		return weComAuthModeDelegatedTemplate
-	}
-	if strings.TrimSpace(credentials["app_secret"]) != "" {
-		return weComAuthModeAppDetail
-	}
-	return weComAuthModeAppDetail
-}
-
-func (s *SyncService) resolveWeComAuthMode(ctx context.Context, tenantUUID, channelAccountUUID string, credentials map[string]string) string {
-	mode := detectWeComAuthMode(credentials)
-	if mode == weComAuthModeDelegatedTemplate {
-		logger.WithFields(logger.Fields{
-			"component":            "org_sync",
-			"tenant_uuid":          strings.TrimSpace(strings.ToLower(tenantUUID)),
-			"channel_account_uuid": strings.TrimSpace(strings.ToLower(channelAccountUUID)),
-			"auth_mode_detected":   mode,
-			"auth_mode":            mode,
-			"reason":               "credential_detected_delegated",
-		}).Info("org sync auth mode resolved")
-		return mode
-	}
-	if s == nil || s.openworkRepo == nil {
-		logger.WithFields(logger.Fields{
-			"component":            "org_sync",
-			"tenant_uuid":          strings.TrimSpace(strings.ToLower(tenantUUID)),
-			"channel_account_uuid": strings.TrimSpace(strings.ToLower(channelAccountUUID)),
-			"auth_mode_detected":   mode,
-			"auth_mode":            mode,
-			"reason":               "openwork_repo_unavailable",
-		}).Info("org sync auth mode resolved")
-		return mode
-	}
+func (s *SyncService) resolveWeComDelegatedMode(ctx context.Context, tenantUUID, channelAccountUUID, appType string, credentials map[string]string) bool {
+	_ = s
+	_ = ctx
+	_ = credentials
 	tenantUUID = strings.TrimSpace(strings.ToLower(tenantUUID))
 	channelAccountUUID = strings.TrimSpace(strings.ToLower(channelAccountUUID))
-	if tenantUUID == "" || channelAccountUUID == "" {
-		logger.WithFields(logger.Fields{
-			"component":            "org_sync",
-			"tenant_uuid":          tenantUUID,
-			"channel_account_uuid": channelAccountUUID,
-			"auth_mode_detected":   mode,
-			"auth_mode":            mode,
-			"reason":               "tenant_or_channel_empty",
-		}).Info("org sync auth mode resolved")
-		return mode
-	}
-	binding, err := s.openworkRepo.ResolveBindingByChannelAccount(ctx, tenantUUID, channelAccountUUID)
+	kind, err := wecomauth.ResolveKind("wechat", appType)
 	if err != nil {
 		logger.WithFields(logger.Fields{
 			"component":            "org_sync",
 			"tenant_uuid":          tenantUUID,
 			"channel_account_uuid": channelAccountUUID,
-			"stage":                "resolve_auth_mode",
-		}).WithError(err).Warn("org sync auth mode fallback to app_detail because binding lookup failed")
-		logger.WithFields(logger.Fields{
-			"component":            "org_sync",
-			"tenant_uuid":          tenantUUID,
-			"channel_account_uuid": channelAccountUUID,
-			"auth_mode_detected":   mode,
-			"auth_mode":            mode,
-			"reason":               "binding_lookup_error",
-		}).Info("org sync auth mode resolved")
-		return mode
+			"reason":               "unsupported_app_type",
+			"app_type":             strings.TrimSpace(appType),
+		}).Info("org sync runtime mode resolved")
+		return false
 	}
-	if binding != nil && strings.TrimSpace(binding.Status) == socialModel.WeComAuthBindingStatusActive {
+	if wecomauth.IsDelegated(kind) {
 		logger.WithFields(logger.Fields{
 			"component":            "org_sync",
 			"tenant_uuid":          tenantUUID,
 			"channel_account_uuid": channelAccountUUID,
-			"auth_mode_detected":   mode,
-			"auth_mode":            weComAuthModeDelegatedTemplate,
-			"reason":               "active_binding_override",
-			"binding_status":       strings.TrimSpace(binding.Status),
-			"binding_uuid":         strings.TrimSpace(binding.BindingUUID),
-		}).Info("org sync auth mode resolved")
-		return weComAuthModeDelegatedTemplate
+			"reason":               "app_type_openwork",
+		}).Info("org sync runtime mode resolved")
+		return true
 	}
 	logger.WithFields(logger.Fields{
 		"component":            "org_sync",
 		"tenant_uuid":          tenantUUID,
 		"channel_account_uuid": channelAccountUUID,
-		"auth_mode_detected":   mode,
-		"auth_mode":            mode,
-		"reason":               "binding_not_active",
-		"binding_status":       strings.TrimSpace(binding.Status),
-	}).Info("org sync auth mode resolved")
-	return mode
+		"reason":               "app_type_wecom",
+	}).Info("org sync runtime mode resolved")
+	return false
 }
 
 func (s *SyncService) handleDelegatedTemplateSync(ctx context.Context, tenantUUID, sourceAccountUUID string, account *model.SourceAccount, channelAccountUUID string, credentials map[string]string) (*model.SourceAccount, error) {

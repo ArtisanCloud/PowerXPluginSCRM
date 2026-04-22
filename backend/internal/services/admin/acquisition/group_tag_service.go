@@ -140,10 +140,14 @@ func (s *GroupTagService) ReplayRule(ctx context.Context, req GroupTagRuleReplay
 	}
 	chats, err := s.chatRepo.List(ctx, req.TenantUUID, 500)
 	if err != nil {
-		run.RunStatus = "failed"
-		run.ErrorMessage = err.Error()
-		_ = s.tagRepo.CreateRuleRun(ctx, run)
-		return nil, err
+		if isUndefinedRelationErr(err) {
+			chats = []*acqmodel.GroupChatSnapshot{}
+		} else {
+			run.RunStatus = "failed"
+			run.ErrorMessage = err.Error()
+			_ = s.tagRepo.CreateRuleRun(ctx, run)
+			return nil, err
+		}
 	}
 	run.ScannedCount = len(chats)
 	chatIDs := make([]string, 0, len(chats))
@@ -154,7 +158,11 @@ func (s *GroupTagService) ReplayRule(ctx context.Context, req GroupTagRuleReplay
 		if tag.RuleMode == "manual" {
 			continue
 		}
-		input := GroupTagRuleInput{ChatID: chat.ChatID, SourceGroupCodeUUID: chat.SourceGroupCodeUUID, OwnerUserID: chat.OwnerUserID}
+		sourceGroupCodeUUID := ""
+		if chat.SourceGroupCodeUUID != nil {
+			sourceGroupCodeUUID = strings.TrimSpace(*chat.SourceGroupCodeUUID)
+		}
+		input := GroupTagRuleInput{ChatID: chat.ChatID, SourceGroupCodeUUID: sourceGroupCodeUUID, OwnerUserID: chat.OwnerUserID}
 		rule := GroupTagRule{Enabled: true}
 		if s.ruleService.Match(rule, input) {
 			chatIDs = append(chatIDs, chat.ChatID)

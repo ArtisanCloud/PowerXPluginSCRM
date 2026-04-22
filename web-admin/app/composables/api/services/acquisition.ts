@@ -81,6 +81,12 @@ export interface GroupLiveCodeRecord {
   join_scene?: number;
   skip_verify?: boolean;
   auto_create_room?: boolean;
+  target_chat_count?: number;
+  target_chat_ids?: string[];
+  shard_count?: number;
+  capacity_total?: number;
+  capacity_used?: number;
+  shard_config_ids?: string[];
   qr_code?: string;
   status: LiveCodeStatus;
   sync_status?: "pending" | "syncing" | "success" | "failed" | "manual_required";
@@ -124,6 +130,26 @@ export interface GroupChatSnapshotRecord {
   updated_at?: string;
 }
 
+export interface GroupChatSyncTaskRecord {
+  task_uuid: string;
+  job_uuid: string;
+  status: "queued" | "running" | "success" | "failed" | string;
+  mode: "full" | "incremental" | string;
+  channel_account_uuid: string;
+  resolved_channel_code?: string;
+  resolved_app_type?: string;
+  progress_total: number;
+  progress_current: number;
+  progress_percent: number;
+  stats_total: number;
+  stats_created: number;
+  stats_updated: number;
+  error_message?: string;
+  created_at?: string;
+  started_at?: string;
+  finished_at?: string;
+}
+
 export interface GroupTagDefinitionRecord {
   group_tag_uuid: string;
   tenant_uuid: string;
@@ -160,6 +186,38 @@ export interface GroupTagRuleRunRecord {
   started_at?: string;
   finished_at?: string;
   created_at?: string;
+}
+
+export interface GroupCustomerTimelineEventRecord {
+  event_type: string;
+  event_time?: string;
+  title: string;
+  description: string;
+  source: string;
+  payload?: Record<string, any>;
+}
+
+export interface GroupCustomerFollowupsRecord {
+  status: string;
+  reason?: string;
+  chat_id: string;
+  external_userid: string;
+  summary?: Record<string, any>;
+  items?: Array<Record<string, any>>;
+  meta?: Record<string, any>;
+  timeline_hint?: GroupCustomerTimelineEventRecord[];
+}
+
+export interface GroupCustomerRelatedChatRecord {
+  chat_id: string;
+  chat_name?: string;
+  owner_userid?: string;
+  source_config_id?: string;
+  join_time?: string;
+  join_scene?: number;
+  join_scene_text?: string;
+  invitor_userid?: string;
+  updated_at?: string;
 }
 
 export const useAcquisitionService = () => {
@@ -204,16 +262,37 @@ export const useAcquisitionService = () => {
       apiClient.put<ApiResponse<GroupLiveCodeRecord>>(`${baseUrl}/group-codes/${groupCodeUUID}`, payload),
     deleteGroupCode: (groupCodeUUID: string) =>
       apiClient.delete<ApiResponse<{ deleted: boolean }>>(`${baseUrl}/group-codes/${groupCodeUUID}`),
-    syncGroupCode: (groupCodeUUID: string) =>
-      apiClient.post<ApiResponse<GroupLiveCodeRecord>>(`${baseUrl}/group-codes/${groupCodeUUID}/sync`),
-    syncGroupChats: (payload: { channel_account_uuid: string; mode?: "full" | "incremental" }) =>
-      apiClient.post<ApiResponse<{ job_status: string; synced_count: number }>>(`${baseUrl}/group-chats/sync`, payload),
+    syncGroupCode: (groupCodeUUID: string, payload: { chat_ids?: string[] } = {}) =>
+      apiClient.post<ApiResponse<GroupLiveCodeRecord>>(`${baseUrl}/group-codes/${groupCodeUUID}/sync`, payload),
+    syncGroupChats: (payload: { mode?: "full" | "incremental" }) =>
+      apiClient.post<ApiResponse<GroupChatSyncTaskRecord>>(`${baseUrl}/group-chats/sync`, payload),
+    listGroupChatSyncTasks: (params: { limit?: number; status?: string } = {}) =>
+      apiClient.get<ApiResponse<{ items: GroupChatSyncTaskRecord[] }>>(`${baseUrl}/group-chats/sync/tasks`, {
+        params,
+      }),
+    clearGroupChatSyncTasks: (payload: { include_in_flight: boolean }) =>
+      apiClient.post<ApiResponse<{ deleted: number }>>(`${baseUrl}/group-chats/sync/tasks/clear`, payload),
     listGroupChats: (limit = 100) =>
       apiClient.get<ApiResponse<{ items: GroupChatSnapshotRecord[] }>>(`${baseUrl}/group-chats`, {
         params: { limit },
       }),
     getGroupChat: (chatID: string) =>
       apiClient.get<ApiResponse<GroupChatSnapshotRecord>>(`${baseUrl}/group-chats/${chatID}`),
+    getGroupChatCustomerTimeline: (chatID: string, externalUserID: string, limit = 20) =>
+      apiClient.get<ApiResponse<{ items: GroupCustomerTimelineEventRecord[] }>>(
+        `${baseUrl}/group-chats/${encodeURIComponent(chatID)}/customers/${encodeURIComponent(externalUserID)}/timeline`,
+        { params: { limit } }
+      ),
+    getGroupChatCustomerFollowups: (chatID: string, externalUserID: string, limit = 20) =>
+      apiClient.get<ApiResponse<GroupCustomerFollowupsRecord>>(
+        `${baseUrl}/group-chats/${encodeURIComponent(chatID)}/customers/${encodeURIComponent(externalUserID)}/followups`,
+        { params: { limit } }
+      ),
+    getGroupChatCustomerRelations: (externalUserID: string, limit = 50) =>
+      apiClient.get<ApiResponse<{ items: GroupCustomerRelatedChatRecord[] }>>(
+        `${baseUrl}/group-chats/customers/${encodeURIComponent(externalUserID)}/relations`,
+        { params: { limit } }
+      ),
     createGroupTag: (payload: { tag_name: string; color?: string; rule_mode?: "manual" | "rule_based"; rule_payload?: Record<string, any> }) =>
       apiClient.post<ApiResponse<GroupTagDefinitionRecord>>(`${baseUrl}/group-tags`, payload),
     listGroupTags: (limit = 100) =>

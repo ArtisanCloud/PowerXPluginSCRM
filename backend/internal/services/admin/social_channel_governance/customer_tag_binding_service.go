@@ -45,7 +45,7 @@ type weComExternalContactClient interface {
 	Get(ctx context.Context, externalUserID string, cursor string) (*wecomresp.ResponseGetExternalContact, error)
 }
 
-type weComExternalContactClientFactory func(credentials map[string]string) (weComExternalContactClient, error)
+type weComExternalContactClientFactory func(appType string, credentials map[string]string) (weComExternalContactClient, error)
 
 type powerWeComExternalContactClient struct {
 	client *pwexternal.Client
@@ -55,8 +55,8 @@ func (c *powerWeComExternalContactClient) Get(ctx context.Context, externalUserI
 	return c.client.Get(ctx, externalUserID, cursor)
 }
 
-var defaultWeComExternalContactClientFactory weComExternalContactClientFactory = func(credentials map[string]string) (weComExternalContactClient, error) {
-	app, err := newWeComTagSyncApp(credentials)
+var defaultWeComExternalContactClientFactory weComExternalContactClientFactory = func(appType string, credentials map[string]string) (weComExternalContactClient, error) {
+	app, err := newWeComTagSyncApp("wechat", appType, credentials)
 	if err != nil {
 		return nil, err
 	}
@@ -643,7 +643,9 @@ func (s *CustomerTagBindingService) resolveWeComExternalContactClient(
 	if account == nil {
 		return nil, errors.New("channel account not found")
 	}
-	credentials := credentialsToStringMap(account.Credentials)
-	credentials = s.tagSyncSvc.mergeDelegatedCredentials(ctx, tenantUUID, channelAccountUUID, credentials)
-	return s.clientFactory(credentials)
+	credentials, appType, err := s.tagSyncSvc.resolveCredentialMap(ctx, tenantUUID, channelAccountUUID)
+	if err != nil {
+		return nil, err
+	}
+	return s.clientFactory(appType, credentials)
 }
