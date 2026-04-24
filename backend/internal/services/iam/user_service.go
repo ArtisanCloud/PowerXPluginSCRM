@@ -270,7 +270,7 @@ func (s *UserService) Create(ctx context.Context, input CreateUserInput) (*UserV
 
 	var created *UserView
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		account, err := ensureAccount(ctx, tx, email, input.DisplayName, input.Phone)
+		account, err := ensureAccount(ctx, tx, tenantUUID, email, input.DisplayName, input.Phone)
 		if err != nil {
 			return err
 		}
@@ -483,9 +483,11 @@ func (s *UserService) Update(ctx context.Context, id uint64, input UpdateUserInp
 	return view, nil
 }
 
-func ensureAccount(ctx context.Context, tx *gorm.DB, email, displayName, phone string) (*iamm.User, error) {
+func ensureAccount(ctx context.Context, tx *gorm.DB, tenantUUID, email, displayName, phone string) (*iamm.User, error) {
 	var account iamm.User
-	if err := tx.WithContext(ctx).Where("lower(email) = ?", strings.ToLower(email)).First(&account).Error; err == nil {
+	if err := tx.WithContext(ctx).
+		Where("tenant_uuid = ? AND lower(email) = ?", tenantUUID, strings.ToLower(email)).
+		First(&account).Error; err == nil {
 		return &account, nil
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, err
@@ -495,6 +497,7 @@ func ensureAccount(ctx context.Context, tx *gorm.DB, email, displayName, phone s
 		return nil, err
 	}
 	account = iamm.User{
+		TenantUuid:   tenantUUID,
 		Email:        strings.ToLower(email),
 		DisplayName:  strings.TrimSpace(displayName),
 		Status:       iamm.StatusActive,

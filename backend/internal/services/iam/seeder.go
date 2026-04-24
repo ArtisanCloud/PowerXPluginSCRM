@@ -94,9 +94,10 @@ func SeedLocalAdmin(ctx context.Context, db *gorm.DB, cfg *config.Config, mode I
 		}
 
 		var account iamm.User
-		if err := tx.Where("email = ?", opts.AdminEmail).First(&account).Error; err != nil {
+		if err := tx.Where("tenant_uuid = ? AND email = ?", tenant.UUID, opts.AdminEmail).First(&account).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				account = iamm.User{
+					TenantUuid:   tenant.UUID,
 					Email:        strings.ToLower(opts.AdminEmail),
 					DisplayName:  opts.AdminName,
 					IsRoot:       true,

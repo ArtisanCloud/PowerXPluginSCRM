@@ -3,6 +3,7 @@ package lead_capture
 // TriggerWeComSyncRequest defines payload for manually triggering WeCom lead sync.
 type TriggerWeComSyncRequest struct {
 	ChannelAccountUUID string `json:"channel_account_uuid" binding:"omitempty,uuid4"`
+	AppType            string `json:"app_type" binding:"omitempty,oneof=wecom openwork"`
 	TraceID            string `json:"trace_id" binding:"omitempty,max=128"`
 	Action             string `json:"action" binding:"omitempty,oneof=pull_external_contacts push_leads"`
 	Domain             string `json:"domain" binding:"omitempty,oneof=external_contacts leads"`

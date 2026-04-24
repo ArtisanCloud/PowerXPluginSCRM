@@ -166,7 +166,7 @@ func (s *OpenWorkFoundationService) IngestEvent(ctx context.Context, in OpenWork
 	binding := &model.WeComOpenAuthBinding{
 		TenantUUID:    in.TenantUUID,
 		ChannelCode:   "wechat",
-		AppType:       "wecom",
+		AppType:       "openwork",
 		SuiteID:       in.SuiteID,
 		CorpID:        in.CorpID,
 		AgentID:       in.AgentID,
@@ -360,7 +360,7 @@ func (s *OpenWorkFoundationService) CompleteAuthorization(ctx context.Context, i
 		TenantUUID:         in.TenantUUID,
 		ChannelAccountUUID: resolvedChannelAccountUUID,
 		ChannelCode:        "wechat",
-		AppType:            "wecom",
+		AppType:            "openwork",
 		SuiteID:            creds.AppID,
 		CorpID:             corpID,
 		CorpName:           strings.TrimSpace(permResp.AuthCorpInfo.CorpName),
@@ -997,7 +997,7 @@ func (s *OpenWorkFoundationService) ensureAuthorizedChannelAccount(
 		accountID = corpID
 	}
 
-	if existingByIdentity, err := s.accountRepo.FindByIdentity(ctx, tenantUUID, "wechat", "wecom", accountID); err == nil && existingByIdentity != nil {
+	if existingByIdentity, err := s.accountRepo.FindByIdentity(ctx, tenantUUID, "wechat", "openwork", accountID); err == nil && existingByIdentity != nil {
 		return existingByIdentity, nil
 	} else if err != nil && !errors.Is(err, repository.ErrAccountNotFound) {
 		return nil, err
@@ -1014,7 +1014,7 @@ func (s *OpenWorkFoundationService) ensureAuthorizedChannelAccount(
 	upserted, err := s.accountRepo.UpsertByIdentity(ctx, &model.ChannelAccount{
 		TenantUuid:      tenantUUID,
 		ChannelCode:     "wechat",
-		AppType:         "wecom",
+		AppType:         "openwork",
 		AccountID:       accountID,
 		DisplayName:     corpName,
 		Status:          model.ChannelAccountStatusConnected,
@@ -1251,7 +1251,7 @@ func (s *OpenWorkFoundationService) resolveOpenWorkCredentials(
 	}
 
 	if (appID == "" || templateSecret == "" || providerCorpID == "" || providerSecret == "") && s.accountRepo != nil {
-		defaultAccountUUID, err := s.accountRepo.ResolveDefaultAccountUUID(ctx, tenantUUID, "wechat", "wecom")
+		defaultAccountUUID, err := s.accountRepo.ResolveDefaultAccountUUID(ctx, tenantUUID, "wechat", "openwork")
 		if err == nil {
 			defaultAccount, accountErr := s.accountRepo.GetByAccountUUID(ctx, tenantUUID, defaultAccountUUID)
 			if accountErr == nil && defaultAccount != nil {

@@ -192,6 +192,16 @@
           <span class="font-medium text-gray-700 dark:text-slate-200">同步日志</span>
           <div class="flex items-center gap-2">
             <UBadge variant="soft" color="neutral">最近 5 条</UBadge>
+            <UButton
+              size="xs"
+              variant="soft"
+              color="warning"
+              :loading="clearingSyncLogs"
+              :disabled="!selectedAccountUUID || syncLogs.length === 0"
+              @click="clearSyncLogs"
+            >
+              清空
+            </UButton>
             <UButton size="xs" variant="ghost" @click="syncLogsCollapsed = !syncLogsCollapsed">
               {{ syncLogsCollapsed ? "展开" : "收起" }}
             </UButton>
@@ -285,6 +295,7 @@ const selectedAccountUUID = ref("");
 const syncDirection = ref<"pull" | "push">("pull");
 const syncing = ref(false);
 const loading = ref(false);
+const clearingSyncLogs = ref(false);
 const syncStatus = ref<OrgSyncSourceAccount | null>(null);
 const syncLogs = ref<OrgSyncSyncLog[]>([]);
 const orgConflicts = ref<any[]>([]);
@@ -824,11 +835,36 @@ const loadSyncLogs = async () => {
   }
   try {
     const service = useOrgSyncService();
-    const resp = await service.listSyncLogs(selectedAccountUUID.value, 5);
+    const resp = await service.listSyncLogs("", 5, selectedAccountUUID.value);
     syncLogs.value = (resp as any)?.data?.items ?? [];
     updateGlobalLoadingFromLog(false);
   } catch (err: any) {
     showToast("加载同步日志失败", "error", err?.message ?? "");
+  }
+};
+
+const clearSyncLogs = async () => {
+  if (!selectedAccountUUID.value) {
+    showToast("请选择账号", "warning");
+    return;
+  }
+  if (syncLogs.value.length === 0) return;
+  const confirmed = window.confirm("确认清空当前账号的同步日志？此操作不可撤销。");
+  if (!confirmed) return;
+  clearingSyncLogs.value = true;
+  try {
+    const service = useOrgSyncService();
+    const resp = await service.clearSyncLogs({
+      channel_account_uuid: selectedAccountUUID.value,
+    });
+    const deleted = Number((resp as any)?.data?.deleted ?? 0);
+    syncLogs.value = [];
+    showToast("同步日志已清空", "success", deleted > 0 ? `已删除 ${deleted} 条` : "");
+    await loadSyncData();
+  } catch (err: any) {
+    showToast("清空同步日志失败", "error", err?.message ?? "");
+  } finally {
+    clearingSyncLogs.value = false;
   }
 };
 

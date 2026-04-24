@@ -50,7 +50,7 @@ func (h *WeComSyncHandler) TriggerSync(c *gin.Context) {
 	task, err := h.svc.TriggerSyncAsync(c.Request.Context(), leadsvc.TriggerSyncRequest{
 		TenantUUID:         tenantUUID,
 		Channel:            "wechat",
-		AppType:            "wecom",
+		AppType:            strings.ToLower(strings.TrimSpace(req.AppType)),
 		ChannelAccountUUID: strings.TrimSpace(req.ChannelAccountUUID),
 		TraceID:            strings.TrimSpace(req.TraceID),
 		TriggerType:        "manual",

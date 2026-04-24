@@ -267,45 +267,33 @@
                       :ui="{ td: 'py-1.5 text-xs', th: 'py-1.5 text-xs' }"
                     >
                       <template #select-cell="{ row }">
-                        <div
-                          class="flex items-center"
-                          :class="canJumpToLeadDetail(row.original) ? 'cursor-pointer' : ''"
-                          @click="tryOpenRejectedLeadDetail(row.original)"
-                        >
+                        <div class="flex items-center">
                           <span class="text-xs text-gray-400">-</span>
                         </div>
                       </template>
                       <template #result-cell="{ row }">
                         <div
                           class="flex items-center gap-2"
-                          :class="canJumpToLeadDetail(row.original) ? 'cursor-pointer' : ''"
-                          @click="tryOpenRejectedLeadDetail(row.original)"
                         >
                           <UBadge size="xs" color="error" variant="soft">{{ row.original.reason || "未通过" }}</UBadge>
+                          <UButton
+                            v-if="canJumpToLeadDetail(row.original)"
+                            size="2xs"
+                            color="warning"
+                            variant="soft"
+                            @click="tryOpenRejectedLeadDetail(row.original)"
+                          >
+                            {{ rejectedJumpLabel(row.original) }}
+                          </UButton>
                         </div>
                       </template>
                       <template #name-cell="{ row }">
-                        <div
-                          class="flex items-center gap-2"
-                          :class="canJumpToLeadDetail(row.original) ? 'cursor-pointer' : ''"
-                          @click="tryOpenRejectedLeadDetail(row.original)"
-                        >
+                        <div class="flex items-center gap-2">
                           <span>{{ row.original.name }}</span>
-                          <UBadge
-                            v-if="canJumpToLeadDetail(row.original)"
-                            size="xs"
-                            color="warning"
-                            variant="soft"
-                          >
-                            {{ rejectedJumpLabel(row.original) }}
-                          </UBadge>
                         </div>
                       </template>
                       <template #contact-cell="{ row }">
-                        <div
-                          :class="canJumpToLeadDetail(row.original) ? 'cursor-pointer' : ''"
-                          @click="tryOpenRejectedLeadDetail(row.original)"
-                        >
+                        <div>
                           {{ row.original.contact }}
                         </div>
                       </template>
@@ -887,6 +875,13 @@
                   : '本地线索不适用'
               }}
             </div>
+            <div class="text-xs text-gray-500 dark:text-gray-400">
+              企微添加人：{{
+                isChannelLead(row.original)
+                  ? (String((row.original as any).wecom_adder_userid || '').trim() || '未记录（需重跑同步）')
+                  : '本地线索不适用'
+              }}
+            </div>
           </div>
         </template>
         <template #actions-cell="{ row }">
@@ -1279,7 +1274,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
+import { computed, onActivated, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { useRouter } from "#imports";
 import type { LeadCreatePayload } from "~/types/lead_capture/lead";
 import { useLeadCaptureStore } from "~/stores/scrm/lead_capture/lead_store";
@@ -1365,7 +1360,7 @@ const syncCenterOpen = ref(false);
 const syncTaskPanelOpen = ref(true);
 const deadLetterPanelOpen = ref(false);
 const dmRulePanelOpen = ref(false);
-const syncTriggerAction = ref<"pull_external_contacts" | "push_leads">("pull_external_contacts");
+const syncTriggerAction = ref<"pull_external_contacts">("pull_external_contacts");
 const selectedLeadUUIDsForAssign = ref<string[]>([]);
 const selectedLeadUUIDsForPush = ref<string[]>([]);
 const syncTasks = ref<WeComSyncTaskRecord[]>([]);
@@ -1500,7 +1495,6 @@ const pageSizeOptions = [
 
 const syncTriggerActionOptions = [
   { label: "拉取外部联系人到线索", value: "pull_external_contacts" },
-  { label: "回写线索到渠道", value: "push_leads" },
 ];
 
 const pushLeadSelectionOptions = computed(() =>
@@ -1870,7 +1864,7 @@ const defaultSyncAccount = computed(() => {
     const channel = (account.channel_code || "").trim().toLowerCase();
     const appType = (account.app_type || "").trim().toLowerCase();
     const status = (account.status || "").trim().toLowerCase();
-    return channel === "wechat" && appType === "wecom" && status !== "disabled";
+    return channel === "wechat" && (appType === "wecom" || appType === "openwork") && status !== "disabled";
   });
   if (!activeWeComAccounts.length) return null;
   const preferred = activeWeComAccounts.find((account) => !!account.org_sync_default);
@@ -1888,7 +1882,7 @@ const isWeComDefaultSyncChannel = computed(() => {
   if (!account) return false;
   const channel = (account.channel_code || "").trim().toLowerCase();
   const appType = (account.app_type || "").trim().toLowerCase();
-  return channel === "wechat" && appType === "wecom";
+  return channel === "wechat" && (appType === "wecom" || appType === "openwork");
 });
 
 const currentSyncChannelTag = computed(() => {
@@ -2227,29 +2221,43 @@ const setLeadSelectedForPush = (leadUUID?: string, checked?: unknown) => {
   selectedLeadUUIDsForPush.value = Array.from(next);
 };
 
+const normalizeRejectReason = (row?: PushLeadValidationRow) => String(row?.reason || "").trim();
+
+const isNeedEditExternalContactReason = (reason: string) =>
+  reason.includes("未发生变更") || reason.includes("external_userid") || reason.includes("未绑定客户");
+
+const isOwnerBindingReason = (reason: string) =>
+  reason.includes("负责人") || reason.includes("owner_user_uuid");
+
 const canJumpToLeadDetail = (row?: PushLeadValidationRow) => {
   if (!row) return false;
-  const reason = String(row.reason || "");
+  const reason = normalizeRejectReason(row);
+  const leadUUID = String((row as any).leadUUID || (row as any).lead_uuid || "").trim();
   return (
-    (reason.includes("缺少负责人") || reason.includes("负责人未绑定渠道成员账号")) &&
-    !!String(row.leadUUID || "").trim()
+    (
+      isOwnerBindingReason(reason) ||
+      isNeedEditExternalContactReason(reason)
+    ) &&
+    !!leadUUID
   );
 };
 
 const rejectedJumpLabel = (row?: PushLeadValidationRow) => {
-  const reason = String(row?.reason || "");
-  if (reason.includes("负责人未绑定渠道成员账号")) return "点击去绑定";
-  return "点击去分配";
+  const reason = normalizeRejectReason(row);
+  if (isNeedEditExternalContactReason(reason)) return "修改";
+  if (isOwnerBindingReason(reason)) return "去组织绑定";
+  return "去修改";
 };
 
 const tryOpenRejectedLeadDetail = (row?: PushLeadValidationRow) => {
   if (!canJumpToLeadDetail(row)) return;
-  const reason = String(row?.reason || "");
-  if (reason.includes("负责人未绑定渠道成员账号")) {
+  const reason = normalizeRejectReason(row);
+  const leadUUID = String((row as any)?.leadUUID || (row as any)?.lead_uuid || "").trim();
+  if (isOwnerBindingReason(reason)) {
     router.push("/scrm/org_sync");
     return;
   }
-  openDetail(String(row?.leadUUID || "").trim());
+  if (leadUUID) openDetail(leadUUID);
 };
 
 const buildLeadWritebackFields = (lead: any) => ({
@@ -2520,20 +2528,9 @@ const triggerWeComSync = async () => {
     if (accountUUID) {
       payload.channel_account_uuid = accountUUID;
     }
-    if (syncTriggerAction.value === "push_leads") {
-      if (selectedLeadUUIDsForPush.value.length === 0) {
-        showToast("请先选择要回写的线索", "warning");
-        return;
-      }
-      payload.lead_writeback = buildLeadWritebackPayload();
-      if (!payload.lead_writeback || payload.lead_writeback.length === 0) {
-        showToast(
-          "当前没有可回写线索",
-          "warning",
-          `未通过 ${pushLeadRejectedRows.value.length} 条，请先修复清单问题后再触发`
-        );
-        return;
-      }
+    const appType = String(defaultSyncAccount.value?.app_type || "").trim().toLowerCase();
+    if (appType === "wecom" || appType === "openwork") {
+      payload.app_type = appType;
     }
     const resp = await leadCaptureService.triggerWeComSync(payload);
     const task = (resp as any)?.data as WeComSyncTaskRecord | undefined;
@@ -3090,10 +3087,8 @@ watch(selectedChannelCodeUUID, async (value) => {
   await loadSelectedChannelCodeEvents();
 });
 
-watch(syncTriggerAction, (value) => {
-  if (value !== "push_leads") {
-    clearSelectedLeadsForPush();
-  }
+watch(syncTriggerAction, () => {
+  clearSelectedLeadsForPush();
 });
 
 watch([pushLeadPassedRows, pushLeadRejectedRows], () => {
@@ -3171,6 +3166,12 @@ onMounted(async () => {
   await refreshWritebackDeadLetters();
   await loadWeComCustomerDMRule();
   await refreshChannelCodePanel();
+});
+
+onActivated(() => {
+  // 从详情返回时刷新，避免负责人刚改完列表仍显示旧状态
+  void refreshLeads();
+  void refreshSyncTasks();
 });
 
 onBeforeUnmount(() => {

@@ -43,7 +43,8 @@ func (t *Tenant) BeforeCreate(tx *gorm.DB) error {
 
 type User struct {
 	ID           uint64            `gorm:"primaryKey;autoIncrement" json:"id"`
-	Email        string            `gorm:"size:255;uniqueIndex:idx_iam_users_email" json:"email"`
+	TenantUuid   string            `gorm:"column:tenant_uuid;type:uuid;not null;index:idx_iam_users_tenant;uniqueIndex:idx_iam_users_tenant_email,priority:1" json:"tenant_uuid"`
+	Email        string            `gorm:"size:255;uniqueIndex:idx_iam_users_tenant_email,priority:2" json:"email"`
 	Phone        string            `gorm:"size:32;index" json:"phone"`
 	DisplayName  string            `gorm:"size:128" json:"display_name"`
 	AvatarURL    string            `gorm:"size:255" json:"avatar_url"`

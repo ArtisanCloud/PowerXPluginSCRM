@@ -303,6 +303,62 @@ func TestWeComSyncService_UpsertSyncTraceActivity(t *testing.T) {
 	require.Equal(t, "wx-upsert-001", syncTrace.Payload["external_wechat_id"])
 }
 
+func TestWeComSyncService_NoContactInfo_ShouldUpsertByExternalIdentity(t *testing.T) {
+	tenantUUID := "00000000-0000-0000-0000-000000000001"
+	accountUUID := "11111111-1111-4111-8111-111111111111"
+
+	db := openWeComSyncServiceTestDB(t, "wecom_sync_service_external_identity_upsert")
+	require.NoError(t, db.Create(&socialmodel.ChannelAccount{
+		AccountUUID:     accountUUID,
+		TenantUuid:      tenantUUID,
+		ChannelCode:     "wechat",
+		AppType:         "openwork",
+		AccountID:       "openwork-main",
+		DisplayName:     "企微代开发账号",
+		Status:          socialmodel.ChannelAccountStatusConnected,
+		OrgSyncDefault:  true,
+		OwnerMemberUUID: "owner-001",
+	}).Error)
+
+	taskRepo := leadrepo.NewLeadSyncTaskRepository(db)
+	leadRepo := leadrepo.NewLeadRepository(db)
+	leadSvc := NewLeadService(leadRepo)
+	svc := NewWeComSyncService(taskRepo, nil, mockProviderAdapter{}).
+		WithLeadIngestion(leadRepo, mockWeComLeadAdapter{
+			items: []WeComLeadRecord{{
+				ExternalLeadID: "ext-no-contact-001",
+				WechatID:       "wx-no-contact-001",
+				DisplayName:    "无联系方式线索",
+				OccurredAt:     time.Date(2026, 3, 21, 0, 0, 0, 0, time.UTC),
+			}},
+		}).
+		WithLeadService(leadSvc)
+
+	_, err := svc.TriggerSync(context.Background(), TriggerSyncRequest{
+		TenantUUID: tenantUUID,
+		Channel:    "wechat",
+		AppType:    "openwork",
+		TraceID:    "trace-no-contact-1",
+	})
+	require.NoError(t, err)
+	var traces []leadmodel.LeadActivity
+	require.NoError(t, db.Where("tenant_uuid = ? AND activity_type = ?", tenantUUID, leadmodel.LeadActivityTypeSyncTrace).Find(&traces).Error)
+	require.NotEmpty(t, traces)
+	require.Equal(t, "ext-no-contact-001", traces[0].Payload["external_lead_id"])
+
+	_, err = svc.TriggerSync(context.Background(), TriggerSyncRequest{
+		TenantUUID: tenantUUID,
+		Channel:    "wechat",
+		AppType:    "openwork",
+		TraceID:    "trace-no-contact-2",
+	})
+	require.NoError(t, err)
+
+	var count int64
+	require.NoError(t, db.Model(&leadmodel.Lead{}).Where("tenant_uuid = ?", tenantUUID).Count(&count).Error)
+	require.EqualValues(t, 1, count)
+}
+
 func TestWeComSyncService_TriggerSyncAsync_ReturnQueuedThenFinish(t *testing.T) {
 	tenantUUID := "00000000-0000-0000-0000-000000000001"
 	accountUUID := "11111111-1111-4111-8111-111111111111"

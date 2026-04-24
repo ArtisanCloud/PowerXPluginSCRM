@@ -180,6 +180,18 @@
             {{ latestSyncTracePayload.external_wechat_id || '未记录（需重跑同步）' }}
           </div>
         </div>
+        <div>
+          <div class="text-xs text-gray-500">企微当前跟进人（userid）</div>
+          <div class="text-sm text-gray-900 dark:text-white">
+            {{ lead.wecom_follow_userid || latestSyncTracePayload.follow_external_userid || latestSyncTracePayload.owner_external_userid || '未记录（需重跑同步）' }}
+          </div>
+        </div>
+        <div>
+          <div class="text-xs text-gray-500">企微添加人（userid）</div>
+          <div class="text-sm text-gray-900 dark:text-white">
+            {{ lead.wecom_adder_userid || latestSyncTracePayload.adder_external_userid || latestSyncTracePayload.oper_userid || '未记录（需重跑同步）' }}
+          </div>
+        </div>
       </div>
       <div v-else class="py-6 text-center text-sm text-gray-500">
         暂无可用数据。
@@ -723,6 +735,48 @@ const closeInfoModal = () => {
   infoModalOpen.value = false;
 };
 
+const triggerAutoIncrementalWriteback = async () => {
+  if (!leadId.value || !lead.value) return;
+  const sourceChannel = String(lead.value.source_channel || "").trim().toLowerCase();
+  if (sourceChannel !== "wechat") return;
+  const channelAccountUUID = String(lead.value.source_account_uuid || "").trim();
+  if (!channelAccountUUID) return;
+  const appTypeRaw = String(lead.value.source_app_type || "").trim().toLowerCase();
+  const appType = appTypeRaw === "openwork" ? "openwork" : "wecom";
+  const externalUserID =
+    String((lead.value as any).external_userid || "").trim() ||
+    String((latestSyncTracePayload.value as any)?.external_lead_id || "").trim();
+  if (!externalUserID) {
+    showToast("已保存，但当前线索缺少 external_userid，跳过自动回写", "warning");
+    return;
+  }
+  await leadCaptureService.triggerWeComSync({
+    action: "push_leads",
+    trace_id: `lead-auto-writeback-${Date.now()}`,
+    channel_account_uuid: channelAccountUUID,
+    app_type: appType,
+    lead_writeback: [
+      {
+        lead_uuid: leadId.value,
+        external_userid: externalUserID,
+        phone: String(lead.value.phone || "").trim() || undefined,
+        idempotency_hint: `lead:${leadId.value}:${lead.value.updated_at || Date.now()}`,
+        fields: {
+          display_name: String(lead.value.display_name || "").trim(),
+          phone: String(lead.value.phone || "").trim(),
+          email: String(lead.value.email || "").trim(),
+          status: String(lead.value.status || "").trim(),
+          owner_user_uuid: String(lead.value.owner_user_uuid || "").trim(),
+          source_channel: String(lead.value.source_channel || "").trim(),
+          source_app_type: String(lead.value.source_app_type || "").trim(),
+          source_account_uuid: String(lead.value.source_account_uuid || "").trim(),
+          external_userid: externalUserID,
+        },
+      },
+    ],
+  });
+};
+
 const submitInfoForm = async () => {
   if (!leadId.value) return;
   const payload = {
@@ -739,7 +793,8 @@ const submitInfoForm = async () => {
     await leadCaptureService.updateLead(leadId.value, payload);
     closeInfoModal();
     await refreshLead();
-    showToast("基础信息已保存。若存在 external_userid，可在同步中心执行回写。", "success");
+    await triggerAutoIncrementalWriteback();
+    showToast("基础信息已保存，并已触发增量同步。", "success");
   } catch (err: any) {
     showToast(err?.message || "保存失败", "error");
   } finally {
@@ -782,9 +837,9 @@ const submitAssignForm = async () => {
       });
       await store.fetchAssignments(leadId.value);
     }
-    showToast("已保存", "success");
     closeAssignModal();
     await refreshLead();
+    showToast("已保存，跟进人转接已提交", "success");
   } catch (err: any) {
     showToast(err?.message ?? "保存失败", "error");
   }

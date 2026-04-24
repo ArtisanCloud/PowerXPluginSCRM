@@ -4,18 +4,22 @@ import (
 	"context"
 	"encoding/csv"
 	"errors"
+	"fmt"
 	"io"
 	"strconv"
 	"strings"
 	"time"
 
+	pwtransferreq "github.com/ArtisanCloud/PowerWeChat/v3/src/work/externalContact/transfer/request"
 	iammodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/iam"
 	model "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/lead_capture"
 	orgmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/org_sync"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository"
 	leadrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/lead_capture"
+	socialrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/social_channel_governance"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/logger"
 	leadobs "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/lead_capture"
+	wecomauth "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/shared/wecomauth"
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"gorm.io/datatypes"
@@ -25,6 +29,7 @@ import (
 var ErrInvalidLeadPayload = errors.New("invalid lead payload")
 var ErrInvalidAssignee = errors.New("invalid assignee")
 var ErrAssigneeNotFound = errors.New("assignee not found")
+var ErrAssigneeTransferFailed = errors.New("assignee transfer failed")
 var ErrInvalidLeadStatus = errors.New("invalid lead status")
 var ErrInvalidLeadStatusTransition = errors.New("invalid lead status transition")
 
@@ -412,6 +417,8 @@ func (s *LeadService) attachChannelSyncState(ctx context.Context, tenantUUID str
 		indexByUUID[leadUUID] = item
 		item.ExternalUserID = ""
 		item.ExternalWechatID = ""
+		item.WeComFollowUserID = ""
+		item.WeComAdderUserID = ""
 		item.ChannelSyncStatus = "unsynced"
 		setOwnerBindingStatus(item, "not_channel")
 		if strings.TrimSpace(sourceAccountUUIDString(item)) != "" {
@@ -458,6 +465,14 @@ func (s *LeadService) attachChannelSyncState(ctx context.Context, tenantUUID str
 		externalUserID := strings.TrimSpace(payloadString(payload, "external_lead_id"))
 		externalWechatID := strings.TrimSpace(payloadString(payload, "external_wechat_id"))
 		sourceAccountUUID := strings.TrimSpace(payloadString(payload, "source_account_uuid"))
+		followUserID := strings.TrimSpace(payloadString(payload, "follow_external_userid"))
+		if followUserID == "" {
+			followUserID = strings.TrimSpace(payloadString(payload, "owner_external_userid"))
+		}
+		adderUserID := strings.TrimSpace(payloadString(payload, "adder_external_userid"))
+		if adderUserID == "" {
+			adderUserID = strings.TrimSpace(payloadString(payload, "oper_userid"))
+		}
 		if externalUserID != "" {
 			lead.ExternalUserID = externalUserID
 			lead.ChannelSyncStatus = "synced"
@@ -465,6 +480,12 @@ func (s *LeadService) attachChannelSyncState(ctx context.Context, tenantUUID str
 		}
 		if externalWechatID != "" {
 			lead.ExternalWechatID = externalWechatID
+		}
+		if followUserID != "" {
+			lead.WeComFollowUserID = followUserID
+		}
+		if adderUserID != "" {
+			lead.WeComAdderUserID = adderUserID
 		}
 		if sourceAccountUUID != "" {
 			lead.LeadOriginType = "channel"
@@ -621,6 +642,9 @@ func (s *LeadService) Assign(ctx context.Context, tenantUUID, leadUUID string, r
 				return err
 			}
 		}
+		if err := s.transferExternalContactOwnershipIfNeeded(ctx, tx, tenantUUID, lead, ownerUserUUID); err != nil {
+			return err
+		}
 		fromStatus := normalizeLeadStatus(lead.Status)
 		if fromStatus == "" {
 			fromStatus = model.LeadStatusNew
@@ -745,6 +769,8 @@ func mapAssignError(err error) (string, string) {
 		return "INVALID_ASSIGNEE", "invalid assignee"
 	case errors.Is(err, ErrAssigneeNotFound):
 		return "ASSIGNEE_NOT_FOUND", "assignee not found"
+	case errors.Is(err, ErrAssigneeTransferFailed):
+		return "ASSIGNEE_TRANSFER_FAILED", strings.TrimSpace(err.Error())
 	case errors.Is(err, ErrAssigneeNotBound):
 		return "ASSIGNEE_NOT_BOUND", "assignee not bound to source member"
 	case errors.Is(err, leadrepo.ErrLeadNotFound):
@@ -754,6 +780,274 @@ func mapAssignError(err error) (string, string) {
 	default:
 		return "INTERNAL_ERROR", strings.TrimSpace(err.Error())
 	}
+}
+
+func (s *LeadService) transferExternalContactOwnershipIfNeeded(
+	ctx context.Context,
+	tx *gorm.DB,
+	tenantUUID string,
+	lead *model.Lead,
+	newOwnerUserUUID string,
+) error {
+	if s == nil || tx == nil || lead == nil {
+		return nil
+	}
+	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
+	if tenantUUID == "" {
+		return nil
+	}
+	channelAccountUUID := sourceAccountUUIDString(lead)
+	if channelAccountUUID == "" {
+		return nil
+	}
+	sourceChannel := strings.ToLower(strings.TrimSpace(lead.SourceChannel))
+	sourceAppType := strings.ToLower(strings.TrimSpace(lead.SourceAppType))
+	if _, err := wecomauth.ResolveKind(sourceChannel, sourceAppType); err != nil {
+		return nil
+	}
+	if sourceChannel != "wechat" {
+		return nil
+	}
+	oldOwnerUserUUID := strings.TrimSpace(lead.OwnerUserUUID)
+	newOwnerUserUUID = strings.TrimSpace(newOwnerUserUUID)
+	if oldOwnerUserUUID == "" || newOwnerUserUUID == "" || oldOwnerUserUUID == newOwnerUserUUID {
+		return nil
+	}
+
+	externalUserID, err := s.resolveLeadExternalUserIDForTransferTx(ctx, tx, tenantUUID, lead.LeadUUID, channelAccountUUID)
+	if err != nil {
+		return fmt.Errorf("%w: resolve external_userid failed: %v", ErrAssigneeTransferFailed, err)
+	}
+	if externalUserID == "" {
+		return fmt.Errorf("%w: lead missing external_userid", ErrAssigneeTransferFailed)
+	}
+
+	handoverUserID, err := s.resolveExternalMemberIDByMainMemberTx(ctx, tx, tenantUUID, channelAccountUUID, oldOwnerUserUUID)
+	if err != nil {
+		return fmt.Errorf("%w: resolve handover userid failed: %v", ErrAssigneeTransferFailed, err)
+	}
+	if handoverUserID == "" {
+		handoverUserID, err = s.resolveOwnerExternalUserIDFromSyncTraceTx(ctx, tx, tenantUUID, lead.LeadUUID, channelAccountUUID, externalUserID)
+		if err != nil {
+			return fmt.Errorf("%w: fallback handover userid from sync_trace failed: %v", ErrAssigneeTransferFailed, err)
+		}
+	}
+	if handoverUserID == "" {
+		return fmt.Errorf("%w: handover userid is empty", ErrAssigneeTransferFailed)
+	}
+
+	takeoverUserID, err := s.resolveExternalMemberIDByMainMemberTx(ctx, tx, tenantUUID, channelAccountUUID, newOwnerUserUUID)
+	if err != nil {
+		return fmt.Errorf("%w: resolve takeover userid failed: %v", ErrAssigneeTransferFailed, err)
+	}
+	if takeoverUserID == "" {
+		return ErrAssigneeNotBound
+	}
+	if handoverUserID == takeoverUserID {
+		return nil
+	}
+
+	accountRepo := socialrepo.NewAccountRepository(tx)
+	account, err := accountRepo.GetByAccountUUID(ctx, tenantUUID, channelAccountUUID)
+	if err != nil {
+		return fmt.Errorf("%w: resolve channel account failed: %v", ErrAssigneeTransferFailed, err)
+	}
+	if account == nil {
+		return fmt.Errorf("%w: channel account not found", ErrAssigneeTransferFailed)
+	}
+
+	credentials := credentialsToStringMap(account.Credentials)
+	openworkRepo := socialrepo.NewOpenWorkFoundationRepository(tx)
+	platformRepo := socialrepo.NewChannelPlatformSettingRepository(tx)
+	resolver := NewDefaultWeComLeadAdapterWithResolvers(accountRepo, openworkRepo, platformRepo)
+	credentials = resolver.mergeDelegatedCredentials(ctx, tenantUUID, channelAccountUUID, credentials)
+
+	app, err := newWeComLeadSyncApp(strings.TrimSpace(account.ChannelCode), strings.TrimSpace(account.AppType), credentials)
+	if err != nil {
+		return fmt.Errorf("%w: init wecom app failed: %v", ErrAssigneeTransferFailed, err)
+	}
+	if app == nil || app.ExternalContactTransfer == nil {
+		return fmt.Errorf("%w: external contact transfer client unavailable", ErrAssigneeTransferFailed)
+	}
+	if app.ExternalContact == nil {
+		return fmt.Errorf("%w: external contact client unavailable", ErrAssigneeTransferFailed)
+	}
+
+	// Always resolve real current follower from WeCom before transfer.
+	// This avoids stale local owner mapping causing 84061.
+	detailResp, err := app.ExternalContact.Get(ctx, externalUserID, "")
+	if err != nil {
+		return fmt.Errorf("%w: externalcontact.get failed: %v", ErrAssigneeTransferFailed, err)
+	}
+	if detailResp == nil {
+		return fmt.Errorf("%w: externalcontact.get empty response", ErrAssigneeTransferFailed)
+	}
+	if detailResp.ErrCode != 0 {
+		return fmt.Errorf("%w: wecom externalcontact.get failed: %d %s", ErrAssigneeTransferFailed, detailResp.ErrCode, strings.TrimSpace(detailResp.ErrMSG))
+	}
+	followUserIDs := make([]string, 0, len(detailResp.FollowUsers))
+	for _, fu := range detailResp.FollowUsers {
+		if fu == nil {
+			continue
+		}
+		id := strings.TrimSpace(fu.UserID)
+		if id == "" {
+			id = strings.TrimSpace(fu.OperUserID)
+		}
+		if id != "" {
+			followUserIDs = append(followUserIDs, id)
+		}
+	}
+	if len(followUserIDs) == 0 {
+		return fmt.Errorf("%w: externalcontact has no follow_user", ErrAssigneeTransferFailed)
+	}
+	resolvedHandover := ""
+	for _, uid := range followUserIDs {
+		if uid == handoverUserID {
+			resolvedHandover = uid
+			break
+		}
+	}
+	if resolvedHandover == "" {
+		resolvedHandover = followUserIDs[0]
+	}
+	handoverUserID = resolvedHandover
+
+	resp, err := app.ExternalContactTransfer.TransferCustomer(ctx, &pwtransferreq.RequestTransferCustomer{
+		HandoverUserID: handoverUserID,
+		TakeoverUserID: takeoverUserID,
+		ExternalUserID: []string{externalUserID},
+	})
+	if err != nil {
+		return fmt.Errorf("%w: transfer_customer request failed: %v", ErrAssigneeTransferFailed, err)
+	}
+	if resp == nil {
+		return fmt.Errorf("%w: transfer_customer empty response", ErrAssigneeTransferFailed)
+	}
+	if err := validateWeComResponseCode("externalcontact.transfer_customer", resp.ResponseWork); err != nil {
+		return fmt.Errorf("%w: %v", ErrAssigneeTransferFailed, err)
+	}
+	return nil
+}
+
+func (s *LeadService) resolveExternalMemberIDByMainMemberTx(
+	ctx context.Context,
+	tx *gorm.DB,
+	tenantUUID, channelAccountUUID, mainMemberID string,
+) (string, error) {
+	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
+	channelAccountUUID = strings.ToLower(strings.TrimSpace(channelAccountUUID))
+	mainMemberID = strings.TrimSpace(mainMemberID)
+	if tenantUUID == "" || channelAccountUUID == "" || mainMemberID == "" {
+		return "", nil
+	}
+	var row struct {
+		ExternalMemberID string `gorm:"column:external_member_id"`
+	}
+	err := tx.WithContext(ctx).
+		Table(orgmodel.MemberBinding{}.TableName()).
+		Where("tenant_uuid = ? AND channel_account_uuid = ? AND main_member_id = ?", tenantUUID, channelAccountUUID, mainMemberID).
+		Order("updated_at DESC").
+		Limit(1).
+		Select("external_member_id").
+		Scan(&row).Error
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(row.ExternalMemberID), nil
+}
+
+func (s *LeadService) resolveLeadExternalUserIDForTransferTx(
+	ctx context.Context,
+	tx *gorm.DB,
+	tenantUUID, leadUUID, channelAccountUUID string,
+) (string, error) {
+	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
+	leadUUID = strings.TrimSpace(leadUUID)
+	channelAccountUUID = strings.ToLower(strings.TrimSpace(channelAccountUUID))
+	if tenantUUID == "" || leadUUID == "" {
+		return "", nil
+	}
+	activities := make([]model.LeadActivity, 0, 16)
+	if err := tx.WithContext(ctx).
+		Where(
+			"tenant_uuid = ? AND lead_uuid = ? AND activity_type = ?",
+			tenantUUID,
+			leadUUID,
+			model.LeadActivityTypeSyncTrace,
+		).
+		Order("updated_at DESC").
+		Limit(30).
+		Find(&activities).Error; err != nil {
+		return "", err
+	}
+	for _, activity := range activities {
+		payload := activity.Payload
+		if payload == nil {
+			continue
+		}
+		if channelAccountUUID != "" && payloadString(payload, "source_account_uuid") != channelAccountUUID {
+			continue
+		}
+		externalUserID := strings.TrimSpace(payloadString(payload, "external_lead_id"))
+		if externalUserID == "" {
+			externalUserID = strings.TrimSpace(payloadString(payload, "external_wechat_id"))
+		}
+		if externalUserID != "" {
+			return externalUserID, nil
+		}
+	}
+	return "", nil
+}
+
+func (s *LeadService) resolveOwnerExternalUserIDFromSyncTraceTx(
+	ctx context.Context,
+	tx *gorm.DB,
+	tenantUUID, leadUUID, channelAccountUUID, externalUserID string,
+) (string, error) {
+	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
+	leadUUID = strings.TrimSpace(leadUUID)
+	channelAccountUUID = strings.ToLower(strings.TrimSpace(channelAccountUUID))
+	externalUserID = strings.TrimSpace(externalUserID)
+	if tenantUUID == "" || leadUUID == "" {
+		return "", nil
+	}
+	activities := make([]model.LeadActivity, 0, 16)
+	if err := tx.WithContext(ctx).
+		Where(
+			"tenant_uuid = ? AND lead_uuid = ? AND activity_type = ?",
+			tenantUUID,
+			leadUUID,
+			model.LeadActivityTypeSyncTrace,
+		).
+		Order("updated_at DESC").
+		Limit(30).
+		Find(&activities).Error; err != nil {
+		return "", err
+	}
+	for _, activity := range activities {
+		payload := activity.Payload
+		if payload == nil {
+			continue
+		}
+		if channelAccountUUID != "" && payloadString(payload, "source_account_uuid") != channelAccountUUID {
+			continue
+		}
+		if externalUserID != "" {
+			payloadExternal := strings.TrimSpace(payloadString(payload, "external_lead_id"))
+			if payloadExternal == "" {
+				payloadExternal = strings.TrimSpace(payloadString(payload, "external_wechat_id"))
+			}
+			if payloadExternal != externalUserID {
+				continue
+			}
+		}
+		operatorUserID := strings.TrimSpace(payloadString(payload, "owner_external_userid"))
+		if operatorUserID != "" {
+			return operatorUserID, nil
+		}
+	}
+	return "", nil
 }
 
 func shouldEnforceAssigneeBinding(lead *model.Lead) bool {

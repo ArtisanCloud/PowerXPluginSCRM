@@ -365,7 +365,9 @@ func (d *LocalDirectory) findMember(ctx context.Context, tenantUUID string, iden
 	query := d.db.WithContext(ctx).Model(&iamm.Member{}).Where("tenant_uuid = ?", tenantUUID).Where("status = ?", iamm.StatusActive)
 	if strings.Contains(ident, "@") {
 		var user iamm.User
-		if err := d.db.WithContext(ctx).Where("lower(email) = ?", ident).First(&user).Error; err == nil {
+		if err := d.db.WithContext(ctx).
+			Where("tenant_uuid = ? AND lower(email) = ?", tenantUUID, ident).
+			First(&user).Error; err == nil {
 			if err := query.Where("user_id = ?", user.ID).First(&member).Error; err == nil {
 				return &member, &user, nil
 			}

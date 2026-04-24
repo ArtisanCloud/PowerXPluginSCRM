@@ -79,6 +79,12 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 			leadsvc.NewDefaultWeComLeadAdapterWithResolvers(channelAccountRepo, openworkRepo, platformRepo),
 			providerAdapter,
 		)
+		_ = channelFactory.Register(
+			"wechat",
+			"openwork",
+			leadsvc.NewDefaultWeComLeadAdapterWithResolvers(channelAccountRepo, openworkRepo, platformRepo),
+			providerAdapter,
+		)
 		publisher := fwwsbus.NewAdapter(
 			fwwsbus.NewLocalPublisher(deps.WSBusHub, nil),
 			"",

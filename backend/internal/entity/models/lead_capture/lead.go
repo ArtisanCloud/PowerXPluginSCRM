@@ -31,6 +31,8 @@ type Lead struct {
 	HasMerge           bool      `gorm:"-" json:"has_merge"`
 	ExternalUserID     string    `gorm:"-" json:"external_userid,omitempty"`
 	ExternalWechatID   string    `gorm:"-" json:"external_wechat_id,omitempty"`
+	WeComFollowUserID  string    `gorm:"-" json:"wecom_follow_userid,omitempty"`
+	WeComAdderUserID   string    `gorm:"-" json:"wecom_adder_userid,omitempty"`
 	LeadOriginType     string    `gorm:"-" json:"lead_origin_type,omitempty"`     // channel | local
 	ChannelSyncStatus  string    `gorm:"-" json:"channel_sync_status,omitempty"`  // synced | unsynced
 	OwnerBindingStatus string    `gorm:"-" json:"owner_binding_status,omitempty"` // not_channel | missing_owner | mapped | unmapped

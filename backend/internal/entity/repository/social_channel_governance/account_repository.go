@@ -419,7 +419,7 @@ func (r *AccountRepository) SetOrgSyncDefault(ctx context.Context, tenantUUID, a
 			return err
 		}
 		reset := tx.Model(&model.ChannelAccount{}).
-			Where("tenant_uuid = ? AND channel_code = ? AND app_type = ? AND org_sync_default = TRUE", tenantUUID, out.ChannelCode, out.AppType).
+			Where("tenant_uuid = ? AND org_sync_default = TRUE", tenantUUID).
 			Updates(map[string]any{
 				"org_sync_default": false,
 				"updated_at":       now,

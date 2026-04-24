@@ -32,6 +32,7 @@ type WeComLeadRecord struct {
 	Phone           string
 	Email           string
 	OwnerMemberUUID string
+	AdderMemberUUID string
 	OccurredAt      time.Time
 }
 
@@ -221,6 +222,7 @@ func normalizeWeComLeadRecord(in WeComLeadRecord) WeComLeadRecord {
 	in.Phone = strings.TrimSpace(in.Phone)
 	in.Email = strings.ToLower(strings.TrimSpace(in.Email))
 	in.OwnerMemberUUID = strings.TrimSpace(in.OwnerMemberUUID)
+	in.AdderMemberUUID = strings.TrimSpace(in.AdderMemberUUID)
 	if in.OccurredAt.IsZero() {
 		in.OccurredAt = time.Now().UTC()
 	}
@@ -281,6 +283,7 @@ func mapWeComExternalContactRecord(item *pwexternalresp.ResponseExternalContact)
 		if record.OwnerMemberUUID == "" {
 			record.OwnerMemberUUID = strings.TrimSpace(item.FollowInfo.OperUserID)
 		}
+		record.AdderMemberUUID = strings.TrimSpace(item.FollowInfo.OperUserID)
 		if record.DisplayName == "" {
 			record.DisplayName = strings.TrimSpace(item.FollowInfo.Remark)
 		}
