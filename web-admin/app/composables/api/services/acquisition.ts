@@ -76,6 +76,8 @@ export interface GroupLiveCodeRecord {
   app_type: string;
   channel_account_uuid: string;
   activity_name: string;
+  corp_tag_ids?: string[];
+  new_customer_remark_enabled?: boolean;
   state?: string;
   config_id?: string;
   join_scene?: number;
@@ -102,6 +104,8 @@ export interface GroupLiveCodeCreatePayload {
   app_type: string;
   channel_account_uuid: string;
   activity_name: string;
+  corp_tag_ids?: string[];
+  new_customer_remark_enabled?: boolean;
   join_scene?: number;
   skip_verify?: boolean;
   auto_create_room?: boolean;
@@ -109,6 +113,8 @@ export interface GroupLiveCodeCreatePayload {
 
 export interface GroupLiveCodeUpdatePayload {
   activity_name?: string;
+  corp_tag_ids?: string[];
+  new_customer_remark_enabled?: boolean;
   skip_verify?: boolean;
   auto_create_room?: boolean;
   status?: LiveCodeStatus;

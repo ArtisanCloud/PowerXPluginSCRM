@@ -6,6 +6,7 @@
         <p class="text-sm text-gray-600 dark:text-gray-300">本地运营标签（不回写企业微信官方群标签）。</p>
       </div>
       <div class="flex items-center gap-2">
+        <UButton icon="i-heroicons-arrow-path-rounded-square" color="primary" variant="soft" :loading="groupChatSyncing" @click="syncGroupChats">同步群聊</UButton>
         <UButton icon="i-heroicons-arrow-path" variant="soft" :loading="loading" @click="loadAll">刷新</UButton>
         <UButton icon="i-heroicons-plus" color="primary" @click="createOpen = true">新建标签</UButton>
       </div>
@@ -38,8 +39,34 @@
             <UBadge variant="soft">{{ selectedTagUUID || '未选择' }}</UBadge>
           </div>
         </template>
-        <div class="space-y-3">
-          <UTextarea v-model="bindChatIDsText" :rows="3" placeholder="输入 chat_id，逗号分隔，例如：chat-001,chat-002" />
+        <div v-if="!selectedTagUUID" class="rounded border border-dashed border-gray-300 px-4 py-8 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-300">
+          请先在左侧选择一个标签，再绑定群聊。
+        </div>
+        <div v-else class="space-y-3">
+          <div class="flex flex-wrap items-center gap-2">
+            <UBadge variant="soft" color="info">已同步群：{{ groupChats.length }}</UBadge>
+            <UInput v-model="groupKeyword" class="min-w-[220px]" placeholder="搜索群名/chat_id" />
+            <UButton size="xs" variant="soft" :loading="groupChatLoading" @click="loadGroupChats">刷新群列表</UButton>
+          </div>
+          <div class="max-h-40 overflow-auto rounded border border-gray-200 dark:border-gray-700">
+            <div v-if="pagedGroupChats.length === 0" class="px-3 py-4 text-xs text-gray-500">暂无可选群，请先点击“同步群聊”</div>
+            <label
+              v-for="chat in pagedGroupChats"
+              :key="chat.chat_id"
+              class="flex cursor-pointer items-center gap-2 border-b border-gray-100 px-3 py-2 text-xs text-gray-700 dark:border-gray-800 dark:text-gray-200"
+            >
+              <UCheckbox :model-value="selectedChatIDs.includes(chat.chat_id)" @update:model-value="(v:any) => toggleSelectedChat(chat.chat_id, Boolean(v))" />
+              <span class="min-w-0 flex-1 truncate text-gray-800 dark:text-gray-100">{{ chat.name || '(未命名群)' }} · {{ chat.chat_id }}</span>
+            </label>
+          </div>
+          <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-300">
+            <span>第 {{ groupPage }} / {{ groupTotalPages }} 页</span>
+            <div class="flex items-center gap-2">
+              <UButton size="2xs" variant="soft" :disabled="groupPage <= 1" @click="groupPage -= 1">上一页</UButton>
+              <UButton size="2xs" variant="soft" :disabled="groupPage >= groupTotalPages" @click="groupPage += 1">下一页</UButton>
+            </div>
+          </div>
+          <UTextarea v-model="bindChatIDsText" :rows="2" placeholder="可追加手动输入 chat_id，逗号分隔" />
           <UButton color="primary" :disabled="!selectedTagUUID" :loading="binding" @click="bindChats">绑定群聊</UButton>
           <div class="max-h-72 overflow-auto rounded border border-gray-200 dark:border-gray-700">
             <table class="min-w-full text-sm">
@@ -84,7 +111,7 @@
 </template>
 
 <script setup lang="ts">
-import { useAcquisitionService, type GroupTagBindingRecord, type GroupTagDefinitionRecord } from "~/composables/api/services/acquisition";
+import { useAcquisitionService, type GroupChatSnapshotRecord, type GroupTagBindingRecord, type GroupTagDefinitionRecord } from "~/composables/api/services/acquisition";
 
 const { t } = useI18n();
 const toast = useToast();
@@ -92,12 +119,19 @@ const service = useAcquisitionService();
 const loading = ref(false);
 const creating = ref(false);
 const binding = ref(false);
+const groupChatLoading = ref(false);
+const groupChatSyncing = ref(false);
 const createOpen = ref(false);
 
 const tags = ref<GroupTagDefinitionRecord[]>([]);
 const bindings = ref<GroupTagBindingRecord[]>([]);
+const groupChats = ref<GroupChatSnapshotRecord[]>([]);
 const selectedTagUUID = ref("");
 const bindChatIDsText = ref("");
+const groupKeyword = ref("");
+const selectedChatIDs = ref<string[]>([]);
+const groupPage = ref(1);
+const groupPageSize = 10;
 
 const createForm = reactive({
   tag_name: "",
@@ -125,11 +159,35 @@ const loadBindings = async () => {
   bindings.value = (resp as any)?.data?.items || [];
 };
 
+const loadGroupChats = async () => {
+  groupChatLoading.value = true;
+  try {
+    const resp = await service.listGroupChats(1000);
+    groupChats.value = (resp as any)?.data?.items || [];
+    groupPage.value = 1;
+  } finally {
+    groupChatLoading.value = false;
+  }
+};
+
+const syncGroupChats = async () => {
+  groupChatSyncing.value = true;
+  try {
+    await service.syncGroupChats({ mode: "incremental" });
+    await loadGroupChats();
+    toast.add({ title: "群聊同步完成", color: "success" });
+  } catch (error: any) {
+    toast.add({ title: "群聊同步失败", description: error?.message || "unknown error", color: "error" });
+  } finally {
+    groupChatSyncing.value = false;
+  }
+};
+
 const loadAll = async () => {
   loading.value = true;
   try {
     await loadTags();
-    await loadBindings();
+    await Promise.all([loadBindings(), loadGroupChats()]);
   } catch (error: any) {
     toast.add({ title: "加载失败", description: error?.message || "unknown error", color: "error" });
   } finally {
@@ -171,10 +229,11 @@ const createTag = async () => {
 
 const bindChats = async () => {
   if (!selectedTagUUID.value) return;
-  const ids = bindChatIDsText.value
+  const manualIDs = bindChatIDsText.value
     .split(",")
     .map((v) => v.trim())
     .filter(Boolean);
+  const ids = Array.from(new Set([...(selectedChatIDs.value || []), ...manualIDs]));
   if (!ids.length) {
     toast.add({ title: "请输入 chat_id", color: "warning" });
     return;
@@ -183,6 +242,7 @@ const bindChats = async () => {
   try {
     await service.bindGroupTag(selectedTagUUID.value, { chat_ids: ids, bind_source: "manual" });
     bindChatIDsText.value = "";
+    selectedChatIDs.value = [];
     toast.add({ title: "绑定成功", color: "success" });
     await loadBindings();
   } catch (error: any) {
@@ -203,6 +263,35 @@ const replayRule = async (tagUUID: string) => {
     toast.add({ title: "重放失败", description: error?.message || "unknown error", color: "error" });
   }
 };
+
+const filteredGroupChats = computed(() => {
+  const kw = String(groupKeyword.value || "").trim().toLowerCase();
+  if (!kw) return groupChats.value;
+  return groupChats.value.filter((chat) =>
+    `${chat.name || ""} ${chat.chat_id || ""}`.toLowerCase().includes(kw)
+  );
+});
+
+const groupTotalPages = computed(() => Math.max(1, Math.ceil(filteredGroupChats.value.length / groupPageSize)));
+
+const pagedGroupChats = computed(() => {
+  const page = Math.min(Math.max(groupPage.value, 1), groupTotalPages.value);
+  const start = (page - 1) * groupPageSize;
+  return filteredGroupChats.value.slice(start, start + groupPageSize);
+});
+
+const toggleSelectedChat = (chatID: string, checked: boolean) => {
+  const id = String(chatID || "").trim();
+  if (!id) return;
+  const set = new Set(selectedChatIDs.value || []);
+  if (checked) set.add(id);
+  else set.delete(id);
+  selectedChatIDs.value = Array.from(set);
+};
+
+watch(groupKeyword, () => {
+  groupPage.value = 1;
+});
 
 onMounted(loadAll);
 </script>

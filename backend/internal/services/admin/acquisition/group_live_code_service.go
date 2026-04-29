@@ -2,16 +2,21 @@ package acquisition
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 	"time"
 
 	work "github.com/ArtisanCloud/PowerWeChat/v3/src/work"
 	pwgroupchatreq "github.com/ArtisanCloud/PowerWeChat/v3/src/work/externalContact/groupChat/request"
+	pwtag "github.com/ArtisanCloud/PowerWeChat/v3/src/work/externalContact/tag"
+	pwtagreq "github.com/ArtisanCloud/PowerWeChat/v3/src/work/externalContact/tag/request"
 	acqmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/domain/models/acquisition"
 	acqrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/domain/repository/acquisition"
+	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/logger"
 	"github.com/google/uuid"
 )
 
@@ -27,6 +32,8 @@ type GroupLiveCodeCreateRequest struct {
 	AppType            string
 	ChannelAccountUUID string
 	ActivityName       string
+	CorpTagIDs         []string
+	RemarkEnabled      bool
 	JoinScene          int
 	SkipVerify         bool
 	AutoCreateRoom     bool
@@ -37,6 +44,8 @@ type GroupLiveCodeUpdateRequest struct {
 	TenantUUID     string
 	GroupCodeUUID  string
 	ActivityName   *string
+	CorpTagIDs     []string
+	RemarkEnabled  *bool
 	SkipVerify     *bool
 	AutoCreateRoom *bool
 	Status         *string
@@ -48,6 +57,13 @@ type GroupLiveCodeSyncRequest struct {
 	GroupCodeUUID string
 	ActorUserUUID string
 	ChatIDs       []string
+}
+
+type GroupLiveCodeIncrementalTagRequest struct {
+	TenantUUID         string
+	ChannelAccountUUID string
+	ChatID             string
+	ExternalUserID     string
 }
 
 type GroupLiveCodeService struct {
@@ -81,6 +97,7 @@ func (s *GroupLiveCodeService) Create(ctx context.Context, req GroupLiveCodeCrea
 	req.AppType = strings.ToLower(strings.TrimSpace(req.AppType))
 	req.ChannelAccountUUID = strings.ToLower(strings.TrimSpace(req.ChannelAccountUUID))
 	req.ActivityName = strings.TrimSpace(req.ActivityName)
+	req.CorpTagIDs = normalizeCorpTagIDs(req.CorpTagIDs)
 	req.ActorUserUUID = strings.TrimSpace(req.ActorUserUUID)
 	if req.TenantUUID == "" || req.Channel == "" || req.AppType == "" || req.ChannelAccountUUID == "" || req.ActivityName == "" {
 		return nil, ErrInvalidGroupLiveCodePayload
@@ -99,6 +116,8 @@ func (s *GroupLiveCodeService) Create(ctx context.Context, req GroupLiveCodeCrea
 		AppType:            req.AppType,
 		ChannelAccountUUID: req.ChannelAccountUUID,
 		ActivityName:       req.ActivityName,
+		CorpTagIDs:         req.CorpTagIDs,
+		RemarkEnabled:      req.RemarkEnabled,
 		State:              "st-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:16],
 		JoinScene:          req.JoinScene,
 		SkipVerify:         req.SkipVerify,
@@ -137,6 +156,12 @@ func (s *GroupLiveCodeService) Update(ctx context.Context, req GroupLiveCodeUpda
 		if name != "" {
 			item.ActivityName = name
 		}
+	}
+	if req.CorpTagIDs != nil {
+		item.CorpTagIDs = normalizeCorpTagIDs(req.CorpTagIDs)
+	}
+	if req.RemarkEnabled != nil {
+		item.RemarkEnabled = *req.RemarkEnabled
 	}
 	if req.SkipVerify != nil {
 		item.SkipVerify = *req.SkipVerify
@@ -200,10 +225,18 @@ func (s *GroupLiveCodeService) Sync(ctx context.Context, req GroupLiveCodeSyncRe
 	if len(chatIDs) == 0 {
 		return nil, ErrGroupLiveCodeNoTargetChats
 	}
+	usedRemoteSync := false
 	if s.accountResolver == nil || s.providerFactory == nil {
 		s.applyLocalSyncFallback(item, chatIDs)
 	} else {
 		if err := s.syncRemoteJoinWays(ctx, item, chatIDs); err != nil {
+			s.persistSyncFailure(ctx, item, err)
+			return nil, err
+		}
+		usedRemoteSync = true
+	}
+	if usedRemoteSync {
+		if err := s.applyMemberCorpTags(ctx, item); err != nil {
 			s.persistSyncFailure(ctx, item, err)
 			return nil, err
 		}
@@ -529,6 +562,343 @@ func simplifyGroupLiveCodeError(err error) string {
 	default:
 		return msg
 	}
+}
+
+func (s *GroupLiveCodeService) applyMemberCorpTags(ctx context.Context, item *acqmodel.GroupLiveCode) error {
+	if s == nil || item == nil {
+		return nil
+	}
+	corpTagIDs := normalizeCorpTagIDs(item.CorpTagIDs)
+	if len(corpTagIDs) == 0 {
+		return nil
+	}
+	if s.chatRepo == nil {
+		return errors.New("group chat snapshot repository unavailable")
+	}
+	chatIDs := normalizeChatIDs(item.TargetChatIDs)
+	if len(chatIDs) == 0 {
+		return nil
+	}
+
+	chats, err := s.chatRepo.ListByChannelAccount(ctx, item.TenantUUID, item.ChannelAccountUUID, 5000)
+	if err != nil {
+		return err
+	}
+	chatIDSet := make(map[string]struct{}, len(chatIDs))
+	for _, chatID := range chatIDs {
+		chatIDSet[strings.TrimSpace(chatID)] = struct{}{}
+	}
+	externalUserIDs := collectExternalUsersFromGroupSnapshots(chats, chatIDSet)
+	if len(externalUserIDs) == 0 {
+		return nil
+	}
+
+	rt, err := s.resolveRuntime(ctx, item)
+	if err != nil {
+		return err
+	}
+	app, err := s.buildProvider(ctx, rt)
+	if err != nil {
+		return err
+	}
+	if app == nil || app.ExternalContact == nil {
+		return errors.New("wecom external contact client unavailable")
+	}
+	tagClient, err := pwtag.NewClient(app)
+	if err != nil {
+		return fmt.Errorf("init wecom tag client failed: %w", err)
+	}
+	if tagClient == nil {
+		return errors.New("wecom tag client unavailable")
+	}
+
+	successCount := 0
+	failureMessages := make([]string, 0, 3)
+	for _, externalUserID := range externalUserIDs {
+		detailResp, detailErr := app.ExternalContact.Get(ctx, externalUserID, "")
+		if detailErr != nil {
+			failureMessages = append(failureMessages, fmt.Sprintf("%s: externalcontact.get failed: %s", externalUserID, strings.TrimSpace(detailErr.Error())))
+			continue
+		}
+		if detailResp == nil {
+			failureMessages = append(failureMessages, fmt.Sprintf("%s: externalcontact.get empty response", externalUserID))
+			continue
+		}
+		if detailResp.ErrCode != 0 {
+			failureMessages = append(failureMessages, fmt.Sprintf("%s: externalcontact.get failed: %d %s", externalUserID, detailResp.ErrCode, strings.TrimSpace(detailResp.ErrMSG)))
+			continue
+		}
+		operatorUserID := ""
+		for _, follow := range detailResp.FollowUsers {
+			if follow == nil {
+				continue
+			}
+			userID := strings.TrimSpace(follow.UserID)
+			if userID == "" {
+				userID = strings.TrimSpace(follow.OperUserID)
+			}
+			if userID != "" {
+				operatorUserID = userID
+				break
+			}
+		}
+		if operatorUserID == "" {
+			continue
+		}
+		markResp, markErr := tagClient.MarkTag(ctx, &pwtagreq.RequestTagMarkTag{
+			UserID:         operatorUserID,
+			ExternalUserID: externalUserID,
+			AddTag:         corpTagIDs,
+		})
+		if markErr != nil {
+			failureMessages = append(failureMessages, fmt.Sprintf("%s: mark_tag request failed: %s", externalUserID, strings.TrimSpace(markErr.Error())))
+			continue
+		}
+		if markResp == nil {
+			failureMessages = append(failureMessages, fmt.Sprintf("%s: mark_tag empty response", externalUserID))
+			continue
+		}
+		if markResp.ErrCode != 0 {
+			failureMessages = append(failureMessages, fmt.Sprintf("%s: mark_tag failed: %d %s", externalUserID, markResp.ErrCode, strings.TrimSpace(markResp.ErrMsg)))
+			continue
+		}
+		successCount++
+	}
+
+	logger.WithFields(logger.Fields{
+		"component":            "acquisition_group_code",
+		"tenant_uuid":          strings.TrimSpace(item.TenantUUID),
+		"channel_account_uuid": strings.TrimSpace(item.ChannelAccountUUID),
+		"group_code_uuid":      strings.TrimSpace(item.GroupCodeUUID),
+		"target_chat_count":    len(chatIDs),
+		"external_total":       len(externalUserIDs),
+		"tag_count":            len(corpTagIDs),
+		"tagged_success":       successCount,
+		"tagged_failed":        len(failureMessages),
+	}).Info("group live code member tag apply completed")
+
+	if len(failureMessages) == 0 {
+		return nil
+	}
+	if len(failureMessages) > 3 {
+		failureMessages = failureMessages[:3]
+	}
+	return fmt.Errorf("group member tag apply failed: %s", strings.Join(failureMessages, " | "))
+}
+
+func collectExternalUsersFromGroupSnapshots(chats []*acqmodel.GroupChatSnapshot, chatIDSet map[string]struct{}) []string {
+	if len(chats) == 0 || len(chatIDSet) == 0 {
+		return []string{}
+	}
+	seen := map[string]struct{}{}
+	out := make([]string, 0, 64)
+	for _, chat := range chats {
+		if chat == nil {
+			continue
+		}
+		chatID := strings.TrimSpace(chat.ChatID)
+		if chatID == "" {
+			continue
+		}
+		if _, ok := chatIDSet[chatID]; !ok {
+			continue
+		}
+		payload := map[string]any{}
+		_ = json.Unmarshal(chat.Payload, &payload)
+		groupRaw := payload
+		if nested, ok := payload["group_chat"].(map[string]any); ok && nested != nil {
+			groupRaw = nested
+		}
+		memberList, _ := groupRaw["member_list"].([]any)
+		for _, rawMember := range memberList {
+			member, ok := rawMember.(map[string]any)
+			if !ok || member == nil {
+				continue
+			}
+			userID := strings.TrimSpace(fmt.Sprintf("%v", member["userid"]))
+			if userID == "" {
+				continue
+			}
+			memberType := 0
+			switch v := member["type"].(type) {
+			case int:
+				memberType = v
+			case int32:
+				memberType = int(v)
+			case int64:
+				memberType = int(v)
+			case float64:
+				memberType = int(v)
+			case string:
+				if parsed, convErr := strconv.Atoi(strings.TrimSpace(v)); convErr == nil {
+					memberType = parsed
+				}
+			}
+			// 外部联系人在群聊成员里通常 type=2，且 userid 前缀为 wm。
+			if memberType != 2 && !strings.HasPrefix(strings.ToLower(userID), "wm") {
+				continue
+			}
+			if _, exists := seen[userID]; exists {
+				continue
+			}
+			seen[userID] = struct{}{}
+			out = append(out, userID)
+		}
+	}
+	return out
+}
+
+func normalizeCorpTagIDs(values []string) []string {
+	out := make([]string, 0, len(values))
+	seen := map[string]struct{}{}
+	for _, raw := range values {
+		id := strings.TrimSpace(raw)
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	return out
+}
+
+// ApplyMemberCorpTagsForJoinEvent applies configured corp tags for one newly joined external member.
+// This is designed for webhook incremental processing to avoid waiting for full sync/publish loops.
+func (s *GroupLiveCodeService) ApplyMemberCorpTagsForJoinEvent(ctx context.Context, req GroupLiveCodeIncrementalTagRequest) error {
+	if s == nil || s.repo == nil {
+		return ErrGroupLiveCodeServiceNotReady
+	}
+	tenantUUID := strings.ToLower(strings.TrimSpace(req.TenantUUID))
+	channelAccountUUID := strings.ToLower(strings.TrimSpace(req.ChannelAccountUUID))
+	chatID := strings.TrimSpace(req.ChatID)
+	externalUserID := strings.TrimSpace(req.ExternalUserID)
+	if tenantUUID == "" || channelAccountUUID == "" || chatID == "" || externalUserID == "" {
+		return nil
+	}
+	items, err := s.repo.List(ctx, tenantUUID, 2000)
+	if err != nil {
+		return err
+	}
+	targets := make([]*acqmodel.GroupLiveCode, 0, 8)
+	for _, item := range items {
+		if item == nil {
+			continue
+		}
+		if strings.ToLower(strings.TrimSpace(item.ChannelAccountUUID)) != channelAccountUUID {
+			continue
+		}
+		if strings.TrimSpace(item.Status) != acqmodel.LiveCodeStatusActive {
+			continue
+		}
+		if len(normalizeCorpTagIDs(item.CorpTagIDs)) == 0 {
+			continue
+		}
+		found := false
+		for _, rawChatID := range normalizeChatIDs(item.TargetChatIDs) {
+			if strings.TrimSpace(rawChatID) == chatID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			continue
+		}
+		targets = append(targets, item)
+	}
+	if len(targets) == 0 {
+		return nil
+	}
+	var lastErr error
+	for _, item := range targets {
+		rt, resolveErr := s.resolveRuntime(ctx, item)
+		if resolveErr != nil {
+			lastErr = resolveErr
+			continue
+		}
+		app, buildErr := s.buildProvider(ctx, rt)
+		if buildErr != nil {
+			lastErr = buildErr
+			continue
+		}
+		if app == nil || app.ExternalContact == nil {
+			lastErr = errors.New("wecom external contact client unavailable")
+			continue
+		}
+		tagClient, tagErr := pwtag.NewClient(app)
+		if tagErr != nil {
+			lastErr = fmt.Errorf("init wecom tag client failed: %w", tagErr)
+			continue
+		}
+		if tagClient == nil {
+			lastErr = errors.New("wecom tag client unavailable")
+			continue
+		}
+		detailResp, detailErr := app.ExternalContact.Get(ctx, externalUserID, "")
+		if detailErr != nil {
+			lastErr = detailErr
+			continue
+		}
+		if detailResp == nil || detailResp.ErrCode != 0 {
+			if detailResp == nil {
+				lastErr = errors.New("externalcontact.get empty response")
+			} else {
+				lastErr = fmt.Errorf("externalcontact.get failed: %d %s", detailResp.ErrCode, strings.TrimSpace(detailResp.ErrMSG))
+			}
+			continue
+		}
+		operatorUserID := ""
+		for _, follow := range detailResp.FollowUsers {
+			if follow == nil {
+				continue
+			}
+			uid := strings.TrimSpace(follow.UserID)
+			if uid == "" {
+				uid = strings.TrimSpace(follow.OperUserID)
+			}
+			if uid != "" {
+				operatorUserID = uid
+				break
+			}
+		}
+		if operatorUserID == "" {
+			lastErr = errors.New("operator user id not found")
+			continue
+		}
+		corpTagIDs := normalizeCorpTagIDs(item.CorpTagIDs)
+		if len(corpTagIDs) == 0 {
+			continue
+		}
+		markResp, markErr := tagClient.MarkTag(ctx, &pwtagreq.RequestTagMarkTag{
+			UserID:         operatorUserID,
+			ExternalUserID: externalUserID,
+			AddTag:         corpTagIDs,
+		})
+		if markErr != nil {
+			lastErr = markErr
+			continue
+		}
+		if markResp == nil || markResp.ErrCode != 0 {
+			if markResp == nil {
+				lastErr = errors.New("mark_tag empty response")
+			} else {
+				lastErr = fmt.Errorf("mark_tag failed: %d %s", markResp.ErrCode, strings.TrimSpace(markResp.ErrMsg))
+			}
+			continue
+		}
+		logger.WithFields(logger.Fields{
+			"component":            "acquisition_group_code",
+			"tenant_uuid":          tenantUUID,
+			"channel_account_uuid": channelAccountUUID,
+			"group_code_uuid":      strings.TrimSpace(item.GroupCodeUUID),
+			"chat_id":              chatID,
+			"external_userid":      externalUserID,
+			"tag_count":            len(corpTagIDs),
+		}).Info("group live code incremental member tag apply succeeded")
+	}
+	return lastErr
 }
 
 func normalizeChatIDs(values []string) []string {

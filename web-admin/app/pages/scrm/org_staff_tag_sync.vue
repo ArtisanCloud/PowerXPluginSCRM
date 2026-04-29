@@ -188,7 +188,11 @@ async function loadAccounts() {
   const res = await service.listChannelAccounts();
   const payload = unwrapPayload<{ items?: ChannelAccount[] }>(res);
   const items = payload?.items || [];
-  accounts.value = items.filter((item) => item.channel_code === 'wechat' && item.app_type === 'wecom' && item.status !== 'deleted');
+  accounts.value = items.filter((item) =>
+    item.channel_code === 'wechat'
+    && (item.app_type === 'wecom' || item.app_type === 'openwork')
+    && item.status !== 'deleted'
+  );
   if (!selectedAccountUUID.value && accounts.value.length > 0) {
     selectedAccountUUID.value = resolveDefaultAccountUUID();
   }
@@ -259,9 +263,6 @@ onMounted(async () => {
   loadJobsFromStorage();
   try {
     await loadAccounts();
-    if (selectedAccountUUID.value) {
-      await pullNow();
-    }
   } catch (error: any) {
     toast.add({ title: '加载账号失败', description: error?.message || '请稍后重试', color: 'error' });
   }

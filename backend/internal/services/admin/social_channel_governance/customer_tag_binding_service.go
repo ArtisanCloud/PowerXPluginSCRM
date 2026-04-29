@@ -4,12 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/ArtisanCloud/PowerSocialite/v3/src/models"
 	wecomresp "github.com/ArtisanCloud/PowerSocialite/v3/src/response/weCom"
 	pwexternal "github.com/ArtisanCloud/PowerWeChat/v3/src/work/externalContact"
+	pwexternalresp "github.com/ArtisanCloud/PowerWeChat/v3/src/work/externalContact/response"
 	leadmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/lead_capture"
 	leadrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/lead_capture"
 	"gorm.io/datatypes"
@@ -43,6 +46,8 @@ type CustomerTagBindingItem struct {
 
 type weComExternalContactClient interface {
 	Get(ctx context.Context, externalUserID string, cursor string) (*wecomresp.ResponseGetExternalContact, error)
+	GetFollowUsers(ctx context.Context) (*pwexternalresp.ResponseGetFollowUserList, error)
+	BatchGet(ctx context.Context, userID []string, cursor string, limit int) (*pwexternalresp.ResponseBatchGetByUser, error)
 }
 
 type weComExternalContactClientFactory func(appType string, credentials map[string]string) (weComExternalContactClient, error)
@@ -53,6 +58,14 @@ type powerWeComExternalContactClient struct {
 
 func (c *powerWeComExternalContactClient) Get(ctx context.Context, externalUserID string, cursor string) (*wecomresp.ResponseGetExternalContact, error) {
 	return c.client.Get(ctx, externalUserID, cursor)
+}
+
+func (c *powerWeComExternalContactClient) GetFollowUsers(ctx context.Context) (*pwexternalresp.ResponseGetFollowUserList, error) {
+	return c.client.GetFollowUsers(ctx)
+}
+
+func (c *powerWeComExternalContactClient) BatchGet(ctx context.Context, userID []string, cursor string, limit int) (*pwexternalresp.ResponseBatchGetByUser, error) {
+	return c.client.BatchGet(ctx, userID, cursor, limit)
 }
 
 var defaultWeComExternalContactClientFactory weComExternalContactClientFactory = func(appType string, credentials map[string]string) (weComExternalContactClient, error) {
@@ -112,13 +125,12 @@ func (s *CustomerTagBindingService) ListByChannel(
 	if tenantUUID == "" || channelAccountUUID == "" {
 		return nil, errors.New("tenant_uuid and channel_account_uuid are required")
 	}
-	if limit <= 0 {
-		limit = 50
+	if limit < 0 {
+		limit = 0
 	}
-	if limit > 200 {
-		limit = 200
+	if limit > 1000 {
+		limit = 1000
 	}
-
 	leads, err := s.leadRepo.List(ctx, tenantUUID)
 	if err != nil {
 		return nil, err
@@ -128,8 +140,22 @@ func (s *CustomerTagBindingService) ListByChannel(
 		return nil, err
 	}
 
-	out := make([]CustomerTagBindingItem, 0, limit)
-	seenLead := make(map[string]struct{}, limit)
+	// 远端优先：直接按企业微信全量关系构建视图，保证与企微后台一致。
+	// 若远端暂时不可用，再回退本地快照兜底。
+	client, clientErr := s.resolveWeComExternalContactClient(ctx, tenantUUID, channelAccountUUID)
+	if clientErr == nil && client != nil {
+		items, remoteErr := s.listBindingsFromRemote(ctx, tenantUUID, channelAccountUUID, limit, leads, syncStateByLead, client)
+		if remoteErr == nil {
+			return items, nil
+		}
+	}
+
+	outCap := limit
+	if outCap <= 0 {
+		outCap = 64
+	}
+	out := make([]CustomerTagBindingItem, 0, outCap)
+	seenLead := make(map[string]struct{}, outCap)
 	for _, lead := range leads {
 		if lead == nil {
 			continue
@@ -161,12 +187,211 @@ func (s *CustomerTagBindingService) ListByChannel(
 
 		out = append(out, item)
 		seenLead[leadUUID] = struct{}{}
-		if len(out) >= limit {
+		if limit > 0 && len(out) >= limit {
 			break
 		}
 	}
 
 	return out, nil
+}
+
+func (s *CustomerTagBindingService) listBindingsFromRemote(
+	ctx context.Context,
+	tenantUUID, channelAccountUUID string,
+	limit int,
+	leads []*leadmodel.Lead,
+	syncStateByLead map[string]leadSyncState,
+	client weComExternalContactClient,
+) ([]CustomerTagBindingItem, error) {
+	if client == nil {
+		return nil, errors.New("wecom external contact client unavailable")
+	}
+	followUsersResp, err := client.GetFollowUsers(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if followUsersResp == nil {
+		return nil, errors.New("get_follow_user_list empty response")
+	}
+	if followUsersResp.ErrCode != 0 {
+		return nil, fmt.Errorf("get_follow_user_list failed: %d %s", followUsersResp.ErrCode, strings.TrimSpace(followUsersResp.ErrMsg))
+	}
+	followUsers := compactNonEmptyStrings(followUsersResp.FollowUser)
+	if len(followUsers) == 0 {
+		return []CustomerTagBindingItem{}, nil
+	}
+
+	leadMetaByExternal := buildLeadMetaByExternal(tenantUUID, channelAccountUUID, leads, syncStateByLead)
+	itemsByExternal := make(map[string]*CustomerTagBindingItem, 128)
+	externalOrder := make([]string, 0, 128)
+
+	cursor := ""
+	const pageLimit = 100
+	for {
+		batchResp, batchErr := client.BatchGet(ctx, followUsers, cursor, pageLimit)
+		if batchErr != nil {
+			return nil, batchErr
+		}
+		if batchResp == nil {
+			return nil, errors.New("batch_get_by_user empty response")
+		}
+		if batchResp.ErrCode != 0 {
+			return nil, fmt.Errorf("batch_get_by_user failed: %d %s", batchResp.ErrCode, strings.TrimSpace(batchResp.ErrMsg))
+		}
+		for _, entry := range batchResp.ExternalContactList {
+			if entry == nil || entry.ExternalContact == nil {
+				continue
+			}
+			externalUserID := strings.TrimSpace(entry.ExternalContact.ExternalUserID)
+			if externalUserID == "" {
+				continue
+			}
+			item, ok := itemsByExternal[externalUserID]
+			if !ok {
+				item = &CustomerTagBindingItem{
+					LeadUUID:          "",
+					DisplayName:       strings.TrimSpace(entry.ExternalContact.Name),
+					ExternalUserID:    externalUserID,
+					OwnerUserUUID:     "",
+					SourceAccountUUID: channelAccountUUID,
+					ChannelSyncStatus: "synced",
+					FollowUsers:       []CustomerFollowUserBinding{},
+					RemoteError:       "",
+				}
+				if meta, exists := leadMetaByExternal[externalUserID]; exists {
+					item.LeadUUID = meta.LeadUUID
+					item.OwnerUserUUID = meta.OwnerUserUUID
+					if strings.TrimSpace(meta.DisplayName) != "" {
+						item.DisplayName = strings.TrimSpace(meta.DisplayName)
+					}
+					if strings.TrimSpace(meta.SourceAccountUUID) != "" {
+						item.SourceAccountUUID = strings.TrimSpace(meta.SourceAccountUUID)
+					}
+				}
+				itemsByExternal[externalUserID] = item
+				externalOrder = append(externalOrder, externalUserID)
+			}
+			if entry.FollowInfo != nil {
+				mergeFollowUserBinding(item, entry.FollowInfo)
+			}
+		}
+		nextCursor := strings.TrimSpace(batchResp.NextCursor)
+		if nextCursor == "" || nextCursor == cursor {
+			break
+		}
+		cursor = nextCursor
+	}
+
+	out := make([]CustomerTagBindingItem, 0, len(externalOrder))
+	for _, externalUserID := range externalOrder {
+		item := itemsByExternal[externalUserID]
+		if item == nil {
+			continue
+		}
+		// 过滤掉没有任何跟进关系的记录，避免噪声。
+		if len(item.FollowUsers) == 0 {
+			continue
+		}
+		out = append(out, *item)
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		ni := strings.TrimSpace(out[i].DisplayName)
+		nj := strings.TrimSpace(out[j].DisplayName)
+		if ni != nj {
+			return ni < nj
+		}
+		return strings.TrimSpace(out[i].ExternalUserID) < strings.TrimSpace(out[j].ExternalUserID)
+	})
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
+}
+
+type leadMeta struct {
+	LeadUUID          string
+	DisplayName       string
+	OwnerUserUUID     string
+	SourceAccountUUID string
+}
+
+func buildLeadMetaByExternal(
+	tenantUUID, channelAccountUUID string,
+	leads []*leadmodel.Lead,
+	syncStateByLead map[string]leadSyncState,
+) map[string]leadMeta {
+	out := make(map[string]leadMeta, len(leads))
+	for _, lead := range leads {
+		if lead == nil {
+			continue
+		}
+		leadUUID := strings.TrimSpace(lead.LeadUUID)
+		if leadUUID == "" {
+			continue
+		}
+		state := syncStateByLead[leadUUID]
+		externalUserID := strings.TrimSpace(state.ExternalUserID)
+		if externalUserID == "" {
+			continue
+		}
+		sourceAccountUUID := strings.TrimSpace(state.SourceAccountUUID)
+		if sourceAccountUUID != "" && !strings.EqualFold(sourceAccountUUID, channelAccountUUID) {
+			continue
+		}
+		if _, exists := out[externalUserID]; exists {
+			continue
+		}
+		out[externalUserID] = leadMeta{
+			LeadUUID:          leadUUID,
+			DisplayName:       strings.TrimSpace(lead.DisplayName),
+			OwnerUserUUID:     strings.TrimSpace(lead.OwnerUserUUID),
+			SourceAccountUUID: strings.TrimSpace(sourceAccountUUID),
+		}
+	}
+	return out
+}
+
+func mergeFollowUserBinding(item *CustomerTagBindingItem, follow *models.FollowUser) {
+	if item == nil || follow == nil {
+		return
+	}
+	userID := strings.TrimSpace(follow.UserID)
+	if userID == "" {
+		return
+	}
+	tags := make([]CustomerTagBindingTag, 0, len(follow.Tags))
+	for _, tag := range follow.Tags {
+		tagID := strings.TrimSpace(tag.TagID)
+		tagName := strings.TrimSpace(tag.TagName)
+		groupName := strings.TrimSpace(tag.GroupName)
+		if tagID == "" && tagName == "" {
+			continue
+		}
+		tags = append(tags, CustomerTagBindingTag{
+			TagID:     tagID,
+			TagName:   tagName,
+			GroupName: groupName,
+		})
+	}
+	for idx := range item.FollowUsers {
+		if strings.TrimSpace(item.FollowUsers[idx].UserID) != userID {
+			continue
+		}
+		item.FollowUsers[idx].Remark = strings.TrimSpace(follow.Remark)
+		item.FollowUsers[idx].Description = strings.TrimSpace(follow.Description)
+		item.FollowUsers[idx].OperUserID = strings.TrimSpace(follow.OperUserID)
+		item.FollowUsers[idx].RemarkMobiles = append([]string{}, follow.RemarkMobiles...)
+		item.FollowUsers[idx].Tags = tags
+		return
+	}
+	item.FollowUsers = append(item.FollowUsers, CustomerFollowUserBinding{
+		UserID:        userID,
+		Remark:        strings.TrimSpace(follow.Remark),
+		Description:   strings.TrimSpace(follow.Description),
+		OperUserID:    strings.TrimSpace(follow.OperUserID),
+		RemarkMobiles: append([]string{}, follow.RemarkMobiles...),
+		Tags:          tags,
+	})
 }
 
 func (s *CustomerTagBindingService) RefreshSnapshotByChannel(
@@ -597,6 +822,26 @@ func parseStringSliceFromPayload(raw any) []string {
 			continue
 		}
 		out = append(out, value)
+	}
+	return out
+}
+
+func compactNonEmptyStrings(items []string) []string {
+	if len(items) == 0 {
+		return []string{}
+	}
+	out := make([]string, 0, len(items))
+	seen := make(map[string]struct{}, len(items))
+	for _, item := range items {
+		clean := strings.TrimSpace(item)
+		if clean == "" {
+			continue
+		}
+		if _, ok := seen[clean]; ok {
+			continue
+		}
+		seen[clean] = struct{}{}
+		out = append(out, clean)
 	}
 	return out
 }

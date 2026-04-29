@@ -565,11 +565,6 @@ const scrmSections: ScrmNavSection[] = [
         icon: "i-heroicons-users",
       },
       {
-        to: "/scrm/acquisition_group_tags",
-        labelKey: "navigation.scrmAcquisitionGroupTags",
-        icon: "i-heroicons-tag",
-      },
-      {
         to: "/scrm/acquisition_group_analysis",
         labelKey: "navigation.scrmAcquisitionGroupAnalysis",
         icon: "i-heroicons-chart-bar-square",

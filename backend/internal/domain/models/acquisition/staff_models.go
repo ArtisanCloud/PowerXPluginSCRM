@@ -101,6 +101,8 @@ type GroupLiveCode struct {
 	AppType            string     `gorm:"column:app_type;type:varchar(64);not null;index:idx_acq_group_codes_app_type" json:"app_type"`
 	ChannelAccountUUID string     `gorm:"column:channel_account_uuid;type:uuid;not null;index:idx_acq_group_codes_account" json:"channel_account_uuid"`
 	ActivityName       string     `gorm:"column:activity_name;type:varchar(128);not null" json:"activity_name"`
+	CorpTagIDs         []string   `gorm:"column:corp_tag_ids;type:jsonb;serializer:json" json:"corp_tag_ids"`
+	RemarkEnabled      bool       `gorm:"column:new_customer_remark_enabled;type:boolean;not null;default:false" json:"new_customer_remark_enabled"`
 	State              string     `gorm:"column:state;type:varchar(128);index:idx_acq_group_codes_state" json:"state"`
 	ConfigID           string     `gorm:"column:config_id;type:varchar(128);index:idx_acq_group_codes_config_id" json:"config_id,omitempty"`
 	JoinScene          int        `gorm:"column:join_scene;type:int;not null;default:1" json:"join_scene"`

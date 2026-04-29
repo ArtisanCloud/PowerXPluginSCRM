@@ -19,9 +19,12 @@ import (
 	openwork "github.com/ArtisanCloud/PowerWeChat/v3/src/openWork"
 	openworkmodel "github.com/ArtisanCloud/PowerWeChat/v3/src/openWork/server/models"
 	fwwsbus "github.com/ArtisanCloud/PowerXPlugin/framework/backend/go/runtime/wsbus"
+	acqrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/domain/repository/acquisition"
+	socialmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/social_channel_governance"
 	socialsvcmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/social_channel_governance"
 	repository "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/social_channel_governance"
 	socialobs "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/social_channel_governance"
+	acqdto "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/services/admin/acquisition"
 	socialsvc "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/services/admin/social_channel_governance"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/shared/app"
 	"github.com/gin-gonic/gin"
@@ -148,6 +151,12 @@ func (h *OpenWorkCallbackHandler) Handle(c *gin.Context) {
 
 	httpResp, err := safeOpenWorkNotify(app, c.Request, func(cb *kernelmodels.Callback, ev openworkmodel.IEvent, raw interface{}) interface{} {
 		infoType := strings.ToLower(strings.TrimSpace(ev.GetInfoType()))
+		if infoType == "" {
+			infoType = strings.ToLower(strings.TrimSpace(readEventStringField(ev, "Event", "InfoType")))
+		}
+		if infoType == "" {
+			infoType = strings.ToLower(strings.TrimSpace(readEventStringField(raw, "Event", "InfoType")))
+		}
 		eventTemplateID := strings.TrimSpace(ev.GetSuiteID())
 		if eventTemplateID == "" {
 			eventTemplateID = cfgTemplateID
@@ -168,7 +177,7 @@ func (h *OpenWorkCallbackHandler) Handle(c *gin.Context) {
 			"event_type": infoType,
 			"suite_id":   eventTemplateID,
 		}).Info("openwork callback event parsed")
-		if err := h.enqueueCallbackTask(c.Request.Context(), eventTemplateID, infoType, ev, msgSignature, timestamp, nonce); err != nil {
+		if err := h.enqueueCallbackTask(c.Request.Context(), eventTemplateID, infoType, ev, raw, msgSignature, timestamp, nonce); err != nil {
 			logrus.WithFields(logrus.Fields{
 				"module":      "openwork_callback",
 				"suite_id":    eventTemplateID,
@@ -412,7 +421,7 @@ func safeOpenWorkNotify(app *openwork.OpenWork, req *http.Request, handler func(
 	return app.Server.Notify(req, handler)
 }
 
-func (h *OpenWorkCallbackHandler) enqueueCallbackTask(ctx context.Context, templateID, infoType string, ev openworkmodel.IEvent, msgSignature, timestamp, nonce string) error {
+func (h *OpenWorkCallbackHandler) enqueueCallbackTask(ctx context.Context, templateID, infoType string, ev openworkmodel.IEvent, raw any, msgSignature, timestamp, nonce string) error {
 	if h == nil || h.openWorkRepo == nil || ev == nil {
 		return nil
 	}
@@ -436,6 +445,22 @@ func (h *OpenWorkCallbackHandler) enqueueCallbackTask(ctx context.Context, templ
 		"msg_signature": strings.TrimSpace(msgSignature),
 		"timestamp":     strings.TrimSpace(timestamp),
 		"nonce":         strings.TrimSpace(nonce),
+	}
+	if chatID := firstNonEmpty(
+		readEventStringField(ev, "ChatId", "ChatID"),
+		readEventStringField(raw, "ChatId", "ChatID"),
+	); chatID != "" {
+		payload["chat_id"] = strings.TrimSpace(chatID)
+	}
+	if externalUserID := firstNonEmpty(
+		readEventStringField(ev, "ExternalUserID", "ExternalUserid", "ExternalUserId", "UserID", "UserId"),
+		readEventStringField(raw, "ExternalUserID", "ExternalUserid", "ExternalUserId", "UserID", "UserId"),
+		readExternalUserIDFromRaw(raw),
+	); externalUserID != "" {
+		payload["external_userid"] = strings.TrimSpace(externalUserID)
+	}
+	if changeType := firstNonEmpty(readEventStringField(ev, "ChangeType", "UpdateDetail"), readEventStringField(raw, "ChangeType", "UpdateDetail")); changeType != "" {
+		payload["change_type"] = strings.ToLower(strings.TrimSpace(changeType))
 	}
 	if authCode != "" {
 		payload["auth_code_present"] = true
@@ -628,6 +653,7 @@ func (h *OpenWorkCallbackHandler) processClaimedCallbackTask(task *socialsvcmode
 		}
 	}
 	_ = h.openWorkRepo.MarkCallbackTaskSucceeded(ctx, task.TaskUUID, corpID, agentID, idempotentConverged || task.IdempotentHit)
+	h.processCustomerGroupIncrementalTag(ctx, task, corpID, agentID)
 	h.publishAuthStatus(ctx, task.SuiteID, task.EventType, corpID, agentID)
 	socialobs.RecordOpenWorkCallback("processed", task.EventType)
 	socialobs.ObserveOpenWorkAuthCompleteLatency(float64(time.Since(started).Milliseconds()), "total")
@@ -642,6 +668,282 @@ func (h *OpenWorkCallbackHandler) processClaimedCallbackTask(task *socialsvcmode
 		"event_uuid":   readModelString(event, "EventUUID"),
 		"binding_uuid": readModelString(binding, "BindingUUID"),
 	}).Info("openwork callback task processed")
+}
+
+func (h *OpenWorkCallbackHandler) processCustomerGroupIncrementalTag(ctx context.Context, task *socialsvcmodel.WeComOpenCallbackTask, fallbackCorpID, fallbackAgentID string) {
+	if h == nil || task == nil || h.deps == nil || h.deps.DB == nil {
+		return
+	}
+	eventType := strings.ToLower(strings.TrimSpace(task.EventType))
+	if eventType == "" {
+		return
+	}
+	changeType := strings.ToLower(strings.TrimSpace(readPayloadString(task.Payload, "change_type")))
+	joined := changeType == "add_external_chat" || changeType == "add_external_contact" || changeType == "add_member"
+	if !joined {
+		return
+	}
+	chatID := strings.TrimSpace(readPayloadString(task.Payload, "chat_id"))
+	externalUserID := strings.TrimSpace(readPayloadString(task.Payload, "external_userid"))
+	if chatID == "" || externalUserID == "" {
+		return
+	}
+	tenantUUID := strings.ToLower(strings.TrimSpace(task.TenantUUID))
+	if tenantUUID == "" {
+		return
+	}
+	accountRepo := repository.NewAccountRepository(h.deps.DB)
+	account, err := resolveCallbackChannelAccount(ctx, accountRepo, tenantUUID, strings.TrimSpace(task.CorpID), strings.TrimSpace(task.AgentID), fallbackCorpID, fallbackAgentID)
+	if err != nil || account == nil {
+		logrus.WithFields(logrus.Fields{
+			"module":          "openwork_callback",
+			"event_type":      eventType,
+			"change_type":     changeType,
+			"tenant_uuid":     tenantUUID,
+			"corp_id":         strings.TrimSpace(task.CorpID),
+			"agent_id":        strings.TrimSpace(task.AgentID),
+			"chat_id":         chatID,
+			"external_userid": externalUserID,
+			"error":           errString(err),
+		}).Warn("openwork callback incremental tag skipped: channel account unresolved")
+		return
+	}
+	bundle := acqrepo.NewBundle(h.deps.DB)
+	resolver := &callbackGroupChatAccountResolver{
+		accountRepo:  accountRepo,
+		openworkRepo: h.openWorkRepo,
+		platformRepo: h.platformRepo,
+	}
+	groupSvc := acqdto.NewGroupLiveCodeService(bundle.GroupLiveCodes, bundle.GroupChatSnapshots, resolver)
+	if applyErr := groupSvc.ApplyMemberCorpTagsForJoinEvent(ctx, acqdto.GroupLiveCodeIncrementalTagRequest{
+		TenantUUID:         tenantUUID,
+		ChannelAccountUUID: strings.ToLower(strings.TrimSpace(account.AccountUUID)),
+		ChatID:             chatID,
+		ExternalUserID:     externalUserID,
+	}); applyErr != nil {
+		logrus.WithFields(logrus.Fields{
+			"module":               "openwork_callback",
+			"event_type":           eventType,
+			"change_type":          changeType,
+			"tenant_uuid":          tenantUUID,
+			"channel_account_uuid": strings.TrimSpace(account.AccountUUID),
+			"chat_id":              chatID,
+			"external_userid":      externalUserID,
+			"error":                applyErr.Error(),
+		}).Warn("openwork callback incremental tag apply failed")
+		return
+	}
+	logrus.WithFields(logrus.Fields{
+		"module":               "openwork_callback",
+		"event_type":           eventType,
+		"change_type":          changeType,
+		"tenant_uuid":          tenantUUID,
+		"channel_account_uuid": strings.TrimSpace(account.AccountUUID),
+		"chat_id":              chatID,
+		"external_userid":      externalUserID,
+	}).Info("openwork callback incremental tag apply completed")
+}
+
+func resolveCallbackChannelAccount(
+	ctx context.Context,
+	accountRepo *repository.AccountRepository,
+	tenantUUID, corpID, agentID, fallbackCorpID, fallbackAgentID string,
+) (*socialmodel.ChannelAccount, error) {
+	if accountRepo == nil {
+		return nil, errors.New("account repository unavailable")
+	}
+	candidateCorpID := strings.TrimSpace(corpID)
+	if candidateCorpID == "" {
+		candidateCorpID = strings.TrimSpace(fallbackCorpID)
+	}
+	candidateAgentID := strings.TrimSpace(agentID)
+	if candidateAgentID == "" {
+		candidateAgentID = strings.TrimSpace(fallbackAgentID)
+	}
+	if candidateCorpID != "" && candidateAgentID != "" {
+		if exact, err := accountRepo.FindByWeComIdentity(ctx, tenantUUID, candidateCorpID, candidateAgentID); err == nil && exact != nil {
+			return exact, nil
+		}
+	}
+	accounts, err := accountRepo.ListByTenant(ctx, tenantUUID)
+	if err != nil {
+		return nil, err
+	}
+	for _, item := range accounts {
+		if item == nil {
+			continue
+		}
+		if strings.ToLower(strings.TrimSpace(item.ChannelCode)) != "wechat" {
+			continue
+		}
+		appType := strings.ToLower(strings.TrimSpace(item.AppType))
+		if appType != "openwork" && appType != "wecom" {
+			continue
+		}
+		credCorpID := strings.TrimSpace(fmt.Sprintf("%v", item.Credentials["corp_id"]))
+		if credCorpID == "" {
+			credCorpID = strings.TrimSpace(fmt.Sprintf("%v", item.Credentials["auth_corp_id"]))
+		}
+		if candidateCorpID != "" && credCorpID != "" && !strings.EqualFold(credCorpID, candidateCorpID) {
+			continue
+		}
+		return item, nil
+	}
+	return nil, errors.New("matching channel account not found")
+}
+
+func readPayloadString(payload datatypes.JSONMap, key string) string {
+	if payload == nil {
+		return ""
+	}
+	raw, ok := payload[key]
+	if !ok || raw == nil {
+		return ""
+	}
+	return strings.TrimSpace(fmt.Sprintf("%v", raw))
+}
+
+func errString(err error) string {
+	if err == nil {
+		return ""
+	}
+	return strings.TrimSpace(err.Error())
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if strings.TrimSpace(v) != "" {
+			return strings.TrimSpace(v)
+		}
+	}
+	return ""
+}
+
+func readExternalUserIDFromRaw(raw any) string {
+	if raw == nil {
+		return ""
+	}
+	encoded, err := json.Marshal(raw)
+	if err != nil {
+		return ""
+	}
+	payload := map[string]any{}
+	if err := json.Unmarshal(encoded, &payload); err != nil {
+		return ""
+	}
+	list, _ := payload["MemChangeList"].([]any)
+	for _, item := range list {
+		row, ok := item.(map[string]any)
+		if !ok || row == nil {
+			continue
+		}
+		v := strings.TrimSpace(fmt.Sprintf("%v", row["Item"]))
+		if v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+type callbackGroupChatAccountResolver struct {
+	accountRepo  *repository.AccountRepository
+	openworkRepo *repository.OpenWorkFoundationRepository
+	platformRepo *repository.ChannelPlatformSettingRepository
+}
+
+func (r *callbackGroupChatAccountResolver) ResolveDefaultChannelAccount(ctx context.Context, tenantUUID, channel, appType string) (string, error) {
+	if r == nil || r.accountRepo == nil {
+		return "", repository.ErrAccountNotFound
+	}
+	accounts, err := r.accountRepo.ListByTenant(ctx, tenantUUID)
+	if err != nil {
+		return "", err
+	}
+	for _, acc := range accounts {
+		if acc == nil {
+			continue
+		}
+		if channel != "" && !strings.EqualFold(strings.TrimSpace(acc.ChannelCode), channel) {
+			continue
+		}
+		if appType != "" && !strings.EqualFold(strings.TrimSpace(acc.AppType), appType) {
+			continue
+		}
+		if strings.EqualFold(strings.TrimSpace(acc.Status), socialmodel.ChannelAccountStatusConnected) {
+			return strings.TrimSpace(acc.AccountUUID), nil
+		}
+	}
+	return "", repository.ErrAccountNotFound
+}
+
+func (r *callbackGroupChatAccountResolver) GetChannelAccount(ctx context.Context, tenantUUID, accountUUID string) (*acqdto.GroupChatAccountProfile, error) {
+	if r == nil || r.accountRepo == nil {
+		return nil, repository.ErrAccountNotFound
+	}
+	acc, err := r.accountRepo.GetByAccountUUID(ctx, tenantUUID, accountUUID)
+	if err != nil {
+		return nil, err
+	}
+	return &acqdto.GroupChatAccountProfile{
+		ChannelCode: strings.ToLower(strings.TrimSpace(acc.ChannelCode)),
+		AppType:     strings.ToLower(strings.TrimSpace(acc.AppType)),
+	}, nil
+}
+
+func (r *callbackGroupChatAccountResolver) GetChannelAccountCredentials(ctx context.Context, tenantUUID, accountUUID string) (map[string]string, error) {
+	if r == nil || r.accountRepo == nil {
+		return nil, repository.ErrAccountNotFound
+	}
+	acc, err := r.accountRepo.GetByAccountUUID(ctx, tenantUUID, accountUUID)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]string{}
+	for k, v := range acc.Credentials {
+		key := strings.TrimSpace(k)
+		if key == "" || v == nil {
+			continue
+		}
+		out[key] = strings.TrimSpace(fmt.Sprintf("%v", v))
+	}
+	if r != nil && r.openworkRepo != nil {
+		binding, bindErr := r.openworkRepo.ResolveBindingByChannelAccount(ctx, tenantUUID, accountUUID)
+		if bindErr == nil && binding != nil && strings.EqualFold(strings.TrimSpace(binding.Status), socialmodel.WeComAuthBindingStatusActive) {
+			applyCredentialIfMissing(out, "corp_id", strings.TrimSpace(binding.CorpID))
+			applyCredentialIfMissing(out, "auth_corp_id", strings.TrimSpace(binding.CorpID))
+			applyCredentialIfMissing(out, "permanent_code", strings.TrimSpace(binding.PermanentCode))
+			applyCredentialIfMissing(out, "template_id", strings.TrimSpace(binding.SuiteID))
+			applyCredentialIfMissing(out, "suite_id", strings.TrimSpace(binding.SuiteID))
+			applyCredentialIfMissing(out, "agent_id", strings.TrimSpace(binding.AgentID))
+			applyCredentialIfMissing(out, "template_ticket", strings.TrimSpace(binding.SuiteTicket))
+			applyCredentialIfMissing(out, "suite_ticket", strings.TrimSpace(binding.SuiteTicket))
+		}
+	}
+	if r != nil && r.platformRepo != nil {
+		record, recErr := r.platformRepo.GetByChannelProvider(ctx, "wechat", "openwork")
+		if recErr == nil && record != nil && record.Config != nil {
+			applyCredentialIfMissing(out, "token", strings.TrimSpace(readMapString(record.Config, "token")))
+			applyCredentialIfMissing(out, "aes_key", strings.TrimSpace(readMapString(record.Config, "aes_key")))
+			applyCredentialIfMissing(out, "template_secret", strings.TrimSpace(readMapString(record.Config, "template_secret")))
+			applyCredentialIfMissing(out, "provider_corpid", strings.TrimSpace(readMapString(record.Config, "provider_corpid")))
+			applyCredentialIfMissing(out, "provider_secret", strings.TrimSpace(readMapString(record.Config, "provider_secret")))
+		}
+	}
+	return out, nil
+}
+
+func applyCredentialIfMissing(target map[string]string, key, value string) {
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return
+	}
+	if strings.TrimSpace(value) == "" {
+		return
+	}
+	if strings.TrimSpace(target[key]) != "" {
+		return
+	}
+	target[key] = strings.TrimSpace(value)
 }
 
 func (h *OpenWorkCallbackHandler) shouldConvergeInvalidAuthCode(ctx context.Context, task *socialsvcmodel.WeComOpenCallbackTask, fallbackCorpID string) bool {

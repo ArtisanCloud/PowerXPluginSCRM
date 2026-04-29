@@ -412,31 +412,43 @@ func (r *groupLiveCodeRepository) Update(ctx context.Context, item *acqmodel.Gro
 			return err
 		}
 	}
+	var corpTagIDs any
+	if item.CorpTagIDs == nil {
+		corpTagIDs = datatypes.JSON([]byte("[]"))
+	} else {
+		if buf, err := json.Marshal(item.CorpTagIDs); err == nil {
+			corpTagIDs = datatypes.JSON(buf)
+		} else {
+			return err
+		}
+	}
 	q := r.db.WithContext(ctx).
 		Model(&acqmodel.GroupLiveCode{}).
 		Where("tenant_uuid = ? AND group_code_uuid = ?", item.TenantUUID, item.GroupCodeUUID).
 		Updates(map[string]any{
-			"activity_name":        item.ActivityName,
-			"state":                item.State,
-			"config_id":            item.ConfigID,
-			"join_scene":           item.JoinScene,
-			"skip_verify":          item.SkipVerify,
-			"auto_create_room":     item.AutoCreateRoom,
-			"target_chat_count":    item.TargetChatCount,
-			"target_chat_ids":      targetChatIDs,
-			"shard_count":          item.ShardCount,
-			"capacity_total":       item.CapacityTotal,
-			"capacity_used":        item.CapacityUsed,
-			"shard_config_ids":     shardConfigIDs,
-			"qr_code":              item.QRCode,
-			"status":               item.Status,
-			"sync_status":          item.SyncStatus,
-			"last_sync_error":      item.LastSyncError,
-			"last_synced_at":       item.LastSyncedAt,
-			"capability_status":    item.CapabilityStatus,
-			"updated_by":           item.UpdatedBy,
-			"updated_at":           item.UpdatedAt,
-			"channel_account_uuid": item.ChannelAccountUUID,
+			"activity_name":               item.ActivityName,
+			"corp_tag_ids":                corpTagIDs,
+			"new_customer_remark_enabled": item.RemarkEnabled,
+			"state":                       item.State,
+			"config_id":                   item.ConfigID,
+			"join_scene":                  item.JoinScene,
+			"skip_verify":                 item.SkipVerify,
+			"auto_create_room":            item.AutoCreateRoom,
+			"target_chat_count":           item.TargetChatCount,
+			"target_chat_ids":             targetChatIDs,
+			"shard_count":                 item.ShardCount,
+			"capacity_total":              item.CapacityTotal,
+			"capacity_used":               item.CapacityUsed,
+			"shard_config_ids":            shardConfigIDs,
+			"qr_code":                     item.QRCode,
+			"status":                      item.Status,
+			"sync_status":                 item.SyncStatus,
+			"last_sync_error":             item.LastSyncError,
+			"last_synced_at":              item.LastSyncedAt,
+			"capability_status":           item.CapabilityStatus,
+			"updated_by":                  item.UpdatedBy,
+			"updated_at":                  item.UpdatedAt,
+			"channel_account_uuid":        item.ChannelAccountUUID,
 		})
 	if q.Error != nil {
 		return q.Error

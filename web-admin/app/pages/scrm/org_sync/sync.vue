@@ -586,8 +586,12 @@ const applyDefaultChannelSelection = () => {
   if (selectedChannel.value && selectedAppType.value) {
     return;
   }
+  const isWeComAppType = (appType: any) => {
+    const normalized = String(appType || "").trim().toLowerCase();
+    return normalized === "wecom" || normalized === "openwork";
+  };
   const hasWeCom = channelAccounts.value.some(
-    (acc) => acc.channel_code === "wechat" && acc.app_type === "wecom"
+    (acc) => acc.channel_code === "wechat" && isWeComAppType(acc.app_type)
   );
   if (hasWeCom) {
     selectedChannel.value = "wechat";
@@ -608,7 +612,7 @@ const applyDefaultAccountSelection = () => {
     return;
   }
   const firstWeCom = channelAccounts.value.find(
-    (acc) => acc.channel_code === "wechat" && acc.app_type === "wecom"
+    (acc) => acc.channel_code === "wechat" && (String(acc.app_type || "").trim().toLowerCase() === "wecom" || String(acc.app_type || "").trim().toLowerCase() === "openwork")
   );
   if (firstWeCom) {
     selectedChannel.value = firstWeCom.channel_code;

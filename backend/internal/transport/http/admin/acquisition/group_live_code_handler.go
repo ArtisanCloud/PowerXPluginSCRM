@@ -42,6 +42,8 @@ func (h *GroupLiveCodeHandler) Create(c *gin.Context) {
 		AppType:            req.AppType,
 		ChannelAccountUUID: req.ChannelAccountUUID,
 		ActivityName:       req.ActivityName,
+		CorpTagIDs:         req.CorpTagIDs,
+		RemarkEnabled:      req.NewCustomerRemarkEnabled,
 		JoinScene:          req.JoinScene,
 		SkipVerify:         req.SkipVerify,
 		AutoCreateRoom:     req.AutoCreateRoom,
@@ -110,6 +112,8 @@ func (h *GroupLiveCodeHandler) Update(c *gin.Context) {
 		TenantUUID:     tenantUUID,
 		GroupCodeUUID:  c.Param("group_code_uuid"),
 		ActivityName:   req.ActivityName,
+		CorpTagIDs:     req.CorpTagIDs,
+		RemarkEnabled:  req.NewCustomerRemarkEnabled,
 		SkipVerify:     req.SkipVerify,
 		AutoCreateRoom: req.AutoCreateRoom,
 		Status:         req.Status,
@@ -204,6 +208,22 @@ func (h *GroupLiveCodeHandler) Sync(c *gin.Context) {
 	if err != nil {
 		if err == acqrepo.ErrRecordNotFound {
 			contracts.ResponseNotFound(c, "group code not found")
+			return
+		}
+		if err == acqsvc.ErrGroupLiveCodeNoTargetChats {
+			contracts.ResponseBadRequest(c, "请先选择至少一个群聊后再发布")
+			return
+		}
+		if err == acqsvc.ErrDefaultChannelAccountNotFound {
+			contracts.ResponseBadRequest(c, "未找到可用默认渠道账号，请先在渠道治理中配置")
+			return
+		}
+		if errors.Is(err, acqsvc.ErrUnsupportedChannelAccountType) {
+			contracts.ResponseBadRequest(c, "当前渠道账号类型暂不支持群活码，请切换为企业微信账号")
+			return
+		}
+		if msg, ok := humanizeGroupLiveCodeError(err); ok {
+			contracts.ResponseBadRequest(c, msg)
 			return
 		}
 		contracts.ResponseInternalError(c, err)

@@ -283,7 +283,11 @@ async function loadAccounts() {
   const res = await service.listChannelAccounts();
   const payload = unwrapPayload<{ items?: ChannelAccount[] }>(res);
   const items = payload?.items || [];
-  accounts.value = items.filter((item) => item.channel_code === 'wechat' && item.app_type === 'wecom' && item.status !== 'deleted');
+  accounts.value = items.filter((item) =>
+    item.channel_code === 'wechat'
+    && (item.app_type === 'wecom' || item.app_type === 'openwork')
+    && item.status !== 'deleted'
+  );
   if (!selectedAccountUUID.value && accounts.value.length > 0) {
     selectedAccountUUID.value = resolveDefaultAccountUUID();
   }

@@ -3,20 +3,24 @@ package acquisition
 import "gorm.io/datatypes"
 
 type GroupLiveCodeCreateRequest struct {
-	Channel            string `json:"channel" binding:"required,max=64"`
-	AppType            string `json:"app_type" binding:"required,max=64"`
-	ChannelAccountUUID string `json:"channel_account_uuid" binding:"required,uuid4"`
-	ActivityName       string `json:"activity_name" binding:"required,max=128"`
-	JoinScene          int    `json:"join_scene" binding:"omitempty,min=1,max=3"`
-	SkipVerify         bool   `json:"skip_verify"`
-	AutoCreateRoom     bool   `json:"auto_create_room"`
+	Channel                  string   `json:"channel" binding:"required,max=64"`
+	AppType                  string   `json:"app_type" binding:"required,max=64"`
+	ChannelAccountUUID       string   `json:"channel_account_uuid" binding:"required,uuid4"`
+	ActivityName             string   `json:"activity_name" binding:"required,max=128"`
+	CorpTagIDs               []string `json:"corp_tag_ids" binding:"omitempty,dive,max=128"`
+	NewCustomerRemarkEnabled bool     `json:"new_customer_remark_enabled"`
+	JoinScene                int      `json:"join_scene" binding:"omitempty,min=1,max=3"`
+	SkipVerify               bool     `json:"skip_verify"`
+	AutoCreateRoom           bool     `json:"auto_create_room"`
 }
 
 type GroupLiveCodeUpdateRequest struct {
-	ActivityName   *string `json:"activity_name" binding:"omitempty,max=128"`
-	SkipVerify     *bool   `json:"skip_verify"`
-	AutoCreateRoom *bool   `json:"auto_create_room"`
-	Status         *string `json:"status" binding:"omitempty,oneof=draft active disabled"`
+	ActivityName             *string  `json:"activity_name" binding:"omitempty,max=128"`
+	CorpTagIDs               []string `json:"corp_tag_ids" binding:"omitempty,dive,max=128"`
+	NewCustomerRemarkEnabled *bool    `json:"new_customer_remark_enabled"`
+	SkipVerify               *bool    `json:"skip_verify"`
+	AutoCreateRoom           *bool    `json:"auto_create_room"`
+	Status                   *string  `json:"status" binding:"omitempty,oneof=draft active disabled"`
 }
 
 type GroupLiveCodeListQuery struct {

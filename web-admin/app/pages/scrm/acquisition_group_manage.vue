@@ -441,8 +441,8 @@ const sourceCodeCount = computed(() => new Set(filtered.value.map((r) => r.sourc
 const ownerCount = computed(() => new Set(filtered.value.map((r) => r.owner_userid).filter(Boolean)).size);
 const defaultChannelAccount = computed<ChannelAccount | null>(() =>
   channelAccounts.value.find((acc) => acc.org_sync_default) ||
-  channelAccounts.value.find((acc) => acc.channel_code === "wechat" && acc.app_type === "wecom" && acc.status === "active") ||
-  channelAccounts.value.find((acc) => acc.channel_code === "wechat" && acc.app_type === "wecom") ||
+  channelAccounts.value.find((acc) => acc.channel_code === "wechat" && (acc.app_type === "wecom" || acc.app_type === "openwork") && acc.status === "active") ||
+  channelAccounts.value.find((acc) => acc.channel_code === "wechat" && (acc.app_type === "wecom" || acc.app_type === "openwork")) ||
   channelAccounts.value.find((acc) => acc.status === "active") ||
   channelAccounts.value[0] ||
   null

@@ -258,6 +258,12 @@ Task: T023 web-admin/app/composables/api/services/leadCapture.ts
 - [X] T072 [P] [V2.1] 新增合同测试：群活码 CRUD + 发布同步状态到 `backend/tests/contract/group_live_code_contract_test.go`
 - [X] T073 [P] [V2.1] 新增合同测试：群聊同步列表与详情查询到 `backend/tests/contract/group_chat_sync_contract_test.go`
 - [X] T074 [P] [V2.1] 新增合同测试：本地群标签 CRUD/绑定/查询到 `backend/tests/contract/group_tag_contract_test.go`
+
+## Phase 9: V2.1.1 客户入群回调增量打标对齐
+
+- [X] T075 [V2.1.1] 在统一企微回调处理链路补充客户入群事件字段抽取（`chat_id/external_userid/change_type`）到 `backend/internal/transport/http/webhooks/openwork_callback_handler.go`
+- [X] T076 [V2.1.1] 在回调任务消费阶段增加“新增入群成员”分支并调用群活码增量打标服务到 `backend/internal/transport/http/webhooks/openwork_callback_handler.go`
+- [X] T077 [V2.1.1] 为群活码服务新增按 `chat_id + external_userid` 的增量企业标签补打方法到 `backend/internal/services/admin/acquisition/group_live_code_service.go`
 - [X] T075 [P] [V2.1] 新增服务单测：群标签规则命中与幂等绑定到 `backend/internal/services/admin/acquisition/group_tag_rule_service_test.go`
 - [X] T076 [V2.1] 新增集成测试：群回调 + 拉取最终一致性到 `backend/tests/integration/group_chat_sync_consistency_integration_test.go`
 
