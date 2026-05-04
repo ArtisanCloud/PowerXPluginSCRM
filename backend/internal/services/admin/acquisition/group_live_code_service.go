@@ -12,6 +12,7 @@ import (
 
 	work "github.com/ArtisanCloud/PowerWeChat/v3/src/work"
 	pwgroupchatreq "github.com/ArtisanCloud/PowerWeChat/v3/src/work/externalContact/groupChat/request"
+	pwextreq "github.com/ArtisanCloud/PowerWeChat/v3/src/work/externalContact/request"
 	pwtag "github.com/ArtisanCloud/PowerWeChat/v3/src/work/externalContact/tag"
 	pwtagreq "github.com/ArtisanCloud/PowerWeChat/v3/src/work/externalContact/tag/request"
 	acqmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/domain/models/acquisition"
@@ -24,6 +25,8 @@ var (
 	ErrGroupLiveCodeServiceNotReady = errors.New("group live code service not ready")
 	ErrInvalidGroupLiveCodePayload  = errors.New("invalid group live code payload")
 	ErrGroupLiveCodeNoTargetChats   = errors.New("group live code requires at least one target chat")
+	ErrInvalidGroupCorpTagIDs       = errors.New("invalid group live code corp_tag_ids: expected external-contact tag ids")
+	ErrGroupSkipVerifyUnsupported   = errors.New("group live code skip_verify is not supported by wecom group join-way api")
 )
 
 type GroupLiveCodeCreateRequest struct {
@@ -102,6 +105,12 @@ func (s *GroupLiveCodeService) Create(ctx context.Context, req GroupLiveCodeCrea
 	if req.TenantUUID == "" || req.Channel == "" || req.AppType == "" || req.ChannelAccountUUID == "" || req.ActivityName == "" {
 		return nil, ErrInvalidGroupLiveCodePayload
 	}
+	if req.SkipVerify {
+		return nil, ErrGroupSkipVerifyUnsupported
+	}
+	if hasInvalidNumericTagID(req.CorpTagIDs) {
+		return nil, ErrInvalidGroupCorpTagIDs
+	}
 	if req.JoinScene <= 0 {
 		req.JoinScene = 1
 	}
@@ -158,12 +167,19 @@ func (s *GroupLiveCodeService) Update(ctx context.Context, req GroupLiveCodeUpda
 		}
 	}
 	if req.CorpTagIDs != nil {
-		item.CorpTagIDs = normalizeCorpTagIDs(req.CorpTagIDs)
+		nextTagIDs := normalizeCorpTagIDs(req.CorpTagIDs)
+		if hasInvalidNumericTagID(nextTagIDs) {
+			return nil, ErrInvalidGroupCorpTagIDs
+		}
+		item.CorpTagIDs = nextTagIDs
 	}
 	if req.RemarkEnabled != nil {
 		item.RemarkEnabled = *req.RemarkEnabled
 	}
 	if req.SkipVerify != nil {
+		if *req.SkipVerify {
+			return nil, ErrGroupSkipVerifyUnsupported
+		}
 		item.SkipVerify = *req.SkipVerify
 	}
 	if req.AutoCreateRoom != nil {
@@ -237,8 +253,13 @@ func (s *GroupLiveCodeService) Sync(ctx context.Context, req GroupLiveCodeSyncRe
 	}
 	if usedRemoteSync {
 		if err := s.applyMemberCorpTags(ctx, item); err != nil {
-			s.persistSyncFailure(ctx, item, err)
-			return nil, err
+			logger.WithFields(logger.Fields{
+				"component":            "acquisition_group_code",
+				"tenant_uuid":          strings.TrimSpace(item.TenantUUID),
+				"channel_account_uuid": strings.TrimSpace(item.ChannelAccountUUID),
+				"group_code_uuid":      strings.TrimSpace(item.GroupCodeUUID),
+				"error":                err.Error(),
+			}).Warn("group live code member tag apply failed, continue sync without blocking publish")
 		}
 	}
 	item.Status = acqmodel.LiveCodeStatusActive
@@ -765,6 +786,26 @@ func normalizeCorpTagIDs(values []string) []string {
 	return out
 }
 
+func hasInvalidNumericTagID(values []string) bool {
+	for _, raw := range values {
+		id := strings.TrimSpace(raw)
+		if id == "" {
+			continue
+		}
+		allDigits := true
+		for _, ch := range id {
+			if ch < '0' || ch > '9' {
+				allDigits = false
+				break
+			}
+		}
+		if allDigits {
+			return true
+		}
+	}
+	return false
+}
+
 // ApplyMemberCorpTagsForJoinEvent applies configured corp tags for one newly joined external member.
 // This is designed for webhook incremental processing to avoid waiting for full sync/publish loops.
 func (s *GroupLiveCodeService) ApplyMemberCorpTagsForJoinEvent(ctx context.Context, req GroupLiveCodeIncrementalTagRequest) error {
@@ -869,24 +910,48 @@ func (s *GroupLiveCodeService) ApplyMemberCorpTagsForJoinEvent(ctx context.Conte
 		}
 		corpTagIDs := normalizeCorpTagIDs(item.CorpTagIDs)
 		if len(corpTagIDs) == 0 {
-			continue
-		}
-		markResp, markErr := tagClient.MarkTag(ctx, &pwtagreq.RequestTagMarkTag{
-			UserID:         operatorUserID,
-			ExternalUserID: externalUserID,
-			AddTag:         corpTagIDs,
-		})
-		if markErr != nil {
-			lastErr = markErr
-			continue
-		}
-		if markResp == nil || markResp.ErrCode != 0 {
-			if markResp == nil {
-				lastErr = errors.New("mark_tag empty response")
-			} else {
-				lastErr = fmt.Errorf("mark_tag failed: %d %s", markResp.ErrCode, strings.TrimSpace(markResp.ErrMsg))
+			// 标签可为空，仅执行备注能力（若开启）。
+		} else {
+			markResp, markErr := tagClient.MarkTag(ctx, &pwtagreq.RequestTagMarkTag{
+				UserID:         operatorUserID,
+				ExternalUserID: externalUserID,
+				AddTag:         corpTagIDs,
+			})
+			if markErr != nil {
+				lastErr = markErr
+				continue
 			}
-			continue
+			if markResp == nil || markResp.ErrCode != 0 {
+				if markResp == nil {
+					lastErr = errors.New("mark_tag empty response")
+				} else {
+					lastErr = fmt.Errorf("mark_tag failed: %d %s", markResp.ErrCode, strings.TrimSpace(markResp.ErrMsg))
+				}
+				continue
+			}
+		}
+
+		if item.RemarkEnabled {
+			remark := strings.TrimSpace(item.ActivityName)
+			if remark != "" {
+				remarkResp, remarkErr := app.ExternalContact.Remark(ctx, &pwextreq.RequestExternalContactRemark{
+					UserID:         operatorUserID,
+					ExternalUserID: externalUserID,
+					Remark:         remark,
+				})
+				if remarkErr != nil {
+					lastErr = fmt.Errorf("externalcontact.remark failed: %w", remarkErr)
+					continue
+				}
+				if remarkResp == nil || remarkResp.ErrCode != 0 {
+					if remarkResp == nil {
+						lastErr = errors.New("externalcontact.remark empty response")
+					} else {
+						lastErr = fmt.Errorf("externalcontact.remark failed: %d %s", remarkResp.ErrCode, strings.TrimSpace(remarkResp.ErrMsg))
+					}
+					continue
+				}
+			}
 		}
 		logger.WithFields(logger.Fields{
 			"component":            "acquisition_group_code",
@@ -896,6 +961,7 @@ func (s *GroupLiveCodeService) ApplyMemberCorpTagsForJoinEvent(ctx context.Conte
 			"chat_id":              chatID,
 			"external_userid":      externalUserID,
 			"tag_count":            len(corpTagIDs),
+			"remark_enabled":       item.RemarkEnabled,
 		}).Info("group live code incremental member tag apply succeeded")
 	}
 	return lastErr

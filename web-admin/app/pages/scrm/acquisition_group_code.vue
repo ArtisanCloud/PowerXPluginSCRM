@@ -248,10 +248,6 @@
             </div>
           </UFormField>
           <div class="flex items-center gap-3 pt-6">
-            <USwitch v-model="editForm.skip_verify" />
-            <span class="text-sm text-gray-100">免验证入群</span>
-          </div>
-          <div class="flex items-center gap-3 pt-6">
             <USwitch v-model="editForm.auto_create_room" />
             <span class="text-sm text-gray-100">满员自动建群</span>
           </div>
@@ -425,6 +421,16 @@ const shortID = (id: string) => String(id || "").slice(0, 8);
 const normalizeIDs = (values: Array<string | null | undefined>) =>
   Array.from(new Set((values || []).map((v) => String(v || "").trim()).filter(Boolean)));
 const normalizeTagIDs = (values: string[]) => normalizeIDs(values);
+const availableFoundationTagIDSet = computed(() => {
+  const set = new Set<string>();
+  for (const row of foundationTags.value || []) {
+    const id = String(row?.remote_tag_id || "").trim();
+    if (id) set.add(id);
+  }
+  return set;
+});
+const filterToAvailableFoundationTagIDs = (values: string[]) =>
+  normalizeTagIDs(values).filter((id) => availableFoundationTagIDSet.value.has(id));
 const tagNameMap = computed(() => {
   const map = new Map<string, string>();
   for (const row of foundationTags.value || []) {
@@ -542,6 +548,9 @@ const loadFoundationTags = async () => {
     const rows = ((resp as any)?.data?.items || []) as FoundationTagRecord[];
     const seen = new Set<string>();
     foundationTags.value = rows.filter((row) => {
+      // 群活码打标签只支持外部联系人标签(source=wecom)；过滤掉员工标签(source=wecom_staff)等非客户标签。
+      const source = String(row?.source || "").trim().toLowerCase();
+      if (source && source !== "wecom") return false;
       const id = String(row?.remote_tag_id || "").trim();
       if (!id || seen.has(id)) return false;
       seen.add(id);
@@ -618,7 +627,9 @@ const openTagSelector = async (target: "create" | "edit") => {
   if (foundationTags.value.length === 0) {
     await loadFoundationTags();
   }
-  selectedTagDraft.value = normalizeTagIDs(target === "create" ? createForm.corp_tag_ids : editForm.corp_tag_ids);
+  selectedTagDraft.value = filterToAvailableFoundationTagIDs(
+    target === "create" ? createForm.corp_tag_ids : editForm.corp_tag_ids
+  );
   tagKeyword.value = "";
   tagSelectorOpen.value = true;
 };
@@ -635,7 +646,7 @@ const toggleTag = (tagID: string) => {
 };
 
 const applyTagSelection = () => {
-  const value = normalizeTagIDs(selectedTagDraft.value);
+  const value = filterToAvailableFoundationTagIDs(selectedTagDraft.value);
   if (selectingTagTarget.value === "create") {
     createForm.corp_tag_ids = value;
   } else {
@@ -668,7 +679,6 @@ const createRow = async () => {
       corp_tag_ids: normalizeTagIDs(createForm.corp_tag_ids),
       new_customer_remark_enabled: createForm.new_customer_remark_enabled,
       join_scene: createForm.join_scene,
-      skip_verify: createForm.skip_verify,
       auto_create_room: createForm.auto_create_room,
     });
     const created = (createResp as any)?.data as GroupLiveCodeRecord | undefined;
@@ -692,9 +702,11 @@ const openEdit = async (row: GroupLiveCodeRecord) => {
     await loadFoundationTags();
   }
   editForm.activity_name = row.activity_name;
-  editForm.corp_tag_ids = Array.isArray(row.corp_tag_ids) ? normalizeTagIDs(row.corp_tag_ids) : [];
+  editForm.corp_tag_ids = Array.isArray(row.corp_tag_ids)
+    ? filterToAvailableFoundationTagIDs(row.corp_tag_ids)
+    : [];
   editForm.new_customer_remark_enabled = Boolean(row.new_customer_remark_enabled);
-  editForm.skip_verify = Boolean(row.skip_verify);
+  editForm.skip_verify = false;
   editForm.auto_create_room = Boolean(row.auto_create_room);
   editOpen.value = true;
 };
@@ -707,7 +719,7 @@ const saveEdit = async () => {
       activity_name: editForm.activity_name,
       corp_tag_ids: normalizeTagIDs(editForm.corp_tag_ids),
       new_customer_remark_enabled: editForm.new_customer_remark_enabled,
-      skip_verify: editForm.skip_verify,
+      skip_verify: false,
       auto_create_room: editForm.auto_create_room,
     });
     const updated = (updateResp as any)?.data as GroupLiveCodeRecord | undefined;

@@ -257,6 +257,10 @@ func humanizeGroupLiveCodeError(err error) (string, bool) {
 	}
 	msg := strings.ToLower(strings.TrimSpace(err.Error()))
 	switch {
+	case strings.Contains(msg, "group live code skip_verify is not supported"):
+		return "群活码当前不支持“免验证入群”（企微群活码接口无此参数），请关闭该开关", true
+	case strings.Contains(msg, "invalid group live code corp_tag_ids"):
+		return "标签不合法：请仅选择“企业客户标签”（tag_id 形如 etsdn...），不要使用员工标签或纯数字ID", true
 	case strings.Contains(msg, "701170"):
 		return "企业微信“群活码/进群方式”试用已到期（701170），请在企微后台续期或开通正式能力后再同步", true
 	case strings.Contains(msg, "81011"):
