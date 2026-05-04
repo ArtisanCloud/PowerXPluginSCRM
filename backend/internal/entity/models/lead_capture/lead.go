@@ -7,11 +7,12 @@ import (
 )
 
 const (
-	LeadStatusNew        = "new"
-	LeadStatusAssigned   = "assigned"
-	LeadStatusInProgress = "in_progress"
-	LeadStatusConverted  = "converted"
-	LeadStatusClosed     = "closed"
+	LeadStatusNew          = "new"
+	LeadStatusAssigned     = "assigned"
+	LeadStatusInProgress   = "in_progress"
+	LeadStatusConverted    = "converted"
+	LeadStatusClosed       = "closed"
+	LeadStatusDisconnected = "disconnected"
 )
 
 // Lead represents a captured lead in the current tenant.

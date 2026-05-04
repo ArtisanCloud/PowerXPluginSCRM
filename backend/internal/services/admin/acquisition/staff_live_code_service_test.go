@@ -82,6 +82,9 @@ func ensureStaffLiveCodeServiceTables(db *gorm.DB) error {
 			channel_account_uuid TEXT NOT NULL,
 			activity_name TEXT NOT NULL,
 			code_key TEXT NOT NULL,
+			state TEXT,
+			config_id TEXT,
+			qr_code TEXT,
 			member_uuids TEXT NOT NULL,
 			corp_tag_ids TEXT NOT NULL,
 			new_customer_remark_enabled BOOLEAN NOT NULL DEFAULT FALSE,
@@ -96,9 +99,12 @@ func ensureStaffLiveCodeServiceTables(db *gorm.DB) error {
 		`CREATE TABLE IF NOT EXISTS org_sync_member_bindings (
 			member_binding_uuid TEXT PRIMARY KEY,
 			tenant_uuid TEXT NOT NULL,
+			channel_account_uuid TEXT,
 			source_member_id TEXT NOT NULL,
 			main_member_id TEXT NOT NULL,
+			external_member_id TEXT,
 			mapping_status TEXT NOT NULL,
+			sync_status TEXT,
 			created_at DATETIME,
 			updated_at DATETIME
 		);`,

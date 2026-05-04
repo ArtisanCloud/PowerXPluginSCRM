@@ -10,6 +10,8 @@ const (
 	TableLeadCaptureLeadAttributionRecords   = "lead_capture_lead_attribution_records"
 	TableLeadCaptureCodeConfigChangeLogs     = "lead_capture_code_config_change_logs"
 	TableAcquisitionStaffLiveCodes           = "acquisition_staff_live_codes"
+	TableAcquisitionStaffContactEvents       = "acquisition_staff_contact_events"
+	TableAcquisitionExternalContactOwners    = "acquisition_external_contact_owners"
 	TableAcquisitionStaffWelcomeConfigs      = "acquisition_staff_welcome_configs"
 	TableAcquisitionStaffWelcomeSyncAttempts = "acquisition_staff_welcome_sync_attempts"
 	TableAcquisitionGroupLiveCodes           = "acquisition_group_live_codes"

@@ -11,6 +11,7 @@ func RBACEntries(prefix string) map[string]authx.Permission {
 	return map[string]authx.Permission{
 		"POST:" + base + "/staff-codes":                                              {Resource: "acquisition.staff_code", Action: "create"},
 		"GET:" + base + "/staff-codes":                                               {Resource: "acquisition.staff_code", Action: "read"},
+		"DELETE:" + base + "/staff-codes/:staff_code_uuid":                           {Resource: "acquisition.staff_code", Action: "delete"},
 		"PATCH:" + base + "/staff-codes/:staff_code_uuid/status":                     {Resource: "acquisition.staff_code", Action: "update"},
 		"PUT:" + base + "/staff-codes/:staff_code_uuid/welcome-config":               {Resource: "acquisition.staff_welcome", Action: "update"},
 		"POST:" + base + "/staff-codes/:staff_code_uuid/welcome-config/sync":         {Resource: "acquisition.staff_welcome", Action: "publish"},

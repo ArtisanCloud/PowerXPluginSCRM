@@ -2,6 +2,7 @@ package acquisition
 
 import (
 	"errors"
+	"net/http"
 	"strings"
 
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/contracts"
@@ -79,6 +80,8 @@ func (h *StaffWelcomeHandler) TriggerSync(c *gin.Context) {
 		switch {
 		case errors.Is(err, acqsvc.ErrStaffWelcomeConfigNotFound):
 			contracts.ResponseNotFound(c, "staff welcome config not found")
+		case errors.Is(err, acqsvc.ErrStaffWelcomeSyncNotImplemented):
+			contracts.ResponseError(c, http.StatusNotImplemented, "NOT_IMPLEMENTED", "channel sync adapter is not implemented")
 		default:
 			contracts.ResponseInternalError(c, err)
 		}

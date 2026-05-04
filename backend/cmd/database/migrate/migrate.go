@@ -109,6 +109,8 @@ var businessTables = []interface{}{
 	&domainLeadCaptureModel.LeadAttributionRecord{},
 	&domainLeadCaptureModel.CodeConfigChangeLog{},
 	&domainAcquisitionModel.StaffLiveCode{},
+	&domainAcquisitionModel.StaffContactEvent{},
+	&domainAcquisitionModel.ExternalContactOwner{},
 	&domainAcquisitionModel.StaffWelcomeConfig{},
 	&domainAcquisitionModel.StaffWelcomeSyncAttempt{},
 	&domainAcquisitionModel.GroupLiveCode{},

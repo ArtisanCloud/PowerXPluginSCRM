@@ -11,6 +11,7 @@ export interface StaffLiveCodeRecord {
   channel_account_uuid: string;
   activity_name: string;
   code_key: string;
+  qr_code?: string;
   member_uuids: string[];
   corp_tag_ids?: string[];
   new_customer_remark_enabled?: boolean;
@@ -25,6 +26,13 @@ export interface StaffLiveCodeCreatePayload {
   channel_account_uuid?: string;
   activity_name: string;
   code_key?: string;
+  member_uuids: string[];
+  corp_tag_ids?: string[];
+  new_customer_remark_enabled?: boolean;
+}
+
+export interface StaffLiveCodeUpdatePayload {
+  activity_name: string;
   member_uuids: string[];
   corp_tag_ids?: string[];
   new_customer_remark_enabled?: boolean;
@@ -241,6 +249,10 @@ export const useAcquisitionService = () => {
       }),
     createStaffCode: (payload: StaffLiveCodeCreatePayload) =>
       apiClient.post<ApiResponse<StaffLiveCodeRecord>>(`${baseUrl}/staff-codes`, payload),
+    updateStaffCode: (staffCodeUUID: string, payload: StaffLiveCodeUpdatePayload) =>
+      apiClient.put<ApiResponse<StaffLiveCodeRecord>>(`${baseUrl}/staff-codes/${staffCodeUUID}`, payload),
+    deleteStaffCode: (staffCodeUUID: string) =>
+      apiClient.delete<ApiResponse<{ deleted: boolean }>>(`${baseUrl}/staff-codes/${staffCodeUUID}`),
     updateStaffCodeStatus: (staffCodeUUID: string, status: Extract<LiveCodeStatus, "active" | "disabled">) =>
       apiClient.patch<ApiResponse<StaffLiveCodeRecord>>(`${baseUrl}/staff-codes/${staffCodeUUID}/status`, { status }),
     saveStaffWelcome: (staffCodeUUID: string, payload: StaffWelcomeSavePayload) =>

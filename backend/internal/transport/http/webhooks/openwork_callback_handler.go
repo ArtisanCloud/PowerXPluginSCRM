@@ -19,7 +19,10 @@ import (
 	openwork "github.com/ArtisanCloud/PowerWeChat/v3/src/openWork"
 	openworkmodel "github.com/ArtisanCloud/PowerWeChat/v3/src/openWork/server/models"
 	fwwsbus "github.com/ArtisanCloud/PowerXPlugin/framework/backend/go/runtime/wsbus"
+	acqmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/domain/models/acquisition"
 	acqrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/domain/repository/acquisition"
+	leadmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/lead_capture"
+	orgmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/org_sync"
 	socialmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/social_channel_governance"
 	socialsvcmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/social_channel_governance"
 	repository "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/social_channel_governance"
@@ -30,6 +33,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"gorm.io/datatypes"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type OpenWorkCallbackHandler struct {
@@ -429,7 +434,10 @@ func (h *OpenWorkCallbackHandler) enqueueCallbackTask(ctx context.Context, templ
 	corpID := strings.TrimSpace(readEventStringField(ev, "AuthCorpID", "CorpID"))
 	agentID := strings.TrimSpace(readEventStringField(ev, "AgentID"))
 	authCode := strings.TrimSpace(readEventStringField(ev, "AuthCode"))
-	state := readEventStringField(ev, "State")
+	state := firstNonEmpty(
+		readEventStringField(ev, "State"),
+		readEventStringField(raw, "State"),
+	)
 	suiteTicket := readEventStringField(ev, "SuiteTicket")
 	eventTime := readEventUnixField(ev, "Timestamp", "TimeStamp")
 	eventKey := buildOpenWorkEventKey(tenantUUID, templateID, infoType, authCode, msgSignature, timestamp, nonce, ev)
@@ -459,8 +467,20 @@ func (h *OpenWorkCallbackHandler) enqueueCallbackTask(ctx context.Context, templ
 	); externalUserID != "" {
 		payload["external_userid"] = strings.TrimSpace(externalUserID)
 	}
+	if welcomeCode := firstNonEmpty(
+		readEventStringField(ev, "WelcomeCode", "Welcome_Code"),
+		readEventStringField(raw, "WelcomeCode", "Welcome_Code"),
+	); welcomeCode != "" {
+		payload["welcome_code"] = strings.TrimSpace(welcomeCode)
+	}
 	if changeType := firstNonEmpty(readEventStringField(ev, "ChangeType", "UpdateDetail"), readEventStringField(raw, "ChangeType", "UpdateDetail")); changeType != "" {
 		payload["change_type"] = strings.ToLower(strings.TrimSpace(changeType))
+	}
+	if operatorUserID := firstNonEmpty(
+		readEventStringField(ev, "UserID", "UserId", "Userid", "FollowUserID", "FollowUserid"),
+		readEventStringField(raw, "UserID", "UserId", "Userid", "FollowUserID", "FollowUserid"),
+	); operatorUserID != "" {
+		payload["operator_userid"] = strings.TrimSpace(operatorUserID)
 	}
 	if authCode != "" {
 		payload["auth_code_present"] = true
@@ -653,6 +673,7 @@ func (h *OpenWorkCallbackHandler) processClaimedCallbackTask(task *socialsvcmode
 		}
 	}
 	_ = h.openWorkRepo.MarkCallbackTaskSucceeded(ctx, task.TaskUUID, corpID, agentID, idempotentConverged || task.IdempotentHit)
+	h.processStaffLiveCodeContactEvent(ctx, task, corpID, agentID)
 	h.processCustomerGroupIncrementalTag(ctx, task, corpID, agentID)
 	h.publishAuthStatus(ctx, task.SuiteID, task.EventType, corpID, agentID)
 	socialobs.RecordOpenWorkCallback("processed", task.EventType)
@@ -668,6 +689,628 @@ func (h *OpenWorkCallbackHandler) processClaimedCallbackTask(task *socialsvcmode
 		"event_uuid":   readModelString(event, "EventUUID"),
 		"binding_uuid": readModelString(binding, "BindingUUID"),
 	}).Info("openwork callback task processed")
+}
+
+func (h *OpenWorkCallbackHandler) processStaffLiveCodeContactEvent(ctx context.Context, task *socialsvcmodel.WeComOpenCallbackTask, fallbackCorpID, fallbackAgentID string) {
+	if h == nil || task == nil || h.deps == nil || h.deps.DB == nil {
+		return
+	}
+	eventType := strings.ToLower(strings.TrimSpace(task.EventType))
+	changeType := strings.ToLower(strings.TrimSpace(readPayloadString(task.Payload, "change_type")))
+	if eventType != "change_external_contact" {
+		return
+	}
+	if changeType == "del_external_contact" || changeType == "del_follow_user" {
+		h.processStaffLiveCodeContactRemoved(ctx, task, fallbackCorpID, fallbackAgentID)
+		return
+	}
+	if changeType != "add_external_contact" {
+		return
+	}
+	tenantUUID := strings.ToLower(strings.TrimSpace(task.TenantUUID))
+	if tenantUUID == "" {
+		return
+	}
+	state := strings.TrimSpace(readPayloadString(task.Payload, "state"))
+	externalUserID := strings.TrimSpace(readPayloadString(task.Payload, "external_userid"))
+	welcomeCode := strings.TrimSpace(readPayloadString(task.Payload, "welcome_code"))
+	if state == "" || externalUserID == "" {
+		h.recordStaffContactEvent(ctx, &acqmodel.StaffContactEvent{
+			TenantUUID:       tenantUUID,
+			EventType:        eventType,
+			ChangeType:       changeType,
+			State:            state,
+			ExternalUserID:   externalUserID,
+			WelcomeCode:      welcomeCode,
+			ProcessingStatus: "skipped",
+			ProcessingError:  "missing state or external_userid",
+		}, task.Payload)
+		logrus.WithFields(logrus.Fields{
+			"module":          "openwork_callback",
+			"event_type":      eventType,
+			"change_type":     changeType,
+			"tenant_uuid":     tenantUUID,
+			"state":           state,
+			"external_userid": externalUserID,
+		}).Warn("openwork callback staff live code skipped: missing state or external_userid")
+		return
+	}
+
+	accountRepo := repository.NewAccountRepository(h.deps.DB)
+	account, err := resolveCallbackChannelAccount(ctx, accountRepo, tenantUUID, strings.TrimSpace(task.CorpID), strings.TrimSpace(task.AgentID), fallbackCorpID, fallbackAgentID)
+	if err != nil || account == nil {
+		h.recordStaffContactEvent(ctx, &acqmodel.StaffContactEvent{
+			TenantUUID:       tenantUUID,
+			EventType:        eventType,
+			ChangeType:       changeType,
+			State:            state,
+			ExternalUserID:   externalUserID,
+			WelcomeCode:      welcomeCode,
+			ProcessingStatus: "failed",
+			ProcessingError:  "channel account unresolved",
+		}, task.Payload)
+		logrus.WithFields(logrus.Fields{
+			"module":          "openwork_callback",
+			"event_type":      eventType,
+			"change_type":     changeType,
+			"tenant_uuid":     tenantUUID,
+			"corp_id":         strings.TrimSpace(task.CorpID),
+			"agent_id":        strings.TrimSpace(task.AgentID),
+			"state":           state,
+			"external_userid": externalUserID,
+			"error":           errString(err),
+		}).Warn("openwork callback staff live code skipped: channel account unresolved")
+		return
+	}
+
+	bundle := acqrepo.NewBundle(h.deps.DB)
+	items, listErr := bundle.StaffLiveCodes.List(ctx, tenantUUID, acqrepo.StaffLiveCodeListFilter{
+		Status: "active",
+		Limit:  2000,
+	})
+	if listErr != nil {
+		h.recordStaffContactEvent(ctx, &acqmodel.StaffContactEvent{
+			TenantUUID:         tenantUUID,
+			ChannelAccountUUID: strings.ToLower(strings.TrimSpace(account.AccountUUID)),
+			EventType:          eventType,
+			ChangeType:         changeType,
+			State:              state,
+			ExternalUserID:     externalUserID,
+			WelcomeCode:        welcomeCode,
+			ProcessingStatus:   "failed",
+			ProcessingError:    listErr.Error(),
+		}, task.Payload)
+		logrus.WithFields(logrus.Fields{
+			"module":      "openwork_callback",
+			"tenant_uuid": tenantUUID,
+			"state":       state,
+			"error":       listErr.Error(),
+		}).Warn("openwork callback staff live code list failed")
+		return
+	}
+	channelAccountUUID := strings.ToLower(strings.TrimSpace(account.AccountUUID))
+	var targetItem *acqdto.StaffLiveCodeContactApplyTarget
+	for _, item := range items {
+		if item == nil {
+			continue
+		}
+		if strings.ToLower(strings.TrimSpace(item.ChannelAccountUUID)) != channelAccountUUID {
+			continue
+		}
+		if strings.TrimSpace(item.State) != state {
+			continue
+		}
+		targetItem = &acqdto.StaffLiveCodeContactApplyTarget{
+			StaffCodeUUID:      strings.ToLower(strings.TrimSpace(item.StaffCodeUUID)),
+			TenantUUID:         strings.ToLower(strings.TrimSpace(item.TenantUUID)),
+			ChannelAccountUUID: strings.ToLower(strings.TrimSpace(item.ChannelAccountUUID)),
+			CorpTagIDs:         append([]string{}, item.CorpTagIDs...),
+			WelcomeMode:        "",
+			ContentBlocksRaw:   nil,
+		}
+		break
+	}
+	if targetItem == nil {
+		h.recordStaffContactEvent(ctx, &acqmodel.StaffContactEvent{
+			TenantUUID:         tenantUUID,
+			ChannelAccountUUID: channelAccountUUID,
+			EventType:          eventType,
+			ChangeType:         changeType,
+			State:              state,
+			ExternalUserID:     externalUserID,
+			WelcomeCode:        welcomeCode,
+			ProcessingStatus:   "skipped",
+			ProcessingError:    "state not matched",
+		}, task.Payload)
+		logrus.WithFields(logrus.Fields{
+			"module":               "openwork_callback",
+			"event_type":           eventType,
+			"change_type":          changeType,
+			"tenant_uuid":          tenantUUID,
+			"channel_account_uuid": channelAccountUUID,
+			"state":                state,
+			"external_userid":      externalUserID,
+		}).Warn("openwork callback staff live code skipped: state not matched")
+		return
+	}
+	if cfg, cfgErr := bundle.StaffWelcomeConfigs.GetByStaffCodeUUID(ctx, tenantUUID, targetItem.StaffCodeUUID); cfgErr == nil && cfg != nil {
+		targetItem.WelcomeMode = strings.ToLower(strings.TrimSpace(cfg.WelcomeMode))
+		targetItem.ContentBlocksRaw = append([]byte{}, cfg.ContentBlocks...)
+	}
+	// 历史数据里 corp_tag_ids 可能被写成全小写；回调执行前按同步快照纠正为企微原始大小写。
+	tagRecordRepo := repository.NewTagRecordRepository(h.deps.DB)
+	if records, recErr := tagRecordRepo.ListByChannel(ctx, tenantUUID, channelAccountUUID, 500); recErr == nil && len(records) > 0 {
+		targetItem.CorpTagIDs = canonicalizeCorpTagIDsBySnapshot(targetItem.CorpTagIDs, records)
+	}
+
+	resolver := &callbackGroupChatAccountResolver{
+		accountRepo:  accountRepo,
+		openworkRepo: h.openWorkRepo,
+		platformRepo: h.platformRepo,
+	}
+	applier := acqdto.NewStaffLiveCodeContactEventService(resolver)
+	applyResult, applyErr := applier.Apply(ctx, acqdto.StaffLiveCodeContactEventApplyRequest{
+		TenantUUID:         tenantUUID,
+		ChannelAccountUUID: channelAccountUUID,
+		ExternalUserID:     externalUserID,
+		WelcomeCode:        welcomeCode,
+		Target:             targetItem,
+	})
+	h.upsertExternalContactOwner(ctx, task, tenantUUID, channelAccountUUID, state, externalUserID, applyResult)
+	h.upsertLeadFromExternalContact(ctx, tenantUUID, account, externalUserID, applyResult)
+	if applyErr != nil {
+		// 负责人关系应与欢迎语发送结果解耦：即使欢迎语失败（如 41051），也要落当前 owner 关系。
+		h.recordStaffContactEvent(ctx, &acqmodel.StaffContactEvent{
+			TenantUUID:         tenantUUID,
+			StaffCodeUUID:      targetItem.StaffCodeUUID,
+			ChannelAccountUUID: channelAccountUUID,
+			EventType:          eventType,
+			ChangeType:         changeType,
+			State:              state,
+			ExternalUserID:     externalUserID,
+			WelcomeCode:        welcomeCode,
+			ProcessingStatus:   "failed",
+			ProcessingError:    applyErr.Error(),
+		}, task.Payload)
+		logrus.WithFields(logrus.Fields{
+			"module":               "openwork_callback",
+			"event_type":           eventType,
+			"change_type":          changeType,
+			"tenant_uuid":          tenantUUID,
+			"channel_account_uuid": channelAccountUUID,
+			"state":                state,
+			"external_userid":      externalUserID,
+			"error":                applyErr.Error(),
+		}).Warn("openwork callback staff live code apply failed")
+		return
+	}
+	h.recordStaffContactEvent(ctx, &acqmodel.StaffContactEvent{
+		TenantUUID:         tenantUUID,
+		StaffCodeUUID:      targetItem.StaffCodeUUID,
+		ChannelAccountUUID: channelAccountUUID,
+		EventType:          eventType,
+		ChangeType:         changeType,
+		State:              state,
+		ExternalUserID:     externalUserID,
+		WelcomeCode:        welcomeCode,
+		ProcessingStatus:   "applied",
+	}, task.Payload)
+	logrus.WithFields(logrus.Fields{
+		"module":               "openwork_callback",
+		"event_type":           eventType,
+		"change_type":          changeType,
+		"tenant_uuid":          tenantUUID,
+		"channel_account_uuid": channelAccountUUID,
+		"state":                state,
+		"external_userid":      externalUserID,
+		"welcome_code":         welcomeCode != "",
+	}).Info("openwork callback staff live code apply completed")
+}
+
+func (h *OpenWorkCallbackHandler) processStaffLiveCodeContactRemoved(ctx context.Context, task *socialsvcmodel.WeComOpenCallbackTask, fallbackCorpID, fallbackAgentID string) {
+	if h == nil || task == nil || h.deps == nil || h.deps.DB == nil {
+		return
+	}
+	tenantUUID := strings.ToLower(strings.TrimSpace(task.TenantUUID))
+	if tenantUUID == "" {
+		return
+	}
+	changeType := strings.ToLower(strings.TrimSpace(readPayloadString(task.Payload, "change_type")))
+	state := strings.TrimSpace(readPayloadString(task.Payload, "state"))
+	externalUserID := strings.TrimSpace(readPayloadString(task.Payload, "external_userid"))
+	if externalUserID == "" {
+		h.recordStaffContactEvent(ctx, &acqmodel.StaffContactEvent{
+			TenantUUID:       tenantUUID,
+			EventType:        "change_external_contact",
+			ChangeType:       changeType,
+			State:            state,
+			ExternalUserID:   externalUserID,
+			ProcessingStatus: "skipped",
+			ProcessingError:  "missing external_userid",
+		}, task.Payload)
+		logrus.WithFields(logrus.Fields{
+			"module":          "openwork_callback",
+			"event_type":      "change_external_contact",
+			"change_type":     changeType,
+			"tenant_uuid":     tenantUUID,
+			"state":           state,
+			"external_userid": externalUserID,
+		}).Warn("openwork callback staff live code remove skipped: missing external_userid")
+		return
+	}
+
+	accountRepo := repository.NewAccountRepository(h.deps.DB)
+	account, err := resolveCallbackChannelAccount(ctx, accountRepo, tenantUUID, strings.TrimSpace(task.CorpID), strings.TrimSpace(task.AgentID), fallbackCorpID, fallbackAgentID)
+	if err != nil || account == nil {
+		h.recordStaffContactEvent(ctx, &acqmodel.StaffContactEvent{
+			TenantUUID:       tenantUUID,
+			EventType:        "change_external_contact",
+			ChangeType:       changeType,
+			State:            state,
+			ExternalUserID:   externalUserID,
+			ProcessingStatus: "failed",
+			ProcessingError:  "channel account unresolved",
+		}, task.Payload)
+		logrus.WithFields(logrus.Fields{
+			"module":          "openwork_callback",
+			"event_type":      "change_external_contact",
+			"change_type":     changeType,
+			"tenant_uuid":     tenantUUID,
+			"corp_id":         strings.TrimSpace(task.CorpID),
+			"agent_id":        strings.TrimSpace(task.AgentID),
+			"state":           state,
+			"external_userid": externalUserID,
+			"error":           errString(err),
+		}).Warn("openwork callback staff live code remove skipped: channel account unresolved")
+		return
+	}
+	h.recordStaffContactEvent(ctx, &acqmodel.StaffContactEvent{
+		TenantUUID:         tenantUUID,
+		ChannelAccountUUID: strings.ToLower(strings.TrimSpace(account.AccountUUID)),
+		EventType:          "change_external_contact",
+		ChangeType:         changeType,
+		State:              state,
+		ExternalUserID:     externalUserID,
+		ProcessingStatus:   "removed",
+	}, task.Payload)
+	channelAccountUUID := strings.ToLower(strings.TrimSpace(account.AccountUUID))
+	h.deleteExternalContactOwner(ctx, tenantUUID, channelAccountUUID, externalUserID)
+	h.markLeadDisconnectedByExternalContact(ctx, tenantUUID, channelAccountUUID, externalUserID)
+
+	logrus.WithFields(logrus.Fields{
+		"module":               "openwork_callback",
+		"event_type":           "change_external_contact",
+		"change_type":          changeType,
+		"tenant_uuid":          tenantUUID,
+		"channel_account_uuid": channelAccountUUID,
+		"state":                state,
+		"external_userid":      externalUserID,
+		"corp_id":              strings.TrimSpace(task.CorpID),
+		"agent_id":             strings.TrimSpace(task.AgentID),
+	}).Info("openwork callback staff live code relation removed")
+}
+
+func (h *OpenWorkCallbackHandler) upsertExternalContactOwner(ctx context.Context, task *socialsvcmodel.WeComOpenCallbackTask, tenantUUID, channelAccountUUID, state, externalUserID string, applyResult *acqdto.StaffLiveCodeContactApplyResult) {
+	if h == nil || h.deps == nil || h.deps.DB == nil {
+		return
+	}
+	operatorUserID := strings.TrimSpace(readPayloadString(task.Payload, "operator_userid"))
+	if operatorUserID == "" {
+		operatorUserID = strings.TrimSpace(readPayloadString(task.Payload, "userid"))
+	}
+	if applyResult != nil && strings.TrimSpace(applyResult.OperatorUserID) != "" {
+		operatorUserID = strings.TrimSpace(applyResult.OperatorUserID)
+	}
+	if operatorUserID == "" {
+		return
+	}
+	now := time.Now().UTC()
+	ownerMemberID := h.resolveMainMemberIDByExternalUserID(ctx, tenantUUID, channelAccountUUID, operatorUserID)
+	payloadRaw, _ := json.Marshal(task.Payload)
+	record := &acqmodel.ExternalContactOwner{
+		TenantUUID:         tenantUUID,
+		ChannelAccountUUID: channelAccountUUID,
+		ExternalUserID:     externalUserID,
+		OwnerWeComUserID:   operatorUserID,
+		OwnerMemberID:      ownerMemberID,
+		Source:             "callback",
+		State:              strings.TrimSpace(state),
+		LastEventType:      strings.ToLower(strings.TrimSpace(task.EventType)),
+		LastChangeType:     strings.ToLower(strings.TrimSpace(readPayloadString(task.Payload, "change_type"))),
+		LastEventPayload:   datatypes.JSON(payloadRaw),
+		LastEventAt:        &now,
+		UpdatedAt:          now,
+	}
+	if len(record.LastEventPayload) == 0 {
+		record.LastEventPayload = datatypes.JSON([]byte(`{}`))
+	}
+	if err := h.deps.DB.WithContext(ctx).
+		Clauses(clause.OnConflict{
+			Columns: []clause.Column{
+				{Name: "tenant_uuid"},
+				{Name: "channel_account_uuid"},
+				{Name: "external_userid"},
+			},
+			DoUpdates: clause.Assignments(map[string]any{
+				"owner_wecom_userid": operatorUserID,
+				"owner_member_id":    ownerMemberID,
+				"source":             "callback",
+				"state":              strings.TrimSpace(state),
+				"last_event_type":    strings.ToLower(strings.TrimSpace(task.EventType)),
+				"last_change_type":   strings.ToLower(strings.TrimSpace(readPayloadString(task.Payload, "change_type"))),
+				"last_event_payload": record.LastEventPayload,
+				"last_event_at":      now,
+				"updated_at":         now,
+				"version":            gorm.Expr("COALESCE(acquisition_external_contact_owners.version, 0) + 1"),
+			}),
+		}).
+		Create(record).Error; err != nil {
+		logrus.WithFields(logrus.Fields{
+			"module":               "openwork_callback",
+			"tenant_uuid":          tenantUUID,
+			"channel_account_uuid": channelAccountUUID,
+			"external_userid":      externalUserID,
+			"owner_wecom_userid":   operatorUserID,
+			"error":                err.Error(),
+		}).Warn("openwork callback owner relation upsert failed")
+		return
+	}
+	logrus.WithFields(logrus.Fields{
+		"module":               "openwork_callback",
+		"tenant_uuid":          tenantUUID,
+		"channel_account_uuid": channelAccountUUID,
+		"external_userid":      externalUserID,
+		"owner_wecom_userid":   operatorUserID,
+		"owner_member_id":      ownerMemberID,
+	}).Info("openwork callback owner relation upsert completed")
+}
+
+func (h *OpenWorkCallbackHandler) upsertLeadFromExternalContact(ctx context.Context, tenantUUID string, account *socialmodel.ChannelAccount, externalUserID string, applyResult *acqdto.StaffLiveCodeContactApplyResult) {
+	if h == nil || h.deps == nil || h.deps.DB == nil || account == nil {
+		return
+	}
+	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
+	channelAccountUUID := strings.ToLower(strings.TrimSpace(account.AccountUUID))
+	externalUserID = strings.TrimSpace(externalUserID)
+	if tenantUUID == "" || channelAccountUUID == "" || externalUserID == "" {
+		return
+	}
+
+	displayName := externalUserID
+	if applyResult != nil && strings.TrimSpace(applyResult.ExternalDisplayName) != "" {
+		displayName = strings.TrimSpace(applyResult.ExternalDisplayName)
+	}
+	ownerWeComUserID := ""
+	if applyResult != nil {
+		ownerWeComUserID = strings.TrimSpace(applyResult.OperatorUserID)
+	}
+	ownerMemberID := ""
+	if ownerWeComUserID != "" {
+		ownerMemberID = h.resolveMainMemberIDByExternalUserID(ctx, tenantUUID, channelAccountUUID, ownerWeComUserID)
+	}
+
+	var leadUUID string
+	activityTable := leadmodel.LeadActivity{}.TableName()
+	if err := h.deps.DB.WithContext(ctx).
+		Table(activityTable).
+		Select("lead_uuid").
+		Where("tenant_uuid = ? AND activity_type = ? AND payload ->> 'source_account_uuid' = ? AND payload ->> 'external_wechat_id' = ?",
+			tenantUUID, leadmodel.LeadActivityTypeSyncTrace, channelAccountUUID, externalUserID).
+		Order("updated_at DESC").
+		Limit(1).
+		Scan(&leadUUID).Error; err != nil {
+		logrus.WithFields(logrus.Fields{
+			"module":               "openwork_callback",
+			"tenant_uuid":          tenantUUID,
+			"channel_account_uuid": channelAccountUUID,
+			"external_userid":      externalUserID,
+			"error":                err.Error(),
+		}).Warn("openwork callback lead lookup by external identity failed")
+	}
+
+	now := time.Now().UTC()
+	if strings.TrimSpace(leadUUID) == "" {
+		lead := &leadmodel.Lead{
+			TenantUUID:        tenantUUID,
+			DisplayName:       displayName,
+			Status:            leadmodel.LeadStatusAssigned,
+			OwnerUserUUID:     ownerMemberID,
+			SourceChannel:     strings.ToLower(strings.TrimSpace(account.ChannelCode)),
+			SourceAppType:     strings.ToLower(strings.TrimSpace(account.AppType)),
+			SourceAccountUUID: &channelAccountUUID,
+			CreatedAt:         now,
+			UpdatedAt:         now,
+		}
+		if err := h.deps.DB.WithContext(ctx).Create(lead).Error; err != nil {
+			logrus.WithFields(logrus.Fields{
+				"module":               "openwork_callback",
+				"tenant_uuid":          tenantUUID,
+				"channel_account_uuid": channelAccountUUID,
+				"external_userid":      externalUserID,
+				"error":                err.Error(),
+			}).Warn("openwork callback lead create failed")
+			return
+		}
+		leadUUID = strings.TrimSpace(lead.LeadUUID)
+	}
+	if leadUUID == "" {
+		return
+	}
+
+	updateFields := map[string]any{
+		"updated_at": now,
+	}
+	if displayName != "" {
+		updateFields["display_name"] = displayName
+	}
+	if ownerMemberID != "" {
+		updateFields["owner_user_uuid"] = ownerMemberID
+		updateFields["status"] = leadmodel.LeadStatusAssigned
+	}
+	if err := h.deps.DB.WithContext(ctx).
+		Model(&leadmodel.Lead{}).
+		Where("tenant_uuid = ? AND lead_uuid = ?", tenantUUID, leadUUID).
+		Updates(updateFields).Error; err != nil {
+		logrus.WithFields(logrus.Fields{
+			"module":               "openwork_callback",
+			"tenant_uuid":          tenantUUID,
+			"channel_account_uuid": channelAccountUUID,
+			"external_userid":      externalUserID,
+			"lead_uuid":            leadUUID,
+			"error":                err.Error(),
+		}).Warn("openwork callback lead update failed")
+	}
+
+	payload := datatypes.JSONMap{
+		"source_account_uuid":   channelAccountUUID,
+		"external_wechat_id":    externalUserID,
+		"owner_external_userid": ownerWeComUserID,
+		"owner_user_uuid":       ownerMemberID,
+		"display_name":          displayName,
+	}
+	activity := &leadmodel.LeadActivity{
+		TenantUUID:   tenantUUID,
+		LeadUUID:     leadUUID,
+		ActivityType: leadmodel.LeadActivityTypeSyncTrace,
+		Payload:      payload,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+	if err := h.deps.DB.WithContext(ctx).Create(activity).Error; err != nil {
+		logrus.WithFields(logrus.Fields{
+			"module":               "openwork_callback",
+			"tenant_uuid":          tenantUUID,
+			"channel_account_uuid": channelAccountUUID,
+			"external_userid":      externalUserID,
+			"lead_uuid":            leadUUID,
+			"error":                err.Error(),
+		}).Warn("openwork callback lead sync_trace upsert failed")
+		return
+	}
+	logrus.WithFields(logrus.Fields{
+		"module":               "openwork_callback",
+		"tenant_uuid":          tenantUUID,
+		"channel_account_uuid": channelAccountUUID,
+		"external_userid":      externalUserID,
+		"lead_uuid":            leadUUID,
+		"owner_user_uuid":      ownerMemberID,
+	}).Info("openwork callback lead upsert completed")
+}
+
+func (h *OpenWorkCallbackHandler) deleteExternalContactOwner(ctx context.Context, tenantUUID, channelAccountUUID, externalUserID string) {
+	if h == nil || h.deps == nil || h.deps.DB == nil {
+		return
+	}
+	if err := h.deps.DB.WithContext(ctx).
+		Where("tenant_uuid = ? AND channel_account_uuid = ? AND external_userid = ?", tenantUUID, channelAccountUUID, strings.TrimSpace(externalUserID)).
+		Delete(&acqmodel.ExternalContactOwner{}).Error; err != nil {
+		logrus.WithFields(logrus.Fields{
+			"module":               "openwork_callback",
+			"tenant_uuid":          tenantUUID,
+			"channel_account_uuid": channelAccountUUID,
+			"external_userid":      externalUserID,
+			"error":                err.Error(),
+		}).Warn("openwork callback owner relation delete failed")
+	}
+}
+
+func (h *OpenWorkCallbackHandler) markLeadDisconnectedByExternalContact(ctx context.Context, tenantUUID, channelAccountUUID, externalUserID string) {
+	if h == nil || h.deps == nil || h.deps.DB == nil {
+		return
+	}
+	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
+	channelAccountUUID = strings.ToLower(strings.TrimSpace(channelAccountUUID))
+	externalUserID = strings.TrimSpace(externalUserID)
+	if tenantUUID == "" || channelAccountUUID == "" || externalUserID == "" {
+		return
+	}
+	var leadUUID string
+	activityTable := leadmodel.LeadActivity{}.TableName()
+	if err := h.deps.DB.WithContext(ctx).
+		Table(activityTable).
+		Select("lead_uuid").
+		Where("tenant_uuid = ? AND activity_type = ? AND payload ->> 'source_account_uuid' = ? AND payload ->> 'external_wechat_id' = ?",
+			tenantUUID, leadmodel.LeadActivityTypeSyncTrace, channelAccountUUID, externalUserID).
+		Order("updated_at DESC").
+		Limit(1).
+		Scan(&leadUUID).Error; err != nil {
+		return
+	}
+	leadUUID = strings.TrimSpace(leadUUID)
+	if leadUUID == "" {
+		return
+	}
+	now := time.Now().UTC()
+	if err := h.deps.DB.WithContext(ctx).
+		Model(&leadmodel.Lead{}).
+		Where("tenant_uuid = ? AND lead_uuid = ?", tenantUUID, leadUUID).
+		Updates(map[string]any{
+			"status":          leadmodel.LeadStatusDisconnected,
+			"owner_user_uuid": "",
+			"updated_at":      now,
+		}).Error; err != nil {
+		return
+	}
+	logrus.WithFields(logrus.Fields{
+		"module":               "openwork_callback",
+		"tenant_uuid":          tenantUUID,
+		"channel_account_uuid": channelAccountUUID,
+		"external_userid":      externalUserID,
+		"lead_uuid":            leadUUID,
+		"status":               leadmodel.LeadStatusDisconnected,
+	}).Info("openwork callback lead marked disconnected")
+}
+
+func (h *OpenWorkCallbackHandler) resolveMainMemberIDByExternalUserID(ctx context.Context, tenantUUID, channelAccountUUID, externalUserID string) string {
+	if h == nil || h.deps == nil || h.deps.DB == nil {
+		return ""
+	}
+	var row struct {
+		MainMemberID string `gorm:"column:main_member_id"`
+	}
+	if err := h.deps.DB.WithContext(ctx).
+		Table(orgmodel.MemberBinding{}.TableName()).
+		Where("tenant_uuid = ? AND channel_account_uuid = ? AND external_member_id = ?", tenantUUID, channelAccountUUID, strings.TrimSpace(externalUserID)).
+		Order("updated_at DESC").
+		Limit(1).
+		Select("main_member_id").
+		Scan(&row).Error; err != nil {
+		return ""
+	}
+	return strings.TrimSpace(row.MainMemberID)
+}
+
+func (h *OpenWorkCallbackHandler) recordStaffContactEvent(ctx context.Context, evt *acqmodel.StaffContactEvent, payload any) {
+	if h == nil || h.deps == nil || h.deps.DB == nil || evt == nil {
+		return
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil || len(raw) == 0 {
+		evt.Payload = datatypes.JSON([]byte(`{}`))
+	} else {
+		evt.Payload = datatypes.JSON(raw)
+	}
+	// 审计表里 staff_code_uuid/channel_account_uuid 为 uuid 列，回调缺失时不能写空字符串。
+	evt.StaffCodeUUID = normalizeUUIDOrZero(evt.StaffCodeUUID)
+	evt.ChannelAccountUUID = normalizeUUIDOrZero(evt.ChannelAccountUUID)
+	if err := h.deps.DB.WithContext(ctx).Create(evt).Error; err != nil {
+		logrus.WithFields(logrus.Fields{
+			"module":        "openwork_callback",
+			"tenant_uuid":   strings.TrimSpace(evt.TenantUUID),
+			"event_type":    strings.TrimSpace(evt.EventType),
+			"change_type":   strings.TrimSpace(evt.ChangeType),
+			"external_user": strings.TrimSpace(evt.ExternalUserID),
+			"error":         err.Error(),
+		}).Warn("openwork callback staff contact event persist failed")
+	}
+}
+
+func normalizeUUIDOrZero(raw string) string {
+	v := strings.TrimSpace(raw)
+	if v == "" {
+		return "00000000-0000-0000-0000-000000000000"
+	}
+	return v
 }
 
 func (h *OpenWorkCallbackHandler) processCustomerGroupIncrementalTag(ctx context.Context, task *socialsvcmodel.WeComOpenCallbackTask, fallbackCorpID, fallbackAgentID string) {
@@ -742,6 +1385,41 @@ func (h *OpenWorkCallbackHandler) processCustomerGroupIncrementalTag(ctx context
 		"chat_id":              chatID,
 		"external_userid":      externalUserID,
 	}).Info("openwork callback incremental tag apply completed")
+}
+
+func canonicalizeCorpTagIDsBySnapshot(tagIDs []string, records []socialmodel.SyncTagRecord) []string {
+	if len(tagIDs) == 0 || len(records) == 0 {
+		return tagIDs
+	}
+	lookup := make(map[string]string, len(records))
+	for _, record := range records {
+		// 员工标签快照(source=wecom_staff)与外部联系人标签不是同一域，这里只用外部联系人标签快照纠正。
+		if strings.TrimSpace(strings.ToLower(record.Source)) != "wecom" {
+			continue
+		}
+		raw := strings.TrimSpace(record.RemoteTagID)
+		if raw == "" {
+			continue
+		}
+		lookup[strings.ToLower(raw)] = raw
+	}
+	out := make([]string, 0, len(tagIDs))
+	seen := make(map[string]struct{}, len(tagIDs))
+	for _, tagID := range tagIDs {
+		clean := strings.TrimSpace(tagID)
+		if clean == "" {
+			continue
+		}
+		if mapped, ok := lookup[strings.ToLower(clean)]; ok && strings.TrimSpace(mapped) != "" {
+			clean = strings.TrimSpace(mapped)
+		}
+		if _, ok := seen[clean]; ok {
+			continue
+		}
+		seen[clean] = struct{}{}
+		out = append(out, clean)
+	}
+	return out
 }
 
 func resolveCallbackChannelAccount(

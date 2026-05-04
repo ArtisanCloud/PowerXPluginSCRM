@@ -38,6 +38,9 @@ type StaffLiveCode struct {
 	ChannelAccountUUID string    `gorm:"column:channel_account_uuid;type:uuid;not null;index:idx_acq_staff_codes_account" json:"channel_account_uuid"`
 	ActivityName       string    `gorm:"column:activity_name;type:varchar(128);not null;index:idx_acq_staff_codes_activity" json:"activity_name"`
 	CodeKey            string    `gorm:"column:code_key;type:varchar(128);not null;uniqueIndex:uq_acq_staff_codes_tenant_code_key,priority:2" json:"code_key"`
+	State              string    `gorm:"column:state;type:varchar(128);index:idx_acq_staff_codes_state" json:"state,omitempty"`
+	ConfigID           string    `gorm:"column:config_id;type:varchar(128);index:idx_acq_staff_codes_config_id" json:"config_id,omitempty"`
+	QRCode             string    `gorm:"column:qr_code;type:text" json:"qr_code,omitempty"`
 	MemberUUIDs        []string  `gorm:"column:member_uuids;type:jsonb;serializer:json" json:"member_uuids"`
 	CorpTagIDs         []string  `gorm:"column:corp_tag_ids;type:jsonb;serializer:json" json:"corp_tag_ids"`
 	RemarkEnabled      bool      `gorm:"column:new_customer_remark_enabled;type:boolean;not null;default:false" json:"new_customer_remark_enabled"`
@@ -50,6 +53,51 @@ type StaffLiveCode struct {
 
 func (StaffLiveCode) TableName() string {
 	return domainmodels.S(domainmodels.TableAcquisitionStaffLiveCodes)
+}
+
+// StaffContactEvent stores staff live code contact lifecycle callback events for audit/debug.
+type StaffContactEvent struct {
+	EventUUID          string         `gorm:"column:event_uuid;type:uuid;default:gen_random_uuid();primaryKey" json:"event_uuid"`
+	TenantUUID         string         `gorm:"column:tenant_uuid;type:uuid;not null;index:idx_acq_staff_contact_events_tenant" json:"tenant_uuid"`
+	StaffCodeUUID      string         `gorm:"column:staff_code_uuid;type:uuid;index:idx_acq_staff_contact_events_staff_code" json:"staff_code_uuid,omitempty"`
+	ChannelAccountUUID string         `gorm:"column:channel_account_uuid;type:uuid;not null;index:idx_acq_staff_contact_events_account" json:"channel_account_uuid"`
+	EventType          string         `gorm:"column:event_type;type:varchar(64);not null;index:idx_acq_staff_contact_events_event_type" json:"event_type"`
+	ChangeType         string         `gorm:"column:change_type;type:varchar(64);not null;index:idx_acq_staff_contact_events_change_type" json:"change_type"`
+	State              string         `gorm:"column:state;type:varchar(128);index:idx_acq_staff_contact_events_state" json:"state,omitempty"`
+	ExternalUserID     string         `gorm:"column:external_userid;type:varchar(128);not null;index:idx_acq_staff_contact_events_external_userid" json:"external_userid"`
+	OperatorUserID     string         `gorm:"column:operator_userid;type:varchar(128)" json:"operator_userid,omitempty"`
+	WelcomeCode        string         `gorm:"column:welcome_code;type:varchar(256)" json:"welcome_code,omitempty"`
+	ProcessingStatus   string         `gorm:"column:processing_status;type:varchar(32);not null;default:'received'" json:"processing_status"`
+	ProcessingError    string         `gorm:"column:processing_error;type:text" json:"processing_error,omitempty"`
+	Payload            datatypes.JSON `gorm:"column:payload;type:jsonb;not null;default:'{}'::jsonb" json:"payload"`
+	CreatedAt          time.Time      `gorm:"column:created_at;type:timestamptz;not null;default:now();index:idx_acq_staff_contact_events_created_at" json:"created_at"`
+}
+
+func (StaffContactEvent) TableName() string {
+	return domainmodels.S(domainmodels.TableAcquisitionStaffContactEvents)
+}
+
+// ExternalContactOwner keeps single current owner relation per external user.
+type ExternalContactOwner struct {
+	RelationUUID       string         `gorm:"column:relation_uuid;type:uuid;default:gen_random_uuid();primaryKey" json:"relation_uuid"`
+	TenantUUID         string         `gorm:"column:tenant_uuid;type:uuid;not null;index:idx_acq_ext_owners_tenant;uniqueIndex:uq_acq_ext_owners_identity,priority:1" json:"tenant_uuid"`
+	ChannelAccountUUID string         `gorm:"column:channel_account_uuid;type:uuid;not null;index:idx_acq_ext_owners_account;uniqueIndex:uq_acq_ext_owners_identity,priority:2" json:"channel_account_uuid"`
+	ExternalUserID     string         `gorm:"column:external_userid;type:varchar(128);not null;index:idx_acq_ext_owners_external_userid;uniqueIndex:uq_acq_ext_owners_identity,priority:3" json:"external_userid"`
+	OwnerWeComUserID   string         `gorm:"column:owner_wecom_userid;type:varchar(128);not null;index:idx_acq_ext_owners_owner_wecom" json:"owner_wecom_userid"`
+	OwnerMemberID      string         `gorm:"column:owner_member_id;type:text;index:idx_acq_ext_owners_owner_member" json:"owner_member_id,omitempty"`
+	Source             string         `gorm:"column:source;type:varchar(32);not null;default:'callback'" json:"source"`
+	State              string         `gorm:"column:state;type:varchar(128);index:idx_acq_ext_owners_state" json:"state,omitempty"`
+	LastEventType      string         `gorm:"column:last_event_type;type:varchar(64)" json:"last_event_type,omitempty"`
+	LastChangeType     string         `gorm:"column:last_change_type;type:varchar(64)" json:"last_change_type,omitempty"`
+	LastEventPayload   datatypes.JSON `gorm:"column:last_event_payload;type:jsonb;not null;default:'{}'::jsonb" json:"last_event_payload"`
+	LastEventAt        *time.Time     `gorm:"column:last_event_at;type:timestamptz" json:"last_event_at,omitempty"`
+	Version            int64          `gorm:"column:version;type:bigint;not null;default:1" json:"version"`
+	CreatedAt          time.Time      `gorm:"column:created_at;type:timestamptz;not null;default:now()" json:"created_at"`
+	UpdatedAt          time.Time      `gorm:"column:updated_at;type:timestamptz;not null;default:now()" json:"updated_at"`
+}
+
+func (ExternalContactOwner) TableName() string {
+	return domainmodels.S(domainmodels.TableAcquisitionExternalContactOwners)
 }
 
 // StaffWelcomeConfig binds one welcome payload to one staff code.

@@ -112,8 +112,6 @@ type StaffTagSyncJob = {
   error_message?: string;
 };
 
-const STAFF_TAG_SYNC_JOB_KEY = 'scrm:staff_tag_sync_jobs.v1';
-
 const toast = useToast();
 const service = useSocialChannelGovernanceService();
 
@@ -154,29 +152,6 @@ function nowText() {
   return new Date().toLocaleString('zh-CN', { hour12: false });
 }
 
-function genJobUUID() {
-  return `staff-tag-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function loadJobsFromStorage() {
-  if (!process.client) return;
-  const raw = window.localStorage.getItem(STAFF_TAG_SYNC_JOB_KEY);
-  if (!raw) return;
-  try {
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) {
-      jobs.value = parsed as StaffTagSyncJob[];
-    }
-  } catch {
-    jobs.value = [];
-  }
-}
-
-function saveJobsToStorage() {
-  if (!process.client) return;
-  window.localStorage.setItem(STAFF_TAG_SYNC_JOB_KEY, JSON.stringify(jobs.value.slice(0, 50)));
-}
-
 function resolveDefaultAccountUUID() {
   const items = accounts.value || [];
   if (items.length === 0) return '';
@@ -204,6 +179,37 @@ function accountLabelOf(accountUUID: string) {
   return `${account.display_name}（${account.account_id}）`;
 }
 
+function formatJobTime(raw?: string) {
+  const text = String(raw || '').trim();
+  if (!text) return '';
+  const d = new Date(text);
+  if (Number.isNaN(d.getTime())) return text;
+  return d.toLocaleString('zh-CN', { hour12: false });
+}
+
+function mapServerJob(raw: any): StaffTagSyncJob {
+  const payload = raw?.payload || {};
+  const summary = payload?.result_summary || {};
+  const accountUUID = String(payload?.channel_account_uuid || '').trim();
+  return {
+    job_uuid: String(raw?.job_uuid || ''),
+    account_uuid: accountUUID,
+    account_label: accountLabelOf(accountUUID || String(raw?.account_uuid || '').trim()),
+    status: String(raw?.status || '').trim() as StaffTagSyncJob['status'],
+    started_at: formatJobTime(raw?.started_at || raw?.created_at) || nowText(),
+    finished_at: formatJobTime(raw?.finished_at) || undefined,
+    pulled_count: Number(summary?.pulled ?? payload?.pulled ?? 0),
+    error_message: String(raw?.error_message || '').trim() || undefined,
+  };
+}
+
+async function loadJobs() {
+  const res = await service.listFoundationSyncJobs({ domain: 'tags', limit: 50 });
+  const payload = unwrapPayload<{ items?: any[] }>(res);
+  const items = Array.isArray(payload?.items) ? payload.items : [];
+  jobs.value = items.map(mapServerJob);
+}
+
 async function pullNow(retryFrom?: StaffTagSyncJob) {
   const accountUUID = retryFrom?.account_uuid || selectedAccountUUID.value || resolveDefaultAccountUUID();
   if (!accountUUID) {
@@ -212,37 +218,24 @@ async function pullNow(retryFrom?: StaffTagSyncJob) {
   }
   selectedAccountUUID.value = accountUUID;
 
-  const newJob: StaffTagSyncJob = {
-    job_uuid: genJobUUID(),
-    account_uuid: accountUUID,
-    account_label: accountLabelOf(accountUUID),
-    status: 'running',
-    started_at: nowText(),
-  };
-  jobs.value = [newJob, ...jobs.value.filter((job) => job.status !== 'running')].slice(0, 50);
-  saveJobsToStorage();
-
   loading.value = true;
   try {
+    await service.createFoundationSyncJob({
+      channel: 'wechat',
+      app_type: 'openwork',
+      domain: 'tags',
+      direction: 'pull',
+      mode: 'incremental',
+      payload: {
+        channel_account_uuid: accountUUID,
+      },
+    });
+    await loadJobs();
     const res = await service.listFoundationStaffTags({ channel_account_uuid: accountUUID });
     const payload = unwrapPayload<{ items?: FoundationStaffTagRecord[] }>(res);
     tags.value = payload?.items || [];
-    const target = jobs.value.find((job) => job.job_uuid === newJob.job_uuid);
-    if (target) {
-      target.status = 'success';
-      target.finished_at = nowText();
-      target.pulled_count = tags.value.length;
-    }
-    saveJobsToStorage();
     toast.add({ title: '拉取完成', description: `共 ${tags.value.length} 个员工标签`, color: 'success' });
   } catch (error: any) {
-    const target = jobs.value.find((job) => job.job_uuid === newJob.job_uuid);
-    if (target) {
-      target.status = 'failed';
-      target.finished_at = nowText();
-      target.error_message = error?.message || '请稍后重试';
-    }
-    saveJobsToStorage();
     toast.add({ title: '拉取失败', description: error?.message || '请稍后重试', color: 'error' });
   } finally {
     loading.value = false;
@@ -255,14 +248,13 @@ async function retryJob(job: StaffTagSyncJob) {
 
 function clearCompletedJobs() {
   jobs.value = jobs.value.filter((job) => job.status !== 'success');
-  saveJobsToStorage();
   toast.add({ title: '已清空完成任务', color: 'success' });
 }
 
 onMounted(async () => {
-  loadJobsFromStorage();
   try {
     await loadAccounts();
+    await loadJobs();
   } catch (error: any) {
     toast.add({ title: '加载账号失败', description: error?.message || '请稍后重试', color: 'error' });
   }

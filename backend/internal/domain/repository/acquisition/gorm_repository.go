@@ -109,6 +109,80 @@ func (r *staffLiveCodeRepository) List(ctx context.Context, tenantUUID string, f
 	return out, nil
 }
 
+func (r *staffLiveCodeRepository) Update(ctx context.Context, item *acqmodel.StaffLiveCode) error {
+	if r == nil || r.db == nil {
+		return ErrRepositoryDBNotReady
+	}
+	if item == nil {
+		return errors.New("staff live code is required")
+	}
+	tenantUUID, err := normalizeTenant(item.TenantUUID)
+	if err != nil {
+		return err
+	}
+	staffCodeUUID, err := normalizeStaffCodeUUID(item.StaffCodeUUID)
+	if err != nil {
+		return err
+	}
+	item.TenantUUID = tenantUUID
+	item.StaffCodeUUID = staffCodeUUID
+	item.UpdatedAt = utcNow()
+	memberUUIDsJSON, err := json.Marshal(item.MemberUUIDs)
+	if err != nil {
+		return err
+	}
+	corpTagIDsJSON, err := json.Marshal(item.CorpTagIDs)
+	if err != nil {
+		return err
+	}
+	q := r.db.WithContext(ctx).
+		Model(&acqmodel.StaffLiveCode{}).
+		Where("tenant_uuid = ? AND staff_code_uuid = ?", tenantUUID, staffCodeUUID).
+		Updates(map[string]any{
+			"activity_name":               item.ActivityName,
+			"status":                      item.Status,
+			"state":                       item.State,
+			"config_id":                   item.ConfigID,
+			"qr_code":                     item.QRCode,
+			"member_uuids":                datatypes.JSON(memberUUIDsJSON),
+			"corp_tag_ids":                datatypes.JSON(corpTagIDsJSON),
+			"new_customer_remark_enabled": item.RemarkEnabled,
+			"updated_by":                  item.UpdatedBy,
+			"updated_at":                  item.UpdatedAt,
+		})
+	if q.Error != nil {
+		return q.Error
+	}
+	if q.RowsAffected == 0 {
+		return ErrRecordNotFound
+	}
+	return nil
+}
+
+func (r *staffLiveCodeRepository) Delete(ctx context.Context, tenantUUID, staffCodeUUID string) error {
+	if r == nil || r.db == nil {
+		return ErrRepositoryDBNotReady
+	}
+	tenantUUID, err := normalizeTenant(tenantUUID)
+	if err != nil {
+		return err
+	}
+	staffCodeUUID, err = normalizeStaffCodeUUID(staffCodeUUID)
+	if err != nil {
+		return err
+	}
+	res := r.db.WithContext(ctx).
+		Where("tenant_uuid = ? AND staff_code_uuid = ?", tenantUUID, staffCodeUUID).
+		Delete(&acqmodel.StaffLiveCode{})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return ErrRecordNotFound
+	}
+	return nil
+}
+
 func (r *staffLiveCodeRepository) UpdateStatus(ctx context.Context, tenantUUID, staffCodeUUID, status, updatedBy string) (*acqmodel.StaffLiveCode, error) {
 	if r == nil || r.db == nil {
 		return nil, ErrRepositoryDBNotReady
@@ -182,6 +256,57 @@ func (r *staffLiveCodeRepository) CountConfirmedMappings(ctx context.Context, te
 		return 0, err
 	}
 	return count, nil
+}
+
+func (r *staffLiveCodeRepository) ResolveExternalMemberIDs(ctx context.Context, tenantUUID, channelAccountUUID string, memberUUIDs []string) ([]string, error) {
+	if r == nil || r.db == nil {
+		return nil, ErrRepositoryDBNotReady
+	}
+	tenantUUID, err := normalizeTenant(tenantUUID)
+	if err != nil {
+		return nil, err
+	}
+	cleanIDs := make([]string, 0, len(memberUUIDs))
+	seen := map[string]struct{}{}
+	for _, id := range memberUUIDs {
+		id = strings.ToLower(strings.TrimSpace(id))
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		cleanIDs = append(cleanIDs, id)
+	}
+	if len(cleanIDs) == 0 {
+		return []string{}, nil
+	}
+	channelAccountUUID = strings.ToLower(strings.TrimSpace(channelAccountUUID))
+	q := r.db.WithContext(ctx).
+		Model(&orgsyncmodel.MemberBinding{}).
+		Where("tenant_uuid = ? AND main_member_id IN ?", tenantUUID, cleanIDs)
+	if channelAccountUUID != "" {
+		q = q.Where("channel_account_uuid = ?", channelAccountUUID)
+	}
+	var rows []orgsyncmodel.MemberBinding
+	if err := q.Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	externalIDs := make([]string, 0, len(rows))
+	seenExternal := map[string]struct{}{}
+	for _, row := range rows {
+		externalID := strings.TrimSpace(row.ExternalMemberID)
+		if externalID == "" {
+			continue
+		}
+		if _, ok := seenExternal[externalID]; ok {
+			continue
+		}
+		seenExternal[externalID] = struct{}{}
+		externalIDs = append(externalIDs, externalID)
+	}
+	return externalIDs, nil
 }
 
 func (r *staffLiveCodeRepository) ExistsByCodeKey(ctx context.Context, tenantUUID, codeKey string) (bool, error) {
@@ -265,6 +390,26 @@ func (r *staffWelcomeConfigRepository) GetByStaffCodeUUID(ctx context.Context, t
 	return &out, nil
 }
 
+func (r *staffWelcomeConfigRepository) DeleteByStaffCodeUUID(ctx context.Context, tenantUUID, staffCodeUUID string) error {
+	if r == nil || r.db == nil {
+		return ErrRepositoryDBNotReady
+	}
+	tenantUUID, err := normalizeTenant(tenantUUID)
+	if err != nil {
+		return err
+	}
+	staffCodeUUID, err = normalizeStaffCodeUUID(staffCodeUUID)
+	if err != nil {
+		return err
+	}
+	if err := r.db.WithContext(ctx).
+		Where("tenant_uuid = ? AND staff_code_uuid = ?", tenantUUID, staffCodeUUID).
+		Delete(&acqmodel.StaffWelcomeConfig{}).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
 func (r *staffWelcomeSyncAttemptRepository) Create(ctx context.Context, item *acqmodel.StaffWelcomeSyncAttempt) error {
 	if r == nil || r.db == nil {
 		return ErrRepositoryDBNotReady
@@ -307,6 +452,26 @@ func (r *staffWelcomeSyncAttemptRepository) ListByStaffCodeUUID(ctx context.Cont
 		return nil, err
 	}
 	return out, nil
+}
+
+func (r *staffWelcomeSyncAttemptRepository) DeleteByStaffCodeUUID(ctx context.Context, tenantUUID, staffCodeUUID string) error {
+	if r == nil || r.db == nil {
+		return ErrRepositoryDBNotReady
+	}
+	tenantUUID, err := normalizeTenant(tenantUUID)
+	if err != nil {
+		return err
+	}
+	staffCodeUUID, err = normalizeStaffCodeUUID(staffCodeUUID)
+	if err != nil {
+		return err
+	}
+	if err := r.db.WithContext(ctx).
+		Where("tenant_uuid = ? AND staff_code_uuid = ?", tenantUUID, staffCodeUUID).
+		Delete(&acqmodel.StaffWelcomeSyncAttempt{}).Error; err != nil {
+		return err
+	}
+	return nil
 }
 
 func (r *groupLiveCodeRepository) List(ctx context.Context, tenantUUID string, limit int) ([]*acqmodel.GroupLiveCode, error) {

@@ -41,55 +41,102 @@
             <UIcon name="i-heroicons-user" class="text-primary" />
             <span class="font-medium">基础信息</span>
           </div>
-          <UButton
-            color="primary"
-            variant="soft"
-            :disabled="!lead"
-            @click="openInfoModal"
-          >
-            编辑信息
-          </UButton>
+          <div class="flex items-center gap-2">
+            <UButton
+              color="primary"
+              variant="soft"
+              :disabled="!lead"
+              @click="openInfoModal"
+            >
+              编辑信息
+            </UButton>
+          </div>
         </div>
       </template>
 
-      <div v-if="lead" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div v-if="lead" class="space-y-6">
         <div class="space-y-3">
-          <div>
-            <div class="text-xs text-gray-500">姓名</div>
-            <div class="text-sm text-gray-900 dark:text-white">
-              {{ lead.display_name || '未填写' }}
+          <div class="text-sm font-medium text-gray-900 dark:text-white">基础信息</div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div>
+              <div class="text-xs text-gray-500">姓名</div>
+              <div class="text-sm text-gray-900 dark:text-white">
+                {{ lead.display_name || '未填写' }}
+              </div>
             </div>
-          </div>
-          <div>
-            <div class="text-xs text-gray-500">手机号</div>
-            <div class="text-sm text-gray-900 dark:text-white">
-              {{ lead.phone || '未填写' }}
+            <div>
+              <div class="text-xs text-gray-500">手机号</div>
+              <div class="text-sm text-gray-900 dark:text-white">
+                {{ lead.phone || '未填写' }}
+              </div>
             </div>
-          </div>
-          <div>
-            <div class="text-xs text-gray-500">邮箱</div>
-            <div class="text-sm text-gray-900 dark:text-white">
-              {{ lead.email || '未填写' }}
+            <div>
+              <div class="text-xs text-gray-500">邮箱</div>
+              <div class="text-sm text-gray-900 dark:text-white">
+                {{ lead.email || '未填写' }}
+              </div>
+            </div>
+            <div>
+              <div class="text-xs text-gray-500">创建时间</div>
+              <div class="text-sm text-gray-900 dark:text-white">
+                {{ lead.created_at || '-' }}
+              </div>
             </div>
           </div>
         </div>
+
+        <UDivider />
+
         <div class="space-y-3">
-          <div>
-            <div class="text-xs text-gray-500">状态</div>
-            <UBadge :color="statusMeta(lead.status).color" variant="soft">
-              {{ statusMeta(lead.status).label }}
-            </UBadge>
-          </div>
-          <div>
-            <div class="text-xs text-gray-500">负责人</div>
-            <div class="text-sm text-gray-900 dark:text-white">
-              {{ memberLabel(lead.owner_user_uuid) || lead.owner_user_uuid || '未分配' }}
+          <div class="text-sm font-medium text-gray-900 dark:text-white">来源信息</div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div>
+              <div class="text-xs text-gray-500">渠道</div>
+              <div class="text-sm text-gray-900 dark:text-white">
+                {{ lead.source_channel || '未知' }}
+              </div>
             </div>
-          </div>
-          <div>
-            <div class="text-xs text-gray-500">创建时间</div>
-            <div class="text-sm text-gray-900 dark:text-white">
-              {{ lead.created_at || '-' }}
+            <div>
+              <div class="text-xs text-gray-500">应用类型</div>
+              <div class="text-sm text-gray-900 dark:text-white">
+                {{ lead.source_app_type || '未知' }}
+              </div>
+            </div>
+            <div>
+              <div class="text-xs text-gray-500">渠道账号 UUID</div>
+              <div class="text-sm text-gray-900 dark:text-white">
+                {{ lead.source_account_uuid || '未知' }}
+              </div>
+            </div>
+            <div>
+              <div class="text-xs text-gray-500">外部联系人 ID</div>
+              <div class="text-sm text-gray-900 dark:text-white">
+                {{ latestSyncTracePayload.external_lead_id || '未记录（需重跑同步）' }}
+              </div>
+            </div>
+            <div>
+              <div class="text-xs text-gray-500">外部联系人微信号</div>
+              <div class="text-sm text-gray-900 dark:text-white">
+                {{ latestSyncTracePayload.external_wechat_id || '未记录（需重跑同步）' }}
+              </div>
+            </div>
+            <div>
+              <div class="text-xs text-gray-500">企微当前跟进人（userid）</div>
+              <div class="text-sm text-gray-900 dark:text-white">
+                {{ lead.wecom_follow_userid || latestSyncTracePayload.follow_external_userid || latestSyncTracePayload.owner_external_userid || '未记录（需重跑同步）' }}
+              </div>
+            </div>
+            <div>
+              <div class="text-xs text-gray-500">企微添加人（userid）</div>
+              <div class="text-sm text-gray-900 dark:text-white">
+                {{ lead.wecom_adder_userid || latestSyncTracePayload.adder_external_userid || latestSyncTracePayload.oper_userid || '未记录（需重跑同步）' }}
+              </div>
+            </div>
+            <div>
+              <div class="text-xs text-gray-500">关系状态</div>
+              <UBadge :color="relationStatusMeta(lead.status).color" variant="soft">
+                {{ relationStatusMeta(lead.status).label }}
+              </UBadge>
             </div>
           </div>
         </div>
@@ -145,58 +192,10 @@
       <template #header>
         <div class="flex items-center gap-2">
           <UIcon name="i-heroicons-link" class="text-primary" />
-          <span class="font-medium">来源信息</span>
+          <span class="font-medium">来源追溯与活动</span>
           <UBadge v-if="lead?.has_merge" color="warning" variant="soft">已合并</UBadge>
         </div>
       </template>
-      <div v-if="lead" class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div>
-          <div class="text-xs text-gray-500">渠道</div>
-          <div class="text-sm text-gray-900 dark:text-white">
-            {{ lead.source_channel || '未知' }}
-          </div>
-        </div>
-        <div>
-          <div class="text-xs text-gray-500">应用类型</div>
-          <div class="text-sm text-gray-900 dark:text-white">
-            {{ lead.source_app_type || '未知' }}
-          </div>
-        </div>
-        <div>
-          <div class="text-xs text-gray-500">渠道账号 UUID</div>
-          <div class="text-sm text-gray-900 dark:text-white">
-            {{ lead.source_account_uuid || '未知' }}
-          </div>
-        </div>
-        <div>
-          <div class="text-xs text-gray-500">外部联系人 ID</div>
-          <div class="text-sm text-gray-900 dark:text-white">
-            {{ latestSyncTracePayload.external_lead_id || '未记录（需重跑同步）' }}
-          </div>
-        </div>
-        <div>
-          <div class="text-xs text-gray-500">外部联系人微信号</div>
-          <div class="text-sm text-gray-900 dark:text-white">
-            {{ latestSyncTracePayload.external_wechat_id || '未记录（需重跑同步）' }}
-          </div>
-        </div>
-        <div>
-          <div class="text-xs text-gray-500">企微当前跟进人（userid）</div>
-          <div class="text-sm text-gray-900 dark:text-white">
-            {{ lead.wecom_follow_userid || latestSyncTracePayload.follow_external_userid || latestSyncTracePayload.owner_external_userid || '未记录（需重跑同步）' }}
-          </div>
-        </div>
-        <div>
-          <div class="text-xs text-gray-500">企微添加人（userid）</div>
-          <div class="text-sm text-gray-900 dark:text-white">
-            {{ lead.wecom_adder_userid || latestSyncTracePayload.adder_external_userid || latestSyncTracePayload.oper_userid || '未记录（需重跑同步）' }}
-          </div>
-        </div>
-      </div>
-      <div v-else class="py-6 text-center text-sm text-gray-500">
-        暂无可用数据。
-      </div>
-
       <div class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
         <div>
           <div class="text-sm font-medium text-gray-900 dark:text-white mb-3">来源追溯</div>
@@ -608,10 +607,19 @@ const statusMeta = (status?: string) => {
       return { label: "已转化", color: "success" };
     case "closed":
       return { label: "已关闭", color: "neutral" };
+    case "disconnected":
+      return { label: "已断开关系", color: "error" };
     case "new":
     default:
       return { label: "新线索", color: "info" };
   }
+};
+
+const relationStatusMeta = (status?: string) => {
+  if (String(status || "").trim().toLowerCase() === "disconnected") {
+    return { label: "disconnected（已断开）", color: "error" };
+  }
+  return { label: "connected（已关联）", color: "success" };
 };
 
 const assignStatusMeta = computed(() => {

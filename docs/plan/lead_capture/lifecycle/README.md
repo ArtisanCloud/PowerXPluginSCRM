@@ -4,7 +4,8 @@
 定义线索阶段与状态流转，记录变更历史。
 
 ## 阶段
-- new -> unassigned -> assigned -> in_progress -> converted / closed
+- new -> assigned -> in_progress -> converted / closed
+- 任一跟进阶段在外部联系人关系删除后可进入 disconnected（已断开关系）
 
 ## 数据模型（核心）
 - LeadStatusHistory
@@ -23,7 +24,7 @@
 - 状态变更操作
 
 ## MVP
-- new / assigned / converted / closed
+- new / assigned / in_progress / converted / closed / disconnected
 
 ## 验收标准
 - 状态变更可追溯

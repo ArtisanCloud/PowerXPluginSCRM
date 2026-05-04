@@ -237,8 +237,9 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		platformRepo: socialrepo.NewChannelPlatformSettingRepository(deps.DB),
 	}
 	taskRepo := leadrepo.NewLeadSyncTaskRepository(deps.DB)
-	staffSvc := acqsvc.NewStaffLiveCodeService(repos.StaffLiveCodes, accountResolver)
-	staffWelcomeSvc := acqsvc.NewStaffWelcomeService(repos.StaffLiveCodes, repos.StaffWelcomeConfigs, repos.StaffWelcomeAttempt)
+	staffSvc := acqsvc.NewStaffLiveCodeService(repos.StaffLiveCodes, accountResolver).
+		WithWelcomeRepos(repos.StaffWelcomeConfigs, repos.StaffWelcomeAttempt)
+	staffWelcomeSvc := acqsvc.NewStaffWelcomeService(repos.StaffLiveCodes, repos.StaffWelcomeConfigs, repos.StaffWelcomeAttempt, accountResolver)
 	groupSvc := acqsvc.NewGroupLiveCodeService(repos.GroupLiveCodes, repos.GroupChatSnapshots, accountResolver)
 	groupChatSvc := acqsvc.NewGroupChatSyncService(repos.GroupChatSnapshots, taskRepo, accountResolver)
 	groupTagSvc := acqsvc.NewGroupTagService(repos.GroupTags, repos.GroupChatSnapshots, acqsvc.NewGroupTagRuleService())
@@ -253,6 +254,8 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 	{
 		group.POST("/staff-codes", staffHandler.Create)
 		group.GET("/staff-codes", staffHandler.List)
+		group.PUT("/staff-codes/:staff_code_uuid", staffHandler.Update)
+		group.DELETE("/staff-codes/:staff_code_uuid", staffHandler.Delete)
 		group.GET("/staff-codes/code-key-available", staffHandler.CheckCodeKeyAvailable)
 		group.PATCH("/staff-codes/:staff_code_uuid/status", staffHandler.UpdateStatus)
 		group.PUT("/staff-codes/:staff_code_uuid/welcome-config", staffWelcomeHandler.Save)

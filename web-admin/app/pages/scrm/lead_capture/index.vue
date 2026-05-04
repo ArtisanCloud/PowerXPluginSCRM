@@ -882,6 +882,13 @@
                   : '本地线索不适用'
               }}
             </div>
+            <div class="text-xs text-gray-500 dark:text-gray-400">
+              关系状态：{{
+                isChannelLead(row.original)
+                  ? relationStatusMeta(row.original.status).label
+                  : '本地线索不适用'
+              }}
+            </div>
           </div>
         </template>
         <template #actions-cell="{ row }">
@@ -1485,6 +1492,7 @@ const statusFilterOptions = [
   { label: "跟进中", value: "in_progress" },
   { label: "已转化", value: "converted" },
   { label: "已关闭", value: "closed" },
+  { label: "已断开关系", value: "disconnected" },
 ];
 
 const pageSizeOptions = [
@@ -1986,10 +1994,19 @@ const statusMeta = (status?: string) => {
       return { label: "已转化", color: "success" };
     case "closed":
       return { label: "已关闭", color: "neutral" };
+    case "disconnected":
+      return { label: "已断开关系", color: "error" };
     case "new":
     default:
       return { label: "新线索", color: "info" };
   }
+};
+
+const relationStatusMeta = (status?: string) => {
+  if (String(status || "").trim().toLowerCase() === "disconnected") {
+    return { label: "disconnected（已断开）", color: "error" };
+  }
+  return { label: "connected（已关联）", color: "success" };
 };
 
 const leadSyncExternalInfo = (_leadId?: string) => {

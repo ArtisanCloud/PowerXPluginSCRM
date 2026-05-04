@@ -264,6 +264,15 @@ Task: T023 web-admin/app/composables/api/services/leadCapture.ts
 - [X] T075 [V2.1.1] 在统一企微回调处理链路补充客户入群事件字段抽取（`chat_id/external_userid/change_type`）到 `backend/internal/transport/http/webhooks/openwork_callback_handler.go`
 - [X] T076 [V2.1.1] 在回调任务消费阶段增加“新增入群成员”分支并调用群活码增量打标服务到 `backend/internal/transport/http/webhooks/openwork_callback_handler.go`
 - [X] T077 [V2.1.1] 为群活码服务新增按 `chat_id + external_userid` 的增量企业标签补打方法到 `backend/internal/services/admin/acquisition/group_live_code_service.go`
+
+## Phase 10: V2.0.1 员工活码页面对标收敛（2026-04-29）
+
+- [X] T098 [V2.0.1] 更新员工活码页面信息架构为双栏业务态（左配置右预览）到 `web-admin/app/pages/scrm/acquisition_staff_code.vue`
+- [X] T099 [V2.0.1] 成员选择器接入 `org_sync confirmed mapping` 多选弹窗，移除主流程手工 UUID 输入到 `web-admin/app/pages/scrm/acquisition_staff_code.vue`
+- [X] T100 [V2.0.1] 企业标签选择器改为结构化选择（展示标签组+标签名），移除主流程手工 TagID 输入到 `web-admin/app/pages/scrm/acquisition_staff_code.vue`
+- [X] T101 [V2.0.1] 回复设置补齐内容块类型（文本/图片/链接/小程序）与雷达入口占位回显到 `web-admin/app/pages/scrm/acquisition_staff_code.vue`
+- [X] T102 [V2.0.1] 新增“保存配置/发布同步”双动作与同步状态区（状态/时间/错误）到 `web-admin/app/pages/scrm/acquisition_staff_code.vue`
+- [X] T103 [V2.0.1] 修复“添加回复内容”浮层错位/裁切问题（锚定、z-index、容器 overflow）到 `web-admin/app/pages/scrm/acquisition_staff_code.vue`
 - [X] T075 [P] [V2.1] 新增服务单测：群标签规则命中与幂等绑定到 `backend/internal/services/admin/acquisition/group_tag_rule_service_test.go`
 - [X] T076 [V2.1] 新增集成测试：群回调 + 拉取最终一致性到 `backend/tests/integration/group_chat_sync_consistency_integration_test.go`
 

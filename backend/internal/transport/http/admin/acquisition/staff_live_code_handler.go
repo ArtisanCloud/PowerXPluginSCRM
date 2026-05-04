@@ -93,6 +93,52 @@ func (h *StaffLiveCodeHandler) List(c *gin.Context) {
 	contracts.ResponseSuccess(c, gin.H{"items": items})
 }
 
+func (h *StaffLiveCodeHandler) Update(c *gin.Context) {
+	if h == nil || h.svc == nil {
+		contracts.ResponseServiceUnavailable(c, "staff live code service unavailable", nil)
+		return
+	}
+	staffCodeUUID := strings.TrimSpace(c.Param("staff_code_uuid"))
+	if staffCodeUUID == "" {
+		contracts.ResponseBadRequest(c, "staff_code_uuid is required")
+		return
+	}
+	var req dto.StaffLiveCodeUpdateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		contracts.ResponseBadRequest(c, "invalid body: "+err.Error())
+		return
+	}
+	tenantUUID, ok := middleware.TenantUUIDFromContext(c)
+	if !ok || tenantUUID == "" {
+		contracts.ResponseUnauthorized(c, "tenant context missing")
+		return
+	}
+	item, err := h.svc.Update(c.Request.Context(), acqsvc.StaffLiveCodeUpdateRequest{
+		TenantUUID:              tenantUUID,
+		StaffCodeUUID:           staffCodeUUID,
+		ActivityName:            req.ActivityName,
+		MemberUUIDs:             req.MemberUUIDs,
+		CorpTagIDs:              req.CorpTagIDs,
+		NewCustomerRemarkEnable: req.NewCustomerRemarkEnable,
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, acqsvc.ErrInvalidStaffLiveCodePayload):
+			contracts.ResponseError(c, http.StatusBadRequest, contracts.ErrCodeValidationFailed, "invalid staff live code payload")
+		case errors.Is(err, acqsvc.ErrStaffMemberBindingNotConfirmed):
+			contracts.ResponseError(c, http.StatusBadRequest, contracts.ErrCodeValidationFailed, "member bindings must be confirmed")
+		case errors.Is(err, acqrepo.ErrRecordNotFound):
+			contracts.ResponseNotFound(c, "staff live code not found")
+		case strings.Contains(strings.ToLower(err.Error()), "41041"):
+			contracts.ResponseError(c, http.StatusBadRequest, contracts.ErrCodeValidationFailed, "企微员工活码人数超限（41041），请减少成员数量或改为可支持多人配置")
+		default:
+			contracts.ResponseInternalError(c, err)
+		}
+		return
+	}
+	contracts.ResponseSuccess(c, item)
+}
+
 func (h *StaffLiveCodeHandler) CheckCodeKeyAvailable(c *gin.Context) {
 	if h == nil || h.svc == nil {
 		contracts.ResponseServiceUnavailable(c, "staff live code service unavailable", nil)
@@ -161,4 +207,33 @@ func (h *StaffLiveCodeHandler) UpdateStatus(c *gin.Context) {
 		return
 	}
 	contracts.ResponseSuccess(c, item)
+}
+
+func (h *StaffLiveCodeHandler) Delete(c *gin.Context) {
+	if h == nil || h.svc == nil {
+		contracts.ResponseServiceUnavailable(c, "staff live code service unavailable", nil)
+		return
+	}
+	staffCodeUUID := strings.TrimSpace(c.Param("staff_code_uuid"))
+	if staffCodeUUID == "" {
+		contracts.ResponseBadRequest(c, "staff_code_uuid is required")
+		return
+	}
+	tenantUUID, ok := middleware.TenantUUIDFromContext(c)
+	if !ok || tenantUUID == "" {
+		contracts.ResponseUnauthorized(c, "tenant context missing")
+		return
+	}
+	if err := h.svc.Delete(c.Request.Context(), tenantUUID, staffCodeUUID); err != nil {
+		switch {
+		case errors.Is(err, acqsvc.ErrInvalidStaffLiveCodePayload):
+			contracts.ResponseError(c, http.StatusBadRequest, contracts.ErrCodeValidationFailed, "invalid staff live code payload")
+		case errors.Is(err, acqrepo.ErrRecordNotFound):
+			contracts.ResponseNotFound(c, "staff live code not found")
+		default:
+			contracts.ResponseInternalError(c, err)
+		}
+		return
+	}
+	contracts.ResponseSuccess(c, gin.H{"deleted": true})
 }

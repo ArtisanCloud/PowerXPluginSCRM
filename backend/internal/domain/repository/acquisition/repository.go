@@ -27,19 +27,24 @@ type StaffLiveCodeRepository interface {
 	Create(ctx context.Context, item *acqmodel.StaffLiveCode) error
 	GetByUUID(ctx context.Context, tenantUUID, staffCodeUUID string) (*acqmodel.StaffLiveCode, error)
 	List(ctx context.Context, tenantUUID string, filter StaffLiveCodeListFilter) ([]*acqmodel.StaffLiveCode, error)
+	Update(ctx context.Context, item *acqmodel.StaffLiveCode) error
+	Delete(ctx context.Context, tenantUUID, staffCodeUUID string) error
 	UpdateStatus(ctx context.Context, tenantUUID, staffCodeUUID, status, updatedBy string) (*acqmodel.StaffLiveCode, error)
 	CountConfirmedMappings(ctx context.Context, tenantUUID string, memberUUIDs []string) (int64, error)
+	ResolveExternalMemberIDs(ctx context.Context, tenantUUID, channelAccountUUID string, memberUUIDs []string) ([]string, error)
 	ExistsByCodeKey(ctx context.Context, tenantUUID, codeKey string) (bool, error)
 }
 
 type StaffWelcomeConfigRepository interface {
 	Save(ctx context.Context, item *acqmodel.StaffWelcomeConfig) error
 	GetByStaffCodeUUID(ctx context.Context, tenantUUID, staffCodeUUID string) (*acqmodel.StaffWelcomeConfig, error)
+	DeleteByStaffCodeUUID(ctx context.Context, tenantUUID, staffCodeUUID string) error
 }
 
 type StaffWelcomeSyncAttemptRepository interface {
 	Create(ctx context.Context, item *acqmodel.StaffWelcomeSyncAttempt) error
 	ListByStaffCodeUUID(ctx context.Context, tenantUUID, staffCodeUUID string, limit int) ([]*acqmodel.StaffWelcomeSyncAttempt, error)
+	DeleteByStaffCodeUUID(ctx context.Context, tenantUUID, staffCodeUUID string) error
 }
 
 type GroupLiveCodeRepository interface {

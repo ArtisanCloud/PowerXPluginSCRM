@@ -55,7 +55,7 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 			WithWeComSupport(repo, nil).
 			WithCredentialResolvers(openworkRepo, platformSettingRepo).
 			WithTagRecordRepository(tagRecordRepo)
-		staffTagSvc := SocialService.NewStaffTagService(tagSyncSvc, nil)
+		staffTagSvc := SocialService.NewStaffTagService(tagSyncSvc, tagRecordRepo, nil)
 		sourceMemberSvc := orgsync.NewSourceMemberService(
 			orgrepo.NewSourceMemberRepository(deps.DB),
 			orgrepo.NewSourceMemberProfileRepository(deps.DB),

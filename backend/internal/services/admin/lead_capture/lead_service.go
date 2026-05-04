@@ -1453,7 +1453,8 @@ func isValidLeadStatus(status string) bool {
 		model.LeadStatusAssigned,
 		model.LeadStatusInProgress,
 		model.LeadStatusConverted,
-		model.LeadStatusClosed:
+		model.LeadStatusClosed,
+		model.LeadStatusDisconnected:
 		return true
 	default:
 		return false
@@ -1471,6 +1472,8 @@ func isAllowedLeadStatusTransition(fromStatus, toStatus string) bool {
 		return toStatus == model.LeadStatusInProgress
 	case model.LeadStatusInProgress:
 		return toStatus == model.LeadStatusConverted || toStatus == model.LeadStatusClosed
+	case model.LeadStatusDisconnected:
+		return toStatus == model.LeadStatusAssigned
 	default:
 		return false
 	}

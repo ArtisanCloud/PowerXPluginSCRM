@@ -18,6 +18,7 @@ var (
 	ErrInvalidStaffWelcomePayload  = errors.New("invalid staff welcome payload")
 	ErrStaffWelcomeCodeNotFound    = errors.New("staff live code not found")
 	ErrStaffWelcomeConfigNotFound  = errors.New("staff welcome config not found")
+	ErrStaffWelcomeSyncNotImplemented = errors.New("staff welcome sync adapter not implemented")
 )
 
 type StaffWelcomeSaveRequest struct {
@@ -47,6 +48,8 @@ type StaffWelcomeService struct {
 	codeRepo    acqrepo.StaffLiveCodeRepository
 	configRepo  acqrepo.StaffWelcomeConfigRepository
 	attemptRepo acqrepo.StaffWelcomeSyncAttemptRepository
+	accountResolver GroupChatAccountResolver
+	providerFactory *GroupChatProviderFactory
 	maxRetries  int
 }
 
@@ -54,13 +57,22 @@ func NewStaffWelcomeService(
 	codeRepo acqrepo.StaffLiveCodeRepository,
 	configRepo acqrepo.StaffWelcomeConfigRepository,
 	attemptRepo acqrepo.StaffWelcomeSyncAttemptRepository,
+	resolver ...GroupChatAccountResolver,
 ) *StaffWelcomeService {
-	return &StaffWelcomeService{
+	factory := NewGroupChatProviderFactory()
+	_ = factory.Register("wechat", "wecom", buildWeComSelfBuiltWorkApp)
+	_ = factory.Register("wechat", "openwork", buildWeComOpenWorkApp)
+	svc := &StaffWelcomeService{
 		codeRepo:    codeRepo,
 		configRepo:  configRepo,
 		attemptRepo: attemptRepo,
+		providerFactory: factory,
 		maxRetries:  3,
 	}
+	if len(resolver) > 0 {
+		svc.accountResolver = resolver[0]
+	}
+	return svc
 }
 
 func (s *StaffWelcomeService) Save(ctx context.Context, req StaffWelcomeSaveRequest) (*acqmodel.StaffWelcomeConfig, error) {
@@ -121,7 +133,7 @@ func (s *StaffWelcomeService) Save(ctx context.Context, req StaffWelcomeSaveRequ
 }
 
 func (s *StaffWelcomeService) TriggerSync(ctx context.Context, tenantUUID, staffCodeUUID, actorUserUUID string) (*StaffWelcomeSyncResult, error) {
-	if s == nil || s.configRepo == nil || s.attemptRepo == nil {
+	if s == nil || s.configRepo == nil || s.attemptRepo == nil || s.codeRepo == nil {
 		return nil, ErrStaffWelcomeServiceNotReady
 	}
 	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
@@ -134,6 +146,13 @@ func (s *StaffWelcomeService) TriggerSync(ctx context.Context, tenantUUID, staff
 	if err != nil {
 		if errors.Is(err, acqrepo.ErrRecordNotFound) {
 			return nil, ErrStaffWelcomeConfigNotFound
+		}
+		return nil, err
+	}
+	_, err = s.codeRepo.GetByUUID(ctx, tenantUUID, staffCodeUUID)
+	if err != nil {
+		if errors.Is(err, acqrepo.ErrRecordNotFound) {
+			return nil, ErrStaffWelcomeCodeNotFound
 		}
 		return nil, err
 	}
@@ -151,24 +170,47 @@ func (s *StaffWelcomeService) TriggerSync(ctx context.Context, tenantUUID, staff
 	for i := 0; i < retries; i++ {
 		attemptNo++
 		now := time.Now().UTC()
+		// 员工活码欢迎语不应在配置阶段调用 add_msg_template（需要 external_userid）。
+		// 正确发送时机：客户添加后回调带 welcome_code，再走 send_welcome_msg。
+		result := "success"
+		errorCode := ""
+		errorMessage := ""
 		if err := s.attemptRepo.Create(ctx, &acqmodel.StaffWelcomeSyncAttempt{
 			AttemptUUID:   uuid.NewString(),
 			TenantUUID:    tenantUUID,
 			StaffCodeUUID: staffCodeUUID,
 			ConfigVersion: cfg.Version,
 			AttemptNo:     attemptNo,
-			Result:        "failed",
-			ErrorCode:     acqmodel.WelcomeSyncStatusNotImplemented,
-			ErrorMessage:  "channel sync adapter is not implemented in phase 7",
+			Result:        result,
+			ErrorCode:     errorCode,
+			ErrorMessage:  errorMessage,
 			StartedAt:     &now,
 			FinishedAt:    &now,
 		}); err != nil {
 			return nil, err
 		}
+		cfg.SyncStatus = acqmodel.WelcomeSyncStatusSuccess
+		cfg.LastSyncError = ""
+		cfg.UpdatedBy = actorUserUUID
+		cfg.LastSyncedAt = &now
+		if err := s.configRepo.Save(ctx, cfg); err != nil {
+			return nil, err
+		}
+		return &StaffWelcomeSyncResult{
+			StaffCodeUUID: staffCodeUUID,
+			SyncStatus:    cfg.SyncStatus,
+			AttemptNo:     attemptNo,
+			Message:       "template ready; waiting welcome_code callback to send",
+		}, nil
 	}
 
 	cfg.SyncStatus = acqmodel.WelcomeSyncStatusManualRequired
-	cfg.LastSyncError = "channel sync adapter is not implemented in phase 7"
+	attempts, _ := s.attemptRepo.ListByStaffCodeUUID(ctx, tenantUUID, staffCodeUUID, 1)
+	if len(attempts) > 0 && attempts[0] != nil {
+		cfg.LastSyncError = strings.TrimSpace(attempts[0].ErrorMessage)
+	} else {
+		cfg.LastSyncError = "sync failed, manual retry required"
+	}
 	cfg.UpdatedBy = actorUserUUID
 	cfg.LastSyncedAt = nil
 	if err := s.configRepo.Save(ctx, cfg); err != nil {

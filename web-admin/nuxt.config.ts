@@ -89,6 +89,8 @@ const imgSources = [
   "data:",
   "https://avatars.githubusercontent.com",
   "https://quickchart.io",
+  "https://wework.qpic.cn",
+  "https://work.weixin.qq.com",
 ];
 const extraConnectHosts = new Set<string>();
 const registerConnectOrigin = (candidate?: string | null) => {
