@@ -456,6 +456,11 @@ const activeTagAccount = computed(() => {
 });
 
 const activeTagAccountUUID = computed(() => String(activeTagAccount.value?.account_uuid || "").trim());
+const activeTagAppType = computed(() => String(activeTagAccount.value?.app_type || "").trim().toLowerCase() || "wecom");
+const isSupportedWeComAppType = (appType: any) => {
+  const normalized = String(appType || "").trim().toLowerCase();
+  return normalized === "wecom" || normalized === "openwork";
+};
 
 const tagMetaByID = computed(() => {
   const map = new Map<string, { tag_id: string; tag_name: string; group_id: string; group_name: string }>();
@@ -662,7 +667,7 @@ const refreshTagAccounts = async () => {
   const resp = await service.listChannelAccounts();
   const items = (((resp as any)?.data?.items || []) as any[]).filter((item) =>
     String(item?.channel_code || "").trim().toLowerCase() === "wechat"
-    && String(item?.app_type || "").trim().toLowerCase() === "wecom"
+    && isSupportedWeComAppType(item?.app_type)
     && String(item?.status || "").trim().toLowerCase() === "connected",
   );
   tagAccounts.value = items;
@@ -702,7 +707,7 @@ const refreshCustomerBindings = async () => {
     try {
       const resp = await service.listFoundationCustomerTagBindings({
         channel_account_uuid: accountUUID,
-        limit: 80,
+        limit: 0,
       });
       customerBindings.value = ((resp as any)?.data?.items || []) as any[];
       bindingsLoadedAccountUUID.value = accountUUID;
@@ -1208,7 +1213,7 @@ const submitPushbackJob = async (options?: { silent?: boolean }) => {
     persistPushbackDraft(accountUUID);
     await service.createFoundationSyncJob({
       channel: "wechat",
-      app_type: "wecom",
+      app_type: activeTagAppType.value,
       domain: "tags",
       direction: "push",
       mode: "pushback",

@@ -100,6 +100,9 @@ func ensureAcquisitionContractTables(db *gorm.DB) error {
 			channel_account_uuid TEXT NOT NULL,
 			activity_name TEXT NOT NULL,
 			code_key TEXT NOT NULL,
+			state TEXT,
+			config_id TEXT,
+			qr_code TEXT,
 			member_uuids TEXT NOT NULL,
 			corp_tag_ids TEXT NOT NULL,
 			new_customer_remark_enabled BOOLEAN NOT NULL DEFAULT FALSE,
@@ -149,19 +152,31 @@ func ensureAcquisitionContractTables(db *gorm.DB) error {
 			app_type TEXT NOT NULL,
 			channel_account_uuid TEXT NOT NULL,
 			activity_name TEXT NOT NULL,
+			state TEXT,
+			config_id TEXT,
+			join_scene INTEGER NOT NULL DEFAULT 1,
+			skip_verify BOOLEAN NOT NULL DEFAULT FALSE,
+			auto_create_room BOOLEAN NOT NULL DEFAULT FALSE,
+			target_chat_count INTEGER NOT NULL DEFAULT 0,
+			shard_count INTEGER NOT NULL DEFAULT 0,
+			capacity_total INTEGER NOT NULL DEFAULT 0,
+			capacity_used INTEGER NOT NULL DEFAULT 0,
+			shard_config_ids TEXT,
+			qr_code TEXT,
 			status TEXT NOT NULL,
+			sync_status TEXT NOT NULL DEFAULT 'pending',
+			last_sync_error TEXT,
+			last_synced_at DATETIME,
 			capability_status TEXT NOT NULL,
 			created_by TEXT NOT NULL,
 			updated_by TEXT NOT NULL,
 			created_at DATETIME,
 			updated_at DATETIME
 		);`,
-		`CREATE TABLE IF NOT EXISTS org_sync_member_mappings (
-			member_mapping_uuid TEXT PRIMARY KEY,
+		`CREATE TABLE IF NOT EXISTS org_sync_member_bindings (
+			member_binding_uuid TEXT PRIMARY KEY,
 			tenant_uuid TEXT NOT NULL,
-			source_member_uuid TEXT NOT NULL,
 			main_member_id TEXT NOT NULL,
-			mapping_status TEXT NOT NULL,
 			created_at DATETIME,
 			updated_at DATETIME
 		);`,
@@ -177,14 +192,12 @@ func ensureAcquisitionContractTables(db *gorm.DB) error {
 func seedConfirmedMemberMapping(db *gorm.DB, tenantUUID, sourceMemberUUID string) error {
 	now := time.Now().UTC()
 	return db.Exec(
-		`INSERT INTO org_sync_member_mappings
-			(member_mapping_uuid, tenant_uuid, source_member_uuid, main_member_id, mapping_status, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO org_sync_member_bindings
+			(member_binding_uuid, tenant_uuid, main_member_id, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?)`,
 		"map-"+sourceMemberUUID,
 		tenantUUID,
 		sourceMemberUUID,
-		"main-"+sourceMemberUUID,
-		"confirmed",
 		now,
 		now,
 	).Error

@@ -37,8 +37,11 @@
         </div>
 
         <div class="grid grid-cols-1 gap-2 md:grid-cols-3">
-          <UFormField label="关键词">
+          <UFormField label="成员关键词">
             <UInput v-model="memberKeyword" placeholder="姓名 / userid" />
+          </UFormField>
+          <UFormField label="标签关键词">
+            <UInput v-model="tagKeyword" placeholder="标签名 / tag_id" />
           </UFormField>
           <div class="flex items-end gap-2 md:col-span-2">
             <UButton size="sm" variant="soft" color="neutral" :disabled="!selectedAccountUUID" @click="refreshMembers">查询成员</UButton>
@@ -49,11 +52,11 @@
         <div class="grid grid-cols-1 gap-3 lg:grid-cols-12">
           <div class="lg:col-span-4 rounded border border-gray-200 dark:border-gray-700">
             <div class="border-b border-gray-200 px-3 py-2 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-300">
-              标签（{{ tags.length }}）
+              标签（{{ filteredTags.length }} / {{ tags.length }}）
             </div>
             <div class="max-h-[520px] overflow-auto p-2 space-y-2">
               <button
-                v-for="tag in tags"
+                v-for="tag in filteredTags"
                 :key="`tag:${tag.tag_id}`"
                 type="button"
                 class="w-full rounded border px-3 py-2 text-left text-xs transition"
@@ -68,7 +71,7 @@
                   </div>
                 </div>
               </button>
-              <div v-if="tags.length === 0" class="py-8 text-center text-xs text-gray-500 dark:text-gray-300">暂无员工标签</div>
+              <div v-if="filteredTags.length === 0" class="py-8 text-center text-xs text-gray-500 dark:text-gray-300">暂无员工标签</div>
             </div>
           </div>
 
@@ -207,6 +210,7 @@ const selectedAccountUUID = ref('');
 
 const tags = ref<FoundationStaffTagRecord[]>([]);
 const selectedTagID = ref<number | null>(null);
+const tagKeyword = ref('');
 
 const members = ref<FoundationSourceMember[]>([]);
 const memberKeyword = ref('');
@@ -238,12 +242,20 @@ const defaultSyncAccountLabel = computed(() => {
   if (!account) return '未识别到可用默认账号';
   return `${account.display_name}（${account.account_id}）`;
 });
-const selectedAccountAuthMode = computed(() => String(selectedAccount.value?.credentials?.auth_mode || '').trim().toLowerCase());
 const isDelegatedTemplateAccount = computed(() =>
-  selectedAccountAuthMode.value === 'delegated_template' || selectedAccountAuthMode.value === 'delegated'
+  String(selectedAccount.value?.app_type || '').trim().toLowerCase() === 'openwork'
 );
 
 const selectedTag = computed(() => tags.value.find((item) => item.tag_id === selectedTagID.value) || null);
+const filteredTags = computed(() => {
+  const keyword = tagKeyword.value.trim().toLowerCase();
+  if (!keyword) return tags.value;
+  return tags.value.filter((tag) => {
+    const name = String(tag.tag_name || '').toLowerCase();
+    const tagID = String(tag.tag_id ?? '').toLowerCase();
+    return name.includes(keyword) || tagID.includes(keyword);
+  });
+});
 
 const filteredBoundMembers = computed(() => {
   const keyword = memberKeyword.value.trim().toLowerCase();
@@ -284,7 +296,11 @@ async function loadAccounts() {
   const res = await service.listChannelAccounts();
   const payload = unwrapPayload<{ items?: ChannelAccount[] }>(res);
   const items = payload?.items || [];
-  accounts.value = items.filter((item) => item.channel_code === 'wechat' && item.app_type === 'wecom' && item.status !== 'deleted');
+  accounts.value = items.filter((item) =>
+    item.channel_code === 'wechat'
+    && (item.app_type === 'wecom' || item.app_type === 'openwork')
+    && item.status !== 'deleted'
+  );
   if (!selectedAccountUUID.value && accounts.value.length > 0) {
     selectedAccountUUID.value = resolveDefaultAccountUUID();
   }

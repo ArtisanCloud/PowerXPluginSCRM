@@ -299,7 +299,10 @@
     "iamSettings": "IAM Settings",
     "profile": "Profile",
     "help": "Help",
-    "logout": "Logout"
+    "logout": "Logout",
+    "scrmAcquisitionGroupManage": "Group Management",
+    "scrmAcquisitionGroupTags": "Group Tags",
+    "scrmAcquisitionGroupAnalysis": "Group Analytics"
   },
   "scrm": {
     "placeholderTitle": "Module Planning",
@@ -849,7 +852,6 @@
         "rpm": "Requests per minute",
         "burst": "Burst limit",
         "concurrency": "Concurrency",
-        "tenant": "Tenant",
         "tenantId": "Tenant ID",
         "tenantName": "Tenant name",
         "quota": "Quota",
@@ -1070,7 +1072,7 @@
       }
     },
     "next": {
-      "title": "What\u2019s next",
+      "title": "What’s next",
       "cards": {
         "crud": {
           "title": "Explore template CRUD",
@@ -1156,5 +1158,8 @@
     "noData": "No data available",
     "networkError": "Network error, please check your connection",
     "templateCreated": "Template created successfully"
+  },
+  "acquisition": {
+    "groupTagsLocalOnly": "Local group tags are not written back to WeCom official group tags; used for local operations only."
   }
 }

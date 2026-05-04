@@ -40,6 +40,22 @@ func (s *SyncLogService) ListByAccount(ctx context.Context, tenantUUID, sourceAc
 	return logs, mode, hint, err
 }
 
+func (s *SyncLogService) ClearByAccount(ctx context.Context, tenantUUID, sourceAccountUUID, channelAccountUUID string) (int64, error) {
+	if s == nil || s.repo == nil {
+		return 0, errors.New("sync log repository not configured")
+	}
+	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
+	sourceAccountUUID = strings.ToLower(strings.TrimSpace(sourceAccountUUID))
+	channelAccountUUID = strings.ToLower(strings.TrimSpace(channelAccountUUID))
+	if tenantUUID == "" || (sourceAccountUUID == "" && channelAccountUUID == "") {
+		return 0, repository.ErrTenantUuidRequired
+	}
+	if channelAccountUUID != "" {
+		return s.repo.ClearByChannelAccount(ctx, tenantUUID, channelAccountUUID)
+	}
+	return s.repo.ClearByAccount(ctx, tenantUUID, sourceAccountUUID)
+}
+
 func (s *SyncLogService) resolveSyncMode(ctx context.Context, tenantUUID, sourceAccountUUID, channelAccountUUID string) (string, string) {
 	if s == nil || s.sourceRepo == nil {
 		return "", ""

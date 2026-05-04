@@ -186,27 +186,35 @@ func (r *LeadSyncTaskRepository) ResolveChannelAccount(ctx context.Context, tena
 		return acc.AccountUUID, model.LeadSyncTaskResolveExplicit, nil
 	}
 
-	var candidates []socialmodel.ChannelAccount
-	if err := r.DB.WithContext(ctx).
-		Where("tenant_uuid = ? AND channel_code = ? AND app_type = ? AND status = ?", tenantUUID, channel, appType, "connected").
-		Find(&candidates).Error; err != nil {
-		return "", "", err
+	appTypes := []string{appType}
+	if channel == "wechat" && appType == "wecom" {
+		appTypes = append(appTypes, "openwork")
 	}
-	if len(candidates) > 1 {
-		return "", "", errors.New("multiple wecom accounts found, channel_account_uuid is required")
-	}
-
-	var account socialmodel.ChannelAccount
-	err := r.DB.WithContext(ctx).
-		Where("tenant_uuid = ? AND channel_code = ? AND app_type = ? AND org_sync_default = TRUE", tenantUUID, channel, appType).
-		First(&account).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return "", "", ErrDefaultAccountNotFound
+	for _, candidateAppType := range appTypes {
+		var candidates []socialmodel.ChannelAccount
+		if err := r.DB.WithContext(ctx).
+			Where("tenant_uuid = ? AND channel_code = ? AND app_type = ? AND status = ?", tenantUUID, channel, candidateAppType, "connected").
+			Find(&candidates).Error; err != nil {
+			return "", "", err
 		}
-		return "", "", err
+		if len(candidates) == 1 {
+			return candidates[0].AccountUUID, model.LeadSyncTaskResolveDefault, nil
+		}
+		if len(candidates) > 1 {
+			var account socialmodel.ChannelAccount
+			err := r.DB.WithContext(ctx).
+				Where("tenant_uuid = ? AND channel_code = ? AND app_type = ? AND org_sync_default = TRUE", tenantUUID, channel, candidateAppType).
+				First(&account).Error
+			if err == nil {
+				return account.AccountUUID, model.LeadSyncTaskResolveDefault, nil
+			}
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return "", "", err
+			}
+			return "", "", errors.New("multiple wecom accounts found, channel_account_uuid is required")
+		}
 	}
-	return account.AccountUUID, model.LeadSyncTaskResolveDefault, nil
+	return "", "", ErrDefaultAccountNotFound
 }
 
 type ConversationEventRepository struct {

@@ -5,10 +5,12 @@ import (
 	"strings"
 
 	fwwsbus "github.com/ArtisanCloud/PowerXPlugin/framework/backend/go/runtime/wsbus"
+	acqrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/domain/repository/acquisition"
 	leadrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/lead_capture"
 	orgrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/org_sync"
 	socialrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/social_channel_governance"
 	leadobs "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/lead_capture"
+	acqsvc "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/services/admin/acquisition"
 	leadsvc "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/services/admin/lead_capture"
 	socialsvc "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/services/admin/social_channel_governance"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/shared/app"
@@ -62,6 +64,9 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 	)
 	channelCodeEventHandler := NewChannelCodeEventsWebhookHandler(channelCodeEventSvc)
 	acquisitionCodeEventHandler := NewAcquisitionCodeEventsWebhookHandler()
+	groupChatWebhookHandler := NewAcquisitionGroupChatWebhookHandler(
+		acqsvc.NewGroupChatSyncService(acqrepo.NewGroupChatSnapshotRepository(deps.DB), nil),
+	)
 
 	group := rg.Group("/webhooks")
 	{
@@ -74,6 +79,7 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		group.POST("/channels/:channel/code-events", channelCodeEventHandler.Ingest)
 		group.POST("/channels/:channel/staff-code-events", acquisitionCodeEventHandler.IngestStaff)
 		group.POST("/channels/:channel/group-code-events", acquisitionCodeEventHandler.IngestGroup)
+		group.POST("/channels/:channel/group-chat-events", groupChatWebhookHandler.Ingest)
 	}
 }
 

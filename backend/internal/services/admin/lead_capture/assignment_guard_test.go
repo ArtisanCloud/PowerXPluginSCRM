@@ -21,12 +21,13 @@ func TestAssignmentService_RejectsUnboundMember(t *testing.T) {
 
 func TestAssignmentService_AllowsConfirmedMapping(t *testing.T) {
 	db := openAssignmentGuardTestDB(t, "assignment_guard_confirmed")
-	require.NoError(t, db.Create(&orgmodel.MemberMapping{
-		MemberMappingUUID: "a0000000-0000-4000-8000-000000000001",
-		TenantUUID:        "00000000-0000-0000-0000-000000000001",
-		SourceMemberUUID:  "b0000000-0000-4000-8000-000000000001",
-		MainMemberID:      "1001",
-		MappingStatus:     orgmodel.MappingStatusConfirmed,
+	require.NoError(t, db.Create(&orgmodel.MemberBinding{
+		MemberBindingUUID:  "a0000000-0000-4000-8000-000000000001",
+		TenantUUID:         "00000000-0000-0000-0000-000000000001",
+		ChannelAccountUUID: "c0000000-0000-4000-8000-000000000001",
+		MainMemberID:       "1001",
+		ExternalMemberID:   "ext-1001",
+		SyncStatus:         "synced",
 	}).Error)
 
 	svc := NewAssignmentService()
@@ -39,15 +40,15 @@ func openAssignmentGuardTestDB(t *testing.T, name string) *gorm.DB {
 	basemodels.ForceSchemaForTests("")
 	db, err := gorm.Open(sqlite.Open("file:"+name+"?mode=memory&cache=shared"), &gorm.Config{DisableForeignKeyConstraintWhenMigrating: true})
 	require.NoError(t, err)
-	require.NoError(t, db.Exec(`CREATE TABLE IF NOT EXISTS org_sync_member_mappings (
-		member_mapping_uuid TEXT PRIMARY KEY,
+	require.NoError(t, db.Exec(`CREATE TABLE IF NOT EXISTS org_sync_member_bindings (
+		member_binding_uuid TEXT PRIMARY KEY,
 		tenant_uuid TEXT NOT NULL,
-		source_member_uuid TEXT NOT NULL,
+		channel_account_uuid TEXT NOT NULL,
 		main_member_id TEXT NOT NULL,
-		mapping_status TEXT NOT NULL,
-		matched_by TEXT,
-		confirmed_by TEXT,
-		confirmed_at DATETIME,
+		external_member_id TEXT NOT NULL,
+		sync_status TEXT NOT NULL,
+		last_pulled_at DATETIME,
+		last_pushed_at DATETIME,
 		created_at DATETIME,
 		updated_at DATETIME
 	);`).Error)

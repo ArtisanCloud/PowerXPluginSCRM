@@ -24,8 +24,6 @@ import (
 
 const wecomAPIBase = "https://qyapi.weixin.qq.com/cgi-bin/service"
 
-const openWorkAuthModeDelegatedTemplate = "delegated_template"
-
 var openWorkTemplateIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{3,128}$`)
 
 type OpenWorkFoundationService struct {
@@ -94,7 +92,6 @@ type OpenWorkAuthorizeStatusInput struct {
 }
 
 type openWorkAuthCredentials struct {
-	AuthMode       string
 	AppID          string
 	TemplateSecret string
 	TemplateTicket string
@@ -169,7 +166,7 @@ func (s *OpenWorkFoundationService) IngestEvent(ctx context.Context, in OpenWork
 	binding := &model.WeComOpenAuthBinding{
 		TenantUUID:    in.TenantUUID,
 		ChannelCode:   "wechat",
-		AppType:       "wecom",
+		AppType:       "openwork",
 		SuiteID:       in.SuiteID,
 		CorpID:        in.CorpID,
 		AgentID:       in.AgentID,
@@ -278,7 +275,6 @@ func (s *OpenWorkFoundationService) StartAuthorization(ctx context.Context, in O
 		return nil, err
 	}
 	return map[string]any{
-		"auth_mode":      creds.AuthMode,
 		"template_id":    creds.AppID,
 		"expires_in":     1200,
 		"authorize_url":  customizedAuthResp.QRCodeURL,
@@ -364,7 +360,7 @@ func (s *OpenWorkFoundationService) CompleteAuthorization(ctx context.Context, i
 		TenantUUID:         in.TenantUUID,
 		ChannelAccountUUID: resolvedChannelAccountUUID,
 		ChannelCode:        "wechat",
-		AppType:            "wecom",
+		AppType:            "openwork",
 		SuiteID:            creds.AppID,
 		CorpID:             corpID,
 		CorpName:           strings.TrimSpace(permResp.AuthCorpInfo.CorpName),
@@ -378,7 +374,6 @@ func (s *OpenWorkFoundationService) CompleteAuthorization(ctx context.Context, i
 		AuthScope:          mapToJSONMap(permResp.AuthInfo),
 		Metadata: datatypes.JSONMap{
 			"authorization_info": mapToJSONMap(permResp.AuthorizationInfo),
-			"auth_mode":          creds.AuthMode,
 			"template_id":        creds.AppID,
 		},
 	}
@@ -405,7 +400,6 @@ func (s *OpenWorkFoundationService) CompleteAuthorization(ctx context.Context, i
 			existing["suite_access_token"] = tokenResp.SuiteAccessToken
 			existing["permanent_code"] = strings.TrimSpace(permResp.PermanentCode)
 			existing["corp_id"] = strings.TrimSpace(permResp.AuthCorpInfo.CorpID)
-			existing["auth_mode"] = creds.AuthMode
 			if creds.ProviderCorpID != "" {
 				existing["provider_corpid"] = creds.ProviderCorpID
 			}
@@ -1003,7 +997,7 @@ func (s *OpenWorkFoundationService) ensureAuthorizedChannelAccount(
 		accountID = corpID
 	}
 
-	if existingByIdentity, err := s.accountRepo.FindByIdentity(ctx, tenantUUID, "wechat", "wecom", accountID); err == nil && existingByIdentity != nil {
+	if existingByIdentity, err := s.accountRepo.FindByIdentity(ctx, tenantUUID, "wechat", "openwork", accountID); err == nil && existingByIdentity != nil {
 		return existingByIdentity, nil
 	} else if err != nil && !errors.Is(err, repository.ErrAccountNotFound) {
 		return nil, err
@@ -1020,7 +1014,7 @@ func (s *OpenWorkFoundationService) ensureAuthorizedChannelAccount(
 	upserted, err := s.accountRepo.UpsertByIdentity(ctx, &model.ChannelAccount{
 		TenantUuid:      tenantUUID,
 		ChannelCode:     "wechat",
-		AppType:         "wecom",
+		AppType:         "openwork",
 		AccountID:       accountID,
 		DisplayName:     corpName,
 		Status:          model.ChannelAccountStatusConnected,
@@ -1257,7 +1251,7 @@ func (s *OpenWorkFoundationService) resolveOpenWorkCredentials(
 	}
 
 	if (appID == "" || templateSecret == "" || providerCorpID == "" || providerSecret == "") && s.accountRepo != nil {
-		defaultAccountUUID, err := s.accountRepo.ResolveDefaultAccountUUID(ctx, tenantUUID, "wechat", "wecom")
+		defaultAccountUUID, err := s.accountRepo.ResolveDefaultAccountUUID(ctx, tenantUUID, "wechat", "openwork")
 		if err == nil {
 			defaultAccount, accountErr := s.accountRepo.GetByAccountUUID(ctx, tenantUUID, defaultAccountUUID)
 			if accountErr == nil && defaultAccount != nil {
@@ -1305,7 +1299,6 @@ func (s *OpenWorkFoundationService) resolveOpenWorkCredentials(
 		return nil, errors.New("代开发模板授权缺少 provider_corpid/provider_secret")
 	}
 	return &openWorkAuthCredentials{
-		AuthMode:       openWorkAuthModeDelegatedTemplate,
 		AppID:          appID,
 		TemplateSecret: templateSecret,
 		TemplateTicket: templateTicket,

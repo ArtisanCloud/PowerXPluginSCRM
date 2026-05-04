@@ -85,7 +85,8 @@ func TestTagSyncService_SyncRemoteToLocalByChannel(t *testing.T) {
 	}
 	svc := NewTagSyncService(nil, nil).WithWeComSupport(
 		&socialrepo.AccountRepository{}, // placeholder, overridden below
-		func(credentials map[string]string) (weComTagClient, error) {
+		func(appType string, credentials map[string]string) (weComTagClient, error) {
+			require.Equal(t, "wecom", appType)
 			require.Equal(t, "ww-demo", credentials["corp_id"])
 			require.Equal(t, "demo-secret", credentials["app_secret"])
 			return client, nil
@@ -95,6 +96,8 @@ func TestTagSyncService_SyncRemoteToLocalByChannel(t *testing.T) {
 		account: &socialmodel.ChannelAccount{
 			AccountUUID: accountUUID,
 			TenantUuid:  tenantUUID,
+			ChannelCode: "wechat",
+			AppType:     "wecom",
 			Credentials: datatypes.JSONMap{
 				"corp_id":    "ww-demo",
 				"app_secret": "demo-secret",
@@ -131,7 +134,7 @@ func TestTagSyncService_SyncLocalToRemoteByChannel(t *testing.T) {
 	}
 	svc := NewTagSyncService(nil, nil).WithWeComSupport(
 		&socialrepo.AccountRepository{}, // placeholder, overridden below
-		func(_ map[string]string) (weComTagClient, error) {
+		func(_ string, _ map[string]string) (weComTagClient, error) {
 			return client, nil
 		},
 	)
@@ -139,6 +142,8 @@ func TestTagSyncService_SyncLocalToRemoteByChannel(t *testing.T) {
 		account: &socialmodel.ChannelAccount{
 			AccountUUID: accountUUID,
 			TenantUuid:  tenantUUID,
+			ChannelCode: "wechat",
+			AppType:     "wecom",
 			Credentials: datatypes.JSONMap{
 				"corp_id":    "ww-demo",
 				"app_secret": "demo-secret",
@@ -169,7 +174,7 @@ func TestTagSyncService_PushTagOperationsByChannel_CreateGroupTag(t *testing.T) 
 	}
 	svc := NewTagSyncService(nil, nil).WithWeComSupport(
 		&socialrepo.AccountRepository{},
-		func(_ map[string]string) (weComTagClient, error) {
+		func(_ string, _ map[string]string) (weComTagClient, error) {
 			return client, nil
 		},
 	)
@@ -177,6 +182,8 @@ func TestTagSyncService_PushTagOperationsByChannel_CreateGroupTag(t *testing.T) 
 		account: &socialmodel.ChannelAccount{
 			AccountUUID: accountUUID,
 			TenantUuid:  tenantUUID,
+			ChannelCode: "wechat",
+			AppType:     "wecom",
 			Credentials: datatypes.JSONMap{
 				"corp_id":    "ww-demo",
 				"app_secret": "demo-secret",

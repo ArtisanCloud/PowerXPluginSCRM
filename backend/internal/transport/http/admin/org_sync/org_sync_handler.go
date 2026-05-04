@@ -33,6 +33,11 @@ type triggerPushSyncRequest struct {
 	Changes []orgsvc.OrgWritebackChange `json:"changes"`
 }
 
+type clearSyncLogsRequest struct {
+	SourceAccountUUID  string `json:"source_account_uuid"`
+	ChannelAccountUUID string `json:"channel_account_uuid"`
+}
+
 func NewOrgSyncHandler(syncSvc *orgsvc.SyncService, unitSvc *orgsvc.SourceUnitService, memberSvc *orgsvc.SourceMemberService, syncLogSvc *orgsvc.SyncLogService, defaultSvc *orgsvc.DefaultSourceAccountService) *OrgSyncHandler {
 	return &OrgSyncHandler{
 		syncSvc:    syncSvc,
@@ -339,6 +344,43 @@ func (h *OrgSyncHandler) ListSyncLogs(c *gin.Context) {
 		"sync_mode": syncMode,
 		"sync_hint": syncHint,
 	})
+}
+
+func (h *OrgSyncHandler) ClearSyncLogs(c *gin.Context) {
+	if h.syncLogSvc == nil {
+		contracts.ResponseServiceUnavailable(c, "org sync log service unavailable", nil)
+		return
+	}
+	var req clearSyncLogsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		contracts.ResponseBadRequest(c, "invalid body: "+err.Error())
+		return
+	}
+	sourceAccountUUID := strings.TrimSpace(req.SourceAccountUUID)
+	channelAccountUUID := strings.TrimSpace(req.ChannelAccountUUID)
+	if sourceAccountUUID == "" && channelAccountUUID == "" {
+		contracts.ResponseBadRequest(c, "source_account_uuid or channel_account_uuid is required")
+		return
+	}
+	if sourceAccountUUID != "" {
+		channelAccountUUID = ""
+	}
+	tenantUUID, ok := middleware.TenantUUIDFromContext(c)
+	if !ok || tenantUUID == "" {
+		contracts.ResponseUnauthorized(c, "tenant context missing")
+		return
+	}
+	deleted, err := h.syncLogSvc.ClearByAccount(c.Request.Context(), tenantUUID, sourceAccountUUID, channelAccountUUID)
+	if err != nil {
+		switch {
+		case errors.Is(err, repository.ErrTenantUuidRequired):
+			contracts.ResponseBadRequest(c, "tenant_uuid is required")
+		default:
+			contracts.ResponseInternalError(c, err)
+		}
+		return
+	}
+	contracts.ResponseSuccess(c, gin.H{"deleted": deleted})
 }
 
 func (h *OrgSyncHandler) SetDefaultSourceAccount(c *gin.Context) {

@@ -77,6 +77,11 @@ export interface OrgPushPreviewResult {
   items: OrgPushPreviewItem[];
 }
 
+export interface OrgSyncLogsClearPayload {
+  source_account_uuid?: string;
+  channel_account_uuid?: string;
+}
+
 export const useOrgSyncService = () => {
   const apiClient = useApiClient();
   const baseUrl = "/admin/org-sync";
@@ -106,6 +111,8 @@ export const useOrgSyncService = () => {
           limit,
         },
       }),
+    clearSyncLogs: (payload: OrgSyncLogsClearPayload) =>
+      apiClient.post<ApiResponse<{ deleted: number }>>(`${baseUrl}/sync-logs/clear`, payload),
     setDefaultSourceAccount: (accountUUID: string) =>
       apiClient.post<ApiResponse<{ account_uuid: string }>>(
         `${baseUrl}/source-accounts/default/${accountUUID}`,

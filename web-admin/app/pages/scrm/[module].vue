@@ -231,11 +231,16 @@ const activeTagAccount = computed(() => {
 });
 
 const activeTagAccountUUID = computed(() => String(activeTagAccount.value?.account_uuid || "").trim());
+const activeTagAppType = computed(() => String(activeTagAccount.value?.app_type || "").trim().toLowerCase() || "wecom");
 const activeTagAccountLabel = computed(() => {
   const item = activeTagAccount.value;
   if (!item) return "";
   return `${item.display_name || item.account_id} (${item.channel_code}/${item.app_type})`;
 });
+const isSupportedWeComAppType = (appType: any) => {
+  const normalized = String(appType || "").trim().toLowerCase();
+  return normalized === "wecom" || normalized === "openwork";
+};
 
 const tagColumns = [
   { accessorKey: "remote_group_name", header: "标签组" },
@@ -321,7 +326,7 @@ const refreshTagAccounts = async () => {
     const resp = await service.listChannelAccounts();
     const items = (((resp as any)?.data?.items || []) as any[]).filter((item) =>
       String(item?.channel_code || "").trim().toLowerCase() === "wechat"
-      && String(item?.app_type || "").trim().toLowerCase() === "wecom"
+      && isSupportedWeComAppType(item?.app_type)
       && String(item?.status || "").trim().toLowerCase() === "connected"
     );
     tagAccounts.value = items;
@@ -461,7 +466,7 @@ const triggerTagSync = async (direction: "pull" | "push") => {
   try {
     const resp = await service.createFoundationSyncJob({
       channel: "wechat",
-      app_type: "wecom",
+      app_type: activeTagAppType.value,
       domain: "tags",
       direction,
       mode: direction === "pull" ? "incremental" : "pushback",

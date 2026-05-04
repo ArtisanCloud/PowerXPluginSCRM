@@ -28,19 +28,18 @@ func TestManualToDelegatedRollbackIntegration(t *testing.T) {
 		DisplayName:     "manual account",
 		Status:          model.ChannelAccountStatusConnected,
 		OwnerMemberUUID: "1",
-		Credentials: datatypes.JSONMap{
-			"auth_mode": "manual",
-		},
+		Credentials:     datatypes.JSONMap{},
 	}
 	require.NoError(t, db.Create(account).Error)
 
 	updated, err := svc.MigrateManualToDelegated(context.Background(), account.TenantUuid, account.AccountUUID, "binding-001")
 	require.NoError(t, err)
-	require.Equal(t, "delegated_template", updated.Credentials["auth_mode"])
+	require.Equal(t, "manual_to_delegated", updated.Credentials["migration_state"])
+	require.Equal(t, "binding-001", updated.Credentials["foundation_binding_uuid"])
 
 	rolledBack, err := svc.RollbackDelegatedToManual(context.Background(), account.TenantUuid, account.AccountUUID)
 	require.NoError(t, err)
-	require.Equal(t, "manual", rolledBack.Credentials["auth_mode"])
+	require.Equal(t, "delegated_rollback_manual", rolledBack.Credentials["migration_state"])
 	_, hasBinding := rolledBack.Credentials["foundation_binding_uuid"]
 	require.False(t, hasBinding)
 }

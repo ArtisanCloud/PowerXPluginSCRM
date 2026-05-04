@@ -99,7 +99,7 @@ const showToast = (title: string, color: typeof toast.value.color, message = "")
 
 const defaultAccount = computed(() =>
   channelAccounts.value.find((acc) => acc.org_sync_default) ||
-  channelAccounts.value.find((acc) => acc.channel_code === "wechat" && acc.app_type === "wecom") ||
+  channelAccounts.value.find((acc) => acc.channel_code === "wechat" && (acc.app_type === "wecom" || acc.app_type === "openwork")) ||
   channelAccounts.value[0] ||
   null
 );

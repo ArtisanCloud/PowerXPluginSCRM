@@ -32,11 +32,11 @@
           class="w-full"
         />
         <div
-          v-if="selectedAccountAuthModeLabel"
+          v-if="selectedAccountTypeLabel"
           class="mt-2 text-xs"
           :class="isDelegatedTemplateAccount ? 'text-amber-500' : 'text-gray-600 dark:text-slate-300'"
         >
-          账号模式：{{ selectedAccountAuthModeLabel }}
+          账号类型：{{ selectedAccountTypeLabel }}
           <span v-if="isDelegatedTemplateAccount">（当前仅支持单向拉取，推送已禁用）</span>
         </div>
       </div>
@@ -192,6 +192,16 @@
           <span class="font-medium text-gray-700 dark:text-slate-200">同步日志</span>
           <div class="flex items-center gap-2">
             <UBadge variant="soft" color="neutral">最近 5 条</UBadge>
+            <UButton
+              size="xs"
+              variant="soft"
+              color="warning"
+              :loading="clearingSyncLogs"
+              :disabled="!selectedAccountUUID || syncLogs.length === 0"
+              @click="clearSyncLogs"
+            >
+              清空
+            </UButton>
             <UButton size="xs" variant="ghost" @click="syncLogsCollapsed = !syncLogsCollapsed">
               {{ syncLogsCollapsed ? "展开" : "收起" }}
             </UButton>
@@ -285,6 +295,7 @@ const selectedAccountUUID = ref("");
 const syncDirection = ref<"pull" | "push">("pull");
 const syncing = ref(false);
 const loading = ref(false);
+const clearingSyncLogs = ref(false);
 const syncStatus = ref<OrgSyncSourceAccount | null>(null);
 const syncLogs = ref<OrgSyncSyncLog[]>([]);
 const orgConflicts = ref<any[]>([]);
@@ -350,17 +361,11 @@ const accountOptions = computed(() => {
 const selectedAccount = computed(() =>
   channelAccounts.value.find((acc) => acc.account_uuid === selectedAccountUUID.value)
 );
-const selectedAccountAuthMode = computed(() => {
-  const raw = (selectedAccount.value?.credentials as Record<string, unknown> | undefined)?.auth_mode;
-  return String(raw || "").trim().toLowerCase();
-});
-const isDelegatedTemplateAccount = computed(() => selectedAccountAuthMode.value === "delegated_template");
-const selectedAccountAuthModeLabel = computed(() => {
+const isDelegatedTemplateAccount = computed(() => String(selectedAccount.value?.app_type || "").toLowerCase() === "openwork");
+const selectedAccountTypeLabel = computed(() => {
   if (!selectedAccount.value) return "";
   if (isDelegatedTemplateAccount.value) return "代开发应用";
-  if (selectedAccountAuthMode.value === "manual") return "自建应用";
-  if (selectedAccountAuthMode.value) return selectedAccountAuthMode.value;
-  return "未标注";
+  return "自建应用";
 });
 const isDefaultAccount = computed(() => Boolean(selectedAccount.value?.org_sync_default));
 const defaultAccount = computed(() => channelAccounts.value.find((acc) => acc.org_sync_default));
@@ -581,8 +586,12 @@ const applyDefaultChannelSelection = () => {
   if (selectedChannel.value && selectedAppType.value) {
     return;
   }
+  const isWeComAppType = (appType: any) => {
+    const normalized = String(appType || "").trim().toLowerCase();
+    return normalized === "wecom" || normalized === "openwork";
+  };
   const hasWeCom = channelAccounts.value.some(
-    (acc) => acc.channel_code === "wechat" && acc.app_type === "wecom"
+    (acc) => acc.channel_code === "wechat" && isWeComAppType(acc.app_type)
   );
   if (hasWeCom) {
     selectedChannel.value = "wechat";
@@ -603,7 +612,7 @@ const applyDefaultAccountSelection = () => {
     return;
   }
   const firstWeCom = channelAccounts.value.find(
-    (acc) => acc.channel_code === "wechat" && acc.app_type === "wecom"
+    (acc) => acc.channel_code === "wechat" && (String(acc.app_type || "").trim().toLowerCase() === "wecom" || String(acc.app_type || "").trim().toLowerCase() === "openwork")
   );
   if (firstWeCom) {
     selectedChannel.value = firstWeCom.channel_code;
@@ -830,11 +839,36 @@ const loadSyncLogs = async () => {
   }
   try {
     const service = useOrgSyncService();
-    const resp = await service.listSyncLogs(selectedAccountUUID.value, 5);
+    const resp = await service.listSyncLogs("", 5, selectedAccountUUID.value);
     syncLogs.value = (resp as any)?.data?.items ?? [];
     updateGlobalLoadingFromLog(false);
   } catch (err: any) {
     showToast("加载同步日志失败", "error", err?.message ?? "");
+  }
+};
+
+const clearSyncLogs = async () => {
+  if (!selectedAccountUUID.value) {
+    showToast("请选择账号", "warning");
+    return;
+  }
+  if (syncLogs.value.length === 0) return;
+  const confirmed = window.confirm("确认清空当前账号的同步日志？此操作不可撤销。");
+  if (!confirmed) return;
+  clearingSyncLogs.value = true;
+  try {
+    const service = useOrgSyncService();
+    const resp = await service.clearSyncLogs({
+      channel_account_uuid: selectedAccountUUID.value,
+    });
+    const deleted = Number((resp as any)?.data?.deleted ?? 0);
+    syncLogs.value = [];
+    showToast("同步日志已清空", "success", deleted > 0 ? `已删除 ${deleted} 条` : "");
+    await loadSyncData();
+  } catch (err: any) {
+    showToast("清空同步日志失败", "error", err?.message ?? "");
+  } finally {
+    clearingSyncLogs.value = false;
   }
 };
 

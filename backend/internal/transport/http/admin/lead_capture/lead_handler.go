@@ -330,6 +330,8 @@ func (h *LeadHandler) Assign(c *gin.Context) {
 			contracts.ResponseError(c, http.StatusBadRequest, contracts.ErrCodeValidationFailed, "assignee not found")
 		case errors.Is(err, leadsvc.ErrAssigneeNotBound):
 			contracts.ResponseError(c, http.StatusBadRequest, contracts.ErrCodeValidationFailed, "assignee not bound to source member")
+		case errors.Is(err, leadsvc.ErrAssigneeTransferFailed):
+			contracts.ResponseError(c, http.StatusBadRequest, contracts.ErrCodeValidationFailed, strings.TrimSpace(err.Error()))
 		case errors.Is(err, leadrepo.ErrLeadNotFound):
 			contracts.ResponseNotFound(c, "lead not found")
 		case errors.Is(err, repository.ErrTenantUuidRequired):

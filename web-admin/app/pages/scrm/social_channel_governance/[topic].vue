@@ -607,12 +607,16 @@ const topicDescription = computed(() => {
 const accountStore = useSocialChannelAccountStore()
 const { accounts, loading: accountsLoading, error: accountsError } = storeToRefs(accountStore)
 const openworkBindings = ref<OpenWorkBinding[]>([])
+const isSupportedWeComAppType = (appType: any) => {
+  const normalized = String(appType || '').trim().toLowerCase()
+  return normalized === 'wecom' || normalized === 'openwork'
+}
 const connectedWeComAccountUUIDSet = computed(() => {
   const set = new Set<string>()
   for (const account of accounts.value || []) {
     if (
       (account.channel_code || '').toLowerCase() === 'wechat'
-      && (account.app_type || '').toLowerCase() === 'wecom'
+      && isSupportedWeComAppType(account.app_type)
       && (account.status || '').toLowerCase() === 'connected'
       && String(account.account_uuid || '').trim()
     ) {
@@ -725,7 +729,7 @@ const defaultTagSyncAccountUUID = computed(() => {
   const defaultAccount = (accounts.value || []).find((account) =>
     String(account?.org_sync_default || '').toLowerCase() === 'true'
     && String(account?.channel_code || '').trim().toLowerCase() === 'wechat'
-    && String(account?.app_type || '').trim().toLowerCase() === 'wecom'
+    && isSupportedWeComAppType(account?.app_type)
     && String(account?.status || '').trim().toLowerCase() === 'connected'
     && String(account?.account_uuid || '').trim() !== ''
   )

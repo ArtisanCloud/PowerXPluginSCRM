@@ -54,7 +54,7 @@ func TestGroupLiveCodeSkeletonContract_ListAndWebhook(t *testing.T) {
 
 func setupGroupSkeletonContractRouter(db *gorm.DB, tenantUUID string) *gin.Engine {
 	repos := acqrepo.NewBundle(db)
-	groupHandler := httpacq.NewGroupLiveCodeHandler(acqsvc.NewGroupLiveCodeService(repos.GroupLiveCodes))
+	groupHandler := httpacq.NewGroupLiveCodeHandler(acqsvc.NewGroupLiveCodeService(repos.GroupLiveCodes, repos.GroupChatSnapshots))
 	webhookHandler := httpwebhooks.NewAcquisitionCodeEventsWebhookHandler()
 
 	r := gin.New()

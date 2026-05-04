@@ -82,3 +82,58 @@
 - `powerx_acquisition_staff_mapping_validation_total{result}`
 - `powerx_acquisition_staff_welcome_sync_attempt_total{result,error_code}`
 - `powerx_acquisition_group_code_capability_status_total{capability_status}`
+
+---
+
+## V2.1（T091）群运营闭环观测补充
+
+### 1) 群活码发布链路
+- 关键口径：
+  - 群活码创建数量（`status=draft` 初始值）
+  - 发布成功率（`sync_status=success` 占比）
+  - 发布失败聚类（`last_sync_error` 分类）
+- 推荐日志维度：
+  - `tenant_uuid`
+  - `channel_account_uuid`
+  - `group_code_uuid`
+  - `config_id`
+  - `sync_status`
+
+### 2) 群同步（拉取 + 回调）
+- 拉取入口：
+  - `POST /api/v1/admin/leads/acquisition/group-chats/sync`
+- 回调入口：
+  - `POST /api/v1/webhooks/channels/:channel/group-chat-events`
+- 数据核对口径：
+  - 同一 `(tenant_uuid, channel_account_uuid, chat_id)` 仅保留 1 条快照；
+  - `updated_at` 应随最新事件推进；
+  - `member_count/name/owner_userid/source_config_id` 字段需可回放。
+
+### 3) 群标签与规则命中
+- 关键口径：
+  - 标签定义数（`group_tag_definitions`）
+  - 绑定关系数（`group_tag_bindings`）
+  - 规则执行记录（`group_tag_rule_runs`）
+- 排障关注：
+  - `run_status=failed` 时检查 `error_message`；
+  - `matched_count=0` 需核对筛选输入（群快照与规则 payload）。
+
+### 4) 群分析导出口径（当前实现）
+- 当前实现采用前端页面导出 CSV（`/scrm/acquisition_group_analysis`）。
+- 字段口径：
+  - `chat_id`
+  - `name`
+  - `owner_userid`
+  - `member_count`
+  - `source_config_id`
+  - `tags`
+  - `updated_at`
+- 验收要求：
+  - 导出结果必须与当前筛选条件一致；
+  - 若数据量激增，建议升级为后端异步导出任务。
+
+### 5) 最短排障路径（V2.1）
+1. 先看群活码列表：`sync_status` 是否为 `success`，是否回填 `config_id`。
+2. 再看群同步：执行 `group-chats/sync` 后列表是否出现目标 `chat_id`。
+3. 再看回调：发送 `group-chat-events` 后 `updated_at/member_count` 是否变化。
+4. 最后看标签：手工绑定与规则重放后，`group_tag_bindings` 是否增加。

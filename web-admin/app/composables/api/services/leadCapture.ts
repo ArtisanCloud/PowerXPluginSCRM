@@ -14,6 +14,8 @@ export interface LeadRecord {
   source_account_uuid?: string;
   external_userid?: string;
   external_wechat_id?: string;
+  wecom_follow_userid?: string;
+  wecom_adder_userid?: string;
   lead_origin_type?: "channel" | "local";
   channel_sync_status?: "synced" | "unsynced" | "pending_push";
   owner_binding_status?: "not_channel" | "missing_owner" | "mapped" | "unmapped";
@@ -187,6 +189,7 @@ export interface LeadImportPreview {
 
 export interface WeComSyncTriggerPayload {
   channel_account_uuid?: string;
+  app_type?: "wecom" | "openwork";
   trace_id?: string;
   action?: "pull_external_contacts" | "push_leads";
   domain?: "external_contacts" | "leads";

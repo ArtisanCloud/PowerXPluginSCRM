@@ -27,23 +27,48 @@ type StaffLiveCodeRepository interface {
 	Create(ctx context.Context, item *acqmodel.StaffLiveCode) error
 	GetByUUID(ctx context.Context, tenantUUID, staffCodeUUID string) (*acqmodel.StaffLiveCode, error)
 	List(ctx context.Context, tenantUUID string, filter StaffLiveCodeListFilter) ([]*acqmodel.StaffLiveCode, error)
+	Update(ctx context.Context, item *acqmodel.StaffLiveCode) error
+	Delete(ctx context.Context, tenantUUID, staffCodeUUID string) error
 	UpdateStatus(ctx context.Context, tenantUUID, staffCodeUUID, status, updatedBy string) (*acqmodel.StaffLiveCode, error)
 	CountConfirmedMappings(ctx context.Context, tenantUUID string, memberUUIDs []string) (int64, error)
+	ResolveExternalMemberIDs(ctx context.Context, tenantUUID, channelAccountUUID string, memberUUIDs []string) ([]string, error)
 	ExistsByCodeKey(ctx context.Context, tenantUUID, codeKey string) (bool, error)
 }
 
 type StaffWelcomeConfigRepository interface {
 	Save(ctx context.Context, item *acqmodel.StaffWelcomeConfig) error
 	GetByStaffCodeUUID(ctx context.Context, tenantUUID, staffCodeUUID string) (*acqmodel.StaffWelcomeConfig, error)
+	DeleteByStaffCodeUUID(ctx context.Context, tenantUUID, staffCodeUUID string) error
 }
 
 type StaffWelcomeSyncAttemptRepository interface {
 	Create(ctx context.Context, item *acqmodel.StaffWelcomeSyncAttempt) error
 	ListByStaffCodeUUID(ctx context.Context, tenantUUID, staffCodeUUID string, limit int) ([]*acqmodel.StaffWelcomeSyncAttempt, error)
+	DeleteByStaffCodeUUID(ctx context.Context, tenantUUID, staffCodeUUID string) error
 }
 
 type GroupLiveCodeRepository interface {
+	Create(ctx context.Context, item *acqmodel.GroupLiveCode) error
+	GetByUUID(ctx context.Context, tenantUUID, groupCodeUUID string) (*acqmodel.GroupLiveCode, error)
+	Update(ctx context.Context, item *acqmodel.GroupLiveCode) error
+	Delete(ctx context.Context, tenantUUID, groupCodeUUID string) error
 	List(ctx context.Context, tenantUUID string, limit int) ([]*acqmodel.GroupLiveCode, error)
+}
+
+type GroupChatSnapshotRepository interface {
+	Upsert(ctx context.Context, item *acqmodel.GroupChatSnapshot) error
+	GetByChatID(ctx context.Context, tenantUUID, chatID string) (*acqmodel.GroupChatSnapshot, error)
+	List(ctx context.Context, tenantUUID string, limit int) ([]*acqmodel.GroupChatSnapshot, error)
+	ListByChannelAccount(ctx context.Context, tenantUUID, channelAccountUUID string, limit int) ([]*acqmodel.GroupChatSnapshot, error)
+}
+
+type GroupTagRepository interface {
+	CreateDefinition(ctx context.Context, item *acqmodel.GroupTagDefinition) error
+	ListDefinitions(ctx context.Context, tenantUUID string, limit int) ([]*acqmodel.GroupTagDefinition, error)
+	GetDefinitionByUUID(ctx context.Context, tenantUUID, groupTagUUID string) (*acqmodel.GroupTagDefinition, error)
+	BindChats(ctx context.Context, tenantUUID, groupTagUUID string, chatIDs []string, bindSource, ruleRunUUID string) (int, error)
+	ListBindings(ctx context.Context, tenantUUID, groupTagUUID string, limit int) ([]*acqmodel.GroupTagBinding, error)
+	CreateRuleRun(ctx context.Context, item *acqmodel.GroupTagRuleRun) error
 }
 
 type Bundle struct {
@@ -51,6 +76,8 @@ type Bundle struct {
 	StaffWelcomeConfigs StaffWelcomeConfigRepository
 	StaffWelcomeAttempt StaffWelcomeSyncAttemptRepository
 	GroupLiveCodes      GroupLiveCodeRepository
+	GroupChatSnapshots  GroupChatSnapshotRepository
+	GroupTags           GroupTagRepository
 }
 
 func NewBundle(db *gorm.DB) *Bundle {
@@ -62,6 +89,8 @@ func NewBundle(db *gorm.DB) *Bundle {
 		StaffWelcomeConfigs: NewStaffWelcomeConfigRepository(db),
 		StaffWelcomeAttempt: NewStaffWelcomeSyncAttemptRepository(db),
 		GroupLiveCodes:      NewGroupLiveCodeRepository(db),
+		GroupChatSnapshots:  NewGroupChatSnapshotRepository(db),
+		GroupTags:           NewGroupTagRepository(db),
 	}
 }
 

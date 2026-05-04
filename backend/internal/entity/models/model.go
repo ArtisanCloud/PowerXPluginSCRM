@@ -116,7 +116,13 @@ const (
 	TableLeadCaptureSourceCatalogs           = "lead_capture_source_catalogs"
 	TableLeadCaptureChannelRules             = "lead_capture_channel_rules"
 	TableAcquisitionStaffLiveCodes           = "acquisition_staff_live_codes"
+	TableAcquisitionStaffContactEvents       = "acquisition_staff_contact_events"
+	TableAcquisitionExternalContactOwners    = "acquisition_external_contact_owners"
 	TableAcquisitionStaffWelcomeConfigs      = "acquisition_staff_welcome_configs"
 	TableAcquisitionStaffWelcomeSyncAttempts = "acquisition_staff_welcome_sync_attempts"
 	TableAcquisitionGroupLiveCodes           = "acquisition_group_live_codes"
+	TableAcquisitionGroupChatSnapshots       = "acquisition_group_chat_snapshots"
+	TableAcquisitionGroupTagDefinitions      = "acquisition_group_tag_definitions"
+	TableAcquisitionGroupTagBindings         = "acquisition_group_tag_bindings"
+	TableAcquisitionGroupTagRuleRuns         = "acquisition_group_tag_rule_runs"
 )

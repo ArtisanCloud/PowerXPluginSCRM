@@ -6,10 +6,13 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	pwresp "github.com/ArtisanCloud/PowerWeChat/v3/src/kernel/response"
 	workuserresp "github.com/ArtisanCloud/PowerWeChat/v3/src/work/user/response"
 	workusertag "github.com/ArtisanCloud/PowerWeChat/v3/src/work/user/tag"
+	socialmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/social_channel_governance"
+	socialrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/social_channel_governance"
 )
 
 type StaffTagRecord struct {
@@ -46,7 +49,7 @@ type weComStaffTagClient interface {
 	TagDelUsers(ctx context.Context, tagID int64, userList []string, partyList []string) (*workuserresp.ResponseTagDeleteUser, error)
 }
 
-type weComStaffTagClientFactory func(credentials map[string]string) (weComStaffTagClient, error)
+type weComStaffTagClientFactory func(appType string, credentials map[string]string) (weComStaffTagClient, error)
 
 type powerWeComStaffTagClient struct {
 	client *workusertag.Client
@@ -80,8 +83,8 @@ func (c *powerWeComStaffTagClient) TagDelUsers(ctx context.Context, tagID int64,
 	return c.client.TagDelUsers(ctx, tagID, userList, partyList)
 }
 
-var defaultWeComStaffTagClientFactory weComStaffTagClientFactory = func(credentials map[string]string) (weComStaffTagClient, error) {
-	app, err := newWeComTagSyncApp(credentials)
+var defaultWeComStaffTagClientFactory weComStaffTagClientFactory = func(appType string, credentials map[string]string) (weComStaffTagClient, error) {
+	app, err := newWeComTagSyncApp("wechat", appType, credentials)
 	if err != nil {
 		return nil, err
 	}
@@ -100,17 +103,43 @@ var defaultWeComStaffTagClientFactory weComStaffTagClientFactory = func(credenti
 
 type StaffTagService struct {
 	credentialResolver *TagSyncService
+	tagRecordRepo      *socialrepo.TagRecordRepository
 	clientFactory      weComStaffTagClientFactory
 }
 
-func NewStaffTagService(credentialResolver *TagSyncService, factory weComStaffTagClientFactory) *StaffTagService {
+func NewStaffTagService(credentialResolver *TagSyncService, tagRecordRepo *socialrepo.TagRecordRepository, factory weComStaffTagClientFactory) *StaffTagService {
 	if factory == nil {
 		factory = defaultWeComStaffTagClientFactory
 	}
-	return &StaffTagService{credentialResolver: credentialResolver, clientFactory: factory}
+	return &StaffTagService{credentialResolver: credentialResolver, tagRecordRepo: tagRecordRepo, clientFactory: factory}
 }
 
 func (s *StaffTagService) ListByChannel(ctx context.Context, tenantUUID, channelAccountUUID string, includeWritable bool) ([]StaffTagRecord, error) {
+	if s != nil && s.tagRecordRepo != nil {
+		items, err := s.tagRecordRepo.ListStaffByChannel(ctx, tenantUUID, channelAccountUUID, 500)
+		if err == nil && len(items) > 0 {
+			out := make([]StaffTagRecord, 0, len(items))
+			for _, item := range items {
+				tagID, convErr := strconv.ParseInt(strings.TrimSpace(item.RemoteTagID), 10, 64)
+				if convErr != nil || tagID <= 0 {
+					continue
+				}
+				record := StaffTagRecord{
+					TagID:   tagID,
+					TagName: strings.TrimSpace(item.TagName),
+					Writable: true,
+				}
+				if record.TagName == "" {
+					record.TagName = strconv.FormatInt(record.TagID, 10)
+				}
+				out = append(out, record)
+			}
+			if len(out) > 0 {
+				return out, nil
+			}
+		}
+	}
+
 	client, err := s.resolveClient(ctx, tenantUUID, channelAccountUUID)
 	if err != nil {
 		return nil, err
@@ -126,6 +155,9 @@ func (s *StaffTagService) ListByChannel(ctx context.Context, tenantUUID, channel
 		return nil, fmt.Errorf("wecom tag list failed: %d %s", resp.ErrCode, strings.TrimSpace(resp.ErrMsg))
 	}
 	items := make([]StaffTagRecord, 0, len(resp.TagList))
+	toSave := make([]socialmodel.SyncTagRecord, 0, len(resp.TagList))
+	now := time.Now().UTC()
+	snapshotVersion := now.Format(time.RFC3339Nano)
 	for _, item := range resp.TagList {
 		if item == nil {
 			continue
@@ -141,6 +173,33 @@ func (s *StaffTagService) ListByChannel(ctx context.Context, tenantUUID, channel
 			record.WritableReason = reason
 		}
 		items = append(items, record)
+		toSave = append(toSave, socialmodel.SyncTagRecord{
+			TenantUUID:         strings.TrimSpace(strings.ToLower(tenantUUID)),
+			ChannelAccountUUID: strings.TrimSpace(strings.ToLower(channelAccountUUID)),
+			ChannelCode:        "wechat",
+			AppType:            "wecom",
+			RemoteTagID:        strconv.FormatInt(int64(item.TagID), 10),
+			RemoteGroupID:      "",
+			RemoteGroupName:    "",
+			TagName:            tagName,
+			Version:            snapshotVersion,
+			TagOrder:           0,
+			SnapshotVersion:    snapshotVersion,
+			LastPulledAt:       &now,
+			Source:             "wecom_staff",
+		})
+	}
+	if s != nil && s.tagRecordRepo != nil && len(toSave) > 0 {
+		_ = s.tagRecordRepo.UpsertStaffTags(
+			ctx,
+			tenantUUID,
+			channelAccountUUID,
+			"wechat",
+			"wecom",
+			snapshotVersion,
+			toSave,
+			now,
+		)
 	}
 	return items, nil
 }
@@ -295,11 +354,11 @@ func (s *StaffTagService) resolveClient(ctx context.Context, tenantUUID, channel
 	if s.clientFactory == nil {
 		return nil, errors.New("staff tag client factory unavailable")
 	}
-	credentials, err := s.credentialResolver.resolveCredentialMap(ctx, tenantUUID, channelAccountUUID)
+	credentials, appType, err := s.credentialResolver.resolveCredentialMap(ctx, tenantUUID, channelAccountUUID)
 	if err != nil {
 		return nil, err
 	}
-	return s.clientFactory(credentials)
+	return s.clientFactory(appType, credentials)
 }
 
 func (s *StaffTagService) probeTagWritable(ctx context.Context, client weComStaffTagClient, tagID int64, tagName string) (bool, string) {

@@ -246,3 +246,81 @@ Task: T023 web-admin/app/composables/api/services/leadCapture.ts
 - `[P]` 任务仅表示可并行，不代表可跳过依赖顺序。
 - 严格遵守租户隔离、幂等键口径、首触主归因、发布权限边界。
 - 每个用户故事完成后都应保证“可单独测试、可单独演示、可单独交付”。
+
+---
+
+## Phase 8: V2.1 群运营闭环（活码优先）
+
+**Purpose**: 将“群活码/群欢迎语骨架”升级为可运营闭环能力
+
+### Tests for V2.1
+
+- [X] T072 [P] [V2.1] 新增合同测试：群活码 CRUD + 发布同步状态到 `backend/tests/contract/group_live_code_contract_test.go`
+- [X] T073 [P] [V2.1] 新增合同测试：群聊同步列表与详情查询到 `backend/tests/contract/group_chat_sync_contract_test.go`
+- [X] T074 [P] [V2.1] 新增合同测试：本地群标签 CRUD/绑定/查询到 `backend/tests/contract/group_tag_contract_test.go`
+
+## Phase 9: V2.1.1 客户入群回调增量打标对齐
+
+- [X] T075 [V2.1.1] 在统一企微回调处理链路补充客户入群事件字段抽取（`chat_id/external_userid/change_type`）到 `backend/internal/transport/http/webhooks/openwork_callback_handler.go`
+- [X] T076 [V2.1.1] 在回调任务消费阶段增加“新增入群成员”分支并调用群活码增量打标服务到 `backend/internal/transport/http/webhooks/openwork_callback_handler.go`
+- [X] T077 [V2.1.1] 为群活码服务新增按 `chat_id + external_userid` 的增量企业标签补打方法到 `backend/internal/services/admin/acquisition/group_live_code_service.go`
+
+## Phase 10: V2.0.1 员工活码页面对标收敛（2026-04-29）
+
+- [X] T098 [V2.0.1] 更新员工活码页面信息架构为双栏业务态（左配置右预览）到 `web-admin/app/pages/scrm/acquisition_staff_code.vue`
+- [X] T099 [V2.0.1] 成员选择器接入 `org_sync confirmed mapping` 多选弹窗，移除主流程手工 UUID 输入到 `web-admin/app/pages/scrm/acquisition_staff_code.vue`
+- [X] T100 [V2.0.1] 企业标签选择器改为结构化选择（展示标签组+标签名），移除主流程手工 TagID 输入到 `web-admin/app/pages/scrm/acquisition_staff_code.vue`
+- [X] T101 [V2.0.1] 回复设置补齐内容块类型（文本/图片/链接/小程序）与雷达入口占位回显到 `web-admin/app/pages/scrm/acquisition_staff_code.vue`
+- [X] T102 [V2.0.1] 新增“保存配置/发布同步”双动作与同步状态区（状态/时间/错误）到 `web-admin/app/pages/scrm/acquisition_staff_code.vue`
+- [X] T103 [V2.0.1] 修复“添加回复内容”浮层错位/裁切问题（锚定、z-index、容器 overflow）到 `web-admin/app/pages/scrm/acquisition_staff_code.vue`
+- [X] T075 [P] [V2.1] 新增服务单测：群标签规则命中与幂等绑定到 `backend/internal/services/admin/acquisition/group_tag_rule_service_test.go`
+- [X] T076 [V2.1] 新增集成测试：群回调 + 拉取最终一致性到 `backend/tests/integration/group_chat_sync_consistency_integration_test.go`
+
+### Implementation for V2.1 Backend
+
+- [X] T077 [V2.1] 新增 V2.1 群运营模型与迁移（group code/chat snapshot/group tags）到 `backend/internal/domain/models/acquisition/` 与 `backend/cmd/database/migrate/migrate.go`
+- [X] T078 [V2.1] 实装群活码服务（add/get/update/del join-way + sync status）到 `backend/internal/services/admin/acquisition/group_live_code_service.go`
+- [X] T079 [V2.1] 实装群聊同步服务（list/get + callback merge）到 `backend/internal/services/admin/acquisition/group_chat_sync_service.go`
+- [X] T080 [V2.1] 实装本地群标签服务（definition/binding/rule-run）到 `backend/internal/services/admin/acquisition/group_tag_service.go`
+- [X] T081 [V2.1] 实装群标签规则引擎（来源活码/群主/成员结构）到 `backend/internal/services/admin/acquisition/group_tag_rule_service.go`
+- [X] T082 [V2.1] 新增/更新 admin 与 webhook 路由到 `backend/internal/transport/http/admin/acquisition/routes.go` 与 `backend/internal/transport/http/webhooks/routes.go`
+
+### Implementation for V2.1 Frontend
+
+- [X] T083 [V2.1] 扩展 acquisition API client（群活码、群同步、群标签）到 `web-admin/app/composables/api/services/acquisition.ts`
+- [X] T084 [V2.1] 实装群活码页面（列表 + 设置 + 发布状态）到 `web-admin/app/pages/scrm/acquisition_group_code.vue`
+- [X] T085 [V2.1] 实装群管理页面（筛选、详情、来源活码透视）到 `web-admin/app/pages/scrm/acquisition_group_manage.vue`
+- [X] T086 [V2.1] 实装群标签页面（手工打标 + 自动规则 + 绑定关系）到 `web-admin/app/pages/scrm/acquisition_group_tags.vue`
+- [X] T087 [V2.1] 实装群分析页面（来源活码维度统计 + 导出）到 `web-admin/app/pages/scrm/acquisition_group_analysis.vue`
+- [X] T088 [V2.1] 更新导航与 i18n 文案，明确“本地群标签不回写企微”到 `web-admin/app/components/AppSidebar.vue` 与 `web-admin/i18n/locales/zh.json`
+
+### Polish for V2.1
+
+- [X] T089 [V2.1] 更新 quickstart（群运营闭环联调脚本）到 `specs/005-channel-code-acquisition/quickstart.md`
+- [X] T090 [V2.1] 更新研究结论与风险项到 `specs/005-channel-code-acquisition/research.md`
+- [X] T091 [V2.1] 补充可观测文档（群同步/规则命中/导出口径）到 `backend/internal/observability/lead_capture/README.md`
+
+---
+
+## Phase 9: V2.2 群成员客户档案增强（对标群运营工作台）
+
+**Purpose**: 将“群详情/客户详情”从轻量弹窗升级为可运营档案视图，并为客户动态/跟进记录打通数据模型
+
+### Implementation for V2.2 Frontend
+
+- [X] T092 [V2.2] 群管理列表增加分页（默认每页 10 条）并保持筛选一致性到 `web-admin/app/pages/scrm/acquisition_group_manage.vue`
+- [X] T093 [V2.2] 群管理列表增加 `今日入群/今日退群` 指标列并隐藏主表 `chat_id` 到 `web-admin/app/pages/scrm/acquisition_group_manage.vue`
+- [X] T094 [V2.2] 群详情弹窗升级为大尺寸信息面板（指标卡 + 成员分页）到 `web-admin/app/pages/scrm/acquisition_group_manage.vue`
+- [X] T095 [V2.2] 客户详情弹窗升级为标签页结构（基础信息/所属关系/客户动态占位）到 `web-admin/app/pages/scrm/acquisition_group_manage.vue`
+- [X] T096 [V2.2] 客户详情接入“所属群聊”多群关联视图（非单群上下文）到 `web-admin/app/pages/scrm/acquisition_group_manage.vue` 与 `web-admin/app/composables/api/services/acquisition.ts`
+
+### Implementation for V2.2 Backend
+
+- [X] T097 [V2.2] 群同步快照 payload 落库完整 `group_chat` 明细（含成员列表）到 `backend/internal/services/admin/acquisition/group_chat_sync_service.go`
+- [X] T098 [V2.2] 新增客户动态事件查询接口（按 external_userid + chat_id）到 `backend/internal/transport/http/admin/acquisition/routes.go` 与 `backend/internal/services/admin/acquisition/`
+- [X] T099 [V2.2] 新增跟进记录聚合接口占位（接 CRM 域）到 `backend/internal/transport/http/admin/acquisition/routes.go` 与 `backend/internal/services/admin/acquisition/`
+
+### Tests for V2.2
+
+- [X] T100 [P] [V2.2] 新增合同测试：客户动态接口与空态提示契约到 `backend/tests/contract/group_customer_timeline_contract_test.go`
+- [X] T101 [P] [V2.2] 新增前端页面测试：群详情与客户详情交互回归到 `web-admin/tests/pages/acquisition_group_manage.spec.ts`

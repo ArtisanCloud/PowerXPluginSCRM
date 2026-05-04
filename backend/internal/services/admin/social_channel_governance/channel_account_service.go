@@ -272,7 +272,7 @@ func (s *ChannelAccountService) UpdateAccount(ctx context.Context, tenantUUID, a
 	return updated, nil
 }
 
-// MigrateManualToDelegated marks an existing manual account as delegated-template mode and stores migration metadata.
+// MigrateManualToDelegated keeps migration marker metadata for delegated flow.
 func (s *ChannelAccountService) MigrateManualToDelegated(ctx context.Context, tenantUUID, accountUUID, bindingUUID string) (*model.ChannelAccount, error) {
 	if s == nil || s.repo == nil {
 		return nil, errors.New("account repository not configured")
@@ -288,7 +288,6 @@ func (s *ChannelAccountService) MigrateManualToDelegated(ctx context.Context, te
 		return nil, err
 	}
 	cred := mergeCredentials(account.Credentials, nil)
-	cred["auth_mode"] = "delegated_template"
 	if bindingUUID != "" {
 		cred["foundation_binding_uuid"] = bindingUUID
 	}
@@ -300,7 +299,7 @@ func (s *ChannelAccountService) MigrateManualToDelegated(ctx context.Context, te
 	return updated, nil
 }
 
-// RollbackDelegatedToManual restores account auth_mode to manual when delegated flow must be reverted.
+// RollbackDelegatedToManual clears delegated markers when flow must be reverted.
 func (s *ChannelAccountService) RollbackDelegatedToManual(ctx context.Context, tenantUUID, accountUUID string) (*model.ChannelAccount, error) {
 	if s == nil || s.repo == nil {
 		return nil, errors.New("account repository not configured")
@@ -315,7 +314,6 @@ func (s *ChannelAccountService) RollbackDelegatedToManual(ctx context.Context, t
 		return nil, err
 	}
 	cred := mergeCredentials(account.Credentials, nil)
-	cred["auth_mode"] = "manual"
 	delete(cred, "foundation_binding_uuid")
 	cred["migration_state"] = "delegated_rollback_manual"
 	updated, err := s.repo.UpdateAccountCredentials(ctx, tenantUUID, accountUUID, credentialsToJSON(cred))

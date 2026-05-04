@@ -228,6 +228,8 @@
 ### Purpose
 群活码骨架实体，为后续企业微信群活码实装预留。
 
+> 状态说明：本节为历史骨架记录，自 V2.1 起由「12. GroupLiveCode（V2.1 实装）」替代，不再作为实现基线。
+
 ### Fields
 - `group_code_uuid` (UUID, PK)
 - `tenant_uuid` (UUID, required)
@@ -242,6 +244,8 @@
 ### Purpose
 群欢迎语骨架配置，先支持保存和状态展示，后续接群能力发布。
 
+> 状态说明：本节为历史骨架记录，V2.1 MVP 暂不纳入实装范围，后续版本单独推进。
+
 ### Fields
 - `group_welcome_config_uuid` (UUID, PK)
 - `tenant_uuid` (UUID, required)
@@ -251,3 +255,126 @@
 - `sync_status` (enum: `pending|not_implemented`)
 - `capability_status` (enum: `skeleton|ready`)
 - `created_by` / `updated_by` / `created_at` / `updated_at`
+
+## 12. GroupLiveCode（V2.1 实装）
+
+### Purpose
+群活码主实体（企业微信入群方式），作为群运营入口。
+
+### Fields
+- `group_code_uuid` (UUID, PK)
+- `tenant_uuid` (UUID, required, indexed)
+- `channel` / `app_type` (required, default `wechat/wecom`)
+- `channel_account_uuid` (UUID, required, indexed)
+- `activity_name` (string, required)
+- `state` (string, required, unique within tenant + channel)
+- `config_id` (string, nullable before first publish)
+- `join_scene` (int, required)
+- `skip_verify` (bool, default false)
+- `auto_create_room` (bool, default false)
+- `qr_code` (string, nullable)
+- `status` (enum: `draft|active|disabled`)
+- `sync_status` (enum: `pending|syncing|success|failed|manual_required`)
+- `last_sync_error` (string, nullable)
+- `last_synced_at` (timestamp, nullable)
+- `created_by` / `updated_by` / `created_at` / `updated_at`
+
+### Rules
+- `state` 由平台生成并在租户内唯一。
+- 首次发布成功后必须回填 `config_id`。
+- `disabled` 不得继续作为有效引流入口。
+
+## 13. GroupChatSnapshot
+
+### Purpose
+客户群主数据快照，支撑群运营列表与分析。
+
+### Fields
+- `snapshot_uuid` (UUID, PK)
+- `tenant_uuid` (UUID, required, indexed)
+- `channel_account_uuid` (UUID, required, indexed)
+- `chat_id` (string, required, indexed)
+- `name` (string, nullable)
+- `owner_userid` (string, nullable)
+- `member_count` (int, required, default 0)
+- `create_time` (timestamp, nullable)
+- `last_activity_at` (timestamp, nullable)
+- `source_group_code_uuid` (UUID, nullable, indexed)
+- `source_config_id` (string, nullable)
+- `payload` (jsonb, required)
+- `updated_at` (timestamp)
+
+### Rules
+- `(tenant_uuid, channel_account_uuid, chat_id)` 唯一。
+- 回调与拉取更新写同一快照表，保持最终一致。
+
+## 14. GroupTagDefinition（本地标签）
+
+### Purpose
+定义平台本地群标签（不回写企微）。
+
+### Fields
+- `group_tag_uuid` (UUID, PK)
+- `tenant_uuid` (UUID, required, indexed)
+- `tag_name` (string, required)
+- `color` (string, nullable)
+- `rule_mode` (enum: `manual|rule_based`)
+- `rule_payload` (jsonb, nullable)
+- `status` (enum: `active|disabled`)
+- `created_by` / `updated_by` / `created_at` / `updated_at`
+
+### Rules
+- `(tenant_uuid, tag_name)` 唯一。
+- `rule_based` 必须提供 `rule_payload`。
+
+## 15. GroupTagBinding
+
+### Purpose
+群与本地标签绑定关系。
+
+### Fields
+- `binding_uuid` (UUID, PK)
+- `tenant_uuid` (UUID, required, indexed)
+- `group_tag_uuid` (UUID, required, indexed)
+- `chat_id` (string, required, indexed)
+- `bind_source` (enum: `manual|rule_engine`)
+- `rule_run_uuid` (UUID, nullable)
+- `created_at` / `updated_at`
+
+### Rules
+- `(tenant_uuid, group_tag_uuid, chat_id)` 唯一。
+- `bind_source=rule_engine` 时应记录 `rule_run_uuid`。
+
+## 16. GroupTagRuleRun
+
+### Purpose
+记录自动打标任务执行轨迹与命中结果。
+
+### Fields
+- `rule_run_uuid` (UUID, PK)
+- `tenant_uuid` (UUID, required, indexed)
+- `group_tag_uuid` (UUID, required, indexed)
+- `rule_version` (int, required)
+- `trigger_source` (enum: `sync_job|manual_replay|scheduled`)
+- `matched_count` (int, required)
+- `scanned_count` (int, required)
+- `run_status` (enum: `success|failed`)
+- `error_message` (string, nullable)
+- `started_at` / `finished_at` / `created_at`
+
+### Rules
+- 每次规则执行必须落库，失败也要可追踪。
+
+## V2.1 关系补充
+
+- `GroupLiveCode` 1:N `GroupChatSnapshot`（按来源关联）
+- `GroupTagDefinition` N:N `GroupChatSnapshot`（通过 `GroupTagBinding`）
+- `GroupTagDefinition` 1:N `GroupTagRuleRun`
+
+## V2.1 状态机补充
+
+### GroupLiveCode.sync_status
+- `pending -> syncing -> success`
+- `syncing -> failed -> syncing`（自动重试）
+- `failed -> manual_required`（超过重试阈值）
+- `manual_required -> syncing`（人工重放）

@@ -18,6 +18,7 @@ import (
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/logger"
 	leadobs "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/lead_capture"
 	socialsvc "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/services/admin/social_channel_governance"
+	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/shared/wecomauth"
 	"github.com/google/uuid"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -35,6 +36,8 @@ type WeComSyncService struct {
 	retrySvc    *socialsvc.RetryDeadletterService
 	writeMu     sync.Mutex
 	writeSeq    map[string]int64
+	identityMu  sync.RWMutex
+	identityMap map[string]string
 }
 
 type TriggerSyncRequest struct {
@@ -68,12 +71,14 @@ func NewWeComSyncService(taskRepo *leadrepo.LeadSyncTaskRepository, metrics *lea
 		providerAdapter = NewDefaultSyncTaskProviderAdapter(nil, nil)
 	}
 	_ = factory.Register("wechat", "wecom", NewDefaultWeComLeadAdapter(), providerAdapter)
+	_ = factory.Register("wechat", "openwork", NewDefaultWeComLeadAdapter(), providerAdapter)
 	return &WeComSyncService{
 		taskRepo:    taskRepo,
 		metrics:     metrics,
 		syncFactory: factory,
 		dedupSvc:    NewLeadDedupService(),
 		writeSeq:    map[string]int64{},
+		identityMap: map[string]string{},
 	}
 }
 
@@ -87,6 +92,7 @@ func (s *WeComSyncService) WithLeadIngestion(leadRepo *leadrepo.LeadRepository, 
 			s.syncFactory = NewChannelSyncFactory()
 		}
 		_ = s.syncFactory.RegisterLeadAdapter("wechat", "wecom", adapter)
+		_ = s.syncFactory.RegisterLeadAdapter("wechat", "openwork", adapter)
 	}
 	return s
 }
@@ -470,6 +476,37 @@ func (s *WeComSyncService) runLocalSyncIngestion(
 				}
 				seenDedup[key] = struct{}{}
 			}
+			identityKey := buildLeadExternalIdentityKey(req.TenantUUID, channelAccountUUID, item.ExternalLeadID, item.WechatID)
+			if identityKey != "" {
+				if cachedLeadUUID := s.lookupLeadUUIDByIdentity(identityKey); cachedLeadUUID != "" {
+					if existing, e := s.leadRepo.GetByUUID(ctx, req.TenantUUID, cachedLeadUUID); e == nil && existing != nil {
+						_ = s.appendSyncTraceActivity(ctx, req, channelAccountUUID, existing.LeadUUID, item, true)
+						stats.Updated++
+						if onProgress != nil {
+							onProgress(idx+1, len(items))
+						}
+						continue
+					}
+				}
+				if s.leadRepo != nil && s.leadRepo.DB != nil {
+					if existing, e := s.findExistingLeadByExternalIdentityForSync(
+						ctx,
+						s.leadRepo.DB,
+						req.TenantUUID,
+						channelAccountUUID,
+						item.ExternalLeadID,
+						item.WechatID,
+					); e == nil && existing != nil {
+						s.rememberLeadUUIDByIdentity(identityKey, existing.LeadUUID)
+						_ = s.appendSyncTraceActivity(ctx, req, channelAccountUUID, existing.LeadUUID, item, true)
+						stats.Updated++
+						if onProgress != nil {
+							onProgress(idx+1, len(items))
+						}
+						continue
+					}
+				}
+			}
 			existsBefore := false
 			if strings.TrimSpace(item.Phone) != "" {
 				if existing, e := s.leadRepo.FindFirstByPhone(ctx, req.TenantUUID, item.Phone); e == nil && existing != nil {
@@ -496,6 +533,9 @@ func (s *WeComSyncService) runLocalSyncIngestion(
 			if created != nil {
 				if err := s.appendSyncTraceActivity(ctx, req, channelAccountUUID, created.LeadUUID, item, existsBefore); err != nil {
 					return SyncIngestStats{}, err
+				}
+				if identityKey != "" {
+					s.rememberLeadUUIDByIdentity(identityKey, created.LeadUUID)
 				}
 			}
 			if existsBefore {
@@ -539,6 +579,7 @@ func (s *WeComSyncService) runLocalSyncIngestion(
 				}
 				seenDedup[key] = struct{}{}
 			}
+			identityKey := buildLeadExternalIdentityKey(req.TenantUUID, channelAccountUUID, item.ExternalLeadID, item.WechatID)
 			existing, matchErr := s.findExistingLeadForSync(
 				ctx,
 				tx,
@@ -549,6 +590,29 @@ func (s *WeComSyncService) runLocalSyncIngestion(
 				req.AppType,
 				channelAccountUUID,
 			)
+			if matchErr != nil {
+				return matchErr
+			}
+			if existing == nil && identityKey != "" {
+				if cachedLeadUUID := s.lookupLeadUUIDByIdentity(identityKey); cachedLeadUUID != "" {
+					var cached leadmodel.Lead
+					if err := tx.WithContext(ctx).
+						Where("tenant_uuid = ? AND lead_uuid = ?", req.TenantUUID, cachedLeadUUID).
+						First(&cached).Error; err == nil {
+						existing = &cached
+					}
+				}
+			}
+			if existing == nil {
+				existing, matchErr = s.findExistingLeadByExternalIdentityForSync(
+					ctx,
+					tx,
+					req.TenantUUID,
+					channelAccountUUID,
+					item.ExternalLeadID,
+					item.WechatID,
+				)
+			}
 			if matchErr != nil {
 				return matchErr
 			}
@@ -573,8 +637,14 @@ func (s *WeComSyncService) runLocalSyncIngestion(
 				if err := appendSyncTraceActivityTx(ctx, tx, req, channelAccountUUID, lead.LeadUUID, item, false); err != nil {
 					return err
 				}
+				if identityKey != "" {
+					s.rememberLeadUUIDByIdentity(identityKey, lead.LeadUUID)
+				}
 				stats.Created++
 				continue
+			}
+			if identityKey != "" {
+				s.rememberLeadUUIDByIdentity(identityKey, existing.LeadUUID)
 			}
 			updates := map[string]any{"updated_at": time.Now().UTC()}
 			changed := false
@@ -701,7 +771,7 @@ func (s *WeComSyncService) triggerLeadWriteback(ctx context.Context, req Trigger
 		WhitelistedFields: stringSliceFromAny(policy.MappingRules["whitelist"]),
 		ProtectedFields:   stringSliceFromAny(policy.ProtectedFields["fields"]),
 	}
-	credentials, authMode, err := s.resolveWeComWritebackCredentials(ctx, req.TenantUUID, channelAccountUUID)
+	credentials, err := s.resolveWeComWritebackCredentials(ctx, req.TenantUUID, channelAccountUUID)
 	if err != nil {
 		_ = s.taskRepo.UpdateStatus(ctx, req.TenantUUID, created.TaskUUID, "failed", map[string]any{
 			"error_message": err.Error(),
@@ -712,13 +782,7 @@ func (s *WeComSyncService) triggerLeadWriteback(ctx context.Context, req Trigger
 		s.publishTaskProgress(ctx, created)
 		return created, nil
 	}
-	logger.WithFields(logger.Fields{
-		"component":            "lead_capture_sync",
-		"tenant_uuid":          req.TenantUUID,
-		"channel_account_uuid": channelAccountUUID,
-		"auth_mode":            authMode,
-	}).Info("lead writeback auth mode resolved")
-	app, err := newWeComLeadSyncApp(credentials)
+	app, err := newWeComLeadSyncApp("wechat", req.AppType, credentials)
 	if err != nil {
 		_ = s.taskRepo.UpdateStatus(ctx, req.TenantUUID, created.TaskUUID, "failed", map[string]any{
 			"error_message": err.Error(),
@@ -854,6 +918,40 @@ func (s *WeComSyncService) triggerLeadWriteback(ctx context.Context, req Trigger
 			}
 			continue
 		}
+		if resp != nil && resp.ErrCode == 84061 {
+			// 84061: current userid is not following this external contact.
+			// Retry once with owner_external_userid resolved from latest sync_trace.
+			fallbackOperatorID := strings.TrimSpace(fieldString(item.Fields, "owner_external_userid"))
+			if fallbackOperatorID == "" {
+				var fallbackErr error
+				fallbackOperatorID, fallbackErr = s.resolveLeadOwnerExternalUserIDFromSyncTrace(
+					ctx,
+					req.TenantUUID,
+					channelAccountUUID,
+					item.LeadUUID,
+					externalUserID,
+				)
+				if fallbackErr != nil {
+					logger.WithFields(logger.Fields{
+						"component":            "lead_capture_sync",
+						"tenant_uuid":          req.TenantUUID,
+						"channel_account_uuid": channelAccountUUID,
+						"lead_uuid":            item.LeadUUID,
+						"external_userid":      externalUserID,
+						"error":                fallbackErr.Error(),
+					}).Warn("resolve owner_external_userid from sync_trace failed")
+				}
+			}
+			if fallbackOperatorID != "" && fallbackOperatorID != operatorUserID {
+				retryReq := *remarkReq
+				retryReq.UserID = fallbackOperatorID
+				retryResp, retryErr := app.ExternalContact.Remark(ctx, &retryReq)
+				if retryErr == nil && retryResp != nil {
+					resp = retryResp
+					operatorUserID = fallbackOperatorID
+				}
+			}
+		}
 		if err := validateWeComResponseCode("externalcontact.remark", *resp); err != nil {
 			rejected++
 			rejectReasons["upstream_resp_failed"]++
@@ -949,6 +1047,60 @@ func (s *WeComSyncService) triggerLeadWriteback(ctx context.Context, req Trigger
 	return created, nil
 }
 
+func (s *WeComSyncService) resolveLeadOwnerExternalUserIDFromSyncTrace(
+	ctx context.Context,
+	tenantUUID, channelAccountUUID, leadUUID, externalUserID string,
+) (string, error) {
+	if s == nil || s.taskRepo == nil || s.taskRepo.DB == nil {
+		return "", errors.New("repository database is not initialized")
+	}
+	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
+	channelAccountUUID = strings.ToLower(strings.TrimSpace(channelAccountUUID))
+	leadUUID = strings.TrimSpace(leadUUID)
+	externalUserID = strings.TrimSpace(externalUserID)
+	if tenantUUID == "" || leadUUID == "" {
+		return "", nil
+	}
+
+	activities := make([]leadmodel.LeadActivity, 0, 16)
+	if err := s.taskRepo.DB.WithContext(ctx).
+		Where(
+			"tenant_uuid = ? AND lead_uuid = ? AND activity_type = ?",
+			tenantUUID,
+			leadUUID,
+			leadmodel.LeadActivityTypeSyncTrace,
+		).
+		Order("updated_at DESC").
+		Limit(30).
+		Find(&activities).Error; err != nil {
+		return "", err
+	}
+
+	for _, activity := range activities {
+		payload := activity.Payload
+		if payload == nil {
+			continue
+		}
+		if channelAccountUUID != "" && payloadString(payload, "source_account_uuid") != channelAccountUUID {
+			continue
+		}
+		if externalUserID != "" {
+			payloadExternal := strings.TrimSpace(payloadString(payload, "external_lead_id"))
+			if payloadExternal == "" {
+				payloadExternal = strings.TrimSpace(payloadString(payload, "external_wechat_id"))
+			}
+			if payloadExternal != externalUserID {
+				continue
+			}
+		}
+		operatorUserID := strings.TrimSpace(payloadString(payload, "owner_external_userid"))
+		if operatorUserID != "" {
+			return operatorUserID, nil
+		}
+	}
+	return "", nil
+}
+
 func (s *WeComSyncService) publishTaskProgress(ctx context.Context, task *leadmodel.LeadSyncTask) {
 	if s == nil || s.realtime == nil || task == nil {
 		return
@@ -997,7 +1149,7 @@ func (s *WeComSyncService) GetLeadWritebackPolicy(ctx context.Context, tenantUUI
 		OverwriteMode:   "safe",
 		Enabled:         true,
 	}
-	if channel != "wechat" || appType != "wecom" {
+	if _, err := wecomauth.ResolveKind(channel, appType); err != nil {
 		defaultPolicy.CapabilityStatus = socialmodel.CapabilityStatusNotSupported
 		return defaultPolicy, nil
 	}
@@ -1128,6 +1280,51 @@ func ptrTime(t time.Time) *time.Time {
 	return &t
 }
 
+func buildLeadExternalIdentityKey(tenantUUID, sourceAccountUUID, externalLeadID, externalWechatID string) string {
+	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
+	externalLeadID = strings.TrimSpace(externalLeadID)
+	externalWechatID = strings.TrimSpace(externalWechatID)
+	identity := externalLeadID
+	if identity == "" {
+		identity = externalWechatID
+	}
+	identity = strings.TrimSpace(identity)
+	if tenantUUID == "" || identity == "" {
+		return ""
+	}
+	return tenantUUID + ":" + identity
+}
+
+func (s *WeComSyncService) lookupLeadUUIDByIdentity(identityKey string) string {
+	if s == nil {
+		return ""
+	}
+	identityKey = strings.TrimSpace(identityKey)
+	if identityKey == "" {
+		return ""
+	}
+	s.identityMu.RLock()
+	defer s.identityMu.RUnlock()
+	return strings.TrimSpace(s.identityMap[identityKey])
+}
+
+func (s *WeComSyncService) rememberLeadUUIDByIdentity(identityKey, leadUUID string) {
+	if s == nil {
+		return
+	}
+	identityKey = strings.TrimSpace(identityKey)
+	leadUUID = strings.TrimSpace(leadUUID)
+	if identityKey == "" || leadUUID == "" {
+		return
+	}
+	s.identityMu.Lock()
+	defer s.identityMu.Unlock()
+	if s.identityMap == nil {
+		s.identityMap = map[string]string{}
+	}
+	s.identityMap[identityKey] = leadUUID
+}
+
 func stringSliceFromAny(v any) []string {
 	switch vv := v.(type) {
 	case []string:
@@ -1200,6 +1397,139 @@ func (s *WeComSyncService) findExistingLeadForSync(
 	return &out, nil
 }
 
+func (s *WeComSyncService) findExistingLeadByExternalIdentityForSync(
+	ctx context.Context,
+	tx *gorm.DB,
+	tenantUUID, sourceAccountUUID, externalLeadID, externalWechatID string,
+) (*leadmodel.Lead, error) {
+	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
+	sourceAccountUUID = strings.ToLower(strings.TrimSpace(sourceAccountUUID))
+	externalLeadID = strings.TrimSpace(externalLeadID)
+	externalWechatID = strings.TrimSpace(externalWechatID)
+	if tx == nil || tenantUUID == "" {
+		return nil, nil
+	}
+	if externalLeadID == "" && externalWechatID == "" {
+		return nil, nil
+	}
+
+	activityTable := leadmodel.LeadActivity{}.TableName()
+	var leadUUID string
+	dialect := strings.ToLower(strings.TrimSpace(tx.Dialector.Name()))
+	switch dialect {
+	case "postgres":
+		query := tx.WithContext(ctx).
+			Table(activityTable).
+			Select("lead_uuid").
+			Where("tenant_uuid = ? AND activity_type = ?", tenantUUID, leadmodel.LeadActivityTypeSyncTrace).
+			Order("updated_at DESC")
+		strictQuery := query.Where("payload ->> 'source_account_uuid' = ?", sourceAccountUUID)
+		if externalLeadID != "" && externalWechatID != "" {
+			strictQuery = strictQuery.Where("(payload ->> 'external_lead_id' = ? OR payload ->> 'external_wechat_id' = ?)", externalLeadID, externalWechatID)
+			query = query.Where("(payload ->> 'external_lead_id' = ? OR payload ->> 'external_wechat_id' = ?)", externalLeadID, externalWechatID)
+		} else if externalLeadID != "" {
+			strictQuery = strictQuery.Where("payload ->> 'external_lead_id' = ?", externalLeadID)
+			query = query.Where("payload ->> 'external_lead_id' = ?", externalLeadID)
+		} else {
+			strictQuery = strictQuery.Where("payload ->> 'external_wechat_id' = ?", externalWechatID)
+			query = query.Where("payload ->> 'external_wechat_id' = ?", externalWechatID)
+		}
+		if err := strictQuery.Limit(1).Scan(&leadUUID).Error; err != nil {
+			return nil, err
+		}
+		if strings.TrimSpace(leadUUID) == "" {
+			if err := query.Limit(1).Scan(&leadUUID).Error; err != nil {
+				return nil, err
+			}
+		}
+	case "sqlite":
+		query := tx.WithContext(ctx).
+			Table(activityTable).
+			Select("lead_uuid").
+			Where("tenant_uuid = ? AND activity_type = ?", tenantUUID, leadmodel.LeadActivityTypeSyncTrace).
+			Order("updated_at DESC")
+		strictQuery := query.Where("json_extract(payload, '$.source_account_uuid') = ?", sourceAccountUUID)
+		if externalLeadID != "" && externalWechatID != "" {
+			strictQuery = strictQuery.Where("(json_extract(payload, '$.external_lead_id') = ? OR json_extract(payload, '$.external_wechat_id') = ?)", externalLeadID, externalWechatID)
+			query = query.Where("(json_extract(payload, '$.external_lead_id') = ? OR json_extract(payload, '$.external_wechat_id') = ?)", externalLeadID, externalWechatID)
+		} else if externalLeadID != "" {
+			strictQuery = strictQuery.Where("json_extract(payload, '$.external_lead_id') = ?", externalLeadID)
+			query = query.Where("json_extract(payload, '$.external_lead_id') = ?", externalLeadID)
+		} else {
+			strictQuery = strictQuery.Where("json_extract(payload, '$.external_wechat_id') = ?", externalWechatID)
+			query = query.Where("json_extract(payload, '$.external_wechat_id') = ?", externalWechatID)
+		}
+		if err := strictQuery.Limit(1).Scan(&leadUUID).Error; err != nil {
+			return nil, err
+		}
+		if strings.TrimSpace(leadUUID) == "" {
+			if err := query.Limit(1).Scan(&leadUUID).Error; err != nil {
+				return nil, err
+			}
+		}
+	default:
+	}
+
+	if strings.TrimSpace(leadUUID) == "" {
+		activities := make([]leadmodel.LeadActivity, 0, 200)
+		if err := tx.WithContext(ctx).
+			Where("tenant_uuid = ? AND activity_type = ?", tenantUUID, leadmodel.LeadActivityTypeSyncTrace).
+			Order("updated_at DESC").
+			Limit(200).
+			Find(&activities).Error; err != nil {
+			return nil, err
+		}
+		for _, activity := range activities {
+			payload := activity.Payload
+			if payload == nil {
+				continue
+			}
+			if strings.TrimSpace(payloadString(payload, "source_account_uuid")) != sourceAccountUUID {
+				continue
+			}
+			if externalLeadID != "" && strings.TrimSpace(payloadString(payload, "external_lead_id")) == externalLeadID {
+				leadUUID = strings.TrimSpace(activity.LeadUUID)
+				break
+			}
+			if externalWechatID != "" && strings.TrimSpace(payloadString(payload, "external_wechat_id")) == externalWechatID {
+				leadUUID = strings.TrimSpace(activity.LeadUUID)
+				break
+			}
+		}
+		if strings.TrimSpace(leadUUID) == "" {
+			for _, activity := range activities {
+				payload := activity.Payload
+				if payload == nil {
+					continue
+				}
+				if externalLeadID != "" && strings.TrimSpace(payloadString(payload, "external_lead_id")) == externalLeadID {
+					leadUUID = strings.TrimSpace(activity.LeadUUID)
+					break
+				}
+				if externalWechatID != "" && strings.TrimSpace(payloadString(payload, "external_wechat_id")) == externalWechatID {
+					leadUUID = strings.TrimSpace(activity.LeadUUID)
+					break
+				}
+			}
+		}
+	}
+
+	leadUUID = strings.TrimSpace(leadUUID)
+	if leadUUID == "" {
+		return nil, nil
+	}
+	var out leadmodel.Lead
+	if err := tx.WithContext(ctx).
+		Where("tenant_uuid = ? AND lead_uuid = ?", tenantUUID, leadUUID).
+		First(&out).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &out, nil
+}
+
 func (s *WeComSyncService) appendSyncTraceActivity(
 	ctx context.Context,
 	req TriggerSyncRequest,
@@ -1231,18 +1561,21 @@ func appendSyncTraceActivityTx(
 		return fmt.Errorf("lead activity table missing: %s", leadmodel.LeadActivity{}.TableName())
 	}
 	payload := datatypes.JSONMap{
-		"trace_id":              strings.TrimSpace(req.TraceID),
-		"source_channel":        strings.ToLower(strings.TrimSpace(req.Channel)),
-		"source_app_type":       strings.ToLower(strings.TrimSpace(req.AppType)),
-		"source_account_uuid":   strings.TrimSpace(channelAccountUUID),
-		"external_lead_id":      strings.TrimSpace(item.ExternalLeadID),
-		"external_wechat_id":    strings.TrimSpace(item.WechatID),
-		"owner_external_userid": strings.TrimSpace(item.OwnerMemberUUID),
-		"display_name":          strings.TrimSpace(item.DisplayName),
-		"phone":                 strings.TrimSpace(item.Phone),
-		"email":                 strings.ToLower(strings.TrimSpace(item.Email)),
-		"dedup_exists_before":   existsBefore,
-		"ingestion_entrypoint":  "wecom_sync",
+		"trace_id":               strings.TrimSpace(req.TraceID),
+		"source_channel":         strings.ToLower(strings.TrimSpace(req.Channel)),
+		"source_app_type":        strings.ToLower(strings.TrimSpace(req.AppType)),
+		"source_account_uuid":    strings.TrimSpace(channelAccountUUID),
+		"external_lead_id":       strings.TrimSpace(item.ExternalLeadID),
+		"external_wechat_id":     strings.TrimSpace(item.WechatID),
+		"owner_external_userid":  strings.TrimSpace(item.OwnerMemberUUID),
+		"follow_external_userid": strings.TrimSpace(item.OwnerMemberUUID),
+		"adder_external_userid":  strings.TrimSpace(item.AdderMemberUUID),
+		"oper_userid":            strings.TrimSpace(item.AdderMemberUUID),
+		"display_name":           strings.TrimSpace(item.DisplayName),
+		"phone":                  strings.TrimSpace(item.Phone),
+		"email":                  strings.ToLower(strings.TrimSpace(item.Email)),
+		"dedup_exists_before":    existsBefore,
+		"ingestion_entrypoint":   "wecom_sync",
 	}
 	if !item.OccurredAt.IsZero() {
 		payload["occurred_at"] = item.OccurredAt.UTC().Format(time.RFC3339)
@@ -1339,26 +1672,26 @@ func payloadString(payload datatypes.JSONMap, key string) string {
 func (s *WeComSyncService) resolveWeComWritebackCredentials(
 	ctx context.Context,
 	tenantUUID, channelAccountUUID string,
-) (map[string]string, string, error) {
+) (map[string]string, error) {
 	if s == nil || s.taskRepo == nil || s.taskRepo.DB == nil {
-		return nil, "", errors.New("account repository not configured")
+		return nil, errors.New("account repository not configured")
 	}
 	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
 	channelAccountUUID = strings.ToLower(strings.TrimSpace(channelAccountUUID))
 	if tenantUUID == "" || channelAccountUUID == "" {
-		return nil, "", errors.New("tenant_uuid and channel_account_uuid are required")
+		return nil, errors.New("tenant_uuid and channel_account_uuid are required")
 	}
 
 	accountRepo := socialrepo.NewAccountRepository(s.taskRepo.DB)
 	account, err := accountRepo.GetByAccountUUID(ctx, tenantUUID, channelAccountUUID)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 	if account == nil {
-		return nil, "", socialrepo.ErrAccountNotFound
+		return nil, socialrepo.ErrAccountNotFound
 	}
-	if !strings.EqualFold(strings.TrimSpace(account.ChannelCode), "wechat") || !strings.EqualFold(strings.TrimSpace(account.AppType), "wecom") {
-		return nil, "", fmt.Errorf("unsupported wecom account identity: %s/%s", strings.TrimSpace(account.ChannelCode), strings.TrimSpace(account.AppType))
+	if _, err := wecomauth.ResolveKind(strings.TrimSpace(account.ChannelCode), strings.TrimSpace(account.AppType)); err != nil {
+		return nil, fmt.Errorf("unsupported wecom account identity: %s/%s", strings.TrimSpace(account.ChannelCode), strings.TrimSpace(account.AppType))
 	}
 
 	credentials := credentialsToStringMap(account.Credentials)
@@ -1367,24 +1700,7 @@ func (s *WeComSyncService) resolveWeComWritebackCredentials(
 	resolver := NewDefaultWeComLeadAdapterWithResolvers(accountRepo, openworkRepo, platformRepo)
 	credentials = resolver.mergeDelegatedCredentials(ctx, tenantUUID, channelAccountUUID, credentials)
 
-	authMode := detectWeComWritebackAuthMode(credentials)
-	if authMode != "delegated_template" && openworkRepo != nil {
-		binding, bindErr := openworkRepo.ResolveBindingByChannelAccount(ctx, tenantUUID, channelAccountUUID)
-		if bindErr == nil && binding != nil && strings.TrimSpace(binding.Status) == socialmodel.WeComAuthBindingStatusActive {
-			authMode = "delegated_template"
-		}
-	}
-	return credentials, authMode, nil
-}
-
-func detectWeComWritebackAuthMode(credentials map[string]string) string {
-	if strings.TrimSpace(credentials["template_id"]) != "" ||
-		strings.TrimSpace(credentials["provider_corpid"]) != "" ||
-		strings.TrimSpace(credentials["provider_secret"]) != "" ||
-		strings.TrimSpace(credentials["permanent_code"]) != "" {
-		return "delegated_template"
-	}
-	return "app_detail"
+	return credentials, nil
 }
 
 func (s *WeComSyncService) resolveLeadExternalUserID(

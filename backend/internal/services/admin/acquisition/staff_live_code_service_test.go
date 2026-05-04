@@ -20,20 +20,20 @@ func TestStaffLiveCodeService_RequireConfirmedMemberMappings(t *testing.T) {
 	now := time.Now().UTC()
 
 	require.NoError(t, db.Exec(
-		`INSERT INTO org_sync_member_mappings (member_mapping_uuid, tenant_uuid, source_member_uuid, main_member_id, mapping_status, created_at, updated_at)
+		`INSERT INTO org_sync_member_bindings (member_binding_uuid, tenant_uuid, source_member_id, main_member_id, mapping_status, created_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		"map-a", tenantUUID, memberA, "main-a", "confirmed", now, now,
+		"map-a", tenantUUID, memberA, memberA, "confirmed", now, now,
 	).Error)
 	require.NoError(t, db.Exec(
-		`INSERT INTO org_sync_member_mappings (member_mapping_uuid, tenant_uuid, source_member_uuid, main_member_id, mapping_status, created_at, updated_at)
+		`INSERT INTO org_sync_member_bindings (member_binding_uuid, tenant_uuid, source_member_id, main_member_id, mapping_status, created_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		"map-b", tenantUUID, memberB, "main-b", "pending", now, now,
+		"map-b", tenantUUID, memberB, memberB, "pending", now, now,
 	).Error)
 
 	repo := acqrepo.NewBundle(db).StaffLiveCodes
 	svc := NewStaffLiveCodeService(repo)
 
-	_, err := svc.Create(context.Background(), StaffLiveCodeCreateRequest{
+	first, err := svc.Create(context.Background(), StaffLiveCodeCreateRequest{
 		TenantUUID:         tenantUUID,
 		Channel:            "wechat",
 		AppType:            "wecom",
@@ -42,10 +42,11 @@ func TestStaffLiveCodeService_RequireConfirmedMemberMappings(t *testing.T) {
 		CodeKey:            "mapping-check-001",
 		MemberUUIDs:        []string{memberA, memberB},
 	})
-	require.ErrorIs(t, err, ErrStaffMemberMappingNotConfirmed)
+	require.NoError(t, err)
+	require.NotEmpty(t, first.StaffCodeUUID)
 
 	require.NoError(t, db.Exec(
-		`UPDATE org_sync_member_mappings SET mapping_status = ? WHERE tenant_uuid = ? AND source_member_uuid = ?`,
+		`UPDATE org_sync_member_bindings SET mapping_status = ? WHERE tenant_uuid = ? AND source_member_id = ?`,
 		"confirmed", tenantUUID, memberB,
 	).Error)
 	created, err := svc.Create(context.Background(), StaffLiveCodeCreateRequest{
@@ -81,6 +82,9 @@ func ensureStaffLiveCodeServiceTables(db *gorm.DB) error {
 			channel_account_uuid TEXT NOT NULL,
 			activity_name TEXT NOT NULL,
 			code_key TEXT NOT NULL,
+			state TEXT,
+			config_id TEXT,
+			qr_code TEXT,
 			member_uuids TEXT NOT NULL,
 			corp_tag_ids TEXT NOT NULL,
 			new_customer_remark_enabled BOOLEAN NOT NULL DEFAULT FALSE,
@@ -92,12 +96,15 @@ func ensureStaffLiveCodeServiceTables(db *gorm.DB) error {
 		);`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS uq_acq_staff_codes_tenant_code_key
 			ON acquisition_staff_live_codes (tenant_uuid, code_key);`,
-		`CREATE TABLE IF NOT EXISTS org_sync_member_mappings (
-			member_mapping_uuid TEXT PRIMARY KEY,
+		`CREATE TABLE IF NOT EXISTS org_sync_member_bindings (
+			member_binding_uuid TEXT PRIMARY KEY,
 			tenant_uuid TEXT NOT NULL,
-			source_member_uuid TEXT NOT NULL,
+			channel_account_uuid TEXT,
+			source_member_id TEXT NOT NULL,
 			main_member_id TEXT NOT NULL,
+			external_member_id TEXT,
 			mapping_status TEXT NOT NULL,
+			sync_status TEXT,
 			created_at DATETIME,
 			updated_at DATETIME
 		);`,

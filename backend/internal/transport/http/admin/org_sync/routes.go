@@ -83,6 +83,7 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		group.POST("/source-accounts/:source_account_uuid/set-scope", handler.SetDelegatedScope)
 		group.POST("/source-accounts/default/:account_uuid", handler.SetDefaultSourceAccount)
 		group.GET("/sync-logs", handler.ListSyncLogs)
+		group.POST("/sync-logs/clear", handler.ClearSyncLogs)
 		group.GET("/source-units", handler.ListSourceUnits)
 		group.GET("/source-members", handler.ListSourceMembers)
 		group.GET("/main-org-view", mainViewHandler.List)

@@ -109,9 +109,15 @@ var businessTables = []interface{}{
 	&domainLeadCaptureModel.LeadAttributionRecord{},
 	&domainLeadCaptureModel.CodeConfigChangeLog{},
 	&domainAcquisitionModel.StaffLiveCode{},
+	&domainAcquisitionModel.StaffContactEvent{},
+	&domainAcquisitionModel.ExternalContactOwner{},
 	&domainAcquisitionModel.StaffWelcomeConfig{},
 	&domainAcquisitionModel.StaffWelcomeSyncAttempt{},
 	&domainAcquisitionModel.GroupLiveCode{},
+	&domainAcquisitionModel.GroupChatSnapshot{},
+	&domainAcquisitionModel.GroupTagDefinition{},
+	&domainAcquisitionModel.GroupTagBinding{},
+	&domainAcquisitionModel.GroupTagRuleRun{},
 }
 
 var iamTables = []interface{}{
@@ -330,13 +336,34 @@ func ensureChannelCodeAcquisitionIndexes(ctx context.Context, db *gorm.DB) error
 	if db == nil {
 		return nil
 	}
-	tableName := domainmodels.S(domainmodels.TableLeadCaptureLeadAttributionRecords)
-	indexName := "uq_lead_capture_attribution_primary"
-	createStmt := fmt.Sprintf(
-		`CREATE UNIQUE INDEX IF NOT EXISTS %s ON %s (tenant_uuid, lead_uuid) WHERE is_primary = TRUE`,
-		indexName, tableName,
-	)
-	return db.WithContext(ctx).Exec(createStmt).Error
+	stmts := []string{
+		fmt.Sprintf(
+			`CREATE UNIQUE INDEX IF NOT EXISTS %s ON %s (tenant_uuid, lead_uuid) WHERE is_primary = TRUE`,
+			"uq_lead_capture_attribution_primary",
+			domainmodels.S(domainmodels.TableLeadCaptureLeadAttributionRecords),
+		),
+		fmt.Sprintf(
+			`CREATE UNIQUE INDEX IF NOT EXISTS %s ON %s (tenant_uuid, channel_account_uuid, chat_id)`,
+			"uq_acq_group_chat_snapshot_scope",
+			domainmodels.S(domainmodels.TableAcquisitionGroupChatSnapshots),
+		),
+		fmt.Sprintf(
+			`CREATE UNIQUE INDEX IF NOT EXISTS %s ON %s (tenant_uuid, tag_name)`,
+			"uq_acq_group_tag_definitions_name",
+			domainmodels.S(domainmodels.TableAcquisitionGroupTagDefinitions),
+		),
+		fmt.Sprintf(
+			`CREATE UNIQUE INDEX IF NOT EXISTS %s ON %s (tenant_uuid, group_tag_uuid, chat_id)`,
+			"uq_acq_group_tag_bindings_scope",
+			domainmodels.S(domainmodels.TableAcquisitionGroupTagBindings),
+		),
+	}
+	for _, stmt := range stmts {
+		if err := db.WithContext(ctx).Exec(stmt).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func ensureOpenWorkFoundationIndexes(ctx context.Context, db *gorm.DB) error {

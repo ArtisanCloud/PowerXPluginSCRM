@@ -417,3 +417,39 @@ func (r *SyncLogRepository) ListByChannelAccount(ctx context.Context, tenantUUID
 	}
 	return out, nil
 }
+
+func (r *SyncLogRepository) ClearByAccount(ctx context.Context, tenantUUID, sourceAccountUUID string) (int64, error) {
+	if r == nil || r.DB == nil {
+		return 0, errors.New("repository database is not initialized")
+	}
+	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
+	sourceAccountUUID = strings.ToLower(strings.TrimSpace(sourceAccountUUID))
+	if tenantUUID == "" || sourceAccountUUID == "" {
+		return 0, ErrSourceAccountNotFound
+	}
+	res := r.DB.WithContext(ctx).
+		Where("tenant_uuid = ? AND source_account_uuid = ?", tenantUUID, sourceAccountUUID).
+		Delete(&model.SyncLog{})
+	if res.Error != nil {
+		return 0, res.Error
+	}
+	return res.RowsAffected, nil
+}
+
+func (r *SyncLogRepository) ClearByChannelAccount(ctx context.Context, tenantUUID, channelAccountUUID string) (int64, error) {
+	if r == nil || r.DB == nil {
+		return 0, errors.New("repository database is not initialized")
+	}
+	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
+	channelAccountUUID = strings.ToLower(strings.TrimSpace(channelAccountUUID))
+	if tenantUUID == "" || channelAccountUUID == "" {
+		return 0, ErrSourceAccountNotFound
+	}
+	res := r.DB.WithContext(ctx).
+		Where("tenant_uuid = ? AND channel_account_uuid = ?", tenantUUID, channelAccountUUID).
+		Delete(&model.SyncLog{})
+	if res.Error != nil {
+		return 0, res.Error
+	}
+	return res.RowsAffected, nil
+}

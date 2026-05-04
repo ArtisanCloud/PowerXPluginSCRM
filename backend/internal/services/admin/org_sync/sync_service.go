@@ -2,6 +2,7 @@ package org_sync
 
 import (
 	"context"
+	"crypto/sha1"
 	"errors"
 	"fmt"
 	"os"
@@ -31,6 +32,7 @@ import (
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/logger"
 	orgobs "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/org_sync"
 	orgdriver "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/services/admin/org_sync/driver"
+	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/shared/wecomauth"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -283,7 +285,7 @@ func (s *SyncService) SyncOrgLocalToRemote(ctx context.Context, tenantUUID, sour
 	}
 	credentials := credentialsToMap(channelAccount.Credentials)
 	credentials = s.mergeDelegatedCredentialsFromPlatform(ctx, credentials)
-	workApp, err := s.buildWeComPushClient(ctx, tenantUUID, channelAccount.AccountUUID, credentials)
+	workApp, err := s.buildWeComPushClient(ctx, tenantUUID, channelAccount.AccountUUID, channelAccount.AppType, credentials)
 	if err != nil {
 		return nil, err
 	}
@@ -725,9 +727,8 @@ func weComPushAPIError(apiName string, errCode int, errMsg string) error {
 	return fmt.Errorf("%s failed: %d %s", apiName, errCode, msg)
 }
 
-func (s *SyncService) buildWeComPushClient(ctx context.Context, tenantUUID, channelAccountUUID string, credentials map[string]string) (*work.Work, error) {
-	authMode := s.resolveWeComAuthMode(ctx, tenantUUID, channelAccountUUID, credentials)
-	if authMode == weComAuthModeDelegatedTemplate {
+func (s *SyncService) buildWeComPushClient(ctx context.Context, tenantUUID, channelAccountUUID, appType string, credentials map[string]string) (*work.Work, error) {
+	if s.resolveWeComDelegatedMode(ctx, tenantUUID, channelAccountUUID, appType, credentials) {
 		templateID := strings.TrimSpace(credentials["template_id"])
 		templateSecret := strings.TrimSpace(credentials["template_secret"])
 		templateTicket := strings.TrimSpace(credentials["template_ticket"])
@@ -1060,8 +1061,7 @@ func (s *SyncService) TriggerSync(ctx context.Context, tenantUUID, sourceAccount
 		DisplayName:        channelAccount.DisplayName,
 		Credentials:        credentialsToMap(channelAccount.Credentials),
 	}
-	detectedAuthMode := detectWeComAuthMode(driverContext.Credentials)
-	authMode := s.resolveWeComAuthMode(ctx, tenantUUID, channelAccount.AccountUUID, driverContext.Credentials)
+	delegatedMode := s.resolveWeComDelegatedMode(ctx, tenantUUID, channelAccount.AccountUUID, channelAccount.AppType, driverContext.Credentials)
 	logger.WithFields(logger.Fields{
 		"component":             "org_sync",
 		"trace_id":              traceID,
@@ -1070,8 +1070,7 @@ func (s *SyncService) TriggerSync(ctx context.Context, tenantUUID, sourceAccount
 		"channel_account_uuid":  channelAccount.AccountUUID,
 		"channel_code":          channelAccount.ChannelCode,
 		"app_type":              channelAccount.AppType,
-		"auth_mode_detected":    detectedAuthMode,
-		"auth_mode":             authMode,
+		"delegated_mode":        delegatedMode,
 		"has_app_secret":        strings.TrimSpace(driverContext.Credentials["app_secret"]) != "",
 		"has_permanent_code":    strings.TrimSpace(driverContext.Credentials["permanent_code"]) != "",
 		"has_provider_secret":   strings.TrimSpace(driverContext.Credentials["provider_secret"]) != "",
@@ -1080,8 +1079,8 @@ func (s *SyncService) TriggerSync(ctx context.Context, tenantUUID, sourceAccount
 		"has_provider_corpid":   strings.TrimSpace(driverContext.Credentials["provider_corpid"]) != "",
 		"has_channel_corp_id":   strings.TrimSpace(driverContext.Credentials["corp_id"]) != "",
 		"has_delegated_traceid": traceID != "",
-	}).Info("org sync auth mode resolved")
-	if authMode == weComAuthModeDelegatedTemplate {
+	}).Info("org sync runtime mode resolved")
+	if delegatedMode {
 		return s.handleDelegatedTemplateSync(ctx, tenantUUID, sourceAccountUUID, account, channelAccount.AccountUUID, driverContext.Credentials)
 	}
 	drv, err := s.resolveDriver(driverContext)
@@ -1350,7 +1349,7 @@ func (s *SyncService) SetDelegatedScope(ctx context.Context, tenantUUID, sourceA
 		return nil, err
 	}
 	credentials := s.mergeDelegatedCredentialsFromPlatform(ctx, credentialsToMap(channelAccount.Credentials))
-	if s.resolveWeComAuthMode(ctx, tenantUUID, channelAccount.AccountUUID, credentials) != weComAuthModeDelegatedTemplate {
+	if !s.resolveWeComDelegatedMode(ctx, tenantUUID, channelAccount.AccountUUID, channelAccount.AppType, credentials) {
 		return nil, errors.New("当前账号不是代开发授权模式，无法设置可见范围")
 	}
 
@@ -1611,102 +1610,72 @@ func (s *SyncService) ListDelegatedScopeCandidates(ctx context.Context, tenantUU
 	return result, nil
 }
 
-const (
-	weComAuthModeAppDetail         = "app_detail"
-	weComAuthModeDelegatedTemplate = "delegated_template"
-)
-
-func detectWeComAuthMode(credentials map[string]string) string {
-	if strings.TrimSpace(credentials["template_id"]) != "" ||
-		strings.TrimSpace(credentials["provider_corpid"]) != "" ||
-		strings.TrimSpace(credentials["provider_secret"]) != "" ||
-		strings.TrimSpace(credentials["permanent_code"]) != "" {
-		return weComAuthModeDelegatedTemplate
-	}
-	if strings.TrimSpace(credentials["app_secret"]) != "" {
-		return weComAuthModeAppDetail
-	}
-	return weComAuthModeAppDetail
-}
-
-func (s *SyncService) resolveWeComAuthMode(ctx context.Context, tenantUUID, channelAccountUUID string, credentials map[string]string) string {
-	mode := detectWeComAuthMode(credentials)
-	if mode == weComAuthModeDelegatedTemplate {
-		logger.WithFields(logger.Fields{
-			"component":            "org_sync",
-			"tenant_uuid":          strings.TrimSpace(strings.ToLower(tenantUUID)),
-			"channel_account_uuid": strings.TrimSpace(strings.ToLower(channelAccountUUID)),
-			"auth_mode_detected":   mode,
-			"auth_mode":            mode,
-			"reason":               "credential_detected_delegated",
-		}).Info("org sync auth mode resolved")
-		return mode
-	}
-	if s == nil || s.openworkRepo == nil {
-		logger.WithFields(logger.Fields{
-			"component":            "org_sync",
-			"tenant_uuid":          strings.TrimSpace(strings.ToLower(tenantUUID)),
-			"channel_account_uuid": strings.TrimSpace(strings.ToLower(channelAccountUUID)),
-			"auth_mode_detected":   mode,
-			"auth_mode":            mode,
-			"reason":               "openwork_repo_unavailable",
-		}).Info("org sync auth mode resolved")
-		return mode
-	}
+func (s *SyncService) resolveWeComDelegatedMode(ctx context.Context, tenantUUID, channelAccountUUID, appType string, credentials map[string]string) bool {
 	tenantUUID = strings.TrimSpace(strings.ToLower(tenantUUID))
 	channelAccountUUID = strings.TrimSpace(strings.ToLower(channelAccountUUID))
-	if tenantUUID == "" || channelAccountUUID == "" {
-		logger.WithFields(logger.Fields{
-			"component":            "org_sync",
-			"tenant_uuid":          tenantUUID,
-			"channel_account_uuid": channelAccountUUID,
-			"auth_mode_detected":   mode,
-			"auth_mode":            mode,
-			"reason":               "tenant_or_channel_empty",
-		}).Info("org sync auth mode resolved")
-		return mode
-	}
-	binding, err := s.openworkRepo.ResolveBindingByChannelAccount(ctx, tenantUUID, channelAccountUUID)
+	kind, err := wecomauth.ResolveKind("wechat", appType)
 	if err != nil {
 		logger.WithFields(logger.Fields{
 			"component":            "org_sync",
 			"tenant_uuid":          tenantUUID,
 			"channel_account_uuid": channelAccountUUID,
-			"stage":                "resolve_auth_mode",
-		}).WithError(err).Warn("org sync auth mode fallback to app_detail because binding lookup failed")
-		logger.WithFields(logger.Fields{
-			"component":            "org_sync",
-			"tenant_uuid":          tenantUUID,
-			"channel_account_uuid": channelAccountUUID,
-			"auth_mode_detected":   mode,
-			"auth_mode":            mode,
-			"reason":               "binding_lookup_error",
-		}).Info("org sync auth mode resolved")
-		return mode
+			"reason":               "unsupported_app_type",
+			"app_type":             strings.TrimSpace(appType),
+		}).Info("org sync runtime mode resolved")
+		return false
 	}
-	if binding != nil && strings.TrimSpace(binding.Status) == socialModel.WeComAuthBindingStatusActive {
+	if wecomauth.IsDelegated(kind) {
 		logger.WithFields(logger.Fields{
 			"component":            "org_sync",
 			"tenant_uuid":          tenantUUID,
 			"channel_account_uuid": channelAccountUUID,
-			"auth_mode_detected":   mode,
-			"auth_mode":            weComAuthModeDelegatedTemplate,
-			"reason":               "active_binding_override",
-			"binding_status":       strings.TrimSpace(binding.Status),
-			"binding_uuid":         strings.TrimSpace(binding.BindingUUID),
-		}).Info("org sync auth mode resolved")
-		return weComAuthModeDelegatedTemplate
+			"reason":               "app_type_openwork",
+		}).Info("org sync runtime mode resolved")
+		return true
+	}
+	if hasDelegatedCredentialMarker(credentials) {
+		logger.WithFields(logger.Fields{
+			"component":            "org_sync",
+			"tenant_uuid":          tenantUUID,
+			"channel_account_uuid": channelAccountUUID,
+			"reason":               "delegated_credential_marker",
+		}).Info("org sync runtime mode resolved")
+		return true
+	}
+	if s != nil && s.openworkRepo != nil && tenantUUID != "" && channelAccountUUID != "" {
+		binding, bindingErr := s.openworkRepo.ResolveBindingByChannelAccount(ctx, tenantUUID, channelAccountUUID)
+		if bindingErr == nil && binding != nil {
+			logger.WithFields(logger.Fields{
+				"component":            "org_sync",
+				"tenant_uuid":          tenantUUID,
+				"channel_account_uuid": channelAccountUUID,
+				"reason":               "delegated_binding_exists",
+				"binding_status":       strings.TrimSpace(binding.Status),
+			}).Info("org sync runtime mode resolved")
+			return true
+		}
 	}
 	logger.WithFields(logger.Fields{
 		"component":            "org_sync",
 		"tenant_uuid":          tenantUUID,
 		"channel_account_uuid": channelAccountUUID,
-		"auth_mode_detected":   mode,
-		"auth_mode":            mode,
-		"reason":               "binding_not_active",
-		"binding_status":       strings.TrimSpace(binding.Status),
-	}).Info("org sync auth mode resolved")
-	return mode
+		"reason":               "app_type_wecom",
+	}).Info("org sync runtime mode resolved")
+	return false
+}
+
+func hasDelegatedCredentialMarker(credentials map[string]string) bool {
+	if len(credentials) == 0 {
+		return false
+	}
+	if strings.TrimSpace(credentials["foundation_binding_uuid"]) != "" {
+		return true
+	}
+	if strings.TrimSpace(credentials["permanent_code"]) != "" {
+		return true
+	}
+	migrationState := strings.ToLower(strings.TrimSpace(credentials["migration_state"]))
+	return strings.Contains(migrationState, "delegated")
 }
 
 func (s *SyncService) handleDelegatedTemplateSync(ctx context.Context, tenantUUID, sourceAccountUUID string, account *model.SourceAccount, channelAccountUUID string, credentials map[string]string) (*model.SourceAccount, error) {
@@ -2093,11 +2062,15 @@ func (s *SyncService) fetchDelegatedOrgPayloads(ctx context.Context, tenantUUID,
 
 	units := make([]orgdriver.SourceUnitDTO, 0, len(deptResp.Department))
 	deptIDs := make([]int, 0, len(deptResp.Department))
+	rootDeptIDs := make([]int, 0, 2)
 	for _, dept := range deptResp.Department {
 		if dept.ID <= 0 {
 			continue
 		}
 		deptIDs = append(deptIDs, dept.ID)
+		if dept.ParentID == 0 {
+			rootDeptIDs = append(rootDeptIDs, dept.ID)
+		}
 		externalID := strconv.Itoa(dept.ID)
 		var parentID *string
 		if dept.ParentID > 0 {
@@ -2114,23 +2087,8 @@ func (s *SyncService) fetchDelegatedOrgPayloads(ctx context.Context, tenantUUID,
 	}
 
 	memberMap := map[string]*orgdriver.SourceMemberDTO{}
-	for _, deptID := range deptIDs {
-		req := object.StringMap{
-			"department_id": strconv.Itoa(deptID),
-			"fetch_child":   "0",
-			"access_token":  accessTokenValue,
-		}
-		if httpDebug {
-			req["debug"] = "1"
-		}
-		userResp := &delegatedUserListResp{}
-		if _, err := baseClient.HttpGet(ctx, "cgi-bin/user/list", &req, nil, userResp); err != nil {
-			return nil, nil, err
-		}
-		if userResp.ErrCode != 0 {
-			return nil, nil, fmt.Errorf("代开发 user/list failed: %d %s", userResp.ErrCode, userResp.ErrMsg)
-		}
-		for _, user := range userResp.UserList {
+	mergeUserList := func(users []delegatedUserDTO) {
+		for _, user := range users {
 			userID := strings.TrimSpace(user.UserID)
 			if userID == "" {
 				continue
@@ -2179,69 +2137,118 @@ func (s *SyncService) fetchDelegatedOrgPayloads(ctx context.Context, tenantUUID,
 		}
 	}
 
-	for userID, dto := range memberMap {
-		if dto == nil {
+	// 优先按根部门一次性拉取全量成员（fetch_child=1），失败再降级分部门。
+	rootFetchSucceeded := false
+	var rootErr error
+	if len(rootDeptIDs) == 0 {
+		rootDeptIDs = append(rootDeptIDs, 1)
+	}
+	for idx, rootDeptID := range rootDeptIDs {
+		rootUsers, err := s.fetchDelegatedUserListWithRetry(ctx, baseClient, accessTokenValue, rootDeptID, true, httpDebug)
+		if err != nil {
+			rootErr = err
 			continue
 		}
-		if strings.TrimSpace(dto.Phone) != "" && strings.TrimSpace(dto.Email) != "" && strings.TrimSpace(dto.BizMail) != "" {
-			continue
+		rootFetchSucceeded = true
+		mergeUserList(rootUsers)
+		if idx < len(rootDeptIDs)-1 {
+			select {
+			case <-ctx.Done():
+				return nil, nil, ctx.Err()
+			case <-time.After(300 * time.Millisecond):
+			}
 		}
-		req := object.StringMap{
-			"userid":       userID,
-			"access_token": accessTokenValue,
+	}
+	if !rootFetchSucceeded {
+		logger.WithFields(logger.Fields{
+			"component":            "org_sync",
+			"tenant_uuid":          tenantUUID,
+			"channel_account_uuid": channelAccountUUID,
+			"stage":                "delegated_user_list_root_fallback",
+		}).WithError(rootErr).Warn("org sync delegated root user/list failed, fallback to per-department mode")
+
+		for idx, deptID := range deptIDs {
+			users, err := s.fetchDelegatedUserListWithRetry(ctx, baseClient, accessTokenValue, deptID, false, httpDebug)
+			if err != nil {
+				return nil, nil, err
+			}
+			mergeUserList(users)
+			if idx < len(deptIDs)-1 {
+				select {
+				case <-ctx.Done():
+					return nil, nil, ctx.Err()
+				case <-time.After(300 * time.Millisecond):
+				}
+			}
 		}
-		if httpDebug {
-			req["debug"] = "1"
-		}
-		detailResp := &delegatedUserGetResp{}
-		if _, err := baseClient.HttpGet(ctx, "cgi-bin/user/get", &req, nil, detailResp); err != nil {
-			return nil, nil, err
-		}
-		if detailResp.ErrCode != 0 {
-			logger.WithFields(logger.Fields{
-				"component":            "org_sync",
-				"tenant_uuid":          tenantUUID,
-				"channel_account_uuid": channelAccountUUID,
-				"external_member_id":   userID,
-				"stage":                "delegated_user_get",
-				"errcode":              detailResp.ErrCode,
-				"errmsg":               detailResp.ErrMsg,
-			}).Warn("org sync delegated user/get rejected")
-			continue
-		}
-		if name := strings.TrimSpace(detailResp.Name); name != "" {
-			dto.Name = name
-		}
-		if phone := strings.TrimSpace(detailResp.Mobile); phone != "" {
-			dto.Phone = phone
-		}
-		if email := strings.TrimSpace(detailResp.Email); email != "" {
-			dto.Email = email
-		}
-		if biz := strings.TrimSpace(detailResp.BizMail); biz != "" {
-			dto.BizMail = biz
-		}
-		if pos := strings.TrimSpace(detailResp.Position); pos != "" {
-			dto.Position = pos
-		}
-		if addr := strings.TrimSpace(detailResp.Address); addr != "" {
-			dto.Address = addr
-		}
-		if avatar := strings.TrimSpace(detailResp.Avatar); avatar != "" {
-			dto.AvatarURL = avatar
-		}
-		if detailResp.MainDepartment > 0 {
-			dto.MainDepartmentID = strconv.Itoa(detailResp.MainDepartment)
-		}
-		dto.DepartmentIDs = mergeDeptIDs(dto.DepartmentIDs, detailResp.Department, detailResp.MainDepartment)
-		for idx, depID := range detailResp.Department {
-			if depID <= 0 || idx >= len(detailResp.Order) {
+	}
+
+	// delegated_user_detail_fetch 默认关闭，避免逐个 user/get 触发高频限流。
+	if parseDelegatedBool(credentials["delegated_user_detail_fetch"]) {
+		for userID, dto := range memberMap {
+			if dto == nil {
 				continue
 			}
-			dto.DepartmentOrders[strconv.Itoa(depID)] = detailResp.Order[idx]
+			if strings.TrimSpace(dto.Phone) != "" && strings.TrimSpace(dto.Email) != "" && strings.TrimSpace(dto.BizMail) != "" {
+				continue
+			}
+			req := object.StringMap{
+				"userid":       userID,
+				"access_token": accessTokenValue,
+			}
+			if httpDebug {
+				req["debug"] = "1"
+			}
+			detailResp := &delegatedUserGetResp{}
+			if _, err := baseClient.HttpGet(ctx, "cgi-bin/user/get", &req, nil, detailResp); err != nil {
+				return nil, nil, err
+			}
+			if detailResp.ErrCode != 0 {
+				logger.WithFields(logger.Fields{
+					"component":            "org_sync",
+					"tenant_uuid":          tenantUUID,
+					"channel_account_uuid": channelAccountUUID,
+					"external_member_id":   userID,
+					"stage":                "delegated_user_get",
+					"errcode":              detailResp.ErrCode,
+					"errmsg":               detailResp.ErrMsg,
+				}).Warn("org sync delegated user/get rejected")
+				continue
+			}
+			if name := strings.TrimSpace(detailResp.Name); name != "" {
+				dto.Name = name
+			}
+			if phone := strings.TrimSpace(detailResp.Mobile); phone != "" {
+				dto.Phone = phone
+			}
+			if email := strings.TrimSpace(detailResp.Email); email != "" {
+				dto.Email = email
+			}
+			if biz := strings.TrimSpace(detailResp.BizMail); biz != "" {
+				dto.BizMail = biz
+			}
+			if pos := strings.TrimSpace(detailResp.Position); pos != "" {
+				dto.Position = pos
+			}
+			if addr := strings.TrimSpace(detailResp.Address); addr != "" {
+				dto.Address = addr
+			}
+			if avatar := strings.TrimSpace(detailResp.Avatar); avatar != "" {
+				dto.AvatarURL = avatar
+			}
+			if detailResp.MainDepartment > 0 {
+				dto.MainDepartmentID = strconv.Itoa(detailResp.MainDepartment)
+			}
+			dto.DepartmentIDs = mergeDeptIDs(dto.DepartmentIDs, detailResp.Department, detailResp.MainDepartment)
+			for idx, depID := range detailResp.Department {
+				if depID <= 0 || idx >= len(detailResp.Order) {
+					continue
+				}
+				dto.DepartmentOrders[strconv.Itoa(depID)] = detailResp.Order[idx]
+			}
+			dto.ProfileStatus = resolveDelegatedProfileStatus(dto.Name, dto.Phone, dto.Email)
+			dto.Status = resolveDelegatedMemberStatus(detailResp.Status)
 		}
-		dto.ProfileStatus = resolveDelegatedProfileStatus(dto.Name, dto.Phone, dto.Email)
-		dto.Status = resolveDelegatedMemberStatus(detailResp.Status)
 	}
 
 	members := make([]orgdriver.SourceMemberDTO, 0, len(memberMap))
@@ -2261,6 +2268,49 @@ func (s *SyncService) fetchDelegatedOrgPayloads(ctx context.Context, tenantUUID,
 		members = append(members, *member)
 	}
 	return units, members, nil
+}
+
+func (s *SyncService) fetchDelegatedUserListWithRetry(ctx context.Context, baseClient *kernel.BaseClient, accessTokenValue string, departmentID int, fetchChild bool, httpDebug bool) ([]delegatedUserDTO, error) {
+	if baseClient == nil {
+		return nil, errors.New("org sync delegated user/list base client unavailable")
+	}
+	fetchChildFlag := "0"
+	if fetchChild {
+		fetchChildFlag = "1"
+	}
+	maxAttempts := 6
+	var lastErr error
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		req := object.StringMap{
+			"department_id": strconv.Itoa(departmentID),
+			"fetch_child":   fetchChildFlag,
+			"access_token":  accessTokenValue,
+		}
+		if httpDebug {
+			req["debug"] = "1"
+		}
+		userResp := &delegatedUserListResp{}
+		if _, err := baseClient.HttpGet(ctx, "cgi-bin/user/list", &req, nil, userResp); err != nil {
+			return nil, err
+		}
+		if userResp.ErrCode == 0 {
+			return userResp.UserList, nil
+		}
+		if userResp.ErrCode != 45009 {
+			return nil, fmt.Errorf("代开发 user/list failed: %d %s", userResp.ErrCode, userResp.ErrMsg)
+		}
+		lastErr = fmt.Errorf("代开发 user/list failed: %d %s", userResp.ErrCode, userResp.ErrMsg)
+		if attempt == maxAttempts {
+			break
+		}
+		wait := time.Duration(1<<uint(attempt-1)) * time.Second
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(wait):
+		}
+	}
+	return nil, lastErr
 }
 
 func (s *SyncService) mergeDelegatedCredentialsFromPlatform(ctx context.Context, input map[string]string) map[string]string {
@@ -2712,9 +2762,22 @@ func (s *SyncService) SyncIAMAndBindingsFromPull(ctx context.Context, tenantUUID
 			var user iammodel.User
 			if strings.TrimSpace(email) != "" {
 				err := tx.WithContext(ctx).
-					Where("lower(email) = ?", strings.ToLower(strings.TrimSpace(email))).
+					Unscoped().
+					Where("tenant_uuid = ? AND lower(email) = ?", tenantUUID, strings.ToLower(strings.TrimSpace(email))).
 					First(&user).Error
 				if err == nil {
+					if user.DeletedAt.Valid {
+						if err := tx.WithContext(ctx).
+							Model(&iammodel.User{}).
+							Unscoped().
+							Where("id = ?", user.ID).
+							Updates(map[string]any{
+								"deleted_at": nil,
+								"updated_at": now,
+							}).Error; err != nil {
+							return 0, err
+						}
+					}
 					return user.ID, nil
 				}
 				if !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -2722,16 +2785,36 @@ func (s *SyncService) SyncIAMAndBindingsFromPull(ctx context.Context, tenantUUID
 				}
 			}
 			if strings.TrimSpace(phone) != "" {
-				err := tx.WithContext(ctx).Where("phone = ?", strings.TrimSpace(phone)).First(&user).Error
+				err := tx.WithContext(ctx).
+					Unscoped().
+					Where("tenant_uuid = ? AND phone = ?", tenantUUID, strings.TrimSpace(phone)).
+					First(&user).Error
 				if err == nil {
+					if user.DeletedAt.Valid {
+						if err := tx.WithContext(ctx).
+							Model(&iammodel.User{}).
+							Unscoped().
+							Where("id = ?", user.ID).
+							Updates(map[string]any{
+								"deleted_at": nil,
+								"updated_at": now,
+							}).Error; err != nil {
+							return 0, err
+						}
+					}
 					return user.ID, nil
 				}
 				if !errors.Is(err, gorm.ErrRecordNotFound) {
 					return 0, err
 				}
 			}
+			resolvedEmail := strings.TrimSpace(email)
+			if resolvedEmail == "" {
+				resolvedEmail = buildOrgSyncPlaceholderEmail(tenantUUID, channelAccountUUID, strings.TrimSpace(phone), strings.TrimSpace(name))
+			}
 			user = iammodel.User{
-				Email:        strings.TrimSpace(email),
+				TenantUuid:   tenantUUID,
+				Email:        resolvedEmail,
 				Phone:        strings.TrimSpace(phone),
 				DisplayName:  strings.TrimSpace(name),
 				Status:       iammodel.StatusActive,
@@ -2741,6 +2824,27 @@ func (s *SyncService) SyncIAMAndBindingsFromPull(ctx context.Context, tenantUUID
 				user.DisplayName = "Org Sync User"
 			}
 			if err := tx.WithContext(ctx).Create(&user).Error; err != nil {
+				if isIAMUserEmailUniqueViolation(err) {
+					errQuery := tx.WithContext(ctx).
+						Unscoped().
+						Where("tenant_uuid = ? AND lower(email) = ?", tenantUUID, strings.ToLower(strings.TrimSpace(resolvedEmail))).
+						First(&user).Error
+					if errQuery == nil {
+						if user.DeletedAt.Valid {
+							if restoreErr := tx.WithContext(ctx).
+								Model(&iammodel.User{}).
+								Unscoped().
+								Where("id = ?", user.ID).
+								Updates(map[string]any{
+									"deleted_at": nil,
+									"updated_at": now,
+								}).Error; restoreErr != nil {
+								return 0, restoreErr
+							}
+						}
+						return user.ID, nil
+					}
+				}
 				return 0, err
 			}
 			return user.ID, nil
@@ -2777,17 +2881,39 @@ func (s *SyncService) SyncIAMAndBindingsFromPull(ctx context.Context, tenantUUID
 			if memberID > 0 {
 				member, exists := memberByID[memberID]
 				if exists {
+					userUpdates := map[string]any{
+						"display_name": displayName,
+						"status":       status,
+						"updated_at":   now,
+					}
+					if email != "" {
+						userUpdates["email"] = email
+					}
+					if phone != "" {
+						userUpdates["phone"] = phone
+					}
 					if err := tx.WithContext(ctx).
 						Model(&iammodel.User{}).
 						Where("id = ?", member.UserID).
-						Updates(map[string]any{
-							"display_name": displayName,
-							"email":        email,
-							"phone":        phone,
-							"status":       status,
-							"updated_at":   now,
-						}).Error; err != nil {
-						return err
+						Updates(userUpdates).Error; err != nil {
+						if isIAMUserEmailUniqueViolation(err) {
+							delete(userUpdates, "email")
+							if retryErr := tx.WithContext(ctx).
+								Model(&iammodel.User{}).
+								Where("id = ?", member.UserID).
+								Updates(userUpdates).Error; retryErr != nil {
+								return retryErr
+							}
+							logger.WithFields(logger.Fields{
+								"component":            "org_sync",
+								"tenant_uuid":          tenantUUID,
+								"channel_account_uuid": channelAccountUUID,
+								"external_member_id":   externalMemberID,
+								"stage":                "member_user_update_skip_email",
+							}).WithError(err).Warn("org sync member user email conflict, skip email update")
+						} else {
+							return err
+						}
 					}
 					if err := tx.WithContext(ctx).
 						Model(&iammodel.Member{}).
@@ -2862,6 +2988,25 @@ func (s *SyncService) SyncIAMAndBindingsFromPull(ctx context.Context, tenantUUID
 }
 
 var orgSyncCodeCleaner = regexp.MustCompile(`[^a-z0-9_]+`)
+
+func buildOrgSyncPlaceholderEmail(tenantUUID, channelAccountUUID, phone, seed string) string {
+	base := strings.TrimSpace(phone)
+	if base == "" {
+		base = strings.TrimSpace(seed)
+	}
+	raw := strings.ToLower(strings.TrimSpace(fmt.Sprintf("%s:%s:%s", tenantUUID, channelAccountUUID, base)))
+	sum := sha1.Sum([]byte(raw))
+	return fmt.Sprintf("orgsync+%x@placeholder.local", sum[:8])
+}
+
+func isIAMUserEmailUniqueViolation(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "idx_iam_users_email") ||
+		strings.Contains(msg, "duplicate key value violates unique constraint")
+}
 
 func buildOrgSyncDepartmentCode(channelAccountUUID, externalUnitID string) string {
 	channelSuffix := strings.ReplaceAll(strings.TrimSpace(strings.ToLower(channelAccountUUID)), "-", "")

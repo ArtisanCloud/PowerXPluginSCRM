@@ -8,9 +8,16 @@ type StaffLiveCodeCreateRequest struct {
 	ChannelAccountUUID      string   `json:"channel_account_uuid" binding:"omitempty,uuid4"`
 	ActivityName            string   `json:"activity_name" binding:"required,max=128"`
 	CodeKey                 string   `json:"code_key" binding:"omitempty,max=128"`
-	MemberUUIDs             []string `json:"member_uuids" binding:"required,min=1,dive,uuid4"`
+	MemberUUIDs             []string `json:"member_uuids" binding:"required,min=1,dive,required"`
 	CorpTagIDs              []string `json:"corp_tag_ids"`
 	NewCustomerRemarkEnable bool     `json:"new_customer_remark_enabled"`
+}
+
+type StaffLiveCodeUpdateRequest struct {
+	ActivityName            string   `json:"activity_name" binding:"omitempty,max=128"`
+	MemberUUIDs             []string `json:"member_uuids" binding:"omitempty,min=1,dive,required"`
+	CorpTagIDs              []string `json:"corp_tag_ids"`
+	NewCustomerRemarkEnable *bool    `json:"new_customer_remark_enabled"`
 }
 
 type StaffLiveCodeListQuery struct {
