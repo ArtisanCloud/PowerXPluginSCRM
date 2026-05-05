@@ -29,15 +29,15 @@
 
 **⚠️ CRITICAL**: 本阶段完成前不得进入 US1/US2/US3 实装
 
-- [ ] T005 新增商机状态与活动类型常量于 `backend/internal/domain/models/opportunity/constants.go`
-- [ ] T006 实现 `opportunity_records` 模型于 `backend/internal/domain/models/opportunity/opportunity_record.go`
-- [ ] T007 [P] 实现 `opportunity_activities` 模型于 `backend/internal/domain/models/opportunity/opportunity_activity.go`
-- [ ] T008 在 `backend/cmd/database/migrate/migrate.go` 注册 Opportunity 模型迁移
-- [ ] T009 新增迁移脚本 `backend/cmd/database/migrate/scripts/20260505_01_opportunity_active_unique.sql`，实现活跃主商机部分唯一索引与辅助索引
-- [ ] T010 实现 Opportunity Repository 基础读写与租户事务封装于 `backend/internal/domain/repository/opportunity/opportunity_repository.go`
-- [ ] T011 [P] 实现 Opportunity Activity Repository 于 `backend/internal/domain/repository/opportunity/opportunity_activity_repository.go`
-- [ ] T012 在 `backend/internal/transport/http/admin/opportunity/routes.go` 完成 Opportunity Service/Repository 依赖装配（参照现有 admin 子域 RegisterRoutes 注入方式）
-- [ ] T013 在 `backend/internal/transport/http/admin/routes.go` 挂载 Opportunity 路由组（`/api/v1/admin/opportunity/**`）
+- [X] T005 新增商机状态与活动类型常量于 `backend/internal/domain/models/opportunity/constants.go`
+- [X] T006 实现 `opportunity_records` 模型于 `backend/internal/domain/models/opportunity/opportunity_record.go`
+- [X] T007 [P] 实现 `opportunity_activities` 模型于 `backend/internal/domain/models/opportunity/opportunity_activity.go`
+- [X] T008 在 `backend/cmd/database/migrate/migrate.go` 注册 Opportunity 模型迁移
+- [X] T009 新增迁移脚本 `backend/cmd/database/migrate/scripts/20260505_01_opportunity_active_unique.sql`，实现活跃主商机部分唯一索引与辅助索引
+- [X] T010 实现 Opportunity Repository 基础读写与租户事务封装于 `backend/internal/domain/repository/opportunity/opportunity_repository.go`
+- [X] T011 [P] 实现 Opportunity Activity Repository 于 `backend/internal/domain/repository/opportunity/opportunity_activity_repository.go`
+- [X] T012 在 `backend/internal/transport/http/admin/opportunity/routes.go` 完成 Opportunity Service/Repository 依赖装配（参照现有 admin 子域 RegisterRoutes 注入方式）
+- [X] T013 在 `backend/internal/transport/http/admin/routes.go` 挂载 Opportunity 路由组（`/api/v1/admin/opportunity/**`）
 
 **Checkpoint**: 基础设施就绪，用户故事可并行推进
 

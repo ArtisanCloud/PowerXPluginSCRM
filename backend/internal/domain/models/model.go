@@ -19,6 +19,8 @@ const (
 	TableAcquisitionGroupTagDefinitions      = "acquisition_group_tag_definitions"
 	TableAcquisitionGroupTagBindings         = "acquisition_group_tag_bindings"
 	TableAcquisitionGroupTagRuleRuns         = "acquisition_group_tag_rule_runs"
+	TableOpportunityRecords                  = "opportunity_records"
+	TableOpportunityActivities               = "opportunity_activities"
 )
 
 // S delegates to entity schema helper so domain models follow the same schema prefix.

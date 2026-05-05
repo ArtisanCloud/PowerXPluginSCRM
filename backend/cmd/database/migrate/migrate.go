@@ -11,6 +11,7 @@ import (
 	domainmodels "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/domain/models"
 	domainAcquisitionModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/domain/models/acquisition"
 	domainLeadCaptureModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/domain/models/lead_capture"
+	domainOpportunityModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/domain/models/opportunity"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models"
 	adminconsoleModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/admin_console"
 	customerModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/customer"
@@ -118,6 +119,8 @@ var businessTables = []interface{}{
 	&domainAcquisitionModel.GroupTagDefinition{},
 	&domainAcquisitionModel.GroupTagBinding{},
 	&domainAcquisitionModel.GroupTagRuleRun{},
+	&domainOpportunityModel.OpportunityRecord{},
+	&domainOpportunityModel.OpportunityActivity{},
 }
 
 var iamTables = []interface{}{
