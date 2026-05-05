@@ -1,0 +1,348 @@
+openapi: 3.0.3
+info:
+  title: Opportunity MVP API
+  version: 0.1.0
+  description: Opportunity 商机管理一期合同（含 Lead 资格推进）
+servers:
+  - url: /api/v1/admin
+paths:
+  /leads/{lead_uuid}/qualification:
+    post:
+      summary: 推进/回退线索资格阶段（MQL/SQL）
+      tags: [LeadQualification]
+      parameters:
+        - in: path
+          name: lead_uuid
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [target_status]
+              properties:
+                target_status:
+                  type: string
+                  enum: [mql, sql, rollback]
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: updated
+        '422':
+          description: invalid transition
+  /opportunity/records:
+    post:
+      summary: 创建商机
+      tags: [Opportunity]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOpportunityRequest'
+      responses:
+        '200':
+          description: created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpportunityRecord'
+        '409':
+          description: active opportunity conflict
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: string
+                    example: OPPORTUNITY_ACTIVE_CONFLICT
+                  message:
+                    type: string
+                    example: lead already has active opportunity
+                  opportunity_uuid:
+                    type: string
+                    format: uuid
+        '422':
+          description: lead is not sql
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: string
+                    example: LEAD_NOT_SQL
+                  message:
+                    type: string
+                    example: lead status must be sql before creating opportunity
+    get:
+      summary: 商机列表
+      tags: [Opportunity]
+      parameters:
+        - in: query
+          name: stage
+          schema:
+            type: string
+        - in: query
+          name: owner_user_uuid
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: lead_uuid
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: page_size
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: ok
+  /opportunity/records/{opportunity_uuid}:
+    get:
+      summary: 商机详情
+      tags: [Opportunity]
+      parameters:
+        - $ref: '#/components/parameters/OpportunityUUID'
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpportunityRecord'
+    put:
+      summary: 更新商机基础字段
+      tags: [Opportunity]
+      parameters:
+        - $ref: '#/components/parameters/OpportunityUUID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                amount:
+                  type: number
+                currency:
+                  type: string
+                owner_user_uuid:
+                  type: string
+                  format: uuid
+                expected_close_at:
+                  type: string
+                  format: date-time
+      responses:
+        '200':
+          description: updated
+  /opportunity/records/{opportunity_uuid}/stage:
+    post:
+      summary: 商机阶段推进
+      tags: [Opportunity]
+      parameters:
+        - $ref: '#/components/parameters/OpportunityUUID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [to_stage]
+              properties:
+                to_stage:
+                  type: string
+                  enum: [open, qualified, proposal, negotiation]
+                note:
+                  type: string
+      responses:
+        '200':
+          description: updated
+        '422':
+          description: invalid stage transition
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: string
+                    example: OPPORTUNITY_STAGE_INVALID
+                  message:
+                    type: string
+                    example: invalid stage transition
+  /opportunity/records/{opportunity_uuid}/close:
+    post:
+      summary: 商机赢单/输单
+      tags: [Opportunity]
+      parameters:
+        - $ref: '#/components/parameters/OpportunityUUID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [result]
+              properties:
+                result:
+                  type: string
+                  enum: [won, lost]
+                lost_reason:
+                  type: string
+      responses:
+        '200':
+          description: closed
+        '422':
+          description: invalid close input
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: string
+                    example: OPPORTUNITY_CLOSE_INVALID
+                  message:
+                    type: string
+                    example: lost_reason is required when result=lost
+  /opportunity/records/{opportunity_uuid}/reopen:
+    post:
+      summary: 重开终态商机
+      tags: [Opportunity]
+      parameters:
+        - $ref: '#/components/parameters/OpportunityUUID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: reopened
+        '422':
+          description: not in terminal stage
+  /opportunity/records/{opportunity_uuid}/activities:
+    get:
+      summary: 商机活动流
+      tags: [Opportunity]
+      parameters:
+        - $ref: '#/components/parameters/OpportunityUUID'
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OpportunityActivity'
+
+components:
+  parameters:
+    OpportunityUUID:
+      in: path
+      name: opportunity_uuid
+      required: true
+      schema:
+        type: string
+        format: uuid
+  schemas:
+    CreateOpportunityRequest:
+      type: object
+      required: [lead_uuid, title, owner_user_uuid]
+      properties:
+        lead_uuid:
+          type: string
+          format: uuid
+        title:
+          type: string
+        owner_user_uuid:
+          type: string
+          format: uuid
+        amount:
+          type: number
+        currency:
+          type: string
+          default: CNY
+        expected_close_at:
+          type: string
+          format: date-time
+    OpportunityRecord:
+      type: object
+      properties:
+        opportunity_uuid:
+          type: string
+          format: uuid
+        lead_uuid:
+          type: string
+          format: uuid
+        title:
+          type: string
+        stage:
+          type: string
+          enum: [open, qualified, proposal, negotiation, won, lost]
+        amount:
+          type: number
+        currency:
+          type: string
+        owner_user_uuid:
+          type: string
+          format: uuid
+        won_at:
+          type: string
+          format: date-time
+          nullable: true
+        lost_at:
+          type: string
+          format: date-time
+          nullable: true
+        lost_reason:
+          type: string
+          nullable: true
+        risk_flags:
+          type: array
+          items:
+            type: string
+    OpportunityActivity:
+      type: object
+      properties:
+        activity_uuid:
+          type: string
+          format: uuid
+        activity_type:
+          type: string
+          enum: [create, stage_change, close, reopen, note, risk_flag]
+        from_stage:
+          type: string
+          nullable: true
+        to_stage:
+          type: string
+          nullable: true
+        payload:
+          type: object
+          additionalProperties: true
+        operator_user_uuid:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time

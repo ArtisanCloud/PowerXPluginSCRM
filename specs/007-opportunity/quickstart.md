@@ -1,0 +1,44 @@
+# Quickstart: 007-opportunity
+
+## 0. 前置检查
+
+```bash
+ls -la specs/007-opportunity/
+ls -la specs/007-opportunity/contracts/
+```
+
+预期：
+- 包含 `spec.md/plan.md/research.md/data-model.md/quickstart.md`。
+- `contracts` 下有 `opportunity.openapi.yaml`。
+
+## 1. 准备数据
+
+1. 在租户下准备至少 1 条 Lead。
+2. 将该 Lead 资格推进到 `sql`。
+3. 确认当前无活跃主商机。
+
+## 2. 主链路验收（A1-A6）
+
+1. 调用资格推进接口：`POST /api/v1/admin/leads/{lead_uuid}/qualification`。
+2. 调用创建商机接口：`POST /api/v1/admin/opportunity/records`。
+3. 调用阶段推进接口：`POST /api/v1/admin/opportunity/records/{id}/stage`。
+4. 调用赢单接口：`POST /api/v1/admin/opportunity/records/{id}/close`（`result=won`）。
+5. 验证活动流接口返回完整轨迹：`GET /api/v1/admin/opportunity/records/{id}/activities`。
+
+## 3. 重开与风险联动（A7-A8）
+
+1. 对终态商机调用重开接口：`POST /api/v1/admin/opportunity/records/{id}/reopen`。
+2. 触发线索 `disconnected` 场景。
+3. 验证商机被打 `risk_flag`，但 `stage` 不自动改为 `lost`。
+
+## 4. 失败场景
+
+1. 非 `sql` 线索创建商机，应返回 422。
+2. 并发重复创建活跃商机，应仅成功 1 次，其余返回冲突错误。
+3. 终态重复 close/reopen 请求，应幂等不产生重复活动。
+
+## 5. 通过标准
+
+1. A1-A8 均可执行并满足预期。
+2. 活动日志可追溯（操作者、时间、动作、前后状态）。
+3. 赢单后 Customer 沉淀成功，且无重复客户脏数据。
