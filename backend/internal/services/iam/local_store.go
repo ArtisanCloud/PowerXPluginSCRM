@@ -16,7 +16,9 @@ import (
 	iamm "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/iam"
 	authx "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/middleware"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -121,6 +123,10 @@ func (d *LocalDirectory) Login(ctx context.Context, req LoginRequest) (*AuthToke
 	if member.DepartmentID != nil {
 		deptIDs = append(deptIDs, *member.DepartmentID)
 	}
+	userUUID, err := d.ensureActorUUID(ctx, member)
+	if err != nil {
+		return nil, nil, err
+	}
 	userCtx := &UserContext{
 		TenantUUID:    tenantUUID,
 		TenantUuid:    tenantUUID,
@@ -129,6 +135,7 @@ func (d *LocalDirectory) Login(ctx context.Context, req LoginRequest) (*AuthToke
 		IsRoot:        user.IsRoot,
 		MemberID:      member.ID,
 		UserID:        user.ID,
+		UserUUID:      userUUID,
 		Username:      member.Username,
 		Email:         user.Email,
 		DisplayName:   valueOrDefault(member.DisplayName, user.DisplayName),
@@ -147,6 +154,39 @@ func (d *LocalDirectory) Login(ctx context.Context, req LoginRequest) (*AuthToke
 		return nil, nil, err
 	}
 	return tokens, userCtx, nil
+}
+
+func (d *LocalDirectory) ensureActorUUID(ctx context.Context, member *iamm.Member) (string, error) {
+	if member == nil || member.ID == 0 {
+		return "", ErrUnauthorized
+	}
+	if actorUUID := resolveActorUUIDFromMeta(member.Meta); actorUUID != "" {
+		return actorUUID, nil
+	}
+	actorUUID := strings.ToLower(uuid.NewString())
+	meta := member.Meta
+	if meta == nil {
+		meta = datatypes.JSONMap{}
+	}
+	meta["actor_uuid"] = actorUUID
+	meta["user_uuid"] = actorUUID
+	meta["member_uuid"] = actorUUID
+	if err := d.db.WithContext(ctx).Model(&iamm.Member{}).Where("id = ?", member.ID).Update("meta", meta).Error; err != nil {
+		return "", err
+	}
+	member.Meta = meta
+	return actorUUID, nil
+}
+
+func resolveActorUUIDFromMeta(meta datatypes.JSONMap) string {
+	for _, key := range []string{"actor_uuid", "user_uuid", "member_uuid"} {
+		if value := strings.TrimSpace(fmt.Sprint(meta[key])); value != "" {
+			if parsed, err := uuid.Parse(value); err == nil {
+				return strings.ToLower(parsed.String())
+			}
+		}
+	}
+	return ""
 }
 
 func (d *LocalDirectory) Refresh(ctx context.Context, refreshToken string) (*AuthTokens, error) {
@@ -170,6 +210,10 @@ func (d *LocalDirectory) Refresh(ctx context.Context, refreshToken string) (*Aut
 		deptIDs = append(deptIDs, *member.DepartmentID)
 	}
 	tenantUUID := tenantIdentifier(tenant)
+	userUUID, err := d.ensureActorUUID(ctx, member)
+	if err != nil {
+		return nil, err
+	}
 	userCtx := &UserContext{
 		TenantUUID:    tenantUUID,
 		TenantUuid:    tenantUUID,
@@ -178,6 +222,7 @@ func (d *LocalDirectory) Refresh(ctx context.Context, refreshToken string) (*Aut
 		IsRoot:        user.IsRoot,
 		MemberID:      member.ID,
 		UserID:        user.ID,
+		UserUUID:      userUUID,
 		Username:      member.Username,
 		Email:         user.Email,
 		DisplayName:   valueOrDefault(member.DisplayName, user.DisplayName),
@@ -300,7 +345,7 @@ func (d *LocalDirectory) UserContextFromToken(ctx context.Context, bearer string
 		return nil, err
 	}
 	resolvedTenant := tenantIdentifier(tenant)
-	userID := uint64(claims.UserID)
+	userID := uint64(claims.UserID.Int64())
 	var user iamm.User
 	if err := d.db.WithContext(ctx).Where("id = ?", userID).First(&user).Error; err != nil {
 		return nil, err
@@ -312,6 +357,10 @@ func (d *LocalDirectory) UserContextFromToken(ctx context.Context, bearer string
 	deptIDs := []uint64{}
 	if member.DepartmentID != nil {
 		deptIDs = append(deptIDs, *member.DepartmentID)
+	}
+	userUUID, err := d.ensureActorUUID(ctx, &member)
+	if err != nil {
+		return nil, err
 	}
 	policyVersion := strings.TrimSpace(claims.PolicyVersion)
 	if policyVersion == "" {
@@ -329,6 +378,7 @@ func (d *LocalDirectory) UserContextFromToken(ctx context.Context, bearer string
 		IsRoot:        user.IsRoot,
 		MemberID:      member.ID,
 		UserID:        userID,
+		UserUUID:      userUUID,
 		Username:      member.Username,
 		Email:         user.Email,
 		DisplayName:   valueOrDefault(member.DisplayName, user.DisplayName),
@@ -429,7 +479,9 @@ func (d *LocalDirectory) issueTokens(userCtx *UserContext) (*AuthTokens, error) 
 	expires := now.Add(d.accessTTL)
 	claims := authx.PowerXClaims{
 		TenantUUID:    authx.TenantClaim(strings.TrimSpace(userCtx.TenantUUID)),
-		UserID:        int64(userCtx.UserID),
+		UserID:        authx.Int64Claim(userCtx.UserID),
+		UserUUID:      strings.TrimSpace(userCtx.UserUUID),
+		ActorUUID:     strings.TrimSpace(userCtx.UserUUID),
 		Roles:         userCtx.Roles,
 		Permissions:   userCtx.Permissions,
 		PolicyVersion: userCtx.PolicyVersion,

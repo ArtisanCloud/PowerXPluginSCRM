@@ -1,9 +1,9 @@
-# Tasks: Opportunity 商机管理（MVP）
+# Tasks: Opportunity 商机管理（销售管道版）
 
 **Input**: Design documents from `/specs/007-opportunity/`  
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/opportunity.openapi.yaml, quickstart.md
 
-**Tests**: 本特性在 spec 中明确了场景验收与成功标准，包含合同测试与集成测试任务。  
+**Tests**: 本特性在 spec 中明确了场景验收与成功标准，包含合同测试、集成测试和商机工作台 UI 验收任务。  
 **Organization**: Tasks 按用户故事分组，保证每个故事可独立实现与验收。
 
 ## Format: `[ID] [P?] [Story] Description`
@@ -43,39 +43,40 @@
 
 ---
 
-## Phase 3: User Story 1 - 线索资格推进并创建商机 (Priority: P1) 🎯 MVP
+## Phase 3: User Story 1 - 线索资格推进并创建商机 (Priority: P1) 🎯 主链路
 
-**Goal**: 支持 Lead 资格推进（MQL/SQL）与从 SQL 线索创建商机（含冲突 409）
+**Goal**: 支持 Lead 资格推进（MQL/SQL）与从合格线索（`sql/converted`）创建商机（含冲突 409）
 
-**Independent Test**: 非 SQL 线索创建返回 422；SQL 线索可创建 `open` 商机；重复创建返回 409 + `opportunity_uuid`
+**Independent Test**: 非合格线索创建返回 422；`sql/converted` 线索可创建 `open` 商机；重复创建返回 409 + `opportunity_uuid`
 
 ### Tests for User Story 1
 
 - [ ] T014 [P] [US1] 新增资格推进与创建商机合同测试于 `backend/tests/contract/opportunity_us1_contract_test.go`
-- [ ] T015 [P] [US1] 新增 SQL 创建/非 SQL 拒绝/活跃冲突集成测试于 `backend/tests/integration/opportunity_us1_integration_test.go`
+- [ ] T015 [P] [US1] 新增 SQL/converted 创建、非合格线索拒绝、活跃冲突集成测试于 `backend/tests/integration/opportunity_us1_integration_test.go`
 - [ ] T049 [US1] 新增来源字段映射断言测试（`source_channel/source_app_type/source_account_uuid`）于 `backend/tests/integration/opportunity_us1_integration_test.go`
 
 ### Implementation for User Story 1
 
 - [ ] T016 [US1] 在 `backend/internal/services/admin/lead_capture/` 扩展资格推进服务逻辑（`mql/sql/rollback`）并落审计
-- [ ] T017 [US1] 实现商机创建服务（SQL 校验、默认 `stage=open`、默认 `currency=CNY`）于 `backend/internal/services/admin/opportunity/opportunity_service_create.go`
+- [ ] T017 [US1] 实现商机创建服务（`sql/converted` 校验、默认 `stage=open`、默认 `currency=CNY`）于 `backend/internal/services/admin/opportunity/opportunity_service_create.go`
 - [ ] T018 [US1] 实现活跃主商机冲突检测并返回 `409` + 已存在 `opportunity_uuid` 于 `backend/internal/services/admin/opportunity/opportunity_service_create.go`
 - [ ] T019 [US1] 实现创建商机与商机列表/详情 Handler 于 `backend/internal/transport/http/admin/opportunity/handler_create_list_get.go`
 - [ ] T020 [US1] 在 `backend/internal/transport/http/admin/opportunity/dto.go` 增加创建/列表/详情 DTO 与 422/409 错误映射
 - [ ] T021 [US1] 新增前端 Opportunity API Client（create/list/get）于 `web-admin/app/composables/api/opportunity.ts`
 - [ ] T022 [P] [US1] 新增 Lead 详情资格操作与“创建商机”入口联动于 `web-admin/app/pages/scrm/leads/[id].vue`
 - [ ] T023 [US1] 新增 Opportunity 列表页基础展示与筛选（stage/owner/lead）于 `web-admin/app/pages/scrm/opportunity/index.vue`
+- [X] T058 [US1] 增强商机创建弹窗为合格线索选择器，自动带出负责人、联系方式、来源与标题建议于 `web-admin/app/pages/scrm/opportunity/index.vue`
 - [ ] T054 [US1] 新增列表页 UI 验收测试（empty/loading/error + 筛选交互）于 `web-admin/tests/opportunity/opportunity_list_ui.spec.ts`
 
-**Checkpoint**: US1 可独立验收并可作为 MVP 演示
+**Checkpoint**: US1 可独立验收并可作为主链路演示
 
 ---
 
-## Phase 4: User Story 2 - 商机阶段推进与赢输单 (Priority: P1)
+## Phase 4: User Story 2 - 商机管道管理、阶段推进与赢输单 (Priority: P1)
 
-**Goal**: 支持阶段推进、赢输单闭环、lost 联动 lead=closed、赢单 Customer 去重沉淀
+**Goal**: 支持商机工作台、阶段推进、赢输单闭环、lost 联动 lead=closed、赢单 Customer 去重沉淀
 
-**Independent Test**: 阶段推进可追踪；`won` 触发客户创建/绑定；`lost` 写原因并联动 lead=closed
+**Independent Test**: 列表工作台展示指标与阶段管道；阶段推进可追踪；`won` 触发客户创建/绑定；`lost` 写原因并联动 lead=closed
 
 ### Tests for User Story 2
 
@@ -94,6 +95,13 @@
 - [ ] T031 [US2] 完善活动流写入（`stage_change/close`）于 `backend/internal/services/admin/opportunity/opportunity_activity_service.go`
 - [ ] T032 [US2] 新增商机详情页阶段推进与赢输单操作区于 `web-admin/app/pages/scrm/opportunity/[opportunity_id].vue`
 - [ ] T033 [P] [US2] 新增赢输单弹窗组件（输单原因必填）于 `web-admin/app/components/scrm/opportunity/OpportunityCloseModal.vue`
+- [X] T059 [US2] 增强商机列表工作台指标、阶段管道、关键词/来源/风险筛选与预计成交列于 `web-admin/app/pages/scrm/opportunity/index.vue`
+- [X] T060 [US2] 增强商机详情首屏指标、阶段进度、关联线索卡和核心字段展示于 `web-admin/app/pages/scrm/opportunity/[opportunity_id].vue`
+- [X] T062 [US2] 实现 `/admin/opportunity/dashboard` 服务端聚合接口与列表服务端高级筛选于 `backend/internal/{domain/repository,services,transport/http/admin}/opportunity`
+- [X] T063 [US2] 前端商机工作台改用服务端 dashboard 聚合与服务端筛选于 `web-admin/app/pages/scrm/opportunity/index.vue`
+- [X] T064 [US2] 增加成交概率字段、报价单附件与跟进任务模型/接口于 `backend/internal/domain/models/opportunity`、`backend/internal/services/admin/opportunity`、`backend/internal/transport/http/admin/opportunity`
+- [X] T065 [US2] 在商机详情页增加成交概率编辑、报价单上传/下载/删除和跟进任务维护于 `web-admin/app/pages/scrm/opportunity/[opportunity_id].vue`
+- [X] T066 [US2] 创建商机弹窗将首个报价明细替换为报价总价与报价单附件上传于 `web-admin/app/pages/scrm/opportunity/index.vue`
 - [ ] T055 [US2] 新增详情页 UI 验收测试（terminal 状态禁用推进、422 校验提示、操作成功反馈）于 `web-admin/tests/opportunity/opportunity_detail_ui.spec.ts`
 
 **Checkpoint**: US1 + US2 可独立运行，成交闭环可验证
@@ -133,6 +141,7 @@
 
 - [ ] T042 [P] 更新 Opportunity 模块说明文档于 `docs/guides/`（含资格推进、商机流程、风险标记）
 - [ ] T043 [P] 补充 API 示例到 `specs/007-opportunity/contracts/opportunity.openapi.yaml`（请求/响应样例）
+- [X] T061 [P] 同步商机工作台规格到 `specs/007-opportunity/spec.md`、`plan.md`、`data-model.md`、`contracts/opportunity.openapi.yaml`
 - [ ] T044 执行后端回归测试并修复（最小通过集：`backend/tests/contract/opportunity_*`、`backend/tests/integration/opportunity_*`、`go test ./internal/services/admin/opportunity/...`）
 - [ ] T045 执行前端构建与关键页面检查（最小通过集：`cd web-admin && npm run build`，并完成 `opportunity index/detail + risk banner` 手动冒烟）
 - [ ] T046 按 `specs/007-opportunity/quickstart.md` 完成端到端验收并回填结果到 `specs/007-opportunity/quickstart.md`
@@ -153,7 +162,7 @@
 
 ### User Story Dependencies
 
-- **US1 (P1)**: 可在 Foundation 后独立开始（MVP）
+- **US1 (P1)**: 可在 Foundation 后独立开始（主链路）
 - **US2 (P1)**: 依赖 US1 的基础商机对象与接口
 - **US3 (P2)**: 依赖 US1/US2 的商机状态机与活动流
 
@@ -187,7 +196,7 @@ T022: web-admin/app/pages/scrm/leads/[id].vue
 
 ## Implementation Strategy
 
-### MVP First (US1)
+### 主链路优先 (US1)
 
 1. 完成 Phase 1 + Phase 2
 2. 仅完成 US1（T014-T023）

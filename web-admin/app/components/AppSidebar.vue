@@ -485,7 +485,7 @@ type ScrmNavSection = {
 
 const scrmSections: ScrmNavSection[] = [
   {
-    titleKey: "navigation.scrmSectionChannelsLeads",
+    titleKey: "navigation.scrmSectionChannelAccess",
     items: [
       {
         to: "/scrm/social_channel_governance",
@@ -497,21 +497,26 @@ const scrmSections: ScrmNavSection[] = [
         labelKey: "navigation.scrmSocialChannelAccess",
         icon: "i-heroicons-link",
       },
+    ],
+  },
+  {
+    titleKey: "navigation.scrmSectionLeadsOpportunity",
+    items: [
       {
         to: "/scrm/lead_capture",
         labelKey: "navigation.scrmLeadList",
         icon: "i-heroicons-bolt",
       },
       {
-        to: "/scrm/lead_capture_entry",
-        labelKey: "navigation.scrmLeadEntry",
-        icon: "i-heroicons-inbox-arrow-down",
+        to: "/scrm/opportunity",
+        labelKey: "navigation.scrmOpportunity",
+        icon: "i-heroicons-currency-dollar",
       },
-      {
-        to: "/scrm/lead_capture?tab=conversation-binding",
-        labelKey: "navigation.scrmConversationBinding",
-        icon: "i-heroicons-chat-bubble-left-ellipsis",
-      },
+    ],
+  },
+  {
+    titleKey: "navigation.scrmSectionChannelOrgTags",
+    items: [
       {
         labelKey: "navigation.scrmOrgManagement",
         icon: "i-heroicons-squares-2x2",
@@ -535,6 +540,23 @@ const scrmSections: ScrmNavSection[] = [
           {
             to: "/scrm/org_staff_tag_sync",
             labelKey: "navigation.scrmOrgStaffTagSync",
+            icon: "i-heroicons-arrow-path-rounded-square",
+          },
+        ],
+      },
+      {
+        labelKey: "navigation.scrmSmartTaggingCustomerSegmentation",
+        icon: "i-heroicons-tag",
+        expandKey: "smartTagging",
+        children: [
+          {
+            to: "/scrm/enterprise_customer_tags",
+            labelKey: "navigation.scrmEnterpriseCustomerTags",
+            icon: "i-heroicons-hashtag",
+          },
+          {
+            to: "/scrm/sync_center?domain=tags",
+            labelKey: "navigation.scrmTagSyncCenter",
             icon: "i-heroicons-arrow-path-rounded-square",
           },
         ],
@@ -578,23 +600,6 @@ const scrmSections: ScrmNavSection[] = [
         to: "/scrm/community_customer_engagement",
         labelKey: "navigation.scrmCommunityCustomerEngagement",
         icon: "i-heroicons-users",
-      },
-      {
-        labelKey: "navigation.scrmSmartTaggingCustomerSegmentation",
-        icon: "i-heroicons-tag",
-        expandKey: "smartTagging",
-        children: [
-          {
-            to: "/scrm/enterprise_customer_tags",
-            labelKey: "navigation.scrmEnterpriseCustomerTags",
-            icon: "i-heroicons-hashtag",
-          },
-          {
-            to: "/scrm/sync_center?domain=tags",
-            labelKey: "navigation.scrmTagSyncCenter",
-            icon: "i-heroicons-arrow-path-rounded-square",
-          },
-        ],
       },
       {
         to: "/scrm/customer_service_collaboration_loop",

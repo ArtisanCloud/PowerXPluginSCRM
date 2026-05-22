@@ -98,13 +98,15 @@ func (a *DefaultSyncTaskProviderAdapter) frameworkAvailable() bool {
 	}
 	baseURL := strings.TrimSpace(a.cfg.Gateway.BaseURL)
 	authScheme := strings.ToLower(strings.TrimSpace(a.cfg.Gateway.AuthScheme))
-	toolToken := strings.TrimSpace(a.cfg.Gateway.ToolToken)
 	apiKey := strings.TrimSpace(a.cfg.Gateway.APIKey)
+	hasSTS := a.cfg.GRPCUpstream != nil &&
+		strings.TrimSpace(a.cfg.GRPCUpstream.STSClientID) != "" &&
+		strings.TrimSpace(a.cfg.GRPCUpstream.STSClientSecret) != ""
 	if authScheme == "apikey" || authScheme == "api_key" || authScheme == "api-key" {
 		return baseURL != "" && apiKey != ""
 	}
 	if authScheme == "" && apiKey != "" {
 		return baseURL != "" && apiKey != ""
 	}
-	return baseURL != "" && toolToken != ""
+	return baseURL != "" && hasSTS
 }

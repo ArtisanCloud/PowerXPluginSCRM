@@ -1,4 +1,4 @@
-# Research: Opportunity 商机管理（MVP）
+# Research: Opportunity 商机管理（销售管道版）
 
 ## Decision 1: MQL/SQL 建模方式
 
@@ -32,6 +32,6 @@
 
 ## Decision 6: 赢单到客户沉淀方式
 
-- **Decision**: 赢单时同步创建或绑定 `customer_accounts` 记录（MVP 同步路径）。
+- **Decision**: 赢单时同步创建或绑定 `customer_accounts` 记录（一期同步路径）。
 - **Rationale**: 保证成交结果立即沉淀为客户资产，闭环明确。
 - **Alternatives considered**: 异步延迟创建（链路变长，验收不直观）。

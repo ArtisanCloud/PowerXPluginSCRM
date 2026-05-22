@@ -89,11 +89,19 @@ func loadEnvFile(path string) {
 	}
 
 	if loaded > 0 {
+		if !envLoadLoggingEnabled() {
+			return
+		}
 		logrus.WithFields(logrus.Fields{
 			"env_file":       path,
 			"loaded_entries": loaded,
 		}).Info("ENV file loaded")
 	}
+}
+
+func envLoadLoggingEnabled() bool {
+	value := strings.ToLower(strings.TrimSpace(os.Getenv("POWERX_DEBUG_CONFIG")))
+	return value == "1" || value == "true" || value == "yes" || value == "on"
 }
 
 func parseEnvLine(line string) (string, string, bool) {

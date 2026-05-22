@@ -21,24 +21,7 @@ func JWTAuth(cfg authx.JWTAuthConfig) gin.HandlerFunc {
 			return
 		}
 
-		// 调试或容错通道：Bearer 存在且能用 HS256 验签，就给最小上下文并放行
 		rawAuth := c.GetHeader("Authorization")
-		if strings.HasPrefix(strings.ToLower(rawAuth), "bearer ") && cfg.HMACSecret != "" {
-			tok := strings.TrimSpace(rawAuth[len("Bearer "):])
-
-			// 二次验证（与调试打印一致）：Issuer/Audience + HS256
-			if _, err := jwt.Parse(tok, func(t *jwt.Token) (any, error) {
-				return []byte(cfg.HMACSecret), nil
-			}, jwt.WithAudience(cfg.AcceptAudiences...), jwt.WithIssuer(cfg.Issuer)); err == nil {
-				// ✅ 验签成功——注入一个“最小 TenantContext”，保证后续 RBAC 能正常拿到用户/租户信息
-				authx.SetTenantContext(c, authx.TenantContext{}) // 需要的话可从 token claims 补 tid/uid
-				authx.SetRawBearerToken(c, tok)
-				c.Next()
-				return
-			}
-		}
-
-		// 走到这里说明双通道都失败
 		if cfg.Optional {
 			c.Next()
 			return

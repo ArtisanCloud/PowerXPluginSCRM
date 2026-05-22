@@ -20,6 +20,17 @@
         "orgSync": "组织同步",
         "orgSyncMainView": "组织总览"
       }
+    },
+    "com": {
+      "powerx": {
+        "plugins": {
+          "scrm": {
+            "opportunity": {
+              "title": "商机管理"
+            }
+          }
+        }
+      }
     }
   }
 }

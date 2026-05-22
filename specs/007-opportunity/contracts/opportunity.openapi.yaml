@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
-  title: Opportunity MVP API
-  version: 0.1.0
-  description: Opportunity 商机管理一期合同（含 Lead 资格推进）
+  title: Opportunity Sales Pipeline API
+  version: 0.2.0
+  description: Opportunity 商机管理合同（含 Lead 资格推进、销售管道工作台与活动流）
 servers:
   - url: /api/v1/admin
 paths:
@@ -69,7 +69,7 @@ paths:
                     type: string
                     format: uuid
         '422':
-          description: lead is not sql
+          description: lead is not qualified
           content:
             application/json:
               schema:
@@ -77,10 +77,10 @@ paths:
                 properties:
                   code:
                     type: string
-                    example: LEAD_NOT_SQL
+                    example: LEAD_NOT_QUALIFIED
                   message:
                     type: string
-                    example: lead status must be sql before creating opportunity
+                    example: lead status must be sql or converted before creating opportunity
     get:
       summary: 商机列表
       tags: [Opportunity]
@@ -100,16 +100,64 @@ paths:
             type: string
             format: uuid
         - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 100
+        - in: query
           name: page
+          deprecated: true
           schema:
             type: integer
         - in: query
           name: page_size
+          deprecated: true
           schema:
             type: integer
       responses:
         '200':
           description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OpportunityRecord'
+  /opportunity/dashboard:
+    get:
+      summary: 商机工作台聚合数据
+      description: 基于当前筛选条件返回活跃商机数、管道金额、赢单金额、风险商机数与阶段分布。
+      tags: [Opportunity]
+      parameters:
+        - in: query
+          name: owner_user_uuid
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: source_channel
+          schema:
+            type: string
+        - in: query
+          name: expected_close_from
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: expected_close_to
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpportunityDashboard'
   /opportunity/records/{opportunity_uuid}:
     get:
       summary: 商机详情
@@ -141,12 +189,173 @@ paths:
                   type: number
                 currency:
                   type: string
+                probability:
+                  type: integer
+                  minimum: 0
+                  maximum: 100
                 owner_user_uuid:
                   type: string
                   format: uuid
                 expected_close_at:
                   type: string
                   format: date-time
+      responses:
+        '200':
+          description: updated
+  /opportunity/records/{opportunity_uuid}/line-items:
+    get:
+      summary: 商机报价单列表
+      tags: [Opportunity]
+      parameters:
+        - $ref: '#/components/parameters/OpportunityUUID'
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OpportunityLineItem'
+    post:
+      summary: 新增商机手工报价记录（兼容接口）
+      tags: [Opportunity]
+      parameters:
+        - $ref: '#/components/parameters/OpportunityUUID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLineItemRequest'
+      responses:
+        '201':
+          description: created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpportunityLineItem'
+  /opportunity/records/{opportunity_uuid}/quote-files:
+    post:
+      summary: 上传商机报价单附件
+      tags: [Opportunity]
+      parameters:
+        - $ref: '#/components/parameters/OpportunityUUID'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                total_amount:
+                  type: number
+                currency:
+                  type: string
+                  default: CNY
+      responses:
+        '201':
+          description: created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpportunityLineItem'
+  /opportunity/records/{opportunity_uuid}/line-items/{item_uuid}/download:
+    get:
+      summary: 下载商机报价单附件
+      tags: [Opportunity]
+      parameters:
+        - $ref: '#/components/parameters/OpportunityUUID'
+        - in: path
+          name: item_uuid
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: file
+  /opportunity/records/{opportunity_uuid}/line-items/{item_uuid}:
+    delete:
+      summary: 删除商机报价单记录
+      tags: [Opportunity]
+      parameters:
+        - $ref: '#/components/parameters/OpportunityUUID'
+        - in: path
+          name: item_uuid
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: deleted
+  /opportunity/records/{opportunity_uuid}/tasks:
+    get:
+      summary: 商机跟进任务列表
+      tags: [Opportunity]
+      parameters:
+        - $ref: '#/components/parameters/OpportunityUUID'
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OpportunityTask'
+    post:
+      summary: 新增商机跟进任务
+      tags: [Opportunity]
+      parameters:
+        - $ref: '#/components/parameters/OpportunityUUID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTaskRequest'
+      responses:
+        '201':
+          description: created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpportunityTask'
+  /opportunity/records/{opportunity_uuid}/tasks/{task_uuid}/status:
+    patch:
+      summary: 更新商机跟进任务状态
+      tags: [Opportunity]
+      parameters:
+        - $ref: '#/components/parameters/OpportunityUUID'
+        - in: path
+          name: task_uuid
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [open, done]
       responses:
         '200':
           description: updated
@@ -162,9 +371,9 @@ paths:
           application/json:
             schema:
               type: object
-              required: [to_stage]
+              required: [stage]
               properties:
-                to_stage:
+                stage:
                   type: string
                   enum: [open, qualified, proposal, negotiation]
                 note:
@@ -304,9 +513,30 @@ components:
           type: number
         currency:
           type: string
+        probability:
+          type: integer
+          minimum: 0
+          maximum: 100
         owner_user_uuid:
           type: string
           format: uuid
+        source_channel:
+          type: string
+          nullable: true
+        source_app_type:
+          type: string
+          nullable: true
+        source_account_uuid:
+          type: string
+          format: uuid
+          nullable: true
+        external_userid:
+          type: string
+          nullable: true
+        expected_close_at:
+          type: string
+          format: date-time
+          nullable: true
         won_at:
           type: string
           format: date-time
@@ -322,6 +552,112 @@ components:
           type: array
           items:
             type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    CreateLineItemRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        quantity:
+          type: number
+        unit_price:
+          type: number
+        total_amount:
+          type: number
+        currency:
+          type: string
+          default: CNY
+    OpportunityLineItem:
+      type: object
+      properties:
+        item_uuid:
+          type: string
+          format: uuid
+        opportunity_uuid:
+          type: string
+          format: uuid
+        kind:
+          type: string
+          enum: [manual, quote_file]
+        name:
+          type: string
+        quantity:
+          type: number
+        unit_price:
+          type: number
+        total_amount:
+          type: number
+        currency:
+          type: string
+        storage_provider:
+          type: string
+        object_key:
+          type: string
+        file_name:
+          type: string
+        file_size:
+          type: integer
+          format: int64
+        content_type:
+          type: string
+        download_url:
+          type: string
+    CreateTaskRequest:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+        due_at:
+          type: string
+          format: date-time
+    OpportunityTask:
+      type: object
+      properties:
+        task_uuid:
+          type: string
+          format: uuid
+        opportunity_uuid:
+          type: string
+          format: uuid
+        title:
+          type: string
+        due_at:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          type: string
+          enum: [open, done]
+    OpportunityDashboard:
+      type: object
+      properties:
+        active_count:
+          type: integer
+        pipeline_amount:
+          type: number
+        won_amount:
+          type: number
+        risk_count:
+          type: integer
+        stage_summaries:
+          type: array
+          items:
+            type: object
+            properties:
+              stage:
+                type: string
+                enum: [open, qualified, proposal, negotiation, won, lost]
+              count:
+                type: integer
+              amount:
+                type: number
     OpportunityActivity:
       type: object
       properties:
@@ -330,7 +666,7 @@ components:
           format: uuid
         activity_type:
           type: string
-          enum: [create, stage_change, close, reopen, note, risk_flag]
+          enum: [create, stage_change, close, reopen, note, risk_flag, line_item, task]
         from_stage:
           type: string
           nullable: true

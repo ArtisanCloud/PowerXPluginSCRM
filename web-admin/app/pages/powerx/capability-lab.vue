@@ -38,7 +38,7 @@
           </p>
           <ol class="list-decimal space-y-1 pl-5">
             <li>启动 PowerX Core（或设置 `NUXT_PUBLIC_POWERX_CORE_BASE` / `POWERX_CORE_ENDPOINT` 指向可访问的 Core）。</li>
-            <li>在 Skeleton/插件项目执行 `px-plugin login` 获取 Dev Gateway 凭证，并配置后端环境变量（`PX_GATEWAY_BASE_URL` / `PX_GATEWAY_API_PREFIX` / `PX_GATEWAY_AUTH_SCHEME` + `PX_TOOL_TOKEN` 或 `PX_GATEWAY_API_KEY`，建议补充 `PX_GATEWAY_TIMEOUT=60s`）。</li>
+            <li>宿主模式使用 STS 短期凭证访问 PowerX；本地调试可配置 `PX_GATEWAY_BASE_URL` / `PX_GATEWAY_API_PREFIX`，并优先使用 `POWERX_STS_CLIENT_ID` / `POWERX_STS_CLIENT_SECRET`。</li>
             <li>注意：后端默认只读取“进程环境变量”，若你写在 `.env/.env.local`，需要在启动命令里显式加载该文件。</li>
             <li>重启插件后端后再刷新本页面。</li>
           </ol>
@@ -578,7 +578,8 @@ const defaultApiBase =
 const powerxCoreBase = computed(() => String(runtimeConfig.public?.powerxCoreBase || ''))
 const gatewayConfigErrorPatterns = [
   'PX_GATEWAY_BASE_URL',
-  'PX_TOOL_TOKEN',
+  'POWERX_STS_CLIENT_ID',
+  'POWERX_STS_CLIENT_SECRET',
   'PX_GATEWAY_API_KEY',
   'gateway config',
   'gateway 配置',

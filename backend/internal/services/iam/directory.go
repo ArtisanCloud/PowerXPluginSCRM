@@ -48,6 +48,7 @@ type UserContext struct {
 	IsRoot        bool
 	MemberID      uint64
 	UserID        uint64
+	UserUUID      string
 	Username      string
 	Email         string
 	DisplayName   string

@@ -1,4 +1,4 @@
-# Data Model: Opportunity 商机管理（MVP）
+# Data Model: Opportunity 商机管理（销售管道版）
 
 ## 1. opportunity_records（商机主表）
 
@@ -12,7 +12,8 @@
 - `stage` (enum: open/qualified/proposal/negotiation/won/lost)
 - `amount` (numeric(18,2), nullable)
 - `currency` (varchar(8), default `CNY`)
-- `owner_user_uuid` (UUID, required)
+- `probability` (int, default `0`, range `0-100`)
+- `owner_user_uuid` (text, required; stores the selected tenant member identifier, UI must render it as a searchable owner selector instead of a raw identifier input)
 - `source_channel` (varchar, nullable)
 - `source_app_type` (varchar, nullable)
 - `source_account_uuid` (UUID, nullable)
@@ -35,6 +36,13 @@
 - `(tenant_uuid, owner_user_uuid, stage)`
 - `(tenant_uuid, lead_uuid)`
 - `(tenant_uuid, expected_close_at)`
+- `(tenant_uuid, source_channel, source_app_type)`
+
+展示派生字段：
+- `active_pipeline_amount`：列表工作台按非终态商机金额求和派生，不落库。
+- `won_amount`：列表工作台按 `stage=won` 金额求和派生，不落库。
+- `risk_count`：列表工作台按 `risk_flags` 非空数量派生，不落库。
+- `stage_summary`：按阶段聚合数量与金额派生，一期可由前端基于列表结果计算，二期可下沉为服务端聚合接口。
 
 ## 2. opportunity_activities（商机活动表）
 
@@ -60,7 +68,51 @@
 - `(tenant_uuid, opportunity_uuid, created_at desc)`
 - `(tenant_uuid, activity_type, created_at desc)`
 
-## 3. lead_qualification_histories（线索资格历史，可复用现有状态历史表）
+## 3. opportunity_line_items（商机报价单）
+
+描述：记录商机下的多次报价。主路径为“报价总价 + 报价单附件”，报价明细保存在上传文档中；旧的名称/数量/单价手工记录仅保留兼容。
+
+核心字段：
+- `item_uuid` (PK, UUID)
+- `tenant_uuid` (UUID, required)
+- `opportunity_uuid` (UUID, required)
+- `kind` (varchar(24), default `manual`; `quote_file` 表示报价单附件)
+- `name` (varchar, required)
+- `quantity` (numeric(18,2), default `1`)
+- `unit_price` (numeric(18,2), default `0`)
+- `total_amount` (numeric(18,2), default `0`)
+- `currency` (varchar(8), default `CNY`)
+- `storage_provider` (varchar(32), nullable; local/host_oss 等)
+- `object_key` (text, nullable; 后端存储对象键)
+- `file_name` (text, nullable)
+- `file_size` (bigint, default `0`)
+- `content_type` (varchar(128), nullable)
+- `created_by` / `updated_by`
+- `created_at` / `updated_at`
+
+索引建议：
+- `(tenant_uuid, opportunity_uuid)`
+- `(tenant_uuid, opportunity_uuid, kind)`
+
+## 4. opportunity_tasks（商机跟进任务）
+
+描述：记录商机下一步动作与完成状态。
+
+核心字段：
+- `task_uuid` (PK, UUID)
+- `tenant_uuid` (UUID, required)
+- `opportunity_uuid` (UUID, required)
+- `title` (varchar, required)
+- `due_at` (timestamp, nullable)
+- `status` (enum: open/done)
+- `created_by` / `updated_by`
+- `created_at` / `updated_at`
+
+索引建议：
+- `(tenant_uuid, opportunity_uuid, status)`
+- `(due_at)`
+
+## 5. lead_qualification_histories（线索资格历史，可复用现有状态历史表）
 
 描述：记录 Lead 的 MQL/SQL 推进与回退轨迹。
 
@@ -77,7 +129,7 @@
 约束：
 - 仅允许资格阶段相关状态流转写入本类记录（mql/sql/rollback）。
 
-## 4. customer_accounts（复用既有客户表）
+## 6. customer_accounts（复用既有客户表）
 
 描述：赢单后客户沉淀目标。
 
@@ -91,6 +143,7 @@
 - `new -> mql -> sql`
 - `sql -> mql`（回退）
 - `sql -> in_progress/converted/closed`（与既有流程兼容）
+- `converted` 视为合格线索，可直接创建商机（兼容存量数据）
 
 ### Opportunity 状态
 - `open -> qualified -> proposal -> negotiation -> won`

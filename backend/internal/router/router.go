@@ -1,6 +1,7 @@
 package router
 
 import (
+	"io"
 	stdhttp "net/http"
 	"os"
 	"strings"
@@ -44,6 +45,7 @@ func (r *Router) Setup() *gin.Engine {
 	} else {
 		gin.SetMode(gin.DebugMode)
 	}
+	configureGinOutput(r.cfg)
 
 	// 创建 Gin 引擎
 	r.engine = gin.New()
@@ -56,6 +58,16 @@ func (r *Router) Setup() *gin.Engine {
 
 	logger.Info("Router setup completed")
 	return r.engine
+}
+
+func configureGinOutput(cfg *config.Config) {
+	if cfg != nil && cfg.Logging != nil && strings.EqualFold(strings.TrimSpace(cfg.Logging.Output), "file") {
+		gin.DefaultWriter = io.Discard
+		gin.DefaultErrorWriter = logger.Output()
+		return
+	}
+	gin.DefaultWriter = logger.Output()
+	gin.DefaultErrorWriter = logger.Output()
 }
 
 // setupGlobalMiddleware 设置全局中间件
@@ -214,14 +226,11 @@ func (r *Router) buildJWT() middleware.JWTAuthConfig {
 			aud = "plugin:" + pid
 		}
 		return middleware.JWTAuthConfig{
-			Issuer:             strings.TrimSpace(os.Getenv("POWERX_SECURITY_JWT_ISSUER")),
-			AcceptAudiences:    []string{aud},
-			HMACSecret:         strings.TrimSpace(os.Getenv("POWERX_SECURITY_JWT_SECRET")), // 可为空：只走签名上下文
-			ContextHMACSecret:  strings.TrimSpace(os.Getenv("POWERX_SECURITY_CTX_HMAC_SECRET")),
-			AllowSignedContext: true,  // 允许 X-PowerX-CTX / X-PowerX-CTX-SIG
-			Optional:           false, // 严格：失败即 401
-			ClockSkewSeconds:   60,
-			MaxCtxAgeSeconds:   300,
+			Issuer:           strings.TrimSpace(os.Getenv("POWERX_SECURITY_JWT_ISSUER")),
+			AcceptAudiences:  []string{aud},
+			HMACSecret:       strings.TrimSpace(os.Getenv("POWERX_SECURITY_JWT_SECRET")),
+			Optional:         false,
+			ClockSkewSeconds: 60,
 		}
 	}
 
@@ -246,22 +255,16 @@ func (r *Router) buildJWT() middleware.JWTAuthConfig {
 	}
 
 	cfg := middleware.JWTAuthConfig{
-		Issuer:             issuer,
-		AcceptAudiences:    audiences,
-		HMACSecret:         "", // 如需本地校验 HS256，可在 config.Context.HMACSecret 配置
-		ClockSkewSeconds:   60,
-		Optional:           optional,
-		AllowSignedContext: false, // 本地通常不走签名上下文；如要测试，置 true 并填 ContextHMACSecret
-		ContextHMACSecret:  "",
-		MaxCtxAgeSeconds:   300,
+		Issuer:           issuer,
+		AcceptAudiences:  audiences,
+		HMACSecret:       "",
+		ClockSkewSeconds: 60,
+		Optional:         optional,
 	}
 
 	if ctx := r.cfg.Context; ctx != nil {
 		if v := strings.TrimSpace(ctx.HMACSecret); v != "" {
 			cfg.HMACSecret = v
-			if cfg.ContextHMACSecret == "" {
-				cfg.ContextHMACSecret = v
-			}
 		}
 	}
 

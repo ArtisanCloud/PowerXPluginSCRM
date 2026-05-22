@@ -88,7 +88,9 @@ func (s *STSService) Mint(ctx context.Context, tc authx.TenantContext) (*STSToke
 	}
 	claims := authx.PowerXClaims{
 		TenantUUID:    authx.TenantClaim(tenantUUID),
-		UserID:        tc.UserID,
+		UserID:        authx.Int64Claim(tc.UserID),
+		UserUUID:      strings.TrimSpace(tc.UserUUID),
+		ActorUUID:     strings.TrimSpace(tc.UserUUID),
 		Roles:         tc.Roles,
 		Permissions:   tc.Permissions,
 		PolicyVersion: policyVersion,

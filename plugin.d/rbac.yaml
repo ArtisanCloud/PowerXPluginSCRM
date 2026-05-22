@@ -18,6 +18,10 @@ permissions:
       - read
       - publish
     resource: channel_welcome_sync
+  - actions:
+      - read
+      - write
+    resource: scrm.opportunity
 rbac:
   resources:
     - actions:
@@ -39,6 +43,10 @@ rbac:
         - read
         - publish
       resource: channel_welcome_sync
+    - actions:
+        - read
+        - write
+      resource: scrm.opportunity
 routes:
   adminManifest: /api/v1/admin/manifest
   basePath: /api/v1

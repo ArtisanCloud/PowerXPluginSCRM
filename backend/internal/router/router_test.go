@@ -23,9 +23,6 @@ func TestBuildJWTInProxyMode(t *testing.T) {
 	if jwtCfg.Optional {
 		t.Fatal("expected strict JWT validation when running in PowerX proxy")
 	}
-	if !jwtCfg.AllowSignedContext {
-		t.Fatal("expected signed context to be allowed in proxy mode")
-	}
 	if jwtCfg.Issuer != "powerx-auth" {
 		t.Fatalf("unexpected issuer, got %s", jwtCfg.Issuer)
 	}
@@ -45,8 +42,5 @@ func TestBuildJWTInDevModeOptional(t *testing.T) {
 	jwtCfg := r.buildJWT()
 	if !jwtCfg.Optional {
 		t.Fatal("expected optional JWT when running locally in dev mode")
-	}
-	if jwtCfg.AllowSignedContext {
-		t.Fatal("expected signed context disabled for local dev by default")
 	}
 }

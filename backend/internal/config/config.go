@@ -219,17 +219,14 @@ type SecurityConfig struct {
 
 // GatewayConfig 描述 Integration Gateway 所需配置。
 type GatewayConfig struct {
-	AuthScheme   string        `yaml:"auth_scheme" json:"auth_scheme"`
-	BaseURL      string        `yaml:"base_url" json:"base_url"`
-	APIPrefix    string        `yaml:"api_prefix" json:"api_prefix"`
-	ToolToken    string        `yaml:"tool_token" json:"tool_token"`
-	APIKey       string        `yaml:"api_key" json:"api_key"`
-	TenantUUID   string        `yaml:"tenant_uuid" json:"tenant_uuid"`
-	Timeout      time.Duration `yaml:"timeout" json:"timeout"`
-	UserAgent    string        `yaml:"user_agent" json:"user_agent"`
-	UseMock      []string      `yaml:"use_mock" json:"use_mock"`
-	RefreshToken string        `yaml:"refresh_token" json:"refresh_token"`
-	AuthBaseURL  string        `yaml:"auth_base_url" json:"auth_base_url"`
+	AuthScheme string        `yaml:"auth_scheme" json:"auth_scheme"`
+	BaseURL    string        `yaml:"base_url" json:"base_url"`
+	APIPrefix  string        `yaml:"api_prefix" json:"api_prefix"`
+	APIKey     string        `yaml:"api_key" json:"api_key"`
+	TenantUUID string        `yaml:"tenant_uuid" json:"tenant_uuid"`
+	Timeout    time.Duration `yaml:"timeout" json:"timeout"`
+	UserAgent  string        `yaml:"user_agent" json:"user_agent"`
+	UseMock    []string      `yaml:"use_mock" json:"use_mock"`
 }
 
 // RateLimitConfig 限流配置
@@ -361,15 +358,16 @@ type ContextConfig struct {
 
 // Load 加载配置，优先级：YAML 文件 > 默认值（不再从环境变量覆盖）
 func Load() (*Config, error) {
+	deferLog := newConfigLoadLogBuffer()
 	loadEnvFiles()
 
 	// 设置默认配置
 	cfg := getDefaultConfig()
 
 	// 尝试加载 YAML 配置文件
-	configDir, err := loadYAMLConfig(cfg)
+	configDir, err := loadYAMLConfig(cfg, deferLog)
 	if err != nil {
-		logrus.WithError(err).Warn("Failed to load YAML config, using defaults only")
+		deferLog.warn(logrus.Fields{"error": err}, "Failed to load YAML config, using defaults only")
 	}
 	if configDir != "" {
 		cfg.ConfigDir = configDir
@@ -383,6 +381,7 @@ func Load() (*Config, error) {
 
 	// 统一归一化配置值，避免大小写/空白差异导致校验失败
 	normalizeConfig(cfg)
+	deferLog.flush(cfg)
 
 	if cfg.Database != nil {
 		cfg.Database.ApplyDefaults()
@@ -401,6 +400,77 @@ func Load() (*Config, error) {
 	}
 
 	return cfg, nil
+}
+
+type configLoadLogBuffer struct {
+	entries []configLoadLogEntry
+}
+
+type configLoadLogEntry struct {
+	level  logrus.Level
+	fields logrus.Fields
+	msg    string
+}
+
+func newConfigLoadLogBuffer() *configLoadLogBuffer {
+	return &configLoadLogBuffer{}
+}
+
+func (b *configLoadLogBuffer) info(fields logrus.Fields, msg string) {
+	b.entries = append(b.entries, configLoadLogEntry{level: logrus.InfoLevel, fields: fields, msg: msg})
+}
+
+func (b *configLoadLogBuffer) warn(fields logrus.Fields, msg string) {
+	b.entries = append(b.entries, configLoadLogEntry{level: logrus.WarnLevel, fields: fields, msg: msg})
+}
+
+func configInfo(buffers []*configLoadLogBuffer, fields logrus.Fields, msg string) {
+	if len(buffers) > 0 && buffers[0] != nil {
+		buffers[0].info(fields, msg)
+		return
+	}
+	logrus.WithFields(fields).Info(msg)
+}
+
+func (b *configLoadLogBuffer) flush(cfg *Config) {
+	if b == nil || len(b.entries) == 0 {
+		return
+	}
+	out := configureConfigStandardLogger(cfg)
+	if out != nil {
+		defer out.Close()
+	}
+	for _, entry := range b.entries {
+		logger := logrus.WithFields(entry.fields)
+		switch entry.level {
+		case logrus.WarnLevel:
+			logger.Warn(entry.msg)
+		default:
+			logger.Info(entry.msg)
+		}
+	}
+}
+
+func configureConfigStandardLogger(cfg *Config) *os.File {
+	if cfg == nil || cfg.Logging == nil || !strings.EqualFold(strings.TrimSpace(cfg.Logging.Output), "file") {
+		return nil
+	}
+	filePath := strings.TrimSpace(cfg.Logging.FilePath)
+	if filePath == "" {
+		return nil
+	}
+	dir := filepath.Dir(filePath)
+	if dir != "." {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return nil
+		}
+	}
+	file, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return nil
+	}
+	logrus.SetOutput(file)
+	return file
 }
 
 // getDefaultConfig 获取默认配置
@@ -591,7 +661,7 @@ func getDefaultConfig() *Config {
 }
 
 // loadYAMLConfig 加载 YAML 配置文件
-func loadYAMLConfig(cfg *Config) (string, error) {
+func loadYAMLConfig(cfg *Config, logBuffer ...*configLoadLogBuffer) (string, error) {
 	candidates := resolveConfigCandidates()
 
 	var configFile string
@@ -632,7 +702,7 @@ func loadYAMLConfig(cfg *Config) (string, error) {
 		return "", fmt.Errorf("failed to parse YAML config: %w", err)
 	}
 
-	logrus.WithField("config_file", configFile).Info("YAML config loaded successfully")
+	configInfo(logBuffer, logrus.Fields{"config_file": configFile}, "YAML config loaded successfully")
 	dir := filepath.Dir(configFile)
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
@@ -1058,13 +1128,6 @@ func loadEnvConfig(cfg *Config) {
 	if apiPrefix := resolveConfigValue(os.Getenv("PX_GATEWAY_API_PREFIX")); apiPrefix != "" {
 		cfg.Gateway.APIPrefix = apiPrefix
 	}
-	token := firstNonEmpty(
-		resolveConfigValue(os.Getenv("PX_PLUGIN_TOOL_TOKEN")),
-		resolveConfigValue(os.Getenv("PX_TOOL_TOKEN")),
-	)
-	if token != "" {
-		cfg.Gateway.ToolToken = token
-	}
 	apiKey := firstNonEmpty(
 		resolveConfigValue(os.Getenv("PX_GATEWAY_API_KEY")),
 		resolveConfigValue(os.Getenv("PX_PLUGIN_API_KEY")),
@@ -1082,12 +1145,6 @@ func loadEnvConfig(cfg *Config) {
 	}
 	if mockModules := resolveConfigValue(os.Getenv("PX_USE_MOCK")); mockModules != "" {
 		cfg.Gateway.UseMock = splitCSV(mockModules)
-	}
-	if refreshToken := resolveConfigValue(os.Getenv("PX_TOOL_REFRESH_TOKEN")); refreshToken != "" {
-		cfg.Gateway.RefreshToken = refreshToken
-	}
-	if authBase := resolveConfigValue(os.Getenv("PX_AUTH_BASE_URL")); authBase != "" {
-		cfg.Gateway.AuthBaseURL = authBase
 	}
 
 	// Customer auth secret: allow host-injected runtime secret to satisfy
@@ -1158,38 +1215,36 @@ func normalizeConfig(cfg *Config) {
 		cfg.Gateway.AuthScheme = strings.ToLower(resolveConfigValue(cfg.Gateway.AuthScheme))
 		cfg.Gateway.BaseURL = resolveConfigValue(cfg.Gateway.BaseURL)
 		cfg.Gateway.APIPrefix = normalizeGatewayAPIPrefix(resolveConfigValue(cfg.Gateway.APIPrefix))
-		cfg.Gateway.ToolToken = resolveConfigValue(cfg.Gateway.ToolToken)
 		cfg.Gateway.APIKey = resolveConfigValue(cfg.Gateway.APIKey)
 		cfg.Gateway.TenantUUID = strings.ToLower(resolveConfigValue(cfg.Gateway.TenantUUID))
-		cfg.Gateway.AuthBaseURL = resolveConfigValue(cfg.Gateway.AuthBaseURL)
 
 		// Dev 模式下：Gateway 配置不完整时不阻塞启动，改为打印提示并自动关闭 Gateway。
 		// 生产/非 Dev 场景仍保持严格校验（见 Validate）。
 		if cfg.Server != nil && cfg.Server.DevMode {
 			baseURL := strings.TrimSpace(cfg.Gateway.BaseURL)
-			toolToken := strings.TrimSpace(cfg.Gateway.ToolToken)
 			apiKey := strings.TrimSpace(cfg.Gateway.APIKey)
 			tenantUUID := strings.TrimSpace(cfg.Gateway.TenantUUID)
 
-			hasAny := baseURL != "" || toolToken != "" || apiKey != "" || tenantUUID != ""
+			hasSTS := cfg.GRPCUpstream != nil &&
+				strings.TrimSpace(cfg.GRPCUpstream.STSClientID) != "" &&
+				strings.TrimSpace(cfg.GRPCUpstream.STSClientSecret) != ""
+			hasAny := baseURL != "" || apiKey != "" || tenantUUID != "" || hasSTS
 			authScheme := normalizeGatewayAuthScheme(cfg.Gateway.AuthScheme)
 			if authScheme == "" {
-				authScheme = inferGatewayAuthScheme(toolToken, apiKey)
+				authScheme = inferGatewayAuthScheme(apiKey)
 			}
-			incomplete := baseURL == "" || (authScheme == "apikey" && apiKey == "") || (authScheme != "apikey" && toolToken == "")
+			incomplete := baseURL == "" || (authScheme == "apikey" && apiKey == "") || (authScheme != "apikey" && !hasSTS)
 
 			if hasAny && incomplete {
 				logrus.WithFields(logrus.Fields{
 					"gateway.base_url":    baseURL,
 					"gateway.auth_scheme": authScheme,
-					"gateway.tool_token":  toolToken != "",
 					"gateway.api_key":     apiKey != "",
 					"gateway.tenant_uuid": tenantUUID,
-				}).Warn("Gateway config is incomplete; gateway disabled in dev mode (set gateway.base_url/tool_token to enable)")
+				}).Warn("Gateway config is incomplete; gateway disabled in dev mode (set gateway.base_url and STS credentials to enable)")
 
 				cfg.Gateway.AuthScheme = ""
 				cfg.Gateway.BaseURL = ""
-				cfg.Gateway.ToolToken = ""
 				cfg.Gateway.APIKey = ""
 				cfg.Gateway.TenantUUID = ""
 			}
@@ -1395,12 +1450,9 @@ func normalizeGatewayAuthScheme(raw string) string {
 	}
 }
 
-func inferGatewayAuthScheme(toolToken, apiKey string) string {
+func inferGatewayAuthScheme(apiKey string) string {
 	if strings.TrimSpace(apiKey) != "" {
 		return "apikey"
-	}
-	if strings.TrimSpace(toolToken) != "" {
-		return "bearer"
 	}
 	return "bearer"
 }
@@ -1412,7 +1464,19 @@ func hasGatewayCredential(gateway *GatewayConfig) bool {
 	if normalizeGatewayAuthScheme(gateway.AuthScheme) == "apikey" {
 		return strings.TrimSpace(gateway.APIKey) != ""
 	}
-	return strings.TrimSpace(gateway.ToolToken) != ""
+	return false
+}
+
+func (c *Config) hasGatewayCredential() bool {
+	if c == nil || c.Gateway == nil {
+		return false
+	}
+	if normalizeGatewayAuthScheme(c.Gateway.AuthScheme) == "apikey" {
+		return strings.TrimSpace(c.Gateway.APIKey) != ""
+	}
+	return c.GRPCUpstream != nil &&
+		strings.TrimSpace(c.GRPCUpstream.STSClientID) != "" &&
+		strings.TrimSpace(c.GRPCUpstream.STSClientSecret) != ""
 }
 
 func normalizeGatewayAPIPrefix(raw string) string {
@@ -1672,16 +1736,18 @@ skipCustomerAuthSecretCheck:
 
 	if c.Gateway != nil {
 		hasGatewayFields := strings.TrimSpace(c.Gateway.BaseURL) != "" ||
-			strings.TrimSpace(c.Gateway.ToolToken) != "" ||
-			strings.TrimSpace(c.Gateway.APIKey) != ""
+			strings.TrimSpace(c.Gateway.APIKey) != "" ||
+			(c.GRPCUpstream != nil &&
+				strings.TrimSpace(c.GRPCUpstream.STSClientID) != "" &&
+				strings.TrimSpace(c.GRPCUpstream.STSClientSecret) != "")
 		if hasGatewayFields {
 			c.Gateway.AuthScheme = normalizeGatewayAuthScheme(c.Gateway.AuthScheme)
 			c.Gateway.APIPrefix = normalizeGatewayAPIPrefix(c.Gateway.APIPrefix)
 			if c.Gateway.AuthScheme == "" {
-				c.Gateway.AuthScheme = inferGatewayAuthScheme(c.Gateway.ToolToken, c.Gateway.APIKey)
+				c.Gateway.AuthScheme = inferGatewayAuthScheme(c.Gateway.APIKey)
 			}
-			if strings.TrimSpace(c.Gateway.BaseURL) == "" || !hasGatewayCredential(c.Gateway) {
-				return NewConfigError("gateway config requires base_url and matching credential (bearer: tool_token, apikey: api_key)")
+			if strings.TrimSpace(c.Gateway.BaseURL) == "" || !c.hasGatewayCredential() {
+				return NewConfigError("gateway config requires base_url and matching credential (STS client or apikey)")
 			}
 
 			if tenantUUID := strings.TrimSpace(c.Gateway.TenantUUID); tenantUUID != "" {

@@ -109,6 +109,17 @@ frontend:
                 path: /scrm/org_sync/main_view
                 route: scrm/org_sync/main_view
                 order: 1
+          - id: plugins.com.powerx.plugins.scrm.opportunity
+            title: 商机管理
+            title_i18n:
+              namespace: menus
+              key: menu.com.powerx.plugins.scrm.opportunity.title
+                  default: 商机管理
+            icon: i-heroicons-currency-dollar
+            path: /scrm/opportunity
+            route: scrm/opportunity
+            order: 6
+            required_policies: [com.powerx.plugins.scrm:scrm.opportunity:read]
           - id: plugins.com.powerx.plugins.scrm.templates
             title: 模版
             title_i18n:

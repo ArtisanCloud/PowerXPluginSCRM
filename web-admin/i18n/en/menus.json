@@ -20,6 +20,17 @@
         "orgSync": "Org Mapping",
         "orgSyncMainView": "Main Org View"
       }
+    },
+    "com": {
+      "powerx": {
+        "plugins": {
+          "scrm": {
+            "opportunity": {
+              "title": "Opportunities"
+            }
+          }
+        }
+      }
     }
   }
 }

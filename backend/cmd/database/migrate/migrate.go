@@ -121,6 +121,8 @@ var businessTables = []interface{}{
 	&domainAcquisitionModel.GroupTagRuleRun{},
 	&domainOpportunityModel.OpportunityRecord{},
 	&domainOpportunityModel.OpportunityActivity{},
+	&domainOpportunityModel.OpportunityLineItem{},
+	&domainOpportunityModel.OpportunityTask{},
 }
 
 var iamTables = []interface{}{

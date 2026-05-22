@@ -29,11 +29,9 @@
 ## 2. 鉴权模式
 
 - 显式支持两种模式：
-- `PX_GATEWAY_AUTH_SCHEME=bearer` -> 使用 `PX_TOOL_TOKEN`
-- `PX_GATEWAY_AUTH_SCHEME=apikey` -> 使用 `PX_GATEWAY_API_KEY`
-- 未显式设置 `auth_scheme` 时：
-- 仅配置 `api_key` 则推断为 `apikey`
-- 其他情况推断为 `bearer`
+- 宿主模式插件主动调用 PowerX 底座时，统一使用 STS Exchange 签发的短期 Bearer token。
+- 旧 tool token 链路已废弃，插件不得再读取或回退到旧本地调试凭证。
+- `plugin:<plugin_id>` audience 的入站 token 只用于 PowerX 代理到插件后端，不得转用于插件主动调用底座。
 
 ## 3. 租户语义
 
@@ -67,15 +65,17 @@
 - 调试头保留：
 - `X-PX-Use-Mock`
 - `X-Request-ID`
-- 能否访问 CoreX 能力以网关配置+凭证为准（`PX_GATEWAY_BASE_URL`、`PX_GATEWAY_AUTH_SCHEME`、`PX_TOOL_TOKEN/PX_GATEWAY_API_KEY`），不以 `POWERX_PROXY` 作为功能开关。
+- 能否访问 CoreX 能力以网关配置和 STS 凭证为准（`PX_GATEWAY_BASE_URL`、`POWERX_STS_CLIENT_ID`、`POWERX_STS_CLIENT_SECRET`），不以 `POWERX_PROXY` 作为功能开关。
 
 ## 8. 环境变量建议（Skeleton）
 
 ```dotenv
 PX_GATEWAY_BASE_URL=http://127.0.0.1:8077
 PX_GATEWAY_API_PREFIX=/api/v1
-PX_GATEWAY_AUTH_SCHEME=bearer
-PX_TOOL_TOKEN=replace-me
-PX_GATEWAY_API_KEY=
+POWERX_STS_CLIENT_ID=replace-with-plugin-tenant-client-id
+POWERX_STS_CLIENT_SECRET=replace-with-secret
+POWERX_STS_AUDIENCE=powerx:api
+POWERX_STS_SCOPE=access
+POWERX_STS_TTL=300s
 PX_GATEWAY_TIMEOUT=60s
 ```

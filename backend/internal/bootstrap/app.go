@@ -11,20 +11,6 @@ import (
 )
 
 func BootstrapPlugin(ctx context.Context, cfg *config.Config) (*gorm.DB, error) {
-	// 初始化日志
-	logLevel := cfg.LogLevel
-	logFormat := ""
-	logOutput := ""
-	logFilePath := ""
-	if cfg != nil && cfg.Logging != nil {
-		if cfg.Logging.Level != "" {
-			logLevel = cfg.Logging.Level
-		}
-		logFormat = cfg.Logging.Format
-		logOutput = cfg.Logging.Output
-		logFilePath = cfg.Logging.FilePath
-	}
-	logger.InitWithOptions(logLevel, logFormat, logOutput, logFilePath)
 	logger.Info("Starting PowerX Note Plugin...")
 
 	// 初始化 schema

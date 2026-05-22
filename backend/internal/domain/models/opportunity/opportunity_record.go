@@ -15,10 +15,11 @@ type OpportunityRecord struct {
 	Stage             string         `gorm:"column:stage;type:varchar(32);not null;default:'open';index:idx_opp_tenant_stage,priority:2;index:idx_opp_tenant_owner_stage,priority:3" json:"stage"`
 	Amount            *float64       `gorm:"column:amount;type:numeric(18,2)" json:"amount,omitempty"`
 	Currency          string         `gorm:"column:currency;type:varchar(8);not null;default:'CNY'" json:"currency"`
-	OwnerUserUUID     string         `gorm:"column:owner_user_uuid;type:uuid;not null;index:idx_opp_tenant_owner_stage,priority:2" json:"owner_user_uuid"`
+	Probability       int            `gorm:"column:probability;type:int;not null;default:0" json:"probability"`
+	OwnerUserUUID     string         `gorm:"column:owner_user_uuid;type:text;not null;index:idx_opp_tenant_owner_stage,priority:2" json:"owner_user_uuid"`
 	SourceChannel     string         `gorm:"column:source_channel;type:varchar(64)" json:"source_channel,omitempty"`
 	SourceAppType     string         `gorm:"column:source_app_type;type:varchar(64)" json:"source_app_type,omitempty"`
-	SourceAccountUUID string         `gorm:"column:source_account_uuid;type:uuid" json:"source_account_uuid,omitempty"`
+	SourceAccountUUID *string        `gorm:"column:source_account_uuid;type:uuid" json:"source_account_uuid,omitempty"`
 	ExternalUserID    string         `gorm:"column:external_userid;type:varchar(128)" json:"external_userid,omitempty"`
 	ExpectedCloseAt   *time.Time     `gorm:"column:expected_close_at;type:timestamptz;index:idx_opp_tenant_expected_close,priority:2" json:"expected_close_at,omitempty"`
 	WonAt             *time.Time     `gorm:"column:won_at;type:timestamptz" json:"won_at,omitempty"`

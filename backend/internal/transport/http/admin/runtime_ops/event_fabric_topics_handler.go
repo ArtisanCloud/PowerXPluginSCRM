@@ -135,11 +135,11 @@ func resolveGatewayAuthorization(deps *app.Deps, outboundBearer string) string {
 		}
 		return "ApiKey " + apiKey
 	}
-	toolToken := strings.TrimSpace(deps.Config.Gateway.ToolToken)
-	if toolToken == "" {
+	token, err := deps.HostBearerToken(context.Background())
+	if err != nil || strings.TrimSpace(token) == "" {
 		return ""
 	}
-	return "Bearer " + toolToken
+	return "Bearer " + strings.TrimSpace(token)
 }
 
 func extractEventFabricError(payload []byte, statusCode int) string {

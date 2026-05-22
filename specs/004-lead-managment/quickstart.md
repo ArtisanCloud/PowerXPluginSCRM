@@ -191,8 +191,11 @@ export POWERX_PROXY=1
 export POWERX_RUNTIME_TASKBUS_DRIVER=host
 export PX_GATEWAY_BASE_URL="http://<host-gateway>"
 export PX_GATEWAY_API_PREFIX="/api/v1"
-export PX_GATEWAY_AUTH_SCHEME="bearer" # 或 apikey
-export PX_TOOL_TOKEN="<tool-token>"    # bearer 模式
+export POWERX_STS_CLIENT_ID="<plugin_id>.<tenant_uuid>"
+export POWERX_STS_CLIENT_SECRET="<secret>"
+export POWERX_STS_AUDIENCE="powerx:api"
+export POWERX_STS_SCOPE="access"
+export POWERX_STS_TTL="300s"
 ```
 
 触发同步后检查：
@@ -205,7 +208,7 @@ export PX_TOOL_TOKEN="<tool-token>"    # bearer 模式
 1. 网关前缀与鉴权口径：
    - `PX_GATEWAY_BASE_URL` 不带前缀
    - `PX_GATEWAY_API_PREFIX` 显式配置（通常 `/api/v1`）
-   - `bearer -> PX_TOOL_TOKEN`，`apikey -> PX_GATEWAY_API_KEY`
+   - 宿主模式出站访问使用 STS token：`aud=powerx:api`、`scope=access`、TTL <= 300s
 2. 任务/Topic 对齐：
    - `plugin.yaml.events.topics[]` 与 `config/event_fabric.yaml` 同名
 3. 观测指标检查：

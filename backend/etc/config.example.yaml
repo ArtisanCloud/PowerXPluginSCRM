@@ -26,24 +26,27 @@ grpc_upstream:
   address: "localhost:8079"
   tenant_uuid: "00000000-0000-0000-0000-000000000001"
   use_tls: false
+  sts_client_id: ""
+  sts_client_secret: ""
+  sts_audience: "powerx:api"
+  sts_scope: "access"
+  sts_ttl: "300s"
   connect_mode: "lazy"
   optional: true
 
 gateway:
-  # Skeleton 开发通常通过 px-plugin login 写入 .env.local 中的 PX_GATEWAY_BASE_URL / PX_TOOL_TOKEN / PX_TOOL_REFRESH_TOKEN。
+  # 宿主模式出站访问 PowerX 时使用 gRPC STS Exchange 获取短期 Bearer token。
   # 若留空则默认关闭 Gateway 调用，`PX_USE_MOCK` 可指定 media,eventfabric 等模块名称以启用内存 Mock。
   # 凭证分流：
-  # - auth_scheme=bearer 使用 tool_token
+  # - auth_scheme=bearer 使用 grpc_upstream.sts_client_id/secret 获取 STS token
   # - auth_scheme=apikey 使用 api_key
   # - auth_scheme 留空时，若 api_key 非空则优先 apikey，否则 bearer
   # base_url 不带 API 前缀，统一通过 api_prefix 显式配置（默认 /api/v1）。
-  # tenant_uuid 仅用于 Bearer 本地兼容场景，proxy 场景由宿主按凭证解析租户。
+  # tenant_uuid 仅用于本地租户标识，proxy 场景由宿主按凭证解析租户。
   base_url: ""
   api_prefix: "/api/v1"
   auth_scheme: "bearer" # bearer | apikey
-  tool_token: ""
   api_key: ""
-  refresh_token: ""
   tenant_uuid: ""
   timeout: "60s"
   user_agent: "powerx-plugin-skeleton/dev"

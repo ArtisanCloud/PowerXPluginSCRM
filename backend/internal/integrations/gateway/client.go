@@ -15,6 +15,7 @@ import (
 
 	frameworkgateway "github.com/ArtisanCloud/PowerXPlugin/framework/backend/go/gateway"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/config"
+	powerxclient "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/grpc/client"
 	skelLogger "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/logger"
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
@@ -95,6 +96,7 @@ type Client struct {
 	offlineReason string
 	cfg           *config.Config
 	refreshMu     sync.Mutex
+	stsClient     *powerxclient.PowerXServiceClient
 }
 
 // NewClient 构造 Gateway Client；若凭证缺失，则进入离线模式。
@@ -107,7 +109,7 @@ func NewClient(cfg *config.Config, log *logrus.Entry) *Client {
 	c.logger = c.logger.WithField("component", "skeleton.gateway.client")
 
 	if cfg == nil || cfg.Gateway == nil {
-		c.offlineReason = "未找到 gateway 配置，请执行 `px-plugin login --manifest ./skeleton/plugin.yaml` 或在 .env.local 写入 PX_GATEWAY_*"
+		c.offlineReason = "未找到 gateway 配置，请配置 PX_GATEWAY_BASE_URL 与 STS 客户端凭证"
 		return c
 	}
 
@@ -119,8 +121,8 @@ func NewClient(cfg *config.Config, log *logrus.Entry) *Client {
 
 	gcfg := cfg.Gateway
 	baseURL := strings.TrimSpace(gcfg.BaseURL)
-	if baseURL == "" || !hasGatewayCredential(gcfg) {
-		c.offlineReason = "PX_GATEWAY_BASE_URL 与鉴权凭证未配置（bearer 需要 PX_TOOL_TOKEN，apikey 需要 PX_GATEWAY_API_KEY）"
+	if baseURL == "" || !hasGatewayCredential(cfg) {
+		c.offlineReason = "PX_GATEWAY_BASE_URL 与鉴权凭证未配置（Bearer 模式需要 POWERX_STS_CLIENT_ID/SECRET）"
 		return c
 	}
 
@@ -255,14 +257,18 @@ func (c *Client) ListPlatformCapabilities(ctx context.Context, opts ListPlatform
 	if baseURL == "" {
 		return nil, fmt.Errorf("PX_GATEWAY_BASE_URL 未配置")
 	}
-	token := strings.TrimSpace(gcfg.ToolToken)
 	apiKey := strings.TrimSpace(gcfg.APIKey)
 	authScheme := resolveGatewayAuthScheme(gcfg)
 	if authScheme == "apikey" && apiKey == "" {
 		return nil, fmt.Errorf("PX_GATEWAY_API_KEY 未配置")
 	}
-	if authScheme != "apikey" && token == "" {
-		return nil, fmt.Errorf("PX_TOOL_TOKEN 未配置")
+	token := ""
+	if authScheme != "apikey" {
+		var err error
+		token, err = c.gatewayBearerToken(ctx)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	timeout := gcfg.Timeout
@@ -332,7 +338,7 @@ func (c *Client) handleInvokeError(ctx context.Context, req frameworkgateway.Inv
 	}
 	refreshed, err := c.refreshCredentials(ctx)
 	if err != nil {
-		c.logger.WithError(err).Warn("PX_TOOL_TOKEN 自动刷新失败")
+		c.logger.WithError(err).Warn("STS token refresh failed")
 		return nil, invokeErr
 	}
 	if !refreshed {
@@ -554,7 +560,7 @@ func ValidateConfig(cfg *config.Config) error {
 		return errors.New("gateway config missing")
 	}
 	base := strings.TrimSpace(cfg.Gateway.BaseURL)
-	if base == "" || !hasGatewayCredential(cfg.Gateway) {
+	if base == "" || !hasGatewayCredential(cfg) {
 		return errors.New("PX_GATEWAY_BASE_URL 与鉴权凭证未配置")
 	}
 	return nil
@@ -567,17 +573,19 @@ func (c *Client) refreshCredentials(ctx context.Context) (bool, error) {
 	if c.cfg == nil || c.cfg.Gateway == nil {
 		return false, fmt.Errorf("gateway config missing")
 	}
-	if strings.TrimSpace(c.cfg.Gateway.RefreshToken) == "" {
-		return false, fmt.Errorf("PX_TOOL_REFRESH_TOKEN 未配置")
+	if !gatewaySTSConfigured(c.cfg) {
+		return false, fmt.Errorf("POWERX_STS_CLIENT_ID/SECRET 未配置")
 	}
-	c.logger.Info("检测到 Gateway 凭证失败，尝试自动刷新 PX_TOOL_TOKEN")
-	if _, _, err := RefreshToolToken(ctx, c.cfg); err != nil {
+	if c.stsClient != nil {
+		c.stsClient.InvalidateSTS()
+	}
+	if _, err := c.gatewayBearerToken(ctx); err != nil {
 		return false, err
 	}
 	if err := c.reconnectTransport(); err != nil {
 		return false, err
 	}
-	c.logger.Info("PX_TOOL_TOKEN 已刷新，准备重试 Gateway 调用")
+	c.logger.Info("STS token 已刷新，准备重试 Gateway 调用")
 	return true, nil
 }
 
@@ -587,7 +595,7 @@ func (c *Client) reconnectTransport() error {
 	}
 	gcfg := c.cfg.Gateway
 	baseURL := strings.TrimSpace(gcfg.BaseURL)
-	if baseURL == "" || !hasGatewayCredential(gcfg) {
+	if baseURL == "" || !hasGatewayCredential(c.cfg) {
 		return fmt.Errorf("PX_GATEWAY_BASE_URL 与鉴权凭证未配置")
 	}
 
@@ -596,11 +604,19 @@ func (c *Client) reconnectTransport() error {
 		timeout = defaultRequestTimeout
 	}
 
+	bearerToken := ""
+	if resolveGatewayAuthScheme(gcfg) != "apikey" {
+		token, err := c.gatewayBearerToken(context.Background())
+		if err != nil {
+			return err
+		}
+		bearerToken = token
+	}
 	client, err := frameworkgateway.NewClient(frameworkgateway.Config{
 		BaseURL:        baseURL,
 		APIPrefix:      strings.TrimSpace(gcfg.APIPrefix),
 		AuthScheme:     strings.TrimSpace(gcfg.AuthScheme),
-		ToolToken:      strings.TrimSpace(gcfg.ToolToken),
+		BearerToken:    bearerToken,
 		APIKey:         strings.TrimSpace(gcfg.APIKey),
 		TenantUUID:     strings.TrimSpace(gcfg.TenantUUID),
 		RequestTimeout: timeout,
@@ -641,14 +657,46 @@ func resolveGatewayAuthScheme(gcfg *config.GatewayConfig) string {
 	return "bearer"
 }
 
-func hasGatewayCredential(gcfg *config.GatewayConfig) bool {
-	if gcfg == nil {
+func (c *Client) gatewayBearerToken(ctx context.Context) (string, error) {
+	if c == nil || c.cfg == nil {
+		return "", fmt.Errorf("gateway config missing")
+	}
+	if gatewaySTSConfigured(c.cfg) {
+		if c.stsClient == nil {
+			client, err := powerxclient.NewPowerXServiceClient(ctx, c.cfg.GRPCUpstream)
+			if err != nil {
+				return "", err
+			}
+			c.stsClient = client
+		}
+		token, err := c.stsClient.AccessToken(ctx)
+		if err != nil {
+			return "", err
+		}
+		if strings.TrimSpace(token) == "" {
+			return "", fmt.Errorf("empty STS access token")
+		}
+		return strings.TrimSpace(token), nil
+	}
+	return "", fmt.Errorf("POWERX_STS_CLIENT_ID/SECRET 未配置")
+}
+
+func gatewaySTSConfigured(cfg *config.Config) bool {
+	return cfg != nil &&
+		cfg.GRPCUpstream != nil &&
+		strings.TrimSpace(cfg.GRPCUpstream.STSClientID) != "" &&
+		strings.TrimSpace(cfg.GRPCUpstream.STSClientSecret) != ""
+}
+
+func hasGatewayCredential(cfg *config.Config) bool {
+	if cfg == nil || cfg.Gateway == nil {
 		return false
 	}
+	gcfg := cfg.Gateway
 	if resolveGatewayAuthScheme(gcfg) == "apikey" {
 		return strings.TrimSpace(gcfg.APIKey) != ""
 	}
-	return strings.TrimSpace(gcfg.ToolToken) != ""
+	return gatewaySTSConfigured(cfg)
 }
 
 func normalizeGatewayAPIPrefix(raw string) string {

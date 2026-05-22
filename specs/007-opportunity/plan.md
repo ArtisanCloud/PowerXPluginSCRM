@@ -1,11 +1,11 @@
-# Implementation Plan: Opportunity 商机管理（MVP）
+# Implementation Plan: Opportunity 商机管理（销售管道版）
 
 **Branch**: `007-opportunity` | **Date**: 2026-05-05 | **Spec**: [/private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/specs/007-opportunity/spec.md](/private/var/www/html/ArtisanCloud/X/PowerX/Core/Plugins/com.powerx.plugin.scrm/specs/007-opportunity/spec.md)
 **Input**: Feature specification from `/specs/007-opportunity/spec.md`
 
 ## Summary
 
-交付独立 Opportunity 模块，覆盖 Lead 资格推进（MQL/SQL 语义）、SQL 建单、商机阶段推进、赢输单、重开、活动审计与赢单后 Customer 沉淀。与企微等渠道保持弱耦合：来源字段继承，`disconnected` 仅标风险不自动关单，详情页展示风险 Banner。
+交付独立 Opportunity 模块，覆盖 Lead 资格推进（MQL/SQL 语义）、合格线索（`sql/converted`）建单、商机销售管道工作台、阶段推进、赢输单、重开、活动审计与赢单后 Customer 沉淀。与企微等渠道保持弱耦合：来源字段继承，`disconnected` 仅标风险不自动关单，详情页展示风险 Banner。
 
 ## Technical Context
 
@@ -15,9 +15,9 @@
 **Testing**: Go test（service/repository/handler/integration）, Nuxt build + unit tests  
 **Target Platform**: PowerX Plugin runtime（standalone + host/proxy）  
 **Project Type**: Web application（backend + web-admin）  
-**Performance Goals**: 商机关键写操作（stage/close/reopen）P95 < 200ms；风险标记传播 < 1 分钟  
+**Performance Goals**: 商机关键写操作（stage/close/reopen）P95 < 200ms；商机列表 100 条内前端筛选即时响应；风险标记传播 < 1 分钟  
 **Constraints**: 租户隔离强制；终态只由业务动作驱动；同 Lead 活跃主商机唯一；冲突返回 `409` + `opportunity_uuid`  
-**Scale/Scope**: 单租户 10w 线索级别下商机查询与状态推进稳定可用
+**Scale/Scope**: 单租户 10w 线索级别下商机查询与状态推进稳定可用；列表默认加载最近/权限内 100 条商机，服务端支持基础高级筛选与工作台聚合
 
 ## Constitution Check
 
@@ -81,6 +81,7 @@ web-admin/
 
 研究结论已在 `research.md` 收敛，核心决策：
 - MQL/SQL 语义内聚到 Lead 状态，不独立模块；
+- 创建商机兼容既有 `converted` 线索状态，避免存量线索无法进入商机管道；
 - 商机终态仅业务动作驱动；
 - `lost` 后 Lead 自动 `closed`（可重开）；
 - `disconnected` 仅风险标记 + 详情 Banner；
@@ -90,11 +91,13 @@ web-admin/
 
 已产出：
 - `data-model.md`：商机主表、活动表、资格历史、状态机与约束。
-- `contracts/opportunity.openapi.yaml`：MVP API 合同（资格推进 + 商机全流程）。
+- `contracts/opportunity.openapi.yaml`：API 合同（资格推进 + 商机全流程 + 列表筛选 + 工作台字段）。
 - `quickstart.md`：A1-A8 验收路径与失败场景检查。
 
 合同关键约束：
 - 创建活跃主商机冲突时返回 `409 Conflict` + 已存在 `opportunity_uuid`。
+- 阶段推进请求字段统一为 `stage`，与实现侧 DTO/前端 API 保持一致。
+- 列表服务端支持 `stage/owner_user_uuid/lead_uuid/keyword/source_channel/risk_only/expected_close_from/expected_close_to/limit`；工作台指标由 `/opportunity/dashboard` 服务端聚合。
 - 关闭商机为 `lost` 时，服务层联动 Lead `closed`。
 - Customer 去重采用 `tenant_uuid + source_channel + external_userid`，缺失回退手机号。
 

@@ -16,4 +16,16 @@ const (
 	ActivityReopen      = "reopen"
 	ActivityNote        = "note"
 	ActivityRiskFlag    = "risk_flag"
+	ActivityLineItem    = "line_item"
+	ActivityTask        = "task"
+)
+
+const (
+	LineItemKindManual    = "manual"
+	LineItemKindQuoteFile = "quote_file"
+)
+
+const (
+	TaskStatusOpen = "open"
+	TaskStatusDone = "done"
 )

@@ -27,6 +27,7 @@ type CatalogService struct {
 	descriptorCache    map[string]*descriptorMetadata
 	descriptorCacheMux sync.RWMutex
 	cfg                *config.Config
+	deps               *app.Deps
 }
 
 type gatewayClient interface {
@@ -63,6 +64,7 @@ func NewCatalogService(deps *app.Deps) *CatalogService {
 		manager:         mgr,
 		gateway:         deps.CapabilityGateway,
 		cfg:             deps.Config,
+		deps:            deps,
 		descriptorCache: make(map[string]*descriptorMetadata),
 	}
 }
@@ -173,7 +175,6 @@ func (s *CatalogService) listPlatformCatalogViaAdminAPI(ctx context.Context) ([]
 	}
 	base = strings.TrimRight(base, "/")
 	apiPrefix := normalizeGatewayAPIPrefix(s.cfg.Gateway.APIPrefix)
-	token := strings.TrimSpace(s.cfg.Gateway.ToolToken)
 	apiKey := strings.TrimSpace(s.cfg.Gateway.APIKey)
 	authScheme := strings.ToLower(strings.TrimSpace(s.cfg.Gateway.AuthScheme))
 	if authScheme == "" {
@@ -193,7 +194,11 @@ func (s *CatalogService) listPlatformCatalogViaAdminAPI(ctx context.Context) ([]
 	req.Header.Set("Accept", "application/json")
 	if authScheme == "apikey" && apiKey != "" {
 		req.Header.Set("Authorization", "ApiKey "+apiKey)
-	} else if token != "" {
+	} else if s.deps != nil {
+		token, err := s.deps.HostBearerToken(ctx)
+		if err != nil {
+			return nil, err
+		}
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
 	req.Header.Set("X-Request-ID", fmt.Sprintf("cap-catalog-%d", time.Now().UnixNano()))
