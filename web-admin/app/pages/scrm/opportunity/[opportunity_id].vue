@@ -697,6 +697,7 @@ async function saveEdit() {
     const resp = await service.update(opportunityUUID.value, {
       title: editForm.title.trim(),
       owner_user_uuid: editForm.owner_user_uuid.trim(),
+      owner_member_uuid: editForm.owner_user_uuid.trim(),
       amount: editForm.amount,
       currency: editForm.currency || "CNY",
       probability: editForm.probability,

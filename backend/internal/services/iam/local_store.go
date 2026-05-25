@@ -123,17 +123,19 @@ func (d *LocalDirectory) Login(ctx context.Context, req LoginRequest) (*AuthToke
 	if member.DepartmentID != nil {
 		deptIDs = append(deptIDs, *member.DepartmentID)
 	}
-	userUUID, err := d.ensureActorUUID(ctx, member)
+	userUUID, memberUUID, err := d.ensurePrincipalUUIDs(ctx, user, member)
 	if err != nil {
 		return nil, nil, err
 	}
 	userCtx := &UserContext{
 		TenantUUID:    tenantUUID,
 		TenantUuid:    tenantUUID,
+		TenantID:      tenant.ID,
 		TenantKey:     tenant.Key,
 		TenantName:    tenant.Name,
 		IsRoot:        user.IsRoot,
 		MemberID:      member.ID,
+		MemberUUID:    memberUUID,
 		UserID:        user.ID,
 		UserUUID:      userUUID,
 		Username:      member.Username,
@@ -156,30 +158,63 @@ func (d *LocalDirectory) Login(ctx context.Context, req LoginRequest) (*AuthToke
 	return tokens, userCtx, nil
 }
 
-func (d *LocalDirectory) ensureActorUUID(ctx context.Context, member *iamm.Member) (string, error) {
+func (d *LocalDirectory) ensurePrincipalUUIDs(ctx context.Context, user *iamm.User, member *iamm.Member) (string, string, error) {
+	if user == nil || user.ID == 0 || member == nil || member.ID == 0 {
+		return "", "", ErrUnauthorized
+	}
+	userUUID, err := d.ensureUserUUID(ctx, user)
+	if err != nil {
+		return "", "", err
+	}
+	memberUUID, err := d.ensureMemberUUID(ctx, member)
+	if err != nil {
+		return "", "", err
+	}
+	return userUUID, memberUUID, nil
+}
+
+func (d *LocalDirectory) ensureUserUUID(ctx context.Context, user *iamm.User) (string, error) {
+	if user == nil || user.ID == 0 {
+		return "", ErrUnauthorized
+	}
+	if userUUID := resolveUUIDFromMeta(user.Meta, "user_uuid", "actor_uuid"); userUUID != "" {
+		return userUUID, nil
+	}
+	userUUID := strings.ToLower(uuid.NewString())
+	meta := user.Meta
+	if meta == nil {
+		meta = datatypes.JSONMap{}
+	}
+	meta["user_uuid"] = userUUID
+	if err := d.db.WithContext(ctx).Model(&iamm.User{}).Where("id = ?", user.ID).Update("meta", meta).Error; err != nil {
+		return "", err
+	}
+	user.Meta = meta
+	return userUUID, nil
+}
+
+func (d *LocalDirectory) ensureMemberUUID(ctx context.Context, member *iamm.Member) (string, error) {
 	if member == nil || member.ID == 0 {
 		return "", ErrUnauthorized
 	}
-	if actorUUID := resolveActorUUIDFromMeta(member.Meta); actorUUID != "" {
-		return actorUUID, nil
+	if memberUUID := resolveUUIDFromMeta(member.Meta, "member_uuid", "actor_uuid"); memberUUID != "" {
+		return memberUUID, nil
 	}
-	actorUUID := strings.ToLower(uuid.NewString())
+	memberUUID := strings.ToLower(uuid.NewString())
 	meta := member.Meta
 	if meta == nil {
 		meta = datatypes.JSONMap{}
 	}
-	meta["actor_uuid"] = actorUUID
-	meta["user_uuid"] = actorUUID
-	meta["member_uuid"] = actorUUID
+	meta["member_uuid"] = memberUUID
 	if err := d.db.WithContext(ctx).Model(&iamm.Member{}).Where("id = ?", member.ID).Update("meta", meta).Error; err != nil {
 		return "", err
 	}
 	member.Meta = meta
-	return actorUUID, nil
+	return memberUUID, nil
 }
 
-func resolveActorUUIDFromMeta(meta datatypes.JSONMap) string {
-	for _, key := range []string{"actor_uuid", "user_uuid", "member_uuid"} {
+func resolveUUIDFromMeta(meta datatypes.JSONMap, keys ...string) string {
+	for _, key := range keys {
 		if value := strings.TrimSpace(fmt.Sprint(meta[key])); value != "" {
 			if parsed, err := uuid.Parse(value); err == nil {
 				return strings.ToLower(parsed.String())
@@ -210,17 +245,19 @@ func (d *LocalDirectory) Refresh(ctx context.Context, refreshToken string) (*Aut
 		deptIDs = append(deptIDs, *member.DepartmentID)
 	}
 	tenantUUID := tenantIdentifier(tenant)
-	userUUID, err := d.ensureActorUUID(ctx, member)
+	userUUID, memberUUID, err := d.ensurePrincipalUUIDs(ctx, user, member)
 	if err != nil {
 		return nil, err
 	}
 	userCtx := &UserContext{
 		TenantUUID:    tenantUUID,
 		TenantUuid:    tenantUUID,
+		TenantID:      tenant.ID,
 		TenantKey:     tenant.Key,
 		TenantName:    tenant.Name,
 		IsRoot:        user.IsRoot,
 		MemberID:      member.ID,
+		MemberUUID:    memberUUID,
 		UserID:        user.ID,
 		UserUUID:      userUUID,
 		Username:      member.Username,
@@ -346,19 +383,29 @@ func (d *LocalDirectory) UserContextFromToken(ctx context.Context, bearer string
 	}
 	resolvedTenant := tenantIdentifier(tenant)
 	userID := uint64(claims.UserID.Int64())
+	memberID := uint64(claims.MemberID.Int64())
 	var user iamm.User
 	if err := d.db.WithContext(ctx).Where("id = ?", userID).First(&user).Error; err != nil {
 		return nil, err
 	}
 	var member iamm.Member
-	if err := d.db.WithContext(ctx).Where("tenant_uuid = ? AND user_id = ?", resolvedTenant, userID).First(&member).Error; err != nil {
+	memberQuery := d.db.WithContext(ctx).Where("tenant_uuid = ?", resolvedTenant)
+	if memberID > 0 {
+		memberQuery = memberQuery.Where("id = ?", memberID)
+	} else {
+		memberQuery = memberQuery.Where("user_id = ?", userID)
+	}
+	if err := memberQuery.First(&member).Error; err != nil {
 		return nil, err
+	}
+	if member.UserID != user.ID {
+		return nil, ErrUnauthorized
 	}
 	deptIDs := []uint64{}
 	if member.DepartmentID != nil {
 		deptIDs = append(deptIDs, *member.DepartmentID)
 	}
-	userUUID, err := d.ensureActorUUID(ctx, &member)
+	userUUID, memberUUID, err := d.ensurePrincipalUUIDs(ctx, &user, &member)
 	if err != nil {
 		return nil, err
 	}
@@ -373,10 +420,12 @@ func (d *LocalDirectory) UserContextFromToken(ctx context.Context, bearer string
 	return &UserContext{
 		TenantUUID:    resolvedTenant,
 		TenantUuid:    resolvedTenant,
+		TenantID:      tenant.ID,
 		TenantKey:     tenant.Key,
 		TenantName:    tenant.Name,
 		IsRoot:        user.IsRoot,
 		MemberID:      member.ID,
+		MemberUUID:    memberUUID,
 		UserID:        userID,
 		UserUUID:      userUUID,
 		Username:      member.Username,
@@ -479,15 +528,20 @@ func (d *LocalDirectory) issueTokens(userCtx *UserContext) (*AuthTokens, error) 
 	expires := now.Add(d.accessTTL)
 	claims := authx.PowerXClaims{
 		TenantUUID:    authx.TenantClaim(strings.TrimSpace(userCtx.TenantUUID)),
-		UserID:        authx.Int64Claim(userCtx.UserID),
+		TenantID:      authx.Int64Claim(userCtx.TenantID),
 		UserUUID:      strings.TrimSpace(userCtx.UserUUID),
-		ActorUUID:     strings.TrimSpace(userCtx.UserUUID),
+		UserID:        authx.Int64Claim(userCtx.UserID),
+		MemberUUID:    strings.TrimSpace(userCtx.MemberUUID),
+		MemberID:      authx.Int64Claim(userCtx.MemberID),
+		ActorUUID:     strings.TrimSpace(userCtx.MemberUUID),
 		Roles:         userCtx.Roles,
 		Permissions:   userCtx.Permissions,
 		PolicyVersion: userCtx.PolicyVersion,
 		PluginID:      d.pluginID,
+		Scope:         "access",
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    d.issuer,
+			Subject:   strings.TrimSpace(userCtx.MemberUUID),
 			Audience:  jwt.ClaimStrings{d.audience},
 			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(expires),

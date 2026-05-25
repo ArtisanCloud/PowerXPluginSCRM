@@ -52,7 +52,7 @@ func TestJWTAuthParsesCompatibleActorClaims(t *testing.T) {
 		"iss":         "powerx-local",
 		"aud":         "powerx:plugin",
 		"tenant_uuid": "00000000-0000-0000-0000-000000000001",
-		"uid":         "42",
+		"uid_n":       42,
 		"actor_uuid":  "11111111-1111-1111-1111-111111111111",
 		"roles":       []string{"system.admin"},
 		"perms":       []string{"*"},
@@ -91,6 +91,71 @@ func TestJWTAuthParsesCompatibleActorClaims(t *testing.T) {
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200 for compatible JWT, got %d", rec.Code)
+	}
+}
+
+func TestJWTAuthParsesPowerXUserAndMemberClaims(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	secret := "test-secret"
+	userUUID := "11111111-1111-1111-1111-111111111111"
+	memberUUID := "22222222-2222-2222-2222-222222222222"
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"iss":   "powerx-local",
+		"aud":   "powerx:plugin",
+		"tid":   "00000000-0000-0000-0000-000000000001",
+		"tid_n": 1,
+		"uid":   userUUID,
+		"uid_n": 10,
+		"mid":   memberUUID,
+		"mid_n": 20,
+		"sub":   memberUUID,
+		"scope": "access",
+		"roles": []string{"system.admin"},
+		"perms": []string{"*"},
+		"exp":   time.Now().Add(time.Hour).Unix(),
+	})
+	signed, err := token.SignedString([]byte(secret))
+	if err != nil {
+		t.Fatalf("sign token: %v", err)
+	}
+
+	router := gin.New()
+	router.Use(JWTAuth(authx.JWTAuthConfig{
+		Issuer:          "powerx-local",
+		AcceptAudiences: []string{"powerx:plugin"},
+		HMACSecret:      secret,
+		Optional:        false,
+	}))
+	router.GET("/", func(c *gin.Context) {
+		tc, ok := authx.GetTenantContext(c)
+		if !ok {
+			t.Fatal("tenant context missing")
+		}
+		if tc.TenantID != 1 {
+			t.Fatalf("expected tenant id 1, got %d", tc.TenantID)
+		}
+		if tc.UserID != 10 || tc.UserUUID != userUUID {
+			t.Fatalf("unexpected user context: id=%d uuid=%q", tc.UserID, tc.UserUUID)
+		}
+		if tc.MemberID != 20 || tc.MemberUUID != memberUUID {
+			t.Fatalf("unexpected member context: id=%d uuid=%q", tc.MemberID, tc.MemberUUID)
+		}
+		if c.GetString("actor_user_uuid") != memberUUID {
+			t.Fatalf("actor_user_uuid should use member uuid, got %q", c.GetString("actor_user_uuid"))
+		}
+		if memberFromCtx, ok := authx.MemberUUIDFromContext(c.Request.Context()); !ok || memberFromCtx != memberUUID {
+			t.Fatalf("member uuid missing from request context: %q %v", memberFromCtx, ok)
+		}
+		c.Status(http.StatusOK)
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "Bearer "+signed)
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for PowerX JWT, got %d", rec.Code)
 	}
 }
 

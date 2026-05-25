@@ -17,6 +17,7 @@ func JWTAuth(cfg authx.JWTAuthConfig) gin.HandlerFunc {
 		if tc, bearer, ok := authx.ParseFromHeaders(c.GetHeader, cfg); ok {
 			authx.SetTenantContext(c, tc)
 			authx.SetRawBearerToken(c, bearer)
+			attachIdentityContext(c, tc)
 			c.Next()
 			return
 		}
@@ -48,5 +49,33 @@ func JWTAuth(cfg authx.JWTAuthConfig) gin.HandlerFunc {
 				cfg.Issuer, cfg.AcceptAudiences, len(cfg.HMACSecret))
 		}
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "jwt Unauthorized"})
+	}
+}
+
+func attachIdentityContext(c *gin.Context, tc authx.TenantContext) {
+	if c == nil {
+		return
+	}
+	if tenantUUID := strings.TrimSpace(tc.TenantUUID); tenantUUID != "" {
+		c.Set("tenant_uuid", tenantUUID)
+	}
+	if tc.TenantID > 0 {
+		c.Set("tenant_id", tc.TenantID)
+	}
+	if userUUID := strings.TrimSpace(tc.UserUUID); userUUID != "" {
+		c.Set("user_uuid", userUUID)
+	}
+	if tc.UserID > 0 {
+		c.Set("user_id", tc.UserID)
+	}
+	if memberUUID := strings.TrimSpace(tc.MemberUUID); memberUUID != "" {
+		c.Set("member_uuid", memberUUID)
+		c.Set("actor_user_uuid", memberUUID)
+	}
+	if tc.MemberID > 0 {
+		c.Set("member_id", tc.MemberID)
+	}
+	if ctx := authx.ContextWithTenantIdentity(c.Request.Context(), tc); ctx != nil {
+		c.Request = c.Request.WithContext(ctx)
 	}
 }

@@ -322,6 +322,7 @@ func mapUserContext(uc *iamservice.UserContext) gin.H {
 	memberAdmin := uc.IsRoot || hasAdminRole(roles)
 	tenant := gin.H{
 		"uuid": tenantUUID,
+		"id":   uc.TenantID,
 		"key":  uc.TenantKey,
 		"name": uc.TenantName,
 	}
@@ -334,9 +335,12 @@ func mapUserContext(uc *iamservice.UserContext) gin.H {
 		"tenant":              tenant,
 		"is_root":             uc.IsRoot,
 		"current_tenant_uuid": tenantUUID,
+		"current_tenant_id":   uc.TenantID,
 		"current_member_id":   uc.MemberID,
+		"current_member_uuid": strings.TrimSpace(uc.MemberUUID),
 		"user": gin.H{
 			"id":           uc.UserID,
+			"uuid":         strings.TrimSpace(uc.UserUUID),
 			"username":     uc.Username,
 			"email":        uc.Email,
 			"display_name": uc.DisplayName,
@@ -354,8 +358,10 @@ func mapUserContext(uc *iamservice.UserContext) gin.H {
 	if tenantUUID != "" {
 		members = append(members, gin.H{
 			"tenant_uuid": tenantUUID,
+			"tenant_id":   uc.TenantID,
 			"tenant_name": uc.TenantName,
 			"member_id":   uc.MemberID,
+			"member_uuid": strings.TrimSpace(uc.MemberUUID),
 			"is_admin":    memberAdmin,
 		})
 	}
@@ -391,6 +397,9 @@ func normalizeDelegatedUserContext(ctx *authproxy.MeContext) gin.H {
 		"uuid": currentTenantUUID,
 	}
 	if ctx.Tenant != nil {
+		if ctx.Tenant.ID != nil && *ctx.Tenant.ID > 0 {
+			tenant["id"] = *ctx.Tenant.ID
+		}
 		if key := strings.TrimSpace(ctx.Tenant.Key); key != "" {
 			tenant["key"] = key
 		}
@@ -409,6 +418,7 @@ func normalizeDelegatedUserContext(ctx *authproxy.MeContext) gin.H {
 	if ctx.User != nil {
 		user = gin.H{
 			"id":           ctx.User.ID,
+			"uuid":         strings.TrimSpace(ctx.User.UUID),
 			"username":     strings.TrimSpace(ctx.User.Username),
 			"email":        strings.TrimSpace(ctx.User.Email),
 			"phone":        strings.TrimSpace(ctx.User.Phone),
@@ -424,8 +434,10 @@ func normalizeDelegatedUserContext(ctx *authproxy.MeContext) gin.H {
 		memberTenant := strings.TrimSpace(member.TenantUUID)
 		members = append(members, gin.H{
 			"tenant_uuid": memberTenant,
+			"tenant_id":   member.TenantID,
 			"tenant_name": strings.TrimSpace(member.TenantName),
 			"member_id":   member.MemberID,
+			"member_uuid": strings.TrimSpace(member.MemberUUID),
 			"is_admin":    member.IsAdmin,
 		})
 	}
@@ -434,7 +446,9 @@ func normalizeDelegatedUserContext(ctx *authproxy.MeContext) gin.H {
 		"tenant":              tenant,
 		"is_root":             ctx.IsRoot,
 		"current_tenant_uuid": currentTenantUUID,
+		"current_tenant_id":   ctx.CurrentTenantID,
 		"current_member_id":   ctx.CurrentMemberID,
+		"current_member_uuid": strings.TrimSpace(ctx.CurrentMemberUUID),
 		"user":                user,
 		"roles":               roles,
 		"permissions":         permissions,

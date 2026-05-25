@@ -77,10 +77,14 @@ dist-verify:
 	@test -f "$(DIST_DIR)/plugin.d/capabilities.yaml" || { echo "❌ dist 验证失败：缺少 $(DIST_DIR)/plugin.d/capabilities.yaml"; exit 1; }
 	@test -f "$(DIST_DIR)/plugin.d/exposure.yaml" || { echo "❌ dist 验证失败：缺少 $(DIST_DIR)/plugin.d/exposure.yaml"; exit 1; }
 	@test -f "$(DIST_DIR)/config/event_fabric.yaml" || { echo "❌ dist 验证失败：缺少 $(DIST_DIR)/config/event_fabric.yaml"; exit 1; }
-	@test -f "$(DIST_DIR)/backend/etc/config.yaml" || { echo "❌ dist 验证失败：缺少 $(DIST_DIR)/backend/etc/config.yaml"; exit 1; }
-	@test -d "$(DIST_DIR)/contracts/capabilities" || { echo "❌ dist 验证失败：缺少 $(DIST_DIR)/contracts/capabilities"; exit 1; }
-	@test -f "$(DIST_WEBADMIN_OUTPUT)/server/index.mjs" || { echo "❌ dist 验证失败：缺少 Nuxt server 产物"; exit 1; }
-	@awk '/^[[:space:]]*runtime:[[:space:]]*$$/{in_runtime=1; next} in_runtime && /^[^[:space:]]/ {in_runtime=0} in_runtime && /^[[:space:]]*entry:[[:space:]]*backend\/bin\/plugin[[:space:]]*$$/ {found=1} END{exit found?0:1}' "$(DIST_DIR)/plugin.yaml" || { echo "❌ plugin.yaml runtime.entry 必须是 backend/bin/plugin"; exit 1; }
+		@test -f "$(DIST_DIR)/backend/etc/config.yaml" || { echo "❌ dist 验证失败：缺少 $(DIST_DIR)/backend/etc/config.yaml"; exit 1; }
+		@test -d "$(DIST_DIR)/contracts/capabilities" || { echo "❌ dist 验证失败：缺少 $(DIST_DIR)/contracts/capabilities"; exit 1; }
+		@test -f "$(DIST_WEBADMIN_OUTPUT)/server/index.mjs" || { echo "❌ dist 验证失败：缺少 Nuxt server 产物"; exit 1; }
+		@ICON_PATH=$$(awk '/^[[:space:]]*metadata:[[:space:]]*$$/{in_metadata=1; next} in_metadata && /^[^[:space:]]/ {in_metadata=0} in_metadata && /^[[:space:]]*icon:[[:space:]]*/ {sub(/^[[:space:]]*icon:[[:space:]]*/, ""); gsub(/"/, ""); print; exit}' "$(DIST_DIR)/plugin.yaml"); \
+		if [ -n "$$ICON_PATH" ]; then \
+			test -f "$(DIST_WEBADMIN_OUTPUT)/public/$$ICON_PATH" || { echo "❌ dist 验证失败：metadata.icon 指向的文件不存在：$(DIST_WEBADMIN_OUTPUT)/public/$$ICON_PATH"; exit 1; }; \
+		fi
+		@awk '/^[[:space:]]*runtime:[[:space:]]*$$/{in_runtime=1; next} in_runtime && /^[^[:space:]]/ {in_runtime=0} in_runtime && /^[[:space:]]*entry:[[:space:]]*backend\/bin\/plugin[[:space:]]*$$/ {found=1} END{exit found?0:1}' "$(DIST_DIR)/plugin.yaml" || { echo "❌ plugin.yaml runtime.entry 必须是 backend/bin/plugin"; exit 1; }
 	@awk '/^[[:space:]]*migrations:[[:space:]]*$$/{in_migrations=1; next} in_migrations && /^[^[:space:]]/ {in_migrations=0} in_migrations && /^[[:space:]]*entry:[[:space:]]*backend\/bin\/migrate[[:space:]]*$$/ {found=1} END{exit found?0:1}' "$(DIST_DIR)/plugin.yaml" || { echo "❌ plugin.yaml migrations.entry 必须是 backend/bin/migrate"; exit 1; }
 	@rg -q "resource: scrm.opportunity" "$(DIST_DIR)/plugin.d/rbac.yaml" || { echo "❌ dist 验证失败：rbac 缺少 scrm.opportunity"; exit 1; }
 	@rg -q "resource: scrm.leads" "$(DIST_DIR)/plugin.d/rbac.yaml" || { echo "❌ dist 验证失败：rbac 缺少 scrm.leads"; exit 1; }

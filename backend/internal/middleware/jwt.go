@@ -23,13 +23,17 @@ type JWTAuthConfig struct {
 
 type PowerXClaims struct {
 	TenantUUID    TenantClaim `json:"tid"`
-	UserID        Int64Claim  `json:"uid"`
-	UserUUID      string      `json:"user_uuid,omitempty"`
+	TenantID      Int64Claim  `json:"tid_n,omitempty"`
+	MemberUUID    string      `json:"mid,omitempty"`
+	MemberID      Int64Claim  `json:"mid_n,omitempty"`
+	UserUUID      string      `json:"uid,omitempty"`
+	UserID        Int64Claim  `json:"uid_n,omitempty"`
 	ActorUUID     string      `json:"actor_uuid,omitempty"`
 	Roles         []string    `json:"roles"`
 	Permissions   []string    `json:"perms"`
 	PolicyVersion string      `json:"policy_version"`
 	PluginID      string      `json:"plugin_id,omitempty"`
+	Scope         string      `json:"scope,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -126,14 +130,17 @@ func parseHS256(raw string, cfg JWTAuthConfig) (TenantContext, error) {
 	if err != nil || token == nil || !token.Valid {
 		return TenantContext{}, errors.New("invalid token")
 	}
-	tenantUUID, userID, userUUID, roles, permissions, policyVersion, pluginID := normalizeClaims(nil, claims)
+	tenantUUID, tenantID, userID, userUUID, memberID, memberUUID, roles, permissions, policyVersion, pluginID := normalizeClaims(nil, claims)
 	if tenantUUID == "" {
 		return TenantContext{}, errors.New("tenant claim missing")
 	}
 	return TenantContext{
 		TenantUUID:    tenantUUID,
+		TenantID:      tenantID,
 		UserID:        userID,
 		UserUUID:      userUUID,
+		MemberID:      memberID,
+		MemberUUID:    memberUUID,
 		Roles:         roles,
 		Permissions:   permissions,
 		PolicyVersion: policyVersion,
@@ -141,11 +148,14 @@ func parseHS256(raw string, cfg JWTAuthConfig) (TenantContext, error) {
 	}, nil
 }
 
-func normalizeClaims(claims *PowerXClaims, raw jwt.Claims) (tenantUUID string, userID int64, userUUID string, roles []string, permissions []string, policyVersion string, pluginID string) {
+func normalizeClaims(claims *PowerXClaims, raw jwt.Claims) (tenantUUID string, tenantID int64, userID int64, userUUID string, memberID int64, memberUUID string, roles []string, permissions []string, policyVersion string, pluginID string) {
 	if claims != nil {
 		tenantUUID = strings.TrimSpace(claims.TenantUUID.String())
+		tenantID = claims.TenantID.Int64()
 		userID = claims.UserID.Int64()
 		userUUID = firstValidUUID(strings.TrimSpace(claims.UserUUID), strings.TrimSpace(claims.ActorUUID))
+		memberID = claims.MemberID.Int64()
+		memberUUID = firstValidUUID(strings.TrimSpace(claims.MemberUUID), strings.TrimSpace(claims.Subject))
 		roles = claims.Roles
 		permissions = claims.Permissions
 		policyVersion = strings.TrimSpace(claims.PolicyVersion)
@@ -156,11 +166,15 @@ func normalizeClaims(claims *PowerXClaims, raw jwt.Claims) (tenantUUID string, u
 		return
 	}
 	tenantUUID = firstNonEmpty(tenantUUID, claimString(mapClaims, "tid", "tenant_uuid", "tenantUuid", "tenant_id", "tenantId"))
-	userID = firstNonZeroInt64(userID, claimInt64(mapClaims, "uid", "user_id", "userId", "member_id", "memberId"))
+	tenantID = firstNonZeroInt64(tenantID, claimInt64(mapClaims, "tid_n", "tenant_numeric_id", "tenantNumericId"))
+	userID = firstNonZeroInt64(userID, claimInt64(mapClaims, "uid_n", "user_id", "userId"))
 	userUUID = firstNonEmpty(userUUID, firstValidUUID(
 		claimString(mapClaims, "actor_uuid", "actorUserUUID", "actor_user_uuid"),
-		claimString(mapClaims, "user_uuid", "userUuid"),
-		claimString(mapClaims, "member_uuid", "memberUuid"),
+		claimString(mapClaims, "uid", "user_uuid", "userUuid"),
+	))
+	memberID = firstNonZeroInt64(memberID, claimInt64(mapClaims, "mid_n", "member_id", "memberId"))
+	memberUUID = firstNonEmpty(memberUUID, firstValidUUID(
+		claimString(mapClaims, "mid", "member_uuid", "memberUuid"),
 		claimString(mapClaims, "sub"),
 	))
 	roles = firstNonEmptySlice(roles, claimStringSlice(mapClaims, "roles", "role_codes"))

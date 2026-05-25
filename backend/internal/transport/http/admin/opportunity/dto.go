@@ -3,7 +3,8 @@ package opportunity
 type createOpportunityRequest struct {
 	LeadUUID        string   `json:"lead_uuid" binding:"required"`
 	Title           string   `json:"title" binding:"required"`
-	OwnerUserUUID   string   `json:"owner_user_uuid" binding:"required"`
+	OwnerUserUUID   string   `json:"owner_user_uuid"`
+	OwnerMemberUUID string   `json:"owner_member_uuid"`
 	Amount          *float64 `json:"amount"`
 	Currency        string   `json:"currency"`
 	Probability     *int     `json:"probability"`
@@ -13,6 +14,7 @@ type createOpportunityRequest struct {
 type updateOpportunityRequest struct {
 	Title           *string  `json:"title"`
 	OwnerUserUUID   *string  `json:"owner_user_uuid"`
+	OwnerMemberUUID *string  `json:"owner_member_uuid"`
 	Amount          *float64 `json:"amount"`
 	Currency        *string  `json:"currency"`
 	Probability     *int     `json:"probability"`
@@ -39,6 +41,7 @@ type taskStatusRequest struct {
 type listOpportunityQuery struct {
 	Stage             string `form:"stage"`
 	OwnerUserUUID     string `form:"owner_user_uuid"`
+	OwnerMemberUUID   string `form:"owner_member_uuid"`
 	LeadUUID          string `form:"lead_uuid"`
 	Keyword           string `form:"keyword"`
 	SourceChannel     string `form:"source_channel"`

@@ -7,8 +7,11 @@ import type { ApiResponse } from "../types/types";
 export interface UserContextData {
   is_root: boolean;
   current_tenant_uuid: string;
+  current_tenant_id?: number | null;
   current_member_id?: number | null;
+  current_member_uuid?: string | null;
   tenant?: {
+    id?: number;
     uuid?: string;
     key?: string;
     name?: string;
@@ -31,7 +34,9 @@ export interface UserContextData {
 
 export interface ContextUser {
   id: number;
+  uuid?: string;
   email: string;
+  username?: string;
   phone: string;
   display_name: string;
   avatar_url: string;
@@ -40,8 +45,10 @@ export interface ContextUser {
 
 export interface ContextMember {
   tenant_uuid: string;
+  tenant_id?: number | null;
   tenant_name: string;
   member_id: number;
+  member_uuid?: string | null;
   is_admin: boolean;
 }
 

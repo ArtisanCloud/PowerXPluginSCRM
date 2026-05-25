@@ -41,6 +41,9 @@ export const useUserStore = defineStore("user", {
     currentMemberId: (state): number | null =>
       state.context?.current_member_id || null,
 
+    currentMemberUuid: (state): string | null =>
+      state.context?.current_member_uuid || null,
+
     // 用户所属的租户列表
     memberTenants: (state): ContextMember[] => state.context?.members || [],
 

@@ -19,6 +19,7 @@ export interface OpportunityRecord {
   currency: string;
   probability?: number;
   owner_user_uuid: string;
+  owner_member_uuid?: string;
   source_channel?: string;
   source_app_type?: string;
   source_account_uuid?: string;
@@ -30,6 +31,8 @@ export interface OpportunityRecord {
   risk_flags?: string[] | string;
   created_by?: string;
   updated_by?: string;
+  created_by_member_uuid?: string;
+  updated_by_member_uuid?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -43,6 +46,7 @@ export interface OpportunityActivity {
   to_stage?: OpportunityStage;
   payload?: Record<string, any>;
   operator_user_uuid: string;
+  operator_member_uuid?: string;
   created_at: string;
 }
 
@@ -50,6 +54,7 @@ export interface CreateOpportunityPayload {
   lead_uuid: string;
   title: string;
   owner_user_uuid: string;
+  owner_member_uuid?: string;
   amount?: number;
   currency?: string;
   probability?: number;
@@ -109,6 +114,7 @@ export interface CreateTaskPayload {
 export interface UpdateOpportunityPayload {
   title?: string;
   owner_user_uuid?: string;
+  owner_member_uuid?: string;
   amount?: number;
   currency?: string;
   probability?: number;
@@ -118,6 +124,7 @@ export interface UpdateOpportunityPayload {
 export interface ListOpportunityQuery {
   stage?: OpportunityStage | "";
   owner_user_uuid?: string;
+  owner_member_uuid?: string;
   lead_uuid?: string;
   keyword?: string;
   source_channel?: string;

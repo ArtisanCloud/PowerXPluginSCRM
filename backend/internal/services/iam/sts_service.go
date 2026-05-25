@@ -80,6 +80,11 @@ func (s *STSService) Mint(ctx context.Context, tc authx.TenantContext) (*STSToke
 	if tenantUUID == "" {
 		return nil, ErrInvalidArguments
 	}
+	userUUID := strings.TrimSpace(tc.UserUUID)
+	memberUUID := strings.TrimSpace(tc.MemberUUID)
+	if userUUID == "" || memberUUID == "" || tc.UserID <= 0 || tc.MemberID <= 0 {
+		return nil, ErrInvalidArguments
+	}
 	now := time.Now()
 	expires := now.Add(s.ttl)
 	policyVersion := strings.TrimSpace(tc.PolicyVersion)
@@ -88,15 +93,20 @@ func (s *STSService) Mint(ctx context.Context, tc authx.TenantContext) (*STSToke
 	}
 	claims := authx.PowerXClaims{
 		TenantUUID:    authx.TenantClaim(tenantUUID),
+		TenantID:      authx.Int64Claim(tc.TenantID),
 		UserID:        authx.Int64Claim(tc.UserID),
-		UserUUID:      strings.TrimSpace(tc.UserUUID),
-		ActorUUID:     strings.TrimSpace(tc.UserUUID),
+		UserUUID:      userUUID,
+		MemberID:      authx.Int64Claim(tc.MemberID),
+		MemberUUID:    memberUUID,
+		ActorUUID:     memberUUID,
 		Roles:         tc.Roles,
 		Permissions:   tc.Permissions,
 		PolicyVersion: policyVersion,
 		PluginID:      s.pluginID,
+		Scope:         "access",
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    s.issuer,
+			Subject:   memberUUID,
 			Audience:  jwt.ClaimStrings{s.audience},
 			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(expires),

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/contracts"
+	oppmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/domain/models/opportunity"
 	opprepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/domain/repository/opportunity"
 	authmw "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/middleware"
 	oppsvc "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/services/admin/opportunity"
@@ -42,7 +43,7 @@ func (h *Handler) List(c *gin.Context) {
 	if handleServiceError(c, err) {
 		return
 	}
-	contracts.ResponseSuccess(c, gin.H{"items": items})
+	contracts.ResponseSuccess(c, gin.H{"items": opportunityRecordsPayload(items)})
 }
 
 func (h *Handler) Dashboard(c *gin.Context) {
@@ -84,7 +85,7 @@ func (h *Handler) Create(c *gin.Context) {
 	item, err := h.svc.Create(c.Request.Context(), tenantUUID, oppsvc.CreateRequest{
 		LeadUUID:        req.LeadUUID,
 		Title:           req.Title,
-		OwnerUserUUID:   req.OwnerUserUUID,
+		OwnerUserUUID:   firstNonEmpty(req.OwnerMemberUUID, req.OwnerUserUUID),
 		Amount:          req.Amount,
 		Currency:        req.Currency,
 		Probability:     req.Probability,
@@ -94,7 +95,7 @@ func (h *Handler) Create(c *gin.Context) {
 	if handleServiceError(c, err) {
 		return
 	}
-	contracts.ResponseCreated(c, item)
+	contracts.ResponseCreated(c, opportunityRecordPayload(item))
 }
 
 func (h *Handler) Get(c *gin.Context) {
@@ -135,7 +136,7 @@ func (h *Handler) Update(c *gin.Context) {
 	}
 	item, err := h.svc.Update(c.Request.Context(), tenantUUID, c.Param("opportunity_uuid"), oppsvc.UpdateRequest{
 		Title:                req.Title,
-		OwnerUserUUID:        req.OwnerUserUUID,
+		OwnerUserUUID:        firstNonEmptyPtr(req.OwnerMemberUUID, req.OwnerUserUUID),
 		Amount:               req.Amount,
 		Currency:             req.Currency,
 		Probability:          req.Probability,
@@ -325,7 +326,7 @@ func (h *Handler) Stage(c *gin.Context) {
 	if handleServiceError(c, err) {
 		return
 	}
-	contracts.ResponseSuccess(c, item)
+	contracts.ResponseSuccess(c, opportunityRecordPayload(item))
 }
 
 func (h *Handler) Close(c *gin.Context) {
@@ -346,7 +347,7 @@ func (h *Handler) Close(c *gin.Context) {
 	if handleServiceError(c, err) {
 		return
 	}
-	contracts.ResponseSuccess(c, item)
+	contracts.ResponseSuccess(c, opportunityRecordPayload(item))
 }
 
 func (h *Handler) Reopen(c *gin.Context) {
@@ -360,7 +361,7 @@ func (h *Handler) Reopen(c *gin.Context) {
 	if handleServiceError(c, err) {
 		return
 	}
-	contracts.ResponseSuccess(c, item)
+	contracts.ResponseSuccess(c, opportunityRecordPayload(item))
 }
 
 func (h *Handler) MarkRisk(c *gin.Context) {
@@ -381,7 +382,7 @@ func (h *Handler) MarkRisk(c *gin.Context) {
 	if handleServiceError(c, err) {
 		return
 	}
-	contracts.ResponseSuccess(c, item)
+	contracts.ResponseSuccess(c, opportunityRecordPayload(item))
 }
 
 func (h *Handler) Activities(c *gin.Context) {
@@ -393,7 +394,7 @@ func (h *Handler) Activities(c *gin.Context) {
 	if handleServiceError(c, err) {
 		return
 	}
-	contracts.ResponseSuccess(c, gin.H{"items": items})
+	contracts.ResponseSuccess(c, gin.H{"items": opportunityActivitiesPayload(items)})
 }
 
 func tenantUUID(c *gin.Context) (string, bool) {
@@ -418,7 +419,7 @@ func parseListFilter(c *gin.Context, query listOpportunityQuery) (oppsvc.ListFil
 	}
 	return oppsvc.ListFilter{
 		Stage:             query.Stage,
-		OwnerUserUUID:     query.OwnerUserUUID,
+		OwnerUserUUID:     firstNonEmpty(query.OwnerMemberUUID, query.OwnerUserUUID),
 		LeadUUID:          query.LeadUUID,
 		Keyword:           query.Keyword,
 		SourceChannel:     query.SourceChannel,
@@ -488,7 +489,7 @@ func defaultQuantity(value float64) float64 {
 }
 
 func actorFromContext(c *gin.Context) string {
-	for _, key := range []string{"actor_user_uuid", "user_uuid", "user_id"} {
+	for _, key := range []string{"member_uuid", "actor_user_uuid", "user_uuid", "user_id"} {
 		if value := strings.TrimSpace(c.GetString(key)); value != "" {
 			if actor, ok := normalizeActorUUID(value); ok {
 				return actor
@@ -496,6 +497,11 @@ func actorFromContext(c *gin.Context) string {
 		}
 	}
 	if tc, ok := authmw.GetTenantContext(c); ok {
+		if value := strings.TrimSpace(tc.MemberUUID); value != "" {
+			if actor, ok := normalizeActorUUID(value); ok {
+				return actor
+			}
+		}
 		if value := strings.TrimSpace(tc.UserUUID); value != "" {
 			if actor, ok := normalizeActorUUID(value); ok {
 				return actor
@@ -511,4 +517,93 @@ func normalizeActorUUID(value string) (string, bool) {
 		return "", false
 	}
 	return strings.ToLower(parsed.String()), true
+}
+
+func opportunityRecordsPayload(items []*oppmodel.OpportunityRecord) []gin.H {
+	out := make([]gin.H, 0, len(items))
+	for _, item := range items {
+		out = append(out, opportunityRecordPayload(item))
+	}
+	return out
+}
+
+func opportunityActivitiesPayload(items []*oppmodel.OpportunityActivity) []gin.H {
+	out := make([]gin.H, 0, len(items))
+	for _, item := range items {
+		operator := ""
+		if item != nil {
+			operator = strings.TrimSpace(item.OperatorUserUUID)
+		}
+		if item == nil {
+			out = append(out, gin.H{})
+			continue
+		}
+		out = append(out, gin.H{
+			"activity_uuid":        item.ActivityUUID,
+			"tenant_uuid":          item.TenantUUID,
+			"opportunity_uuid":     item.OpportunityUUID,
+			"activity_type":        item.ActivityType,
+			"from_stage":           item.FromStage,
+			"to_stage":             item.ToStage,
+			"payload":              item.Payload,
+			"operator_user_uuid":   operator,
+			"operator_member_uuid": operator,
+			"request_id":           item.RequestID,
+			"created_at":           item.CreatedAt,
+		})
+	}
+	return out
+}
+
+func opportunityRecordPayload(item *oppmodel.OpportunityRecord) gin.H {
+	if item == nil {
+		return gin.H{}
+	}
+	owner := strings.TrimSpace(item.OwnerUserUUID)
+	return gin.H{
+		"opportunity_uuid":       item.OpportunityUUID,
+		"tenant_uuid":            item.TenantUUID,
+		"lead_uuid":              item.LeadUUID,
+		"title":                  item.Title,
+		"stage":                  item.Stage,
+		"amount":                 item.Amount,
+		"currency":               item.Currency,
+		"probability":            item.Probability,
+		"owner_user_uuid":        owner,
+		"owner_member_uuid":      owner,
+		"source_channel":         item.SourceChannel,
+		"source_app_type":        item.SourceAppType,
+		"source_account_uuid":    item.SourceAccountUUID,
+		"external_userid":        item.ExternalUserID,
+		"expected_close_at":      item.ExpectedCloseAt,
+		"won_at":                 item.WonAt,
+		"lost_at":                item.LostAt,
+		"lost_reason":            item.LostReason,
+		"risk_flags":             item.RiskFlags,
+		"created_by":             item.CreatedBy,
+		"created_by_member_uuid": item.CreatedBy,
+		"updated_by":             item.UpdatedBy,
+		"updated_by_member_uuid": item.UpdatedBy,
+		"created_at":             item.CreatedAt,
+		"updated_at":             item.UpdatedAt,
+	}
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
+}
+
+func firstNonEmptyPtr(values ...*string) *string {
+	for _, value := range values {
+		if value != nil && strings.TrimSpace(*value) != "" {
+			clean := strings.TrimSpace(*value)
+			return &clean
+		}
+	}
+	return nil
 }

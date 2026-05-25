@@ -66,109 +66,144 @@ frontend:
       locales: [zh-CN, en]
     menus:
       - id: plugins.com.powerx.plugins.scrm
-        title: PowerX SCRM Plugin
+        title: SCRM
         title_i18n:
           namespace: menus
-          key: menu.com.powerx.plugins.scrm.template
-          default: PowerX SCRM Plugin Console
-        icon: i-heroicons-clipboard-document-check
-        path: /intro
-        route: intro
+          key: menu.com.powerx.plugins.scrm.root.title
+          default: SCRM
+        icon: i-heroicons-users
+        path: /scrm/social_channel_governance
+        route: scrm/social_channel_governance
         order: 20
         slot: group.plugins
-        required_policies: [template:read]
         children:
-          - id: plugins.com.powerx.plugins.scrm.intro
-            title: PowerX SCRM Plugin Intro
+          - id: plugins.com.powerx.plugins.scrm.channel_access
+            title: 渠道接入
             title_i18n:
               namespace: menus
-              key: menu.com.powerx.plugins.scrm.intro
-              default: PowerX SCRM Plugin Intro
-            icon: i-heroicons-information-circle
-            path: /intro
-            route: intro
+              key: menu.com.powerx.plugins.scrm.channel_access.title
+              default: 渠道接入
+            icon: i-heroicons-globe-alt
+            path: /scrm/social_channel_governance
+            route: scrm/social_channel_governance
             order: 1
-          - id: plugins.com.powerx.plugins.scrm.org_sync
-            title: 组织映射管理
+            required_policies: ["scrm.social_channel_accounts:read"]
+            children:
+              - id: plugins.com.powerx.plugins.scrm.channel_access.dashboard
+                title: 触点看板
+                title_i18n:
+                  namespace: menus
+                  key: menu.com.powerx.plugins.scrm.channel_access.dashboard
+                  default: 触点看板
+                icon: i-heroicons-globe-alt
+                path: /scrm/social_channel_governance
+                route: scrm/social_channel_governance
+                order: 1
+                required_policies: ["scrm.social_channel_accounts:read"]
+              - id: plugins.com.powerx.plugins.scrm.channel_access.accounts
+                title: 账号接入
+                title_i18n:
+                  namespace: menus
+                  key: menu.com.powerx.plugins.scrm.channel_access.accounts
+                  default: 账号接入
+                icon: i-heroicons-link
+                path: /scrm/social_channel_governance/unified-access
+                route: scrm/social_channel_governance/unified-access
+                order: 2
+                required_policies: ["scrm.social_channel_accounts:read"]
+          - id: plugins.com.powerx.plugins.scrm.leads_opportunity
+            title: 线索与商机
             title_i18n:
               namespace: menus
-              key: menu.com.powerx.plugins.scrm.org_sync.title
-              default: 组织映射管理
+              key: menu.com.powerx.plugins.scrm.leads_opportunity.title
+              default: 线索与商机
+            icon: i-heroicons-funnel
+            path: /scrm/lead_capture
+            route: scrm/lead_capture
+            order: 2
+            children:
+              - id: plugins.com.powerx.plugins.scrm.leads
+                title: 线索管理
+                title_i18n:
+                  namespace: menus
+                  key: menu.com.powerx.plugins.scrm.leads.title
+                  default: 线索管理
+                icon: i-heroicons-bolt
+                path: /scrm/lead_capture
+                route: scrm/lead_capture
+                order: 1
+                required_policies: ["scrm.leads:read"]
+              - id: plugins.com.powerx.plugins.scrm.opportunity
+                title: 商机管理
+                title_i18n:
+                  namespace: menus
+                  key: menu.com.powerx.plugins.scrm.opportunity.title
+                  default: 商机管理
+                icon: i-heroicons-currency-dollar
+                path: /scrm/opportunity
+                route: scrm/opportunity
+                order: 2
+                required_policies: ["scrm.opportunity:read"]
+          - id: plugins.com.powerx.plugins.scrm.channel_org_tags
+            title: 渠道组织与标签
+            title_i18n:
+              namespace: menus
+              key: menu.com.powerx.plugins.scrm.channel_org_tags.title
+              default: 渠道组织与标签
             icon: i-heroicons-squares-2x2
             path: /scrm/org_sync
             route: scrm/org_sync
-            order: 5
+            order: 3
+            required_policies: ["scrm.social_channel_accounts:read"]
             children:
-              - id: plugins.com.powerx.plugins.scrm.org_sync.main_view
-                title: 主组织视图
+              - id: plugins.com.powerx.plugins.scrm.org_management
+                title: 组织管理
                 title_i18n:
                   namespace: menus
-                  key: menu.com.powerx.plugins.scrm.org_sync.main_view
-                  default: 主组织视图
-                icon: i-heroicons-users
-                path: /scrm/org_sync/main_view
-                route: scrm/org_sync/main_view
+                  key: menu.com.powerx.plugins.scrm.org_management.title
+                  default: 组织管理
+                icon: i-heroicons-home-modern
+                path: /scrm/org_sync
+                route: scrm/org_sync
                 order: 1
-          - id: plugins.com.powerx.plugins.scrm.opportunity
-            title: 商机管理
-            title_i18n:
-              namespace: menus
-              key: menu.com.powerx.plugins.scrm.opportunity.title
-              default: 商机管理
-            icon: i-heroicons-currency-dollar
-            path: /scrm/opportunity
-            route: scrm/opportunity
-            order: 6
-            required_policies: [scrm.opportunity:read]
-          - id: plugins.com.powerx.plugins.scrm.templates
-            title: 模版
-            title_i18n:
-              namespace: menus
-              key: menu.com.powerx.plugins.scrm.templates.title
-              default: Templates
-            icon: i-heroicons-clipboard-document-list
-            path: /templates
-            route: templates
-            order: 2
-            children:
-              - id: plugins.com.powerx.plugins.scrm.templates.develop
-                title: 开发介绍
+                required_policies: ["scrm.social_channel_accounts:read"]
+              - id: plugins.com.powerx.plugins.scrm.org_sync_center
+                title: 组织同步
                 title_i18n:
                   namespace: menus
-                  key: menu.com.powerx.plugins.scrm.templates.develop
-                  default: Templates Develop Intro
-                icon: i-heroicons-document-text
-                path: /templates/develop
-                route: templates/develop
-                order: 1
-              - id: plugins.com.powerx.plugins.scrm.templates.crud
-                title: 模版 CRUD
-                title_i18n:
-                  namespace: menus
-                  key: menu.com.powerx.plugins.scrm.templates.crud
-                  default: Templates CRUD
-                icon: i-heroicons-wrench
-                path: /templates/crud
-                route: templates/crud
+                  key: menu.com.powerx.plugins.scrm.org_sync_center.title
+                  default: 组织同步
+                icon: i-heroicons-arrow-path
+                path: /scrm/sync_center?domain=org
+                route: scrm/sync_center
                 order: 2
+                required_policies: ["scrm.social_channel_accounts:read"]
+              - id: plugins.com.powerx.plugins.scrm.org_staff_tags
+                title: 员工标签
+                title_i18n:
+                  namespace: menus
+                  key: menu.com.powerx.plugins.scrm.org_staff_tags.title
+                  default: 员工标签
+                icon: i-heroicons-tag
+                path: /scrm/org_staff_tags
+                route: scrm/org_staff_tags
+                order: 3
+                required_policies: ["scrm.social_channel_accounts:read"]
+              - id: plugins.com.powerx.plugins.scrm.org_staff_tag_sync
+                title: 员工标签同步
+                title_i18n:
+                  namespace: menus
+                  key: menu.com.powerx.plugins.scrm.org_staff_tag_sync.title
+                  default: 员工标签同步
+                icon: i-heroicons-arrow-path-rounded-square
+                path: /scrm/org_staff_tag_sync
+                route: scrm/org_staff_tag_sync
+                order: 4
+                required_policies: ["scrm.social_channel_accounts:read"]
 
-agents:
-  - id: com.powerx.plugins.scrm.assistant
-    plugin_id: com.powerx.plugins.scrm
-    name: PowerX SCRM Plugin 助理
-    description: "PowerX SCRM Plugin 内置 Agent"
-    default_tools:
-      - com.powerx.plugins.scrm.template.create
+agents: []
 
-tools:
-  - id: com.powerx.plugins.scrm.template.create
-    plugin_id: com.powerx.plugins.scrm
-    name: 创建示例
-    description: 创建示例数据
-    transport: http
-    endpoint: ${POWERX_PLUGIN_HTTP_BASE:-/api/v1}/resources
-    method: POST
-    rbac_resource: template
+tools: []
 
 dependencies:
   requires: []
@@ -193,4 +228,5 @@ signature:
 
 metadata:
   author: PowerX SCRM Team
+  icon: icon.svg
   license: MIT

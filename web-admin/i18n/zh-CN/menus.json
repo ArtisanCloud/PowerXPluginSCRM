@@ -1,32 +1,40 @@
 {
   "menu": {
-    "base": {
-      "template": "基础插件",
-      "intro": "插件介绍",
-      "templates": {
-        "title": "模版",
-        "develop": "开发介绍",
-        "crud": "模版 CRUD"
-      },
-      "integration": {
-        "title": "集成中心",
-        "webhooks": "Webhooks",
-        "secrets": "Secrets",
-        "marketplace": "Marketplace 列表",
-        "recommendation": "推荐实验",
-        "insights": "洞察"
-      },
-      "scrm": {
-        "orgSync": "组织同步",
-        "orgSyncMainView": "组织总览"
-      }
-    },
     "com": {
       "powerx": {
         "plugins": {
           "scrm": {
+            "root": {
+              "title": "SCRM"
+            },
+            "channel_access": {
+              "title": "渠道接入",
+              "dashboard": "触点看板",
+              "accounts": "账号接入"
+            },
+            "leads_opportunity": {
+              "title": "线索与商机"
+            },
+            "leads": {
+              "title": "线索管理"
+            },
             "opportunity": {
               "title": "商机管理"
+            },
+            "channel_org_tags": {
+              "title": "渠道组织与标签"
+            },
+            "org_management": {
+              "title": "组织管理"
+            },
+            "org_sync_center": {
+              "title": "组织同步"
+            },
+            "org_staff_tags": {
+              "title": "员工标签"
+            },
+            "org_staff_tag_sync": {
+              "title": "员工标签同步"
             }
           }
         }

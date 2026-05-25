@@ -341,7 +341,9 @@ func parseProxyError(resp *http.Response) error {
 type MeContext struct {
 	IsRoot            bool            `json:"is_root"`
 	CurrentTenantUUID string          `json:"current_tenant_uuid"`
+	CurrentTenantID   *uint64         `json:"current_tenant_id,omitempty"`
 	CurrentMemberID   *uint64         `json:"current_member_id,omitempty"`
+	CurrentMemberUUID string          `json:"current_member_uuid,omitempty"`
 	Tenant            *MeTenantBrief  `json:"tenant,omitempty"`
 	User              *MeUserBrief    `json:"user,omitempty"`
 	Members           []MeMemberBrief `json:"members"`
@@ -353,6 +355,7 @@ type MeContext struct {
 }
 
 type MeTenantBrief struct {
+	ID       *uint64 `json:"id,omitempty"`
 	UUID     string  `json:"uuid"`
 	Key      string  `json:"key"`
 	Name     string  `json:"name"`
@@ -361,6 +364,7 @@ type MeTenantBrief struct {
 
 type MeUserBrief struct {
 	ID          uint64 `json:"id"`
+	UUID        string `json:"uuid,omitempty"`
 	Username    string `json:"username"`
 	Email       string `json:"email"`
 	Phone       string `json:"phone"`
@@ -372,10 +376,12 @@ type MeUserBrief struct {
 }
 
 type MeMemberBrief struct {
-	TenantUUID string `json:"tenant_uuid"`
-	TenantName string `json:"tenant_name"`
-	MemberID   uint64 `json:"member_id"`
-	IsAdmin    bool   `json:"is_admin"`
+	TenantUUID string  `json:"tenant_uuid"`
+	TenantID   *uint64 `json:"tenant_id,omitempty"`
+	TenantName string  `json:"tenant_name"`
+	MemberID   uint64  `json:"member_id"`
+	MemberUUID string  `json:"member_uuid,omitempty"`
+	IsAdmin    bool    `json:"is_admin"`
 }
 
 type MeCapabilities struct {
