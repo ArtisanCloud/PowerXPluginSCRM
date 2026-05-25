@@ -1,5 +1,12 @@
 capabilities:
   imports:
+    - contracts/capabilities/com.powerx.plugins.scrm.leads.read.yaml
+    - contracts/capabilities/com.powerx.plugins.scrm.leads.write.yaml
+    - contracts/capabilities/com.powerx.plugins.scrm.opportunity.read.yaml
+    - contracts/capabilities/com.powerx.plugins.scrm.opportunity.write.yaml
+    - contracts/capabilities/com.powerx.plugins.scrm.runtime_ops.invoke.yaml
+    - contracts/capabilities/com.powerx.plugins.scrm.social_channel_accounts.read.yaml
+    - contracts/capabilities/com.powerx.plugins.scrm.social_channel_accounts.write.yaml
     - contracts/capabilities/com.powerx.plugins.scrm.template.audit.yaml
     - contracts/capabilities/com.powerx.plugins.scrm.template.batch_clone.yaml
     - contracts/capabilities/com.powerx.plugins.scrm.template.compose.yaml
@@ -13,6 +20,48 @@ capabilities:
     - contracts/capabilities/com.powerx.plugins.scrm.template.update.yaml
     - contracts/capabilities/com.powerx.plugins.scrm.template.validate.yaml
   provides:
+    - descriptor: contracts/capabilities/com.powerx.plugins.scrm.leads.read.yaml
+      id: com.powerx.plugins.scrm.leads.read
+      schemas:
+        input: ""
+        output: ""
+      version: 1.0.0
+    - descriptor: contracts/capabilities/com.powerx.plugins.scrm.leads.write.yaml
+      id: com.powerx.plugins.scrm.leads.write
+      schemas:
+        input: ""
+        output: ""
+      version: 1.0.0
+    - descriptor: contracts/capabilities/com.powerx.plugins.scrm.opportunity.read.yaml
+      id: com.powerx.plugins.scrm.opportunity.read
+      schemas:
+        input: ""
+        output: ""
+      version: 1.0.0
+    - descriptor: contracts/capabilities/com.powerx.plugins.scrm.opportunity.write.yaml
+      id: com.powerx.plugins.scrm.opportunity.write
+      schemas:
+        input: ""
+        output: ""
+      version: 1.0.0
+    - descriptor: contracts/capabilities/com.powerx.plugins.scrm.runtime_ops.invoke.yaml
+      id: com.powerx.plugins.scrm.runtime_ops.invoke
+      schemas:
+        input: ""
+        output: ""
+      version: 1.0.0
+    - descriptor: contracts/capabilities/com.powerx.plugins.scrm.social_channel_accounts.read.yaml
+      id: com.powerx.plugins.scrm.social_channel_accounts.read
+      schemas:
+        input: ""
+        output: ""
+      version: 1.0.0
+    - descriptor: contracts/capabilities/com.powerx.plugins.scrm.social_channel_accounts.write.yaml
+      id: com.powerx.plugins.scrm.social_channel_accounts.write
+      schemas:
+        input: ""
+        output: ""
+      version: 1.0.0
     - descriptor: contracts/capabilities/com.powerx.plugins.scrm.template.audit.yaml
       id: com.powerx.plugins.scrm.template.audit
       schemas:

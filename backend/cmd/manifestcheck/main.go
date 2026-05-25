@@ -733,6 +733,9 @@ func buildExposureCatalog(existing map[string]interface{}, descriptors []catalog
 				if channelType == "rest" {
 					continue
 				}
+				if strings.TrimSpace(stringFromAny(channel["auth"])) == "" {
+					channel["auth"] = "jwt"
+				}
 				keepNonRest = append(keepNonRest, channel)
 			}
 		}

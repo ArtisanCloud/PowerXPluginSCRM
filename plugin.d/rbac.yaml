@@ -1,52 +1,80 @@
 permissions:
   - actions:
       - create
-      - delete
-      - read
-      - update
-    resource: template
-  - actions:
-      - create
       - read
       - update
     resource: channel_code
+  - actions:
+      - publish
+      - read
+    resource: channel_welcome_sync
   - actions:
       - create
       - read
     resource: integration
   - actions:
+      - invoke
+      - manage
+      - observe
       - read
-      - publish
-    resource: channel_welcome_sync
+    resource: runtime.ops
+  - actions:
+      - read
+      - write
+    resource: scrm.leads
   - actions:
       - read
       - write
     resource: scrm.opportunity
+  - actions:
+      - read
+      - write
+    resource: scrm.social_channel_accounts
+  - actions:
+      - create
+      - delete
+      - read
+      - update
+    resource: template
 rbac:
   resources:
-    - actions:
-        - create
-        - delete
-        - read
-        - update
-      resource: template
     - actions:
         - create
         - read
         - update
       resource: channel_code
     - actions:
+        - publish
+        - read
+      resource: channel_welcome_sync
+    - actions:
         - create
         - read
       resource: integration
     - actions:
+        - invoke
+        - manage
+        - observe
         - read
-        - publish
-      resource: channel_welcome_sync
+      resource: runtime.ops
+    - actions:
+        - read
+        - write
+      resource: scrm.leads
     - actions:
         - read
         - write
       resource: scrm.opportunity
+    - actions:
+        - read
+        - write
+      resource: scrm.social_channel_accounts
+    - actions:
+        - create
+        - delete
+        - read
+        - update
+      resource: template
 routes:
   adminManifest: /api/v1/admin/manifest
   basePath: /api/v1

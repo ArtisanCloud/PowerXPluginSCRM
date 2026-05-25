@@ -358,6 +358,16 @@ type ContextConfig struct {
 
 // Load 加载配置，优先级：YAML 文件 > 默认值（不再从环境变量覆盖）
 func Load() (*Config, error) {
+	return loadWithValidation(true)
+}
+
+// LoadForMigration 加载迁移入口配置。安装迁移阶段只需要数据库、schema 与基础上下文，
+// 不要求宿主运行态注入 gateway STS/API Key 凭证。
+func LoadForMigration() (*Config, error) {
+	return loadWithValidation(false)
+}
+
+func loadWithValidation(validateRuntimeGateway bool) (*Config, error) {
 	deferLog := newConfigLoadLogBuffer()
 	loadEnvFiles()
 
@@ -395,7 +405,7 @@ func Load() (*Config, error) {
 	overrideBindAddrFromEnv(cfg)
 
 	// 验证配置
-	if err := cfg.Validate(); err != nil {
+	if err := cfg.ValidateWithRuntimeGateway(validateRuntimeGateway); err != nil {
 		return nil, err
 	}
 
@@ -1551,6 +1561,10 @@ func (c *Config) IsJWTMode() bool {
 
 // Validate 验证配置
 func (c *Config) Validate() error {
+	return c.ValidateWithRuntimeGateway(true)
+}
+
+func (c *Config) ValidateWithRuntimeGateway(validateRuntimeGateway bool) error {
 	// 数据库配置验证
 	if c.Database == nil {
 		return NewConfigError("database config is required")
@@ -1734,7 +1748,7 @@ skipCustomerAuthSecretCheck:
 		}
 	}
 
-	if c.Gateway != nil {
+	if validateRuntimeGateway && c.Gateway != nil {
 		hasGatewayFields := strings.TrimSpace(c.Gateway.BaseURL) != "" ||
 			strings.TrimSpace(c.Gateway.APIKey) != "" ||
 			(c.GRPCUpstream != nil &&

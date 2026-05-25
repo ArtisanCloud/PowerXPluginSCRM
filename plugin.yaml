@@ -76,7 +76,7 @@ frontend:
         route: intro
         order: 20
         slot: group.plugins
-        required_policies: [com.powerx.plugins.scrm:template:read]
+        required_policies: [template:read]
         children:
           - id: plugins.com.powerx.plugins.scrm.intro
             title: PowerX SCRM Plugin Intro
@@ -114,12 +114,12 @@ frontend:
             title_i18n:
               namespace: menus
               key: menu.com.powerx.plugins.scrm.opportunity.title
-                  default: 商机管理
+              default: 商机管理
             icon: i-heroicons-currency-dollar
             path: /scrm/opportunity
             route: scrm/opportunity
             order: 6
-            required_policies: [com.powerx.plugins.scrm:scrm.opportunity:read]
+            required_policies: [scrm.opportunity:read]
           - id: plugins.com.powerx.plugins.scrm.templates
             title: 模版
             title_i18n:
@@ -177,7 +177,7 @@ migrations:
   driver: go
   entry: backend/bin/migrate
   args: ["setup"]
-  workdir: ./backend
+  workdir: .
   once: true
   timeout: 60s
 

@@ -51,7 +51,7 @@ plugin-id-check:
 	@echo "[manifest] checking plugin id naming convention"
 	@PLUGIN_ID_VAL=$$(awk -F': *' '/^id:/ {print $$2; exit}' $(PLUGIN_FILE)); \
 	case "$$PLUGIN_ID_VAL" in com.powerx.plugins.*) ;; *) echo "❌ plugin id 不符合规范: $$PLUGIN_ID_VAL（应以 com.powerx.plugins. 开头）"; exit 1;; esac
-	@LEGACY_MATCH=$$(rg -n "com\\.powerx\\.plugin\\." web-admin backend make-files plugin.yaml -g '!make-files/manifest.mk' 2>/dev/null || true); \
+	@LEGACY_MATCH=$$(rg -n "com\\.powerx\\.plugin\\." web-admin backend make-files plugin.yaml -g '!make-files/manifest.mk' -g '!backend/logs/**' 2>/dev/null || true); \
 	if [ -n "$$LEGACY_MATCH" ]; then echo "❌ 发现旧命名 com.powerx.plugin.* 残留:"; echo "$$LEGACY_MATCH"; exit 1; fi; \
 	echo "✅ plugin id naming check passed"
 

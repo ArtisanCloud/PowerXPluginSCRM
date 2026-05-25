@@ -25,8 +25,8 @@ func main() {
 	ensureMigrationJWTSecret(cmd)
 	flag.Parse()
 
-	// 加载配置
-	cfg, err := config.Load()
+	// 加载迁移配置：安装阶段尚未启动插件运行态，不要求 gateway STS/API Key 凭证。
+	cfg, err := config.LoadForMigration()
 	if err != nil {
 		log.Fatalf("加载配置失败: %v", err)
 	}
