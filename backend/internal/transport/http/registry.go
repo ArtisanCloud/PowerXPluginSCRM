@@ -17,6 +17,7 @@ import (
 	adminlead "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/transport/http/admin/lead_capture"
 	adminmarketplace "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/transport/http/admin/marketplace"
 	adminoperations "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/transport/http/admin/operations"
+	adminopportunity "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/transport/http/admin/opportunity"
 	adminruntime "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/transport/http/admin/runtime_ops"
 	adminsecurity "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/transport/http/admin/security"
 	AdminSocial "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/transport/http/admin/social_channel_governance"
@@ -46,6 +47,36 @@ func NewRegistry(engine *gin.Engine, deps *app.Deps) *Registry {
 	}
 }
 
+// StaticRBACEntries returns the route-level RBAC declarations without requiring
+// a running Gin engine. Build tooling uses this to generate plugin.d/rbac.yaml.
+func StaticRBACEntries(prefix string) map[string]authx.Permission {
+	if strings.TrimSpace(prefix) == "" {
+		prefix = "/api/v1"
+	}
+	entries := map[string]authx.Permission{}
+	merge := func(items map[string]authx.Permission) {
+		for route, perm := range items {
+			entries[route] = perm
+		}
+	}
+	merge(adminruntime.RBACEntries(prefix))
+	merge(adminsecurity.RBACEntries(prefix))
+	merge(adminintegration.RBACEntries(prefix))
+	merge(adminoperations.RBACEntries(prefix))
+	merge(adminconsole.RBACEntries(prefix))
+	merge(adminmarketplace.RBACEntries(prefix))
+	merge(admincapability.RBACEntries(prefix))
+	merge(adminiam.RBACEntries(prefix))
+	merge(adminlead.RBACEntries(prefix))
+	merge(adminacquisition.RBACEntries(prefix))
+	merge(adminopportunity.RBACEntries(prefix))
+	merge(AdminSocial.RBACEntries(prefix))
+	merge(templates.RBACEntries(prefix))
+	merge(integrationRBACEntries(prefix))
+	merge(marketplacePublicRBACEntries(prefix))
+	return entries
+}
+
 // RegisterRoutes 注册所有路由
 func (r *Registry) RegisterAPIRoutes(gApi *gin.RouterGroup) {
 	r.ensureChannelCodeFoundation()
@@ -59,20 +90,7 @@ func (r *Registry) RegisterAPIRoutes(gApi *gin.RouterGroup) {
 		r.registerDevAssetsRoute()
 	}
 
-	r.mergeRBAC(adminruntime.RBACEntries(r.apiPrefix()))
-	r.mergeRBAC(adminsecurity.RBACEntries(r.apiPrefix()))
-	r.mergeRBAC(adminintegration.RBACEntries(r.apiPrefix()))
-	r.mergeRBAC(adminoperations.RBACEntries(r.apiPrefix()))
-	r.mergeRBAC(adminconsole.RBACEntries(r.apiPrefix()))
-	r.mergeRBAC(adminmarketplace.RBACEntries(r.apiPrefix()))
-	r.mergeRBAC(admincapability.RBACEntries(r.apiPrefix()))
-	r.mergeRBAC(adminiam.RBACEntries(r.apiPrefix()))
-	r.mergeRBAC(adminlead.RBACEntries(r.apiPrefix()))
-	r.mergeRBAC(adminacquisition.RBACEntries(r.apiPrefix()))
-	r.mergeRBAC(AdminSocial.RBACEntries(r.apiPrefix()))
-	r.mergeRBAC(templates.RBACEntries(r.apiPrefix()))
-	r.mergeRBAC(integrationRBACEntries(r.apiPrefix()))
-	r.mergeRBAC(marketplacePublicRBACEntries(r.apiPrefix()))
+	r.mergeRBAC(StaticRBACEntries(r.apiPrefix()))
 }
 
 func (r *Registry) ensureChannelCodeFoundation() {

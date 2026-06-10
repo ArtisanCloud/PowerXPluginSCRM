@@ -153,14 +153,52 @@
             <UIcon name="i-heroicons-user-plus" class="text-primary" />
             <span class="font-medium">分配与状态</span>
           </div>
-          <UButton
-            color="primary"
-            variant="soft"
-            :disabled="!lead"
-            @click="openAssignModal"
-          >
-            编辑分配
-          </UButton>
+          <div class="flex flex-wrap items-center gap-2">
+            <UButton
+              size="xs"
+              variant="soft"
+              :disabled="!lead || qualificationSaving"
+              :loading="qualificationSaving && pendingQualification === 'mql'"
+              @click="submitQualification('mql')"
+            >
+              设为 MQL
+            </UButton>
+            <UButton
+              size="xs"
+              variant="soft"
+              :disabled="!lead || qualificationSaving"
+              :loading="qualificationSaving && pendingQualification === 'sql'"
+              @click="submitQualification('sql')"
+            >
+              设为 SQL
+            </UButton>
+            <UButton
+              size="xs"
+              variant="ghost"
+              :disabled="!canRollbackQualification || qualificationSaving"
+              :loading="qualificationSaving && pendingQualification === 'rollback'"
+              @click="submitQualification('rollback')"
+            >
+              回退资格
+            </UButton>
+            <UButton
+              size="xs"
+              color="primary"
+              :disabled="!canCreateOpportunity"
+              :loading="opportunityCreating"
+              @click="createOpportunityFromLead"
+            >
+              创建商机
+            </UButton>
+            <UButton
+              color="primary"
+              variant="soft"
+              :disabled="!lead"
+              @click="openAssignModal"
+            >
+              编辑分配
+            </UButton>
+          </div>
         </div>
       </template>
       <div v-if="lead" class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -430,6 +468,35 @@
           <UFormField label="邮箱">
             <UInput v-model="editForm.email" placeholder="邮箱" />
           </UFormField>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <UFormField label="流量平台">
+              <USelectMenu
+                v-model="editForm.source_channel"
+                :items="sourceChannelOptions"
+                value-key="value"
+                label-key="label"
+                placeholder="选择流量平台"
+                class="w-full"
+                :portal="false"
+                :ui="{ content: 'z-[200]' }"
+              />
+            </UFormField>
+            <UFormField label="流量来源">
+              <USelectMenu
+                v-model="editForm.source_app_type"
+                :items="sourceAppTypeOptions"
+                value-key="value"
+                label-key="label"
+                placeholder="选择流量来源"
+                class="w-full"
+                :portal="false"
+                :ui="{ content: 'z-[200]' }"
+              />
+            </UFormField>
+          </div>
+          <UFormField label="渠道账号 UUID">
+            <UInput v-model="editForm.source_account_uuid" placeholder="渠道账号 UUID" />
+          </UFormField>
           <p class="text-xs text-gray-500">
             说明：若该线索没有 external_userid，仅能保存本地信息，无法回写到渠道。
           </p>
@@ -507,6 +574,12 @@ import { useLeadCaptureStore } from "~/stores/scrm/lead_capture/lead_store";
 import { useMemberService } from "~/composables/api/services/memberService";
 import type { Member } from "~/composables/api/services/memberService";
 import { useLeadCaptureService, type LeadConversationEvent, type LeadConversationSummary } from "~/composables/api/services/leadCapture";
+import { useOpportunityService } from "~/composables/api/services/opportunity";
+import {
+  RuntimeDictionaryNamespaces,
+  useRuntimeDictionaryService,
+  type RuntimeDictionaryItem,
+} from "~/composables/api/services/runtimeDictionary";
 import { useWsBusClient } from "~/composables/useWsBusClient";
 import ToastAlert from "~/components/ToastAlert.vue";
 
@@ -519,6 +592,8 @@ const router = useRouter();
 const store = useLeadCaptureStore();
 const memberService = useMemberService();
 const leadCaptureService = useLeadCaptureService();
+const opportunityService = useOpportunityService();
+const runtimeDictionaryService = useRuntimeDictionaryService();
 const wsBus = useWsBusClient();
 
 const leadId = computed(() => String(route.params.lead_id || ""));
@@ -551,6 +626,7 @@ const latestSyncTracePayload = computed(() => {
 const latestAssignmentReason = computed(() => assignments.value[0]?.reason || "");
 
 const members = ref<Member[]>([]);
+const sourceCatalogs = ref<RuntimeDictionaryItem[]>([]);
 const selectedOwner = ref<string>("");
 const memberSearch = ref("");
 const infoModalOpen = ref(false);
@@ -559,6 +635,9 @@ const assignModalOpen = ref(false);
 const conversationLoading = ref(false);
 const conversationBinding = ref(false);
 const conversationEventsLoading = ref(false);
+const qualificationSaving = ref(false);
+const pendingQualification = ref<"mql" | "sql" | "rollback" | "">("");
+const opportunityCreating = ref(false);
 const selectedConversationId = ref("");
 const leadConversations = ref<LeadConversationSummary[]>([]);
 const conversationEvents = ref<LeadConversationEvent[]>([]);
@@ -578,6 +657,9 @@ const editForm = reactive({
   display_name: "",
   phone: "",
   email: "",
+  source_channel: "",
+  source_app_type: "",
+  source_account_uuid: "",
 });
 
 type ToastColor =
@@ -603,6 +685,10 @@ const statusMeta = (status?: string) => {
       return { label: "已分配", color: "primary" };
     case "in_progress":
       return { label: "跟进中", color: "warning" };
+    case "mql":
+      return { label: "MQL", color: "warning" };
+    case "sql":
+      return { label: "SQL", color: "success" };
     case "converted":
       return { label: "已转化", color: "success" };
     case "closed":
@@ -614,6 +700,12 @@ const statusMeta = (status?: string) => {
       return { label: "新线索", color: "info" };
   }
 };
+
+const canRollbackQualification = computed(() => ["mql", "sql"].includes(String(lead.value?.status || "").trim().toLowerCase()));
+const canCreateOpportunity = computed(() => {
+  const status = String(lead.value?.status || "").trim().toLowerCase();
+  return !!lead.value && ["sql", "converted"].includes(status) && !opportunityCreating.value;
+});
 
 const relationStatusMeta = (status?: string) => {
   if (String(status || "").trim().toLowerCase() === "disconnected") {
@@ -656,6 +748,20 @@ const memberLabel = (memberId?: string) => {
   );
   return found?.display_name || found?.email || found?.username || "";
 };
+
+const sourceChannelOptions = computed(() =>
+  sourceCatalogs.value
+    .filter((item) => item.namespace === RuntimeDictionaryNamespaces.leadTrafficPlatform && item.enabled)
+    .sort((a, b) => (a.sort || 100) - (b.sort || 100))
+    .map((item) => ({ value: item.code, label: item.label }))
+);
+
+const sourceAppTypeOptions = computed(() =>
+  sourceCatalogs.value
+    .filter((item) => item.namespace === RuntimeDictionaryNamespaces.leadTrafficSource && item.enabled)
+    .sort((a, b) => (a.sort || 100) - (b.sort || 100))
+    .map((item) => ({ value: item.code, label: item.label }))
+);
 
 const refreshLead = async () => {
   if (!leadId.value) {
@@ -735,7 +841,11 @@ const openInfoModal = () => {
   editForm.display_name = lead.value.display_name || "";
   editForm.phone = lead.value.phone || "";
   editForm.email = lead.value.email || "";
+  editForm.source_channel = lead.value.source_channel || "";
+  editForm.source_app_type = lead.value.source_app_type || "";
+  editForm.source_account_uuid = lead.value.source_account_uuid || "";
   infoModalOpen.value = true;
+  void loadSourceCatalogs();
 };
 
 const closeInfoModal = () => {
@@ -791,9 +901,19 @@ const submitInfoForm = async () => {
     display_name: editForm.display_name.trim() || undefined,
     phone: editForm.phone.trim() || undefined,
     email: editForm.email.trim() || undefined,
+    source_channel: editForm.source_channel.trim() || undefined,
+    source_app_type: editForm.source_app_type.trim() || undefined,
+    source_account_uuid: editForm.source_account_uuid.trim() || undefined,
   };
-  if (!payload.display_name && !payload.phone && !payload.email) {
-    showToast("姓名 / 手机号 / 邮箱至少填写一项", "warning");
+  if (
+    !payload.display_name &&
+    !payload.phone &&
+    !payload.email &&
+    !payload.source_channel &&
+    !payload.source_app_type &&
+    !payload.source_account_uuid
+  ) {
+    showToast("姓名 / 手机号 / 邮箱 / 来源信息至少填写一项", "warning");
     return;
   }
   infoSaving.value = true;
@@ -853,6 +973,58 @@ const submitAssignForm = async () => {
   }
 };
 
+const submitQualification = async (target: "mql" | "sql" | "rollback") => {
+  if (!leadId.value || !lead.value) return;
+  qualificationSaving.value = true;
+  pendingQualification.value = target;
+  try {
+    await leadCaptureService.updateLeadQualification(leadId.value, { target_status: target });
+    await refreshLead();
+    showToast(target === "rollback" ? "资格阶段已回退" : "资格阶段已更新", "success");
+  } catch (err: any) {
+    showToast(err?.data?.error?.message || err?.message || "资格阶段更新失败", "error");
+  } finally {
+    qualificationSaving.value = false;
+    pendingQualification.value = "";
+  }
+};
+
+const createOpportunityFromLead = async () => {
+  if (!lead.value || !leadId.value) return;
+  const ownerUUID = String(lead.value.owner_user_uuid || "").trim();
+  if (!ownerUUID) {
+    showToast("创建商机前请先选择负责人", "warning");
+    return;
+  }
+  opportunityCreating.value = true;
+  try {
+    const title = `${lead.value.display_name || lead.value.phone || "线索"} 商机`;
+    const resp = await opportunityService.create({
+      lead_uuid: leadId.value,
+      title,
+      owner_user_uuid: ownerUUID,
+      owner_member_uuid: ownerUUID,
+      currency: "CNY",
+      probability: 20,
+    });
+    const opportunityUUID = (resp as any)?.data?.opportunity_uuid;
+    if (opportunityUUID) {
+      showToast("商机已创建", "success");
+      await router.push(`/scrm/opportunity/${opportunityUUID}`);
+    }
+  } catch (err: any) {
+    const existing = err?.data?.error?.details?.opportunity_uuid;
+    if (existing) {
+      showToast("该线索已有活跃商机", "warning");
+      await router.push(`/scrm/opportunity/${existing}`);
+      return;
+    }
+    showToast(err?.data?.error?.message || err?.message || "创建商机失败", "error");
+  } finally {
+    opportunityCreating.value = false;
+  }
+};
+
 const loadMembers = async (tenantUUID?: string) => {
   const boundMembers = await memberService.listBound(tenantUUID);
   if (boundMembers.length > 0) {
@@ -862,8 +1034,14 @@ const loadMembers = async (tenantUUID?: string) => {
   members.value = await memberService.listAll(tenantUUID);
 };
 
+const loadSourceCatalogs = async () => {
+  const resp = await runtimeDictionaryService.listDictionaries({ enabled: true });
+  sourceCatalogs.value = (((resp as any)?.data?.items || []) as RuntimeDictionaryItem[]);
+};
+
 onMounted(async () => {
   await loadMembers();
+  await loadSourceCatalogs();
   await refreshLead();
   wsUnsubscribe = wsBus.client.subscribe("powerx.lead.conversation.updated.v1", async (payload: any) => {
     if (!payload || payload.lead_uuid !== leadId.value) return;

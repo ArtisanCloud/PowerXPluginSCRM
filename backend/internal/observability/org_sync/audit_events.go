@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/logger"
+	authx "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/middleware"
 	"github.com/sirupsen/logrus"
 )
 
@@ -25,6 +26,9 @@ type AuditEvent struct {
 // ResolveActorUserUUID attempts to resolve actor id from context, then falls back.
 func ResolveActorUserUUID(ctx context.Context, fallback string) string {
 	if ctx != nil {
+		if memberUUID, ok := authx.MemberUUIDFromContext(ctx); ok && memberUUID != "" {
+			return memberUUID
+		}
 		if v := ctx.Value("actor_user_uuid"); v != nil {
 			if s, ok := v.(string); ok && s != "" {
 				return s

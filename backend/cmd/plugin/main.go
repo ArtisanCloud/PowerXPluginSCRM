@@ -45,7 +45,6 @@ import (
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/shared/app"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/shared/utils"
 	localwsbus "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/transport/websocket/bus"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
 	fweventbridge "github.com/ArtisanCloud/PowerXPlugin/framework/backend/go/eventbridge"
@@ -78,6 +77,25 @@ func (bridgeRecorder) ObserveLatencyMs(pluginID, tenantUUID, topic, op string, m
 	ebmetrics.ObserveLatencyMs(pluginID, tenantUUID, topic, op, ms)
 }
 
+func initLoggerFromConfig(cfg *config.Config) {
+	logLevel := ""
+	logFormat := ""
+	logOutput := ""
+	logFilePath := ""
+	if cfg != nil {
+		logLevel = cfg.LogLevel
+		if cfg.Logging != nil {
+			if strings.TrimSpace(cfg.Logging.Level) != "" {
+				logLevel = cfg.Logging.Level
+			}
+			logFormat = cfg.Logging.Format
+			logOutput = cfg.Logging.Output
+			logFilePath = cfg.Logging.FilePath
+		}
+	}
+	logger.InitWithOptions(logLevel, logFormat, logOutput, logFilePath)
+}
+
 func main() {
 	rootCtx := context.Background()
 	ctx, cancel := context.WithCancel(rootCtx)
@@ -93,6 +111,7 @@ func main() {
 		fmt.Printf("Failed to load config: %v\n", err)
 		os.Exit(1)
 	}
+	initLoggerFromConfig(cfg)
 	if err := pluginbootstrap.EnsureLocalIAMSecret(cfg); err != nil {
 		logger.WithError(err).Fatal("Failed to ensure local IAM secret")
 	}
@@ -204,7 +223,6 @@ func main() {
 
 	var capabilityGateway *capgateway.Client
 	if cfg != nil && cfg.Gateway != nil {
-		ensureToolTokenFresh(ctx, cfg)
 		capabilityGateway = capgateway.NewClient(cfg, logger.WithField("component", "capability_gateway_client"))
 	}
 
@@ -408,57 +426,4 @@ func main() {
 	}
 
 	logger.Info("All servers shutdown completed")
-}
-
-func ensureToolTokenFresh(ctx context.Context, cfg *config.Config) {
-	if cfg == nil || cfg.Gateway == nil {
-		return
-	}
-	token := strings.TrimSpace(cfg.Gateway.ToolToken)
-	if token == "" {
-		return
-	}
-	expiry, err := capgateway.ParseTokenExpiry(token)
-	log := logger.WithField("component", "gateway_token_monitor")
-	if err != nil {
-		log.WithError(err).Debug("PX_TOOL_TOKEN 无法解析有效期")
-		return
-	}
-	now := time.Now().UTC()
-	fields := logger.Fields{
-		"expiresAt": expiry.UTC().Format(time.RFC3339),
-	}
-
-	refreshToken := strings.TrimSpace(cfg.Gateway.RefreshToken)
-	if refreshToken == "" || strings.TrimSpace(cfg.Gateway.BaseURL) == "" {
-		logTokenExpiryStatus(log, now, expiry, fields)
-		return
-	}
-
-	if now.After(expiry) || expiry.Sub(now) < 24*time.Hour {
-		log.WithFields(fields).Info("PX_TOOL_TOKEN 即将过期，尝试使用 PX_TOOL_REFRESH_TOKEN 自动刷新")
-		newToken, _, err := capgateway.RefreshToolToken(ctx, cfg)
-		if err != nil {
-			log.WithError(err).Error("PX_TOOL_TOKEN 刷新失败，请重新执行 `px-plugin login --manifest ./skeleton/plugin.yaml`")
-			return
-		}
-		if nextExpiry, err := capgateway.ParseTokenExpiry(newToken); err == nil {
-			fields["expiresAt"] = nextExpiry.UTC().Format(time.RFC3339)
-		}
-		log.WithFields(fields).Info("PX_TOOL_TOKEN 已自动刷新，请同步更新 skeleton/.env.local 中的 PX_TOOL_TOKEN / PX_TOOL_REFRESH_TOKEN")
-		return
-	}
-	logTokenExpiryStatus(log, now, expiry, fields)
-}
-
-func logTokenExpiryStatus(log *logrus.Entry, now, expiry time.Time, fields logger.Fields) {
-	if now.After(expiry) {
-		log.WithFields(fields).Error("PX_TOOL_TOKEN 已过期，请重新执行 `px-plugin login --manifest ./skeleton/plugin.yaml` 刷新凭证")
-		return
-	}
-	if expiry.Sub(now) < 24*time.Hour {
-		log.WithFields(fields).Warn("PX_TOOL_TOKEN 将在 24 小时内过期，请尽快运行 `px-plugin login` 刷新凭证，或设置 PX_TOOL_REFRESH_TOKEN 以便自动刷新")
-		return
-	}
-	log.WithFields(fields).Info("PX_TOOL_TOKEN 有效")
 }

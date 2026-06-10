@@ -11,9 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// resolveGatewayBearerToken 统一 ws-bus 出站 token 选择规则：
-// - Delegated/宿主模式：透传入站 Bearer（与宿主请求链路保持一致）
-// - Local/Standalone 模式：不透传，交由 HostClient 使用 PX_TOOL_TOKEN
+// resolveGatewayBearerToken returns request-scoped bearer when delegated IAM provides one.
 func resolveGatewayBearerToken(c *gin.Context, deps *app.Deps) string {
 	if c == nil || deps == nil {
 		return ""
@@ -84,16 +82,14 @@ func logGatewayAuthSelection(c *gin.Context, deps *app.Deps, outboundBearer stri
 		}
 	}
 
-	pxToolToken := ""
 	apiKey := ""
 	authScheme := ""
 	if deps.Config.Gateway != nil {
-		pxToolToken = strings.TrimSpace(deps.Config.Gateway.ToolToken)
 		apiKey = strings.TrimSpace(deps.Config.Gateway.APIKey)
 		authScheme = strings.TrimSpace(deps.Config.Gateway.AuthScheme)
 	}
 
-	outboundSource := "PX_TOOL_TOKEN"
+	outboundSource := "sts"
 	if strings.EqualFold(authScheme, "apikey") || strings.EqualFold(authScheme, "api_key") || strings.EqualFold(authScheme, "api-key") {
 		outboundSource = "PX_GATEWAY_API_KEY"
 	}
@@ -108,8 +104,6 @@ func logGatewayAuthSelection(c *gin.Context, deps *app.Deps, outboundBearer stri
 		"inbound_bearer_prefix":   inboundBearerPrefix,
 		"outbound_token_source":   outboundSource,
 		"outbound_bearer_prefix":  tokenPrefix(outboundBearer),
-		"px_tool_token_present":   pxToolToken != "",
-		"px_tool_token_prefix":    tokenPrefix(pxToolToken),
 		"px_gateway_api_key_set":  apiKey != "",
 		"gateway_auth_scheme":     authScheme,
 		"resolved_gateway_tenant": strings.TrimSpace(tenantUUID),

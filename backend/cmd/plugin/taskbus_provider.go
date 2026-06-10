@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"os"
 	"strings"
@@ -8,6 +9,7 @@ import (
 	fweventbridge "github.com/ArtisanCloud/PowerXPlugin/framework/backend/go/eventbridge"
 	fwtaskbus "github.com/ArtisanCloud/PowerXPlugin/framework/backend/go/runtime/taskbus"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/config"
+	powerxclient "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/grpc/client"
 	runtimeswitch "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/runtime/switches"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/shared/app"
 	"github.com/sirupsen/logrus"
@@ -36,26 +38,22 @@ func resolveTaskBusProvider(cfg *config.Config, log *logrus.Entry) fweventbridge
 
 	baseURL := strings.TrimSpace(cfg.Gateway.BaseURL)
 	authScheme := strings.ToLower(strings.TrimSpace(cfg.Gateway.AuthScheme))
-	toolToken := strings.TrimSpace(cfg.Gateway.ToolToken)
-	apiKey := strings.TrimSpace(cfg.Gateway.APIKey)
 	if authScheme == "" {
-		if apiKey != "" {
-			authScheme = "apikey"
-		} else {
-			authScheme = "bearer"
-		}
+		authScheme = "bearer"
 	}
-	credentialOK := (authScheme == "apikey" && apiKey != "") || (authScheme != "apikey" && toolToken != "")
+	hasSTS := cfg.GRPCUpstream != nil &&
+		strings.TrimSpace(cfg.GRPCUpstream.STSClientID) != "" &&
+		strings.TrimSpace(cfg.GRPCUpstream.STSClientSecret) != ""
+	credentialOK := authScheme == "bearer" && hasSTS
 	if baseURL == "" || !credentialOK {
 		if log != nil {
 			log.WithFields(logrus.Fields{
 				"gateway_base_url": baseURL,
 				"gateway_auth":     authScheme,
-				"has_tool_token":   toolToken != "",
-				"has_api_key":      apiKey != "",
+				"has_sts":          hasSTS,
 			}).Warn("TaskBus host provider unavailable; missing gateway credentials")
 		}
-		return notConfiguredTaskBusProvider{reason: "gateway base_url and auth credential are required"}
+		return notConfiguredTaskBusProvider{reason: "gateway base_url and STS credential are required"}
 	}
 
 	sourcePlugin := app.PluginID
@@ -76,13 +74,41 @@ func resolveTaskBusProvider(cfg *config.Config, log *logrus.Entry) fweventbridge
 	return fwtaskbus.NewHostProvider(fwtaskbus.HostProviderConfig{
 		BaseURL:        baseURL,
 		APIPrefix:      strings.TrimSpace(cfg.Gateway.APIPrefix),
-		AuthScheme:     authScheme,
-		Token:          toolToken,
-		APIKey:         apiKey,
+		TokenProvider:  hostTaskBusTokenProvider(cfg, log),
 		TenantUUID:     tenantUUID,
 		UserAgent:      strings.TrimSpace(cfg.Gateway.UserAgent),
 		Timeout:        cfg.Gateway.Timeout,
 		PayloadVersion: payloadVersion,
 		SourcePlugin:   sourcePlugin,
 	})
+}
+
+func hostTaskBusTokenProvider(cfg *config.Config, log *logrus.Entry) func(context.Context) (string, error) {
+	if cfg == nil || cfg.GRPCUpstream == nil {
+		return nil
+	}
+	return func(ctx context.Context) (string, error) {
+		return exchangeHostBearerForTaskBus(ctx, cfg, log)
+	}
+}
+
+func exchangeHostBearerForTaskBus(ctx context.Context, cfg *config.Config, log *logrus.Entry) (string, error) {
+	if cfg == nil || cfg.GRPCUpstream == nil {
+		return "", errors.New("grpc upstream is not configured")
+	}
+	client, err := powerxclient.NewPowerXServiceClient(ctx, cfg.GRPCUpstream)
+	if err != nil {
+		if log != nil {
+			log.WithError(err).Warn("TaskBus host provider unavailable; STS client init failed")
+		}
+		return "", err
+	}
+	token, err := client.AccessToken(ctx)
+	if err != nil {
+		if log != nil {
+			log.WithError(err).Warn("TaskBus host provider unavailable; STS exchange failed")
+		}
+		return "", err
+	}
+	return strings.TrimSpace(token), nil
 }

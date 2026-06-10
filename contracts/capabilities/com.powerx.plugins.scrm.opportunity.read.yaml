@@ -1,0 +1,25 @@
+id: com.powerx.plugins.scrm.opportunity.read
+type: API
+version: 1.0.0
+description: "读取商机工作台、商机详情、报价单、跟进任务与活动流的管理端能力。"
+rbac:
+  resource: scrm.opportunity
+  actions: [read]
+metadata:
+  protocols:
+    rest:
+      - method: GET
+        path: /api/v1/admin/opportunity/dashboard
+      - method: GET
+        path: /api/v1/admin/opportunity/records
+      - method: GET
+        path: /api/v1/admin/opportunity/records/{opportunity_uuid}
+      - method: GET
+        path: /api/v1/admin/opportunity/records/{opportunity_uuid}/line-items
+      - method: GET
+        path: /api/v1/admin/opportunity/records/{opportunity_uuid}/line-items/{item_uuid}/download
+      - method: GET
+        path: /api/v1/admin/opportunity/records/{opportunity_uuid}/tasks
+      - method: GET
+        path: /api/v1/admin/opportunity/records/{opportunity_uuid}/activities
+

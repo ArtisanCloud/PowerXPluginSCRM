@@ -103,14 +103,14 @@ func RegisterPublicRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 			hostTenantUUID = ""
 		}
 		if hostClient, err := fwwsbus.NewHostClient(fwwsbus.HostClientConfig{
-			BaseURL:    strings.TrimSpace(deps.Config.Gateway.BaseURL),
-			APIPrefix:  strings.TrimSpace(deps.Config.Gateway.APIPrefix),
-			AuthScheme: strings.TrimSpace(deps.Config.Gateway.AuthScheme),
-			Token:      strings.TrimSpace(deps.Config.Gateway.ToolToken),
-			APIKey:     strings.TrimSpace(deps.Config.Gateway.APIKey),
-			TenantUUID: hostTenantUUID,
-			UserAgent:  strings.TrimSpace(deps.Config.Gateway.UserAgent),
-			Timeout:    deps.Config.Gateway.Timeout,
+			BaseURL:       strings.TrimSpace(deps.Config.Gateway.BaseURL),
+			APIPrefix:     strings.TrimSpace(deps.Config.Gateway.APIPrefix),
+			AuthScheme:    strings.TrimSpace(deps.Config.Gateway.AuthScheme),
+			TokenProvider: deps.HostWSTokenProvider(),
+			APIKey:        strings.TrimSpace(deps.Config.Gateway.APIKey),
+			TenantUUID:    hostTenantUUID,
+			UserAgent:     strings.TrimSpace(deps.Config.Gateway.UserAgent),
+			Timeout:       deps.Config.Gateway.Timeout,
 		}); err == nil {
 			publisher = fwwsbus.NewAdapter(hostClient, "", nil)
 		}

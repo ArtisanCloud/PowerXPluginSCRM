@@ -17,28 +17,12 @@ func JWTAuth(cfg authx.JWTAuthConfig) gin.HandlerFunc {
 		if tc, bearer, ok := authx.ParseFromHeaders(c.GetHeader, cfg); ok {
 			authx.SetTenantContext(c, tc)
 			authx.SetRawBearerToken(c, bearer)
+			attachIdentityContext(c, tc)
 			c.Next()
 			return
 		}
 
-		// 调试或容错通道：Bearer 存在且能用 HS256 验签，就给最小上下文并放行
 		rawAuth := c.GetHeader("Authorization")
-		if strings.HasPrefix(strings.ToLower(rawAuth), "bearer ") && cfg.HMACSecret != "" {
-			tok := strings.TrimSpace(rawAuth[len("Bearer "):])
-
-			// 二次验证（与调试打印一致）：Issuer/Audience + HS256
-			if _, err := jwt.Parse(tok, func(t *jwt.Token) (any, error) {
-				return []byte(cfg.HMACSecret), nil
-			}, jwt.WithAudience(cfg.AcceptAudiences...), jwt.WithIssuer(cfg.Issuer)); err == nil {
-				// ✅ 验签成功——注入一个“最小 TenantContext”，保证后续 RBAC 能正常拿到用户/租户信息
-				authx.SetTenantContext(c, authx.TenantContext{}) // 需要的话可从 token claims 补 tid/uid
-				authx.SetRawBearerToken(c, tok)
-				c.Next()
-				return
-			}
-		}
-
-		// 走到这里说明双通道都失败
 		if cfg.Optional {
 			c.Next()
 			return
@@ -65,5 +49,33 @@ func JWTAuth(cfg authx.JWTAuthConfig) gin.HandlerFunc {
 				cfg.Issuer, cfg.AcceptAudiences, len(cfg.HMACSecret))
 		}
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "jwt Unauthorized"})
+	}
+}
+
+func attachIdentityContext(c *gin.Context, tc authx.TenantContext) {
+	if c == nil {
+		return
+	}
+	if tenantUUID := strings.TrimSpace(tc.TenantUUID); tenantUUID != "" {
+		c.Set("tenant_uuid", tenantUUID)
+	}
+	if tc.TenantID > 0 {
+		c.Set("tenant_id", tc.TenantID)
+	}
+	if userUUID := strings.TrimSpace(tc.UserUUID); userUUID != "" {
+		c.Set("user_uuid", userUUID)
+	}
+	if tc.UserID > 0 {
+		c.Set("user_id", tc.UserID)
+	}
+	if memberUUID := strings.TrimSpace(tc.MemberUUID); memberUUID != "" {
+		c.Set("member_uuid", memberUUID)
+		c.Set("actor_user_uuid", memberUUID)
+	}
+	if tc.MemberID > 0 {
+		c.Set("member_id", tc.MemberID)
+	}
+	if ctx := authx.ContextWithTenantIdentity(c.Request.Context(), tc); ctx != nil {
+		c.Request = c.Request.WithContext(ctx)
 	}
 }

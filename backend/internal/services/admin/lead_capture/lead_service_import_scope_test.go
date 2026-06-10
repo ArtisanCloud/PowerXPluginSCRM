@@ -6,7 +6,9 @@ import (
 	"testing"
 
 	basemodels "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models"
+	leadmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/lead_capture"
 	leadrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/lead_capture"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -37,6 +39,35 @@ func TestLeadService_ImportCSVWithMapping_PreserveExplicitSourceScope(t *testing
 	require.Equal(t, "douyin", leads[0].SourceChannel)
 	require.Equal(t, "short_video", leads[0].SourceAppType)
 	require.Nil(t, leads[0].SourceAccountUUID)
+}
+
+func TestLeadService_UpdateQualification_MQLSQLAndRollback(t *testing.T) {
+	db := openLeadServiceImportTestDB(t, "lead_service_qualification")
+	tenantUUID := "00000000-0000-0000-0000-000000000001"
+	leadUUID := uuid.NewString()
+	require.NoError(t, db.Create(&leadmodel.Lead{
+		LeadUUID:    leadUUID,
+		TenantUUID:  tenantUUID,
+		DisplayName: "资格线索",
+		Status:      leadmodel.LeadStatusInProgress,
+	}).Error)
+	svc := NewLeadService(leadrepo.NewLeadRepository(db))
+
+	updated, err := svc.UpdateQualification(context.Background(), tenantUUID, leadUUID, LeadStatusUpdateRequest{Status: "mql"})
+	require.NoError(t, err)
+	require.Equal(t, leadmodel.LeadStatusMQL, updated.Status)
+
+	updated, err = svc.UpdateQualification(context.Background(), tenantUUID, leadUUID, LeadStatusUpdateRequest{Status: "sql"})
+	require.NoError(t, err)
+	require.Equal(t, leadmodel.LeadStatusSQL, updated.Status)
+
+	updated, err = svc.UpdateQualification(context.Background(), tenantUUID, leadUUID, LeadStatusUpdateRequest{Status: "rollback"})
+	require.NoError(t, err)
+	require.Equal(t, leadmodel.LeadStatusMQL, updated.Status)
+
+	var count int64
+	require.NoError(t, db.Table("lead_capture_status_history").Where("lead_uuid = ?", leadUUID).Count(&count).Error)
+	require.Equal(t, int64(3), count)
 }
 
 func TestLeadService_ImportCSV_AllowEmptySourceScopeWithoutDefaultFallback(t *testing.T) {
@@ -102,6 +133,14 @@ func openLeadServiceImportTestDB(t *testing.T, name string) *gorm.DB {
 			utm_campaign TEXT,
 			created_at DATETIME,
 			updated_at DATETIME
+		);`,
+		`CREATE TABLE IF NOT EXISTS lead_capture_status_history (
+			history_uuid TEXT PRIMARY KEY,
+			tenant_uuid TEXT NOT NULL,
+			lead_uuid TEXT NOT NULL,
+			from_status TEXT NOT NULL,
+			to_status TEXT NOT NULL,
+			changed_at DATETIME
 		);`,
 	}
 	for _, stmt := range stmts {

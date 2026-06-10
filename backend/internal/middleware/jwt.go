@@ -2,36 +2,38 @@ package middleware
 
 import (
 	"bytes"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
 type JWTAuthConfig struct {
-	Issuer             string   `yaml:"issuer" json:"issuer"`
-	AcceptAudiences    []string `yaml:"accept_audiences" json:"accept_audiences"`
-	HMACSecret         string   `yaml:"hmac_secret" json:"hmac_secret"`
-	ClockSkewSeconds   int      `yaml:"clock_skew_seconds" json:"clock_skew_seconds"`
-	Optional           bool     `yaml:"optional" json:"optional"`
-	AllowSignedContext bool     `yaml:"allow_signed_context" json:"allow_signed_context"`
-	ContextHMACSecret  string   `yaml:"context_hmac_secret" json:"context_hmac_secret"`
-	MaxCtxAgeSeconds   int64    `yaml:"max_ctx_age_seconds" json:"max_ctx_age_seconds"`
+	Issuer           string   `yaml:"issuer" json:"issuer"`
+	AcceptAudiences  []string `yaml:"accept_audiences" json:"accept_audiences"`
+	HMACSecret       string   `yaml:"hmac_secret" json:"hmac_secret"`
+	ClockSkewSeconds int      `yaml:"clock_skew_seconds" json:"clock_skew_seconds"`
+	Optional         bool     `yaml:"optional" json:"optional"`
 }
 
 type PowerXClaims struct {
 	TenantUUID    TenantClaim `json:"tid"`
-	UserID        int64       `json:"uid"`
+	TenantID      Int64Claim  `json:"tid_n,omitempty"`
+	MemberUUID    string      `json:"mid,omitempty"`
+	MemberID      Int64Claim  `json:"mid_n,omitempty"`
+	UserUUID      string      `json:"uid,omitempty"`
+	UserID        Int64Claim  `json:"uid_n,omitempty"`
+	ActorUUID     string      `json:"actor_uuid,omitempty"`
 	Roles         []string    `json:"roles"`
 	Permissions   []string    `json:"perms"`
 	PolicyVersion string      `json:"policy_version"`
 	PluginID      string      `json:"plugin_id,omitempty"`
+	Scope         string      `json:"scope,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -63,6 +65,42 @@ func (t TenantClaim) String() string {
 	return string(t)
 }
 
+type Int64Claim int64
+
+func (i *Int64Claim) UnmarshalJSON(data []byte) error {
+	data = bytes.TrimSpace(data)
+	if len(data) == 0 || bytes.Equal(data, []byte("null")) {
+		*i = 0
+		return nil
+	}
+	if data[0] == '"' {
+		var s string
+		if err := json.Unmarshal(data, &s); err != nil {
+			return err
+		}
+		parsed, err := strconv.ParseInt(strings.TrimSpace(s), 10, 64)
+		if err != nil {
+			return err
+		}
+		*i = Int64Claim(parsed)
+		return nil
+	}
+	var num json.Number
+	if err := json.Unmarshal(data, &num); err != nil {
+		return err
+	}
+	parsed, err := strconv.ParseInt(strings.TrimSpace(num.String()), 10, 64)
+	if err != nil {
+		return err
+	}
+	*i = Int64Claim(parsed)
+	return nil
+}
+
+func (i Int64Claim) Int64() int64 {
+	return int64(i)
+}
+
 func ParseFromHeaders(h func(string) string, cfg JWTAuthConfig) (tc TenantContext, rawBearer string, ok bool) {
 	// 1) Authorization: Bearer
 	authz := h("Authorization")
@@ -74,12 +112,6 @@ func ParseFromHeaders(h func(string) string, cfg JWTAuthConfig) (tc TenantContex
 			}
 		}
 	}
-	// 2) 回退 Signed-Context
-	if cfg.AllowSignedContext && cfg.ContextHMACSecret != "" {
-		if t, ok := tryLoadSignedContext(h, cfg.ContextHMACSecret, cfg.MaxCtxAgeSeconds); ok {
-			return t, "", true
-		}
-	}
 	return TenantContext{}, "", false
 }
 
@@ -88,7 +120,7 @@ func parseHS256(raw string, cfg JWTAuthConfig) (TenantContext, error) {
 	if leeway <= 0 {
 		leeway = 60
 	}
-	claims := &PowerXClaims{}
+	claims := jwt.MapClaims{}
 	token, err := jwt.ParseWithClaims(raw, claims, func(t *jwt.Token) (any, error) {
 		if t.Method != jwt.SigningMethodHS256 {
 			return nil, errors.New("unexpected sign method")
@@ -98,66 +130,183 @@ func parseHS256(raw string, cfg JWTAuthConfig) (TenantContext, error) {
 	if err != nil || token == nil || !token.Valid {
 		return TenantContext{}, errors.New("invalid token")
 	}
+	tenantUUID, tenantID, userID, userUUID, memberID, memberUUID, roles, permissions, policyVersion, pluginID := normalizeClaims(nil, claims)
+	if tenantUUID == "" {
+		return TenantContext{}, errors.New("tenant claim missing")
+	}
 	return TenantContext{
-		TenantUUID:    strings.TrimSpace(claims.TenantUUID.String()),
-		UserID:        claims.UserID,
-		Roles:         claims.Roles,
-		Permissions:   claims.Permissions,
-		PolicyVersion: claims.PolicyVersion,
-		PluginID:      strings.TrimSpace(claims.PluginID),
+		TenantUUID:    tenantUUID,
+		TenantID:      tenantID,
+		UserID:        userID,
+		UserUUID:      userUUID,
+		MemberID:      memberID,
+		MemberUUID:    memberUUID,
+		Roles:         roles,
+		Permissions:   permissions,
+		PolicyVersion: policyVersion,
+		PluginID:      pluginID,
 	}, nil
 }
 
-type signedCtx struct {
-	TenantUUID    string   `json:"tid"`
-	UserID        int64    `json:"uid"`
-	Roles         []string `json:"roles"`
-	Permissions   []string `json:"perms"`
-	PolicyVersion string   `json:"policy_version"`
-	PluginID      string   `json:"plugin_id,omitempty"`
-	TS            int64    `json:"ts"`
+func normalizeClaims(claims *PowerXClaims, raw jwt.Claims) (tenantUUID string, tenantID int64, userID int64, userUUID string, memberID int64, memberUUID string, roles []string, permissions []string, policyVersion string, pluginID string) {
+	if claims != nil {
+		tenantUUID = strings.TrimSpace(claims.TenantUUID.String())
+		tenantID = claims.TenantID.Int64()
+		userID = claims.UserID.Int64()
+		userUUID = firstValidUUID(strings.TrimSpace(claims.UserUUID), strings.TrimSpace(claims.ActorUUID))
+		memberID = claims.MemberID.Int64()
+		memberUUID = firstValidUUID(strings.TrimSpace(claims.MemberUUID), strings.TrimSpace(claims.Subject))
+		roles = claims.Roles
+		permissions = claims.Permissions
+		policyVersion = strings.TrimSpace(claims.PolicyVersion)
+		pluginID = strings.TrimSpace(claims.PluginID)
+	}
+	mapClaims, ok := raw.(jwt.MapClaims)
+	if !ok {
+		return
+	}
+	tenantUUID = firstNonEmpty(tenantUUID, claimString(mapClaims, "tid", "tenant_uuid", "tenantUuid", "tenant_id", "tenantId"))
+	tenantID = firstNonZeroInt64(tenantID, claimInt64(mapClaims, "tid_n", "tenant_numeric_id", "tenantNumericId"))
+	userID = firstNonZeroInt64(userID, claimInt64(mapClaims, "uid_n", "user_id", "userId"))
+	userUUID = firstNonEmpty(userUUID, firstValidUUID(
+		claimString(mapClaims, "actor_uuid", "actorUserUUID", "actor_user_uuid"),
+		claimString(mapClaims, "uid", "user_uuid", "userUuid"),
+	))
+	memberID = firstNonZeroInt64(memberID, claimInt64(mapClaims, "mid_n", "member_id", "memberId"))
+	memberUUID = firstNonEmpty(memberUUID, firstValidUUID(
+		claimString(mapClaims, "mid", "member_uuid", "memberUuid"),
+		claimString(mapClaims, "sub"),
+	))
+	roles = firstNonEmptySlice(roles, claimStringSlice(mapClaims, "roles", "role_codes"))
+	permissions = firstNonEmptySlice(permissions, claimStringSlice(mapClaims, "perms", "permissions", "permission_codes"))
+	policyVersion = firstNonEmpty(policyVersion, claimString(mapClaims, "policy_version", "policyVersion"))
+	pluginID = firstNonEmpty(pluginID, claimString(mapClaims, "plugin_id", "pluginId"))
+	return
 }
 
-func tryLoadSignedContext(h func(string) string, secret string, maxAgeSec int64) (TenantContext, bool) {
-	ctxB64 := h("X-PowerX-CTX")
-	if ctxB4 := ctxB64; ctxB4 == "" {
-		return TenantContext{}, false
+func claimString(claims jwt.MapClaims, keys ...string) string {
+	for _, key := range keys {
+		value, ok := claims[key]
+		if !ok || value == nil {
+			continue
+		}
+		switch v := value.(type) {
+		case string:
+			if strings.TrimSpace(v) != "" {
+				return strings.TrimSpace(v)
+			}
+		case fmt.Stringer:
+			if strings.TrimSpace(v.String()) != "" {
+				return strings.TrimSpace(v.String())
+			}
+		case json.Number:
+			if strings.TrimSpace(v.String()) != "" {
+				return strings.TrimSpace(v.String())
+			}
+		case float64:
+			if v != 0 {
+				return strconv.FormatInt(int64(v), 10)
+			}
+		}
 	}
-	sigHex := h("X-PowerX-CTX-SIG")
-	if sigHex == "" {
-		return TenantContext{}, false
-	}
-	raw, err := base64.StdEncoding.DecodeString(ctxB64)
-	if err != nil {
-		return TenantContext{}, false
-	}
-	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write([]byte(ctxB64))
-	if !hmac.Equal([]byte(hex.EncodeToString(mac.Sum(nil))), []byte(sigHex)) {
-		return TenantContext{}, false
-	}
-	var sc signedCtx
-	if err := json.Unmarshal(raw, &sc); err != nil {
-		return TenantContext{}, false
-	}
-	if maxAgeSec > 0 && (time.Now().Unix()-sc.TS) > maxAgeSec {
-		return TenantContext{}, false
-	}
-	return TenantContext{TenantUUID: strings.TrimSpace(sc.TenantUUID), UserID: sc.UserID, Roles: sc.Roles,
-		Permissions: sc.Permissions, PolicyVersion: sc.PolicyVersion, PluginID: strings.TrimSpace(sc.PluginID)}, true
+	return ""
 }
 
-// 供客户端出站兜底：把 TenantContext 签成 X-PowerX-CTX / SIG
-func SignContext(tc TenantContext, secret string) (ctxB64, sigHex string, ts int64, err error) {
-	sc := signedCtx{TenantUUID: strings.TrimSpace(tc.TenantUUID), UserID: tc.UserID, Roles: tc.Roles,
-		Permissions: tc.Permissions, PolicyVersion: tc.PolicyVersion, PluginID: tc.PluginID, TS: time.Now().Unix()}
-	b, e := json.Marshal(&sc)
-	if e != nil {
-		return "", "", 0, e
+func claimInt64(claims jwt.MapClaims, keys ...string) int64 {
+	for _, key := range keys {
+		value, ok := claims[key]
+		if !ok || value == nil {
+			continue
+		}
+		switch v := value.(type) {
+		case int64:
+			if v != 0 {
+				return v
+			}
+		case int:
+			if v != 0 {
+				return int64(v)
+			}
+		case float64:
+			if v != 0 {
+				return int64(v)
+			}
+		case json.Number:
+			if parsed, err := strconv.ParseInt(strings.TrimSpace(v.String()), 10, 64); err == nil && parsed != 0 {
+				return parsed
+			}
+		case string:
+			if parsed, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64); err == nil && parsed != 0 {
+				return parsed
+			}
+		}
 	}
-	ctxB64 = base64.StdEncoding.EncodeToString(b)
-	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write([]byte(ctxB64))
-	sigHex = hex.EncodeToString(mac.Sum(nil))
-	return ctxB64, sigHex, sc.TS, nil
+	return 0
+}
+
+func claimStringSlice(claims jwt.MapClaims, keys ...string) []string {
+	for _, key := range keys {
+		value, ok := claims[key]
+		if !ok || value == nil {
+			continue
+		}
+		out := make([]string, 0)
+		switch v := value.(type) {
+		case []string:
+			out = append(out, v...)
+		case []any:
+			for _, item := range v {
+				if text := strings.TrimSpace(fmt.Sprint(item)); text != "" {
+					out = append(out, text)
+				}
+			}
+		case string:
+			for _, item := range strings.Split(v, ",") {
+				if text := strings.TrimSpace(item); text != "" {
+					out = append(out, text)
+				}
+			}
+		}
+		if len(out) > 0 {
+			return out
+		}
+	}
+	return nil
+}
+
+func firstNonZeroInt64(values ...int64) int64 {
+	for _, value := range values {
+		if value != 0 {
+			return value
+		}
+	}
+	return 0
+}
+
+func firstNonEmptySlice(values ...[]string) []string {
+	for _, value := range values {
+		if len(value) > 0 {
+			return value
+		}
+	}
+	return nil
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
+}
+
+func firstValidUUID(values ...string) string {
+	for _, value := range values {
+		parsed, err := uuid.Parse(strings.TrimSpace(value))
+		if err == nil && parsed != uuid.Nil {
+			return strings.ToLower(parsed.String())
+		}
+	}
+	return ""
 }

@@ -34,7 +34,7 @@ disconnect()
 
 ### 4.1 Gateway 鉴权模式
 
-- `gateway.auth_scheme=bearer`：使用 `tool_token`
+- `gateway.auth_scheme=bearer`：使用 PowerX STS 交换得到的短期 Bearer token
 - `gateway.auth_scheme=apikey`：使用 `api_key`
 - 建议：Host 模式默认 `bearer`，Standalone+Proxy 可切 `apikey`
 

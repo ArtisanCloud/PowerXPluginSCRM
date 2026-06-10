@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">PowerX SCRM</title>
+  <desc id="desc">SCRM plugin icon with connected customer nodes and opportunity signal.</desc>
+  <defs>
+    <linearGradient id="bg" x1="18" y1="14" x2="110" y2="116" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0f766e"/>
+      <stop offset="0.58" stop-color="#2563eb"/>
+      <stop offset="1" stop-color="#7c3aed"/>
+    </linearGradient>
+    <linearGradient id="mark" x1="33" y1="34" x2="96" y2="95" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ecfeff"/>
+      <stop offset="1" stop-color="#ffffff"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="url(#bg)"/>
+  <path d="M38 76c7-10 16-15 27-15 12 0 21 5 27 15" fill="none" stroke="#dbeafe" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="64" cy="46" r="15" fill="url(#mark)"/>
+  <circle cx="34" cy="82" r="12" fill="#ccfbf1"/>
+  <circle cx="94" cy="82" r="12" fill="#ede9fe"/>
+  <path d="M45 82h38" fill="none" stroke="#ffffff" stroke-width="7" stroke-linecap="round"/>
+  <path d="M76 36l13-8 2 15 12 8-15 5-8 13-6-14-14-4 12-9z" fill="#facc15"/>
+  <path d="M31 101h66" fill="none" stroke="#ffffff" stroke-opacity=".72" stroke-width="7" stroke-linecap="round"/>
+</svg>

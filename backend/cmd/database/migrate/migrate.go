@@ -11,6 +11,7 @@ import (
 	domainmodels "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/domain/models"
 	domainAcquisitionModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/domain/models/acquisition"
 	domainLeadCaptureModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/domain/models/lead_capture"
+	domainOpportunityModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/domain/models/opportunity"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models"
 	adminconsoleModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/admin_console"
 	customerModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/customer"
@@ -118,6 +119,10 @@ var businessTables = []interface{}{
 	&domainAcquisitionModel.GroupTagDefinition{},
 	&domainAcquisitionModel.GroupTagBinding{},
 	&domainAcquisitionModel.GroupTagRuleRun{},
+	&domainOpportunityModel.OpportunityRecord{},
+	&domainOpportunityModel.OpportunityActivity{},
+	&domainOpportunityModel.OpportunityLineItem{},
+	&domainOpportunityModel.OpportunityTask{},
 }
 
 var iamTables = []interface{}{
@@ -145,6 +150,9 @@ func MigratePluginModels(ctx context.Context, db *gorm.DB, includeIAM bool) erro
 	if err := ensureLeadCaptureActivityTable(ctx, db); err != nil {
 		return err
 	}
+	if err := ensureGlobalLeadSourceCatalog(ctx, db); err != nil {
+		return err
+	}
 	if includeIAM {
 		tables = append(tables, iamTables...)
 	}
@@ -170,6 +178,73 @@ func MigratePluginModels(ctx context.Context, db *gorm.DB, includeIAM bool) erro
 	}
 	if err := backfillOrgSyncIAMBindings(ctx, db); err != nil {
 		return err
+	}
+	return nil
+}
+
+func ensureGlobalLeadSourceCatalog(ctx context.Context, db *gorm.DB) error {
+	if db == nil || !strings.EqualFold(db.Dialector.Name(), "postgres") {
+		return nil
+	}
+	tableName, err := resolveTableName(db, &leadCaptureModel.LeadSourceCatalog{})
+	if err != nil {
+		return err
+	}
+
+	var hasTenant bool
+	if err := db.WithContext(ctx).Raw(
+		`SELECT EXISTS (
+			SELECT 1
+			FROM information_schema.columns
+			WHERE table_schema = current_schema()
+			  AND table_name = ?
+			  AND column_name = 'tenant_uuid'
+		)`,
+		models.TableLeadCaptureSourceCatalogs,
+	).Scan(&hasTenant).Error; err != nil {
+		return fmt.Errorf("check lead source catalog tenant column: %w", err)
+	}
+	if !hasTenant {
+		return nil
+	}
+
+	if err := db.WithContext(ctx).Exec(fmt.Sprintf(`
+		DELETE FROM %s a
+		USING %s b
+		WHERE a.category = b.category
+		  AND a.code = b.code
+		  AND (
+		    a.sort > b.sort
+		    OR (a.sort = b.sort AND a.created_at > b.created_at)
+		    OR (a.sort = b.sort AND a.created_at = b.created_at AND a.catalog_uuid::text > b.catalog_uuid::text)
+		  )
+	`, tableName, tableName)).Error; err != nil {
+		return fmt.Errorf("dedupe lead source catalogs: %w", err)
+	}
+	if err := db.WithContext(ctx).Exec(fmt.Sprintf(
+		`ALTER TABLE %s DROP CONSTRAINT IF EXISTS uq_lead_capture_source_catalogs_tenant_category_code`,
+		tableName,
+	)).Error; err != nil {
+		return fmt.Errorf("drop tenant source catalog unique constraint: %w", err)
+	}
+	if err := db.WithContext(ctx).Exec(fmt.Sprintf(
+		`DROP INDEX IF EXISTS %s`,
+		quoteIdentifier("idx_lead_capture_source_catalogs_tenant"),
+	)).Error; err != nil {
+		return fmt.Errorf("drop tenant source catalog index: %w", err)
+	}
+	if err := db.WithContext(ctx).Exec(fmt.Sprintf(
+		`ALTER TABLE %s DROP COLUMN IF EXISTS tenant_uuid`,
+		tableName,
+	)).Error; err != nil {
+		return fmt.Errorf("drop lead source catalog tenant column: %w", err)
+	}
+	if err := db.WithContext(ctx).Exec(fmt.Sprintf(
+		`CREATE UNIQUE INDEX IF NOT EXISTS %s ON %s (category, code)`,
+		quoteIdentifier("uq_lead_capture_source_catalogs_category_code"),
+		tableName,
+	)).Error; err != nil {
+		return fmt.Errorf("create global source catalog unique index: %w", err)
 	}
 	return nil
 }

@@ -54,14 +54,28 @@ function parseRBACResources(content) {
   const resources = new Map();
   let current = "";
   let collecting = false;
+  let pendingActions = [];
+  function ensureResource(resource) {
+    if (!resources.has(resource)) resources.set(resource, new Set());
+    for (const action of pendingActions) resources.get(resource).add(action);
+    pendingActions = [];
+  }
+  function addAction(action) {
+    if (current) resources.get(current).add(action);
+    else pendingActions.push(action);
+  }
   for (const line of content.split("\n")) {
+    if (/^\s*-\s*actions:\s*/.test(line)) {
+      current = "";
+      pendingActions = [];
+    }
     const resource = line.match(/^\s*-?\s*resource:\s*(\S+)\s*$/);
-    if (resource) { current = resource[1]; if (!resources.has(current)) resources.set(current, new Set()); collecting = false; continue; }
+    if (resource) { current = resource[1]; ensureResource(current); collecting = false; continue; }
     const inline = line.match(/^\s*-?\s*actions:\s*\[([^\]]+)\]\s*$/);
-    if (inline && current) { inline[1].split(",").map((item) => item.trim()).filter(Boolean).forEach((action) => resources.get(current).add(action)); collecting = false; continue; }
+    if (inline) { inline[1].split(",").map((item) => item.trim()).filter(Boolean).forEach(addAction); collecting = false; continue; }
     if (/^\s*-?\s*actions:\s*$/.test(line)) { collecting = true; continue; }
     const action = line.match(/^\s*-\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*$/);
-    if (collecting && action && current) resources.get(current).add(action[1]);
+    if (collecting && action) addAction(action[1]);
   }
   return resources;
 }

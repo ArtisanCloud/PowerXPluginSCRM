@@ -40,9 +40,6 @@ export class ApiClient {
 
     const defaultHeaders = {
       "Content-Type": "application/json",
-      // 在生产环境中，这里需要添加 PowerX 的认证头
-      // 'X-PowerX-CTX': getAuthContext(),
-      // 'X-PowerX-CTX-JWT': getJWTToken(),
     };
 
     const config: RequestInit = {

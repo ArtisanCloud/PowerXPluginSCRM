@@ -1490,6 +1490,8 @@ const statusFilterOptions = [
   { label: "新线索", value: "new" },
   { label: "已分配", value: "assigned" },
   { label: "跟进中", value: "in_progress" },
+  { label: "MQL", value: "mql" },
+  { label: "SQL", value: "sql" },
   { label: "已转化", value: "converted" },
   { label: "已关闭", value: "closed" },
   { label: "已断开关系", value: "disconnected" },
@@ -1990,6 +1992,10 @@ const statusMeta = (status?: string) => {
       return { label: "已分配", color: "primary" };
     case "in_progress":
       return { label: "跟进中", color: "warning" };
+    case "mql":
+      return { label: "MQL", color: "warning" };
+    case "sql":
+      return { label: "SQL", color: "success" };
     case "converted":
       return { label: "已转化", color: "success" };
     case "closed":
@@ -2625,26 +2631,30 @@ const openDetail = (leadId: string) => {
 };
 
 const loadCreateLookupOptions = async () => {
-  try {
-    const [accountResp, memberResp, catalogResp] = await Promise.all([
-      socialChannelService.listChannelAccounts(),
-      userStore.currentTenantUuid
-        ? iamService.listMembers({
-            tenantUuid: userStore.currentTenantUuid,
-            page: 1,
-            pageSize: 200,
-          })
-        : Promise.resolve({ data: { items: [] } } as any),
-      runtimeDictionaryService.listDictionaries(),
-    ]);
-    channelAccounts.value = ((accountResp as any)?.data?.items || []) as ChannelAccount[];
-    iamMembers.value = ((memberResp as any)?.data?.items || []) as MemberRecord[];
-    sourceCatalogs.value = ((catalogResp as any)?.data?.items || []) as RuntimeDictionaryItem[];
-  } catch {
-    channelAccounts.value = [];
-    iamMembers.value = [];
-    sourceCatalogs.value = [];
-  }
+  const [accountResult, memberResult, catalogResult] = await Promise.allSettled([
+    socialChannelService.listChannelAccounts(),
+    userStore.currentTenantUuid
+      ? iamService.listMembers({
+          tenantUuid: userStore.currentTenantUuid,
+          page: 1,
+          pageSize: 200,
+        })
+      : Promise.resolve({ data: { items: [] } } as any),
+    runtimeDictionaryService.listDictionaries(),
+  ]);
+
+  channelAccounts.value =
+    accountResult.status === "fulfilled"
+      ? (((accountResult.value as any)?.data?.items || []) as ChannelAccount[])
+      : [];
+  iamMembers.value =
+    memberResult.status === "fulfilled"
+      ? (((memberResult.value as any)?.data?.items || []) as MemberRecord[])
+      : [];
+  sourceCatalogs.value =
+    catalogResult.status === "fulfilled"
+      ? (((catalogResult.value as any)?.data?.items || []) as RuntimeDictionaryItem[])
+      : [];
 };
 
 const openCreateModal = () => {

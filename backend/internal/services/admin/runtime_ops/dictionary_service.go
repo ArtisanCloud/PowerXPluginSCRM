@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	leadmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/lead_capture"
-	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository"
 	leadrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/lead_capture"
 	iamservice "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/services/iam"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/shared/app"
@@ -65,7 +64,7 @@ func NewDictionaryService(deps *app.Deps) *DictionaryService {
 
 func (s *DictionaryService) List(ctx context.Context, tenantUUID, namespace string, enabledOnly bool) ([]DictionaryItem, error) {
 	namespace = normalizeNamespace(namespace)
-	if s.deps != nil && s.deps.IAMMode == iamservice.IAMModeDelegated {
+	if !isLocalNamespace(namespace) && s.deps != nil && s.deps.IAMMode == iamservice.IAMModeDelegated {
 		return s.listDelegated(ctx, namespace, enabledOnly)
 	}
 	return s.listLocal(ctx, tenantUUID, namespace, enabledOnly)
@@ -78,7 +77,7 @@ func (s *DictionaryService) Create(ctx context.Context, tenantUUID string, req D
 	if ns == "" || code == "" || label == "" {
 		return nil, ErrInvalidDictionaryPayload
 	}
-	if s.deps != nil && s.deps.IAMMode == iamservice.IAMModeDelegated {
+	if !isLocalNamespace(ns) && s.deps != nil && s.deps.IAMMode == iamservice.IAMModeDelegated {
 		payload := map[string]any{
 			"namespace": ns,
 			"code":      code,
@@ -103,7 +102,6 @@ func (s *DictionaryService) Create(ctx context.Context, tenantUUID string, req D
 	}
 	created, err := s.localRepo.Create(ctx, &leadmodel.LeadSourceCatalog{
 		CatalogUUID: uuid.NewString(),
-		TenantUUID:  strings.ToLower(strings.TrimSpace(tenantUUID)),
 		Category:    namespaceToStorageCategory(ns),
 		Code:        code,
 		Label:       label,
@@ -123,7 +121,7 @@ func (s *DictionaryService) Update(ctx context.Context, tenantUUID, itemID, name
 		return nil, ErrInvalidDictionaryPayload
 	}
 	ns := normalizeNamespace(namespace)
-	if s.deps != nil && s.deps.IAMMode == iamservice.IAMModeDelegated {
+	if !isLocalNamespace(ns) && s.deps != nil && s.deps.IAMMode == iamservice.IAMModeDelegated {
 		payload := map[string]any{}
 		if ns != "" {
 			payload["namespace"] = ns
@@ -171,7 +169,7 @@ func (s *DictionaryService) Update(ctx context.Context, tenantUUID, itemID, name
 	if len(updates) == 0 {
 		return nil, ErrInvalidDictionaryPayload
 	}
-	updated, err := s.localRepo.UpdateByUUID(ctx, tenantUUID, itemID, updates)
+	updated, err := s.localRepo.UpdateByUUID(ctx, itemID, updates)
 	if err != nil {
 		return nil, err
 	}
@@ -185,7 +183,7 @@ func (s *DictionaryService) Delete(ctx context.Context, tenantUUID, itemID, name
 		return ErrInvalidDictionaryPayload
 	}
 	ns := normalizeNamespace(namespace)
-	if s.deps != nil && s.deps.IAMMode == iamservice.IAMModeDelegated {
+	if !isLocalNamespace(ns) && s.deps != nil && s.deps.IAMMode == iamservice.IAMModeDelegated {
 		path := "/admin/runtime/dictionaries/" + url.PathEscape(itemID)
 		if ns != "" {
 			path += "?namespace=" + url.QueryEscape(ns)
@@ -195,21 +193,18 @@ func (s *DictionaryService) Delete(ctx context.Context, tenantUUID, itemID, name
 	if s.localRepo == nil {
 		return ErrDictionaryServiceUnavailable
 	}
-	return s.localRepo.DeleteByUUID(ctx, tenantUUID, itemID)
+	return s.localRepo.DeleteByUUID(ctx, itemID)
 }
 
 func (s *DictionaryService) listLocal(ctx context.Context, tenantUUID, namespace string, enabledOnly bool) ([]DictionaryItem, error) {
 	if s.localRepo == nil {
 		return nil, ErrDictionaryServiceUnavailable
 	}
-	if strings.TrimSpace(tenantUUID) == "" {
-		return nil, repository.ErrTenantUuidRequired
-	}
 	category := ""
 	if namespace != "" {
 		category = namespaceToStorageCategory(namespace)
 	}
-	items, err := s.localRepo.ListByTenant(ctx, tenantUUID, category, enabledOnly)
+	items, err := s.localRepo.List(ctx, category, enabledOnly)
 	if err != nil {
 		return nil, err
 	}
@@ -268,6 +263,15 @@ func mapLocalItem(item *leadmodel.LeadSourceCatalog) DictionaryItem {
 
 func normalizeNamespace(value string) string {
 	return strings.TrimSpace(strings.ToLower(value))
+}
+
+func isLocalNamespace(namespace string) bool {
+	switch normalizeNamespace(namespace) {
+	case "", NamespaceLeadTrafficPlatform, NamespaceLeadTrafficSource:
+		return true
+	default:
+		return false
+	}
 }
 
 func namespaceToStorageCategory(namespace string) string {

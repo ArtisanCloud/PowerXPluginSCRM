@@ -20,6 +20,7 @@ import (
 	openworkmodel "github.com/ArtisanCloud/PowerWeChat/v3/src/openWork/server/models"
 	fwwsbus "github.com/ArtisanCloud/PowerXPlugin/framework/backend/go/runtime/wsbus"
 	acqmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/domain/models/acquisition"
+	oppmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/domain/models/opportunity"
 	acqrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/domain/repository/acquisition"
 	leadmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/lead_capture"
 	orgmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/org_sync"
@@ -31,6 +32,7 @@ import (
 	socialsvc "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/services/admin/social_channel_governance"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/shared/app"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -1259,6 +1261,126 @@ func (h *OpenWorkCallbackHandler) markLeadDisconnectedByExternalContact(ctx cont
 		"lead_uuid":            leadUUID,
 		"status":               leadmodel.LeadStatusDisconnected,
 	}).Info("openwork callback lead marked disconnected")
+	h.markActiveOpportunitiesRiskForDisconnectedLead(ctx, tenantUUID, leadUUID, channelAccountUUID, externalUserID)
+}
+
+func (h *OpenWorkCallbackHandler) markActiveOpportunitiesRiskForDisconnectedLead(ctx context.Context, tenantUUID, leadUUID, channelAccountUUID, externalUserID string) {
+	if h == nil || h.deps == nil || h.deps.DB == nil {
+		return
+	}
+	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
+	leadUUID = strings.ToLower(strings.TrimSpace(leadUUID))
+	if tenantUUID == "" || leadUUID == "" {
+		return
+	}
+	var items []oppmodel.OpportunityRecord
+	if err := h.deps.DB.WithContext(ctx).
+		Where("tenant_uuid = ? AND lead_uuid = ? AND stage IN ?", tenantUUID, leadUUID, []string{oppmodel.StageOpen, oppmodel.StageQualified, oppmodel.StageProposal, oppmodel.StageNegotiation}).
+		Find(&items).Error; err != nil {
+		logrus.WithFields(logrus.Fields{
+			"module":      "openwork_callback",
+			"tenant_uuid": tenantUUID,
+			"lead_uuid":   leadUUID,
+			"error":       err.Error(),
+		}).Warn("openwork callback opportunity risk query failed")
+		return
+	}
+	for _, item := range items {
+		actor := firstValidUUID(item.UpdatedBy, item.CreatedBy, item.OwnerUserUUID)
+		if actor == "" {
+			logrus.WithFields(logrus.Fields{
+				"module":           "openwork_callback",
+				"tenant_uuid":      tenantUUID,
+				"lead_uuid":        leadUUID,
+				"opportunity_uuid": item.OpportunityUUID,
+			}).Warn("openwork callback opportunity risk skipped: no valid actor uuid")
+			continue
+		}
+		if err := markOpportunityRiskFlagTx(ctx, h.deps.DB, &item, actor, map[string]any{
+			"flag":                 "disconnected",
+			"source":               "openwork_callback",
+			"lead_uuid":            leadUUID,
+			"channel_account_uuid": strings.ToLower(strings.TrimSpace(channelAccountUUID)),
+			"external_userid":      strings.TrimSpace(externalUserID),
+		}); err != nil {
+			logrus.WithFields(logrus.Fields{
+				"module":           "openwork_callback",
+				"tenant_uuid":      tenantUUID,
+				"lead_uuid":        leadUUID,
+				"opportunity_uuid": item.OpportunityUUID,
+				"error":            err.Error(),
+			}).Warn("openwork callback opportunity risk mark failed")
+			continue
+		}
+		logrus.WithFields(logrus.Fields{
+			"module":           "openwork_callback",
+			"tenant_uuid":      tenantUUID,
+			"lead_uuid":        leadUUID,
+			"opportunity_uuid": item.OpportunityUUID,
+			"risk_flag":        "disconnected",
+		}).Info("openwork callback opportunity marked risk")
+	}
+}
+
+func markOpportunityRiskFlagTx(ctx context.Context, db *gorm.DB, item *oppmodel.OpportunityRecord, actor string, payload map[string]any) error {
+	if db == nil || item == nil {
+		return nil
+	}
+	now := time.Now().UTC()
+	flags := parseStringJSONList(item.RiskFlags)
+	exists := false
+	for _, flag := range flags {
+		if flag == "disconnected" {
+			exists = true
+			break
+		}
+	}
+	return db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if !exists {
+			flags = append(flags, "disconnected")
+			raw, _ := json.Marshal(flags)
+			if err := tx.Model(&oppmodel.OpportunityRecord{}).
+				Where("tenant_uuid = ? AND opportunity_uuid = ?", item.TenantUUID, item.OpportunityUUID).
+				Updates(map[string]any{
+					"risk_flags": datatypes.JSON(raw),
+					"updated_by": actor,
+					"updated_at": now,
+				}).Error; err != nil {
+				return err
+			}
+		}
+		rawPayload, _ := json.Marshal(payload)
+		activity := &oppmodel.OpportunityActivity{
+			ActivityUUID:     uuid.NewString(),
+			TenantUUID:       item.TenantUUID,
+			OpportunityUUID:  item.OpportunityUUID,
+			ActivityType:     oppmodel.ActivityRiskFlag,
+			ToStage:          item.Stage,
+			Payload:          datatypes.JSON(rawPayload),
+			OperatorUserUUID: actor,
+			CreatedAt:        now,
+		}
+		return tx.Create(activity).Error
+	})
+}
+
+func parseStringJSONList(raw datatypes.JSON) []string {
+	var out []string
+	if len(raw) == 0 {
+		return out
+	}
+	_ = json.Unmarshal(raw, &out)
+	return out
+}
+
+func firstValidUUID(values ...string) string {
+	for _, value := range values {
+		parsed, err := uuid.Parse(strings.TrimSpace(value))
+		if err == nil && parsed != uuid.Nil {
+			return strings.ToLower(parsed.String())
+		}
+	}
+	return ""
 }
 
 func (h *OpenWorkCallbackHandler) resolveMainMemberIDByExternalUserID(ctx context.Context, tenantUUID, channelAccountUUID, externalUserID string) string {

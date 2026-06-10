@@ -31,8 +31,11 @@ export POWERX_PROXY=1
 export POWERX_RUNTIME_TASKBUS_DRIVER=host
 export PX_GATEWAY_BASE_URL="http://<host-gateway>"
 export PX_GATEWAY_API_PREFIX="/api/v1"
-export PX_GATEWAY_AUTH_SCHEME="bearer"   # 或 apikey
-export PX_TOOL_TOKEN="<tool-token>"      # bearer 模式
+export POWERX_STS_CLIENT_ID="<plugin_id>.<tenant_uuid>"
+export POWERX_STS_CLIENT_SECRET="<secret>"
+export POWERX_STS_AUDIENCE="powerx:api"
+export POWERX_STS_SCOPE="access"
+export POWERX_STS_TTL="300s"
 ```
 
 ## 3. US1 验收：企微线索入池

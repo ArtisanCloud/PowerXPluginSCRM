@@ -26,7 +26,13 @@ var _ fweventbridge.Emitter = (*stubEmitter)(nil)
 func TestSyncTaskProvider_FrameworkAndFallbackSwitch(t *testing.T) {
 	t.Setenv("POWERX_PROXY", "1")
 
-	cfg := &config.Config{Gateway: &config.GatewayConfig{BaseURL: "http://127.0.0.1:8077", ToolToken: "tool-token"}}
+	cfg := &config.Config{
+		Gateway: &config.GatewayConfig{BaseURL: "http://127.0.0.1:8077"},
+		GRPCUpstream: &config.GRPCUpstream{
+			STSClientID:     "client-id",
+			STSClientSecret: "client-secret",
+		},
+	}
 	req := leadsvc.TriggerSyncRequest{
 		TenantUUID:         "00000000-0000-0000-0000-000000000001",
 		Channel:            "wechat",
@@ -60,7 +66,13 @@ func TestSyncTaskProvider_FrameworkAndFallbackSwitch(t *testing.T) {
 
 func TestSyncTaskProvider_ExplicitLocalFallback(t *testing.T) {
 	t.Setenv("POWERX_PROXY", "1")
-	cfg := &config.Config{Gateway: &config.GatewayConfig{BaseURL: "http://127.0.0.1:8077", ToolToken: "tool-token"}}
+	cfg := &config.Config{
+		Gateway: &config.GatewayConfig{BaseURL: "http://127.0.0.1:8077"},
+		GRPCUpstream: &config.GRPCUpstream{
+			STSClientID:     "client-id",
+			STSClientSecret: "client-secret",
+		},
+	}
 	adapter := leadsvc.NewDefaultSyncTaskProviderAdapter(cfg, stubEmitter{err: nil})
 
 	result := adapter.SubmitSyncTask(context.Background(), leadsvc.TriggerSyncRequest{

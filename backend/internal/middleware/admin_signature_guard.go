@@ -8,7 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// AdminSignatureGuard enforces that admin APIs carry JWT/Bearer or signed PowerX context headers.
+// AdminSignatureGuard enforces that admin APIs carry a Bearer token.
 // This is an explicit guard in front of JWTAuth middleware to satisfy zero-trust requirements.
 func AdminSignatureGuard() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -18,10 +18,7 @@ func AdminSignatureGuard() gin.HandlerFunc {
 			return
 		}
 		auth := strings.TrimSpace(c.GetHeader("Authorization"))
-		ctxJWT := strings.TrimSpace(c.GetHeader("X-PowerX-CTX-JWT"))
-		ctxPayload := strings.TrimSpace(c.GetHeader("X-PowerX-CTX"))
-		ctxSig := strings.TrimSpace(c.GetHeader("X-PowerX-CTX-SIG"))
-		if strings.HasPrefix(strings.ToLower(auth), "bearer ") || ctxJWT != "" || (ctxPayload != "" && ctxSig != "") {
+		if strings.HasPrefix(strings.ToLower(auth), "bearer ") {
 			c.Next()
 			return
 		}
@@ -29,7 +26,7 @@ func AdminSignatureGuard() gin.HandlerFunc {
 			"success": false,
 			"error": gin.H{
 				"code":    "UNAUTHORIZED",
-				"message": "missing signature or authorization",
+				"message": "missing authorization",
 			},
 		})
 		c.Abort()

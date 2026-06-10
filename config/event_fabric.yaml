@@ -1,3 +1,4 @@
+version: v1
 topics:
   - topic: org_sync.progress
     description: 组织同步进度实时事件

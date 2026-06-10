@@ -5,6 +5,8 @@ import (
 	"errors"
 	"sync"
 	"time"
+
+	infraSTS "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/infra/sts"
 )
 
 // STSExchangeRequest/Response 与 PowerX STS 约定保持一致
@@ -39,6 +41,7 @@ type TokenManager struct {
 }
 
 func NewTokenManager(clientID, clientSecret, audience, scope string, ttl time.Duration, exchanger func(context.Context, *STSExchangeRequest) (*STSExchangeResponse, error)) *TokenManager {
+	audience, scope, ttl = infraSTS.NormalizeExchangeConfig(audience, scope, ttl)
 	return &TokenManager{
 		clientID:     clientID,
 		clientSecret: clientSecret,

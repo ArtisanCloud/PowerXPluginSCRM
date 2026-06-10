@@ -1,24 +1,43 @@
 {
   "menu": {
-    "base": {
-      "template": "Base Plugin",
-      "intro": "Plugin Intro",
-      "templates": {
-        "title": "Templates",
-        "develop": "Develop Guide",
-        "crud": "Template CRUD"
-      },
-      "integration": {
-        "title": "Integration Hub",
-        "webhooks": "Webhooks",
-        "secrets": "Secrets",
-        "marketplace": "Marketplace Listings",
-        "recommendation": "Recommendation",
-        "insights": "Insights"
-      },
-      "scrm": {
-        "orgSync": "Org Mapping",
-        "orgSyncMainView": "Main Org View"
+    "com": {
+      "powerx": {
+        "plugins": {
+          "scrm": {
+            "root": {
+              "title": "SCRM"
+            },
+            "channel_access": {
+              "title": "Channel Access",
+              "dashboard": "Touchpoint Dashboard",
+              "accounts": "Account Access"
+            },
+            "leads_opportunity": {
+              "title": "Leads & Opportunities"
+            },
+            "leads": {
+              "title": "Lead Management"
+            },
+            "opportunity": {
+              "title": "Opportunities"
+            },
+            "channel_org_tags": {
+              "title": "Channel Org & Tags"
+            },
+            "org_management": {
+              "title": "Organization Management"
+            },
+            "org_sync_center": {
+              "title": "Organization Sync"
+            },
+            "org_staff_tags": {
+              "title": "Staff Tags"
+            },
+            "org_staff_tag_sync": {
+              "title": "Staff Tag Sync"
+            }
+          }
+        }
       }
     }
   }

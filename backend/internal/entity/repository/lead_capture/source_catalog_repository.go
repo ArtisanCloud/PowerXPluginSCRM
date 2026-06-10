@@ -8,7 +8,6 @@ import (
 
 	model "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/lead_capture"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository"
-	"github.com/jackc/pgconn"
 	"gorm.io/gorm"
 )
 
@@ -24,17 +23,13 @@ func NewLeadSourceCatalogRepository(db *gorm.DB) *LeadSourceCatalogRepository {
 	return &LeadSourceCatalogRepository{BaseRepository: repository.NewBaseRepository[model.LeadSourceCatalog](db)}
 }
 
-func (r *LeadSourceCatalogRepository) ListByTenant(ctx context.Context, tenantUUID, category string, enabledOnly bool) ([]*model.LeadSourceCatalog, error) {
+func (r *LeadSourceCatalogRepository) List(ctx context.Context, category string, enabledOnly bool) ([]*model.LeadSourceCatalog, error) {
 	if r == nil || r.DB == nil {
 		return nil, errors.New("repository database is not initialized")
 	}
-	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
 	category = strings.ToLower(strings.TrimSpace(category))
-	if tenantUUID == "" {
-		return nil, repository.ErrTenantUuidRequired
-	}
 
-	query := r.DB.WithContext(ctx).Where("tenant_uuid = ?", tenantUUID)
+	query := r.DB.WithContext(ctx)
 	if category != "" {
 		query = query.Where("category = ?", category)
 	}
@@ -43,15 +38,7 @@ func (r *LeadSourceCatalogRepository) ListByTenant(ctx context.Context, tenantUU
 	}
 
 	var out []*model.LeadSourceCatalog
-	err := query.Order("sort ASC, created_at ASC").Find(&out).Error
-	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "42P01" {
-			return []*model.LeadSourceCatalog{}, nil
-		}
-		if strings.Contains(strings.ToLower(err.Error()), "no such table") {
-			return []*model.LeadSourceCatalog{}, nil
-		}
+	if err := query.Order("sort ASC, created_at ASC").Find(&out).Error; err != nil {
 		return nil, err
 	}
 	return out, nil
@@ -61,13 +48,9 @@ func (r *LeadSourceCatalogRepository) Create(ctx context.Context, item *model.Le
 	if item == nil {
 		return nil, errors.New("catalog item is required")
 	}
-	item.TenantUUID = strings.ToLower(strings.TrimSpace(item.TenantUUID))
 	item.Category = strings.ToLower(strings.TrimSpace(item.Category))
 	item.Code = strings.ToLower(strings.TrimSpace(item.Code))
 	item.Label = strings.TrimSpace(item.Label)
-	if item.TenantUUID == "" {
-		return nil, repository.ErrTenantUuidRequired
-	}
 	if item.Category == "" || item.Code == "" || item.Label == "" {
 		return nil, errors.New("category, code, label are required")
 	}
@@ -80,27 +63,23 @@ func (r *LeadSourceCatalogRepository) Create(ctx context.Context, item *model.Le
 	}
 	item.UpdatedAt = now
 
-	err := r.WithTenantTx(ctx, item.TenantUUID, func(tx *gorm.DB) error {
-		return tx.Create(item).Error
-	})
-	if err != nil {
+	if err := r.DB.WithContext(ctx).Create(item).Error; err != nil {
 		return nil, err
 	}
 	return item, nil
 }
 
-func (r *LeadSourceCatalogRepository) GetByUUID(ctx context.Context, tenantUUID, catalogUUID string) (*model.LeadSourceCatalog, error) {
+func (r *LeadSourceCatalogRepository) GetByUUID(ctx context.Context, catalogUUID string) (*model.LeadSourceCatalog, error) {
 	if r == nil || r.DB == nil {
 		return nil, errors.New("repository database is not initialized")
 	}
-	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
 	catalogUUID = strings.ToLower(strings.TrimSpace(catalogUUID))
-	if tenantUUID == "" || catalogUUID == "" {
+	if catalogUUID == "" {
 		return nil, ErrSourceCatalogNotFound
 	}
 	var out model.LeadSourceCatalog
 	err := r.DB.WithContext(ctx).
-		Where("tenant_uuid = ? AND catalog_uuid = ?", tenantUUID, catalogUUID).
+		Where("catalog_uuid = ?", catalogUUID).
 		First(&out).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -111,31 +90,27 @@ func (r *LeadSourceCatalogRepository) GetByUUID(ctx context.Context, tenantUUID,
 	return &out, nil
 }
 
-func (r *LeadSourceCatalogRepository) UpdateByUUID(ctx context.Context, tenantUUID, catalogUUID string, updates map[string]any) (*model.LeadSourceCatalog, error) {
+func (r *LeadSourceCatalogRepository) UpdateByUUID(ctx context.Context, catalogUUID string, updates map[string]any) (*model.LeadSourceCatalog, error) {
 	if r == nil || r.DB == nil {
 		return nil, errors.New("repository database is not initialized")
 	}
-	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
 	catalogUUID = strings.ToLower(strings.TrimSpace(catalogUUID))
-	if tenantUUID == "" || catalogUUID == "" {
-		return nil, repository.ErrTenantUuidRequired
+	if catalogUUID == "" {
+		return nil, ErrSourceCatalogNotFound
 	}
 	updates["updated_at"] = time.Now().UTC()
 
 	var out model.LeadSourceCatalog
-	err := r.WithTenantTx(ctx, tenantUUID, func(tx *gorm.DB) error {
-		res := tx.Model(&model.LeadSourceCatalog{}).
-			Where("tenant_uuid = ? AND catalog_uuid = ?", tenantUUID, catalogUUID).
-			Updates(updates)
-		if res.Error != nil {
-			return res.Error
-		}
-		if res.RowsAffected == 0 {
-			return ErrSourceCatalogNotFound
-		}
-		return tx.Where("tenant_uuid = ? AND catalog_uuid = ?", tenantUUID, catalogUUID).First(&out).Error
-	})
-	if err != nil {
+	res := r.DB.WithContext(ctx).Model(&model.LeadSourceCatalog{}).
+		Where("catalog_uuid = ?", catalogUUID).
+		Updates(updates)
+	if res.Error != nil {
+		return nil, res.Error
+	}
+	if res.RowsAffected == 0 {
+		return nil, ErrSourceCatalogNotFound
+	}
+	if err := r.DB.WithContext(ctx).Where("catalog_uuid = ?", catalogUUID).First(&out).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrSourceCatalogNotFound
 		}
@@ -144,24 +119,21 @@ func (r *LeadSourceCatalogRepository) UpdateByUUID(ctx context.Context, tenantUU
 	return &out, nil
 }
 
-func (r *LeadSourceCatalogRepository) DeleteByUUID(ctx context.Context, tenantUUID, catalogUUID string) error {
+func (r *LeadSourceCatalogRepository) DeleteByUUID(ctx context.Context, catalogUUID string) error {
 	if r == nil || r.DB == nil {
 		return errors.New("repository database is not initialized")
 	}
-	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
 	catalogUUID = strings.ToLower(strings.TrimSpace(catalogUUID))
-	if tenantUUID == "" || catalogUUID == "" {
-		return repository.ErrTenantUuidRequired
+	if catalogUUID == "" {
+		return ErrSourceCatalogNotFound
 	}
 
-	return r.WithTenantTx(ctx, tenantUUID, func(tx *gorm.DB) error {
-		res := tx.Where("tenant_uuid = ? AND catalog_uuid = ?", tenantUUID, catalogUUID).Delete(&model.LeadSourceCatalog{})
-		if res.Error != nil {
-			return res.Error
-		}
-		if res.RowsAffected == 0 {
-			return ErrSourceCatalogNotFound
-		}
-		return nil
-	})
+	res := r.DB.WithContext(ctx).Where("catalog_uuid = ?", catalogUUID).Delete(&model.LeadSourceCatalog{})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return ErrSourceCatalogNotFound
+	}
+	return nil
 }

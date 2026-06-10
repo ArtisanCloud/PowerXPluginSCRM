@@ -2,8 +2,6 @@
 
 import { resolveApiBase, getAuthToken } from "./_base";
 import { useRouter, useToast } from "#imports";
-import { useHostCtxStore } from "~/stores/hostCtx";
-import { PLUGIN_ID } from "~/utils/powerx-bridge";
 
 type Json = Record<string, any>;
 
@@ -165,8 +163,6 @@ export function useApiClient() {
     baseURL,
     timeout: 30_000,
   });
-  const hostCtxStore = process.client ? useHostCtxStore() : null;
-
   const resolveAuth = async () => {
     if (!process.client) return null;
     const mod = await import("~/composables/useAuth");
@@ -181,17 +177,6 @@ export function useApiClient() {
         : new Headers((options?.headers as HeadersInit) || undefined);
     next.headers = headers;
     const skipAuth = Boolean((options as any)?.skipAuth);
-    const pluginOrigin =
-      typeof window !== "undefined" ? window.location.origin : "plugin";
-    const requestPluginId =
-      (next as any)?.pluginId ||
-      process.env.NUXT_PUBLIC_PLUGIN_ID ||
-      PLUGIN_ID;
-    const ctxKey =
-      hostCtxStore && typeof window !== "undefined"
-        ? `${pluginOrigin}::${requestPluginId}`
-        : null;
-
     if (!headers.has("Accept")) {
       headers.set("Accept", "application/json");
     }
@@ -223,33 +208,6 @@ export function useApiClient() {
           ? String(authToken)
           : `Bearer ${authToken}`
       );
-    }
-
-    const ctxPayload = ctxKey ? hostCtxStore?.getCtx(ctxKey) : null;
-    const debugCtx =
-      process.env.NUXT_PUBLIC_BRIDGE_DEBUG === "true" ||
-      (typeof window !== "undefined" && (window as any).__PX_DEBUG_CTX__);
-    if (ctxPayload?.ctx && !headers.has("X-PowerX-CTX")) {
-      headers.set("X-PowerX-CTX", ctxPayload.ctx);
-    }
-    if (ctxPayload?.ctxSig && !headers.has("X-PowerX-CTX-SIG")) {
-      headers.set("X-PowerX-CTX-SIG", ctxPayload.ctxSig);
-    }
-    if (ctxPayload?.ctxJwt && !headers.has("X-PowerX-CTX-JWT")) {
-      headers.set("X-PowerX-CTX-JWT", ctxPayload.ctxJwt);
-    }
-    if (debugCtx && ctxKey) {
-      console.info("[Plugin][api] ctx headers", {
-        key: ctxKey,
-        hasCtx: Boolean(ctxPayload?.ctx),
-        hasCtxSig: Boolean(ctxPayload?.ctxSig),
-        hasCtxJwt: Boolean(ctxPayload?.ctxJwt),
-        headers: {
-          ctx: headers.get("X-PowerX-CTX") ? "yes" : "no",
-          ctxSig: headers.get("X-PowerX-CTX-SIG") ? "yes" : "no",
-          ctxJwt: headers.get("X-PowerX-CTX-JWT") ? "yes" : "no",
-        },
-      });
     }
 
     return next;

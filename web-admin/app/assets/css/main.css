@@ -1,3 +1,20 @@
 @import "tailwindcss";
 @import "@nuxt/ui";
 @import "./theme.css";
+
+html,
+body,
+#__nuxt {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+}
+
+html:has(body.px-embedded),
+body.px-embedded,
+body.px-embedded #__nuxt {
+  height: 100%;
+  overflow: hidden;
+}

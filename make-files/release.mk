@@ -84,14 +84,45 @@ pack: dist ## 使用 px-plugin pack 生成 .pxp 元数据包
 .PHONY: local-install
 local-install: dist local-install-run ## 调用 /admin/plugins/install/local 安装 dist 目录
 
-.PHONY: skeleton-reinstall
-skeleton-reinstall: dist ## 对齐手册兼容入口：强制重装当前 dist 版本
+.PHONY: local-reinstall
+local-reinstall: dist ## 禁用当前插件 -> 强制安装 -> 切换并启用目标版本
+	@if [ -z "$(API_BASE)" ]; then \
+		echo "❌ 需要提供 API_BASE=https://dev-api.powerx.local/api/v1"; \
+		exit 1; \
+	fi
+	@if [ -z "$(TOKEN)" ]; then \
+		echo "❌ 需要提供 TOKEN=<admin bearer token>"; \
+		exit 1; \
+	fi
+	@echo "==> [reinstall] disable current plugin: $(PLUGIN_ID)"
+	@curl -sS -X POST "$(API_BASE)/admin/plugins/$(PLUGIN_ID)/disable" \
+		-H "Authorization: Bearer $(TOKEN)" \
+		-H "Content-Type: application/json" >/tmp/powerx-plugin-disable.json || true
+	@if [ -s /tmp/powerx-plugin-disable.json ]; then \
+		if command -v jq >/dev/null 2>&1; then jq . /tmp/powerx-plugin-disable.json; else cat /tmp/powerx-plugin-disable.json; fi; \
+	fi
+	@echo "==> [reinstall] force install version=$(VERSION) enable=false"
 	@$(MAKE) --no-print-directory local-install-run \
 		LOCAL_INSTALL_SRC="$(abspath $(DIST_DIR))" \
 		API_BASE="$(API_BASE)" \
 		TOKEN="$(TOKEN)" \
-		ENABLE=true \
+		ENABLE=false \
 		FORCE=true
+	@echo "==> [reinstall] switch_version $(PLUGIN_ID) -> $(VERSION) (enable=true)"
+	@PAYLOAD=$$(printf '{"version":"%s","enable":true}' "$(VERSION)"); \
+		RESPONSE=$$(curl -sS -X POST "$(API_BASE)/admin/plugins/$(PLUGIN_ID)/switch_version" \
+			-H "Authorization: Bearer $(TOKEN)" \
+			-H "Content-Type: application/json" \
+			-d "$$PAYLOAD"); \
+		if command -v jq >/dev/null 2>&1; then \
+			CLEAN_RESPONSE=$$(printf '%s' "$$RESPONSE" | tr -d '\000-\010\013\014\016-\037'); \
+			if printf '%s' "$$CLEAN_RESPONSE" | jq . >/dev/null 2>&1; then printf '%s' "$$CLEAN_RESPONSE" | jq; else printf '%s\n' "$$RESPONSE"; fi; \
+		else \
+			echo "$$RESPONSE"; \
+		fi
+
+.PHONY: skeleton-reinstall
+skeleton-reinstall: local-reinstall ## 兼容旧命令名，独立插件请使用 local-reinstall
 
 .PHONY: local-install-run
 local-install-run:
@@ -109,6 +140,20 @@ local-install-run:
 		echo "   请先执行 make dist 或传入 LOCAL_INSTALL_SRC=/path/to/dist"; \
 		exit 1; \
 	fi
+	@if [ ! -f "$(LOCAL_INSTALL_SRC)/plugin.yaml" ]; then \
+		echo "❌ 安装目录缺少 plugin.yaml：$(LOCAL_INSTALL_SRC)"; \
+		exit 1; \
+	fi
+	@if [ ! -x "$(LOCAL_INSTALL_SRC)/backend/bin/plugin" ]; then \
+		echo "❌ 安装目录缺少可执行后端入口：$(LOCAL_INSTALL_SRC)/backend/bin/plugin"; \
+		echo "   请重新执行 make dist，或修复权限：chmod 755 $(LOCAL_INSTALL_SRC)/backend/bin/plugin"; \
+		exit 1; \
+	fi
+	@if [ ! -x "$(LOCAL_INSTALL_SRC)/backend/bin/migrate" ]; then \
+		echo "❌ 安装目录缺少可执行迁移入口：$(LOCAL_INSTALL_SRC)/backend/bin/migrate"; \
+		echo "   请重新执行 make dist，或修复权限：chmod 755 $(LOCAL_INSTALL_SRC)/backend/bin/migrate"; \
+		exit 1; \
+	fi
 	@echo "==> 调用 $(API_BASE)/admin/plugins/install/local"
 	@echo "    src_dir=$(LOCAL_INSTALL_SRC)"
 	@echo "    enable=$(ENABLE) force=$(FORCE)"
@@ -121,12 +166,23 @@ local-install-run:
 			CLEAN_RESPONSE=$$(printf '%s' "$$RESPONSE" | tr -d '\000-\010\013\014\016-\037'); \
 			if printf '%s' "$$CLEAN_RESPONSE" | jq . >/dev/null 2>&1; then \
 				printf '%s' "$$CLEAN_RESPONSE" | jq; \
+				CODE=$$(printf '%s' "$$CLEAN_RESPONSE" | jq -r '.code // 0'); \
 			else \
 				echo "⚠️ install/local 返回内容不是合法 JSON，输出原始响应："; \
 				printf '%s\n' "$$RESPONSE"; \
+				CODE=$$(printf '%s' "$$CLEAN_RESPONSE" | sed -n 's/.*"code":[[:space:]]*\([0-9][0-9]*\).*/\1/p' | head -n1); \
+			fi; \
+			if [ -z "$$CODE" ]; then CODE=0; fi; \
+			if [ "$$CODE" != "0" ] && [ "$$CODE" -ge 400 ]; then \
+				echo "❌ local-install failed with code=$$CODE"; \
+				exit 1; \
 			fi; \
 		else \
 			echo "$$RESPONSE"; \
+			if echo "$$RESPONSE" | grep -q '"code":[[:space:]]*[45][0-9][0-9]'; then \
+				echo "❌ local-install failed (non-2xx application code)"; \
+				exit 1; \
+			fi; \
 		fi
 
 .PHONY: local-install-pxp

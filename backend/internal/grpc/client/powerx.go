@@ -239,6 +239,20 @@ func (p *PowerXServiceClient) GetToken() string {
 	return ""
 }
 
+// AccessToken returns a usable PowerX access token, refreshing STS when configured.
+func (p *PowerXServiceClient) AccessToken(ctx context.Context) (string, error) {
+	if p == nil {
+		return "", fmt.Errorf("powerx client is nil")
+	}
+	if p.tm != nil {
+		return p.tm.GetToken(ctx)
+	}
+	if strings.TrimSpace(p.token) != "" {
+		return strings.TrimSpace(p.token), nil
+	}
+	return "", fmt.Errorf("powerx access token is not configured")
+}
+
 // HasToken 是否配置/具备可用的访问凭据（静态或临时）
 func (p *PowerXServiceClient) HasToken() bool {
 	if p.token != "" {

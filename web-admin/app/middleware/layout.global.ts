@@ -2,14 +2,11 @@
 import { isPluginAdminPath } from "~/utils/powerx-bridge";
 
 export default defineNuxtPlugin(() => {
-  const config = useRuntimeConfig();
-  const inside = !!config.public?.insidePowerX;
-
   addRouteMiddleware(
     "px-layout",
     (to) => {
-      // Host 内，并且真实路径位于插件管理前缀下时才切换 embedded 布局
-      const useEmbedded = inside && isPluginAdminPath(to.path);
+      // _p 插件管理路径必须使用 iframe 内部滚动布局；本地代理环境不一定设置 insidePowerX。
+      const useEmbedded = isPluginAdminPath(to.path);
       setPageLayout(useEmbedded ? "embedded" : "default");
     },
     { global: true }

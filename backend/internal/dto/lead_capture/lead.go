@@ -13,11 +13,14 @@ type LeadCreateRequest struct {
 
 // LeadUpdateRequest defines payload for updating a lead.
 type LeadUpdateRequest struct {
-	DisplayName   string `json:"display_name" binding:"omitempty" validate:"omitempty"`
-	Phone         string `json:"phone" binding:"omitempty" validate:"omitempty"`
-	Email         string `json:"email" binding:"omitempty" validate:"omitempty"`
-	Status        string `json:"status" binding:"omitempty" validate:"omitempty"`
-	OwnerUserUUID string `json:"owner_user_uuid" binding:"omitempty" validate:"omitempty"`
+	DisplayName       string `json:"display_name" binding:"omitempty" validate:"omitempty"`
+	Phone             string `json:"phone" binding:"omitempty" validate:"omitempty"`
+	Email             string `json:"email" binding:"omitempty" validate:"omitempty"`
+	SourceChannel     string `json:"source_channel" binding:"omitempty" validate:"omitempty"`
+	SourceAppType     string `json:"source_app_type" binding:"omitempty" validate:"omitempty"`
+	SourceAccountUUID string `json:"source_account_uuid" binding:"omitempty,uuid4" validate:"omitempty,uuid4"`
+	Status            string `json:"status" binding:"omitempty" validate:"omitempty"`
+	OwnerUserUUID     string `json:"owner_user_uuid" binding:"omitempty" validate:"omitempty"`
 }
 
 // LeadListRequest defines list query for leads.

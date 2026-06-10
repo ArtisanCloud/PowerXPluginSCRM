@@ -29,6 +29,10 @@ func (h *STSHandler) Mint(c *gin.Context) {
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing tenant context"})
 		return
 	}
+	if strings.TrimSpace(tc.UserUUID) == "" || strings.TrimSpace(tc.MemberUUID) == "" || tc.UserID <= 0 || tc.MemberID <= 0 {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing user/member context"})
+		return
+	}
 	token, err := h.svc.Mint(c.Request.Context(), tc)
 	if err != nil {
 		contracts.ResponseInternalError(c, err)
