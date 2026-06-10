@@ -19,13 +19,26 @@ ABS_MANIFEST_SCHEMA := $(abspath $(MANIFEST_SCHEMA))
 EVENT_FABRIC_FILE ?= config/event_fabric.yaml
 ABS_EVENT_FABRIC_FILE := $(abspath $(EVENT_FABRIC_FILE))
 MANIFESTCHECK_DIR := $(BACKEND_DIR)/cmd/manifestcheck
+RBAC_CATALOG_DIR := $(BACKEND_DIR)/cmd/rbac_catalog
+RBAC_CATALOG_FILE ?= plugin.d/rbac.yaml
 BACKEND_GOCACHE := $(abspath $(BACKEND_DIR)/.cache/go-build)
 
 .PHONY: plugin-yaml-sync
-plugin-yaml-sync:
+plugin-yaml-sync: plugin-rbac-sync
 	@echo "[manifest] syncing plugin catalogs from contracts/capabilities"
 	@mkdir -p $(BACKEND_GOCACHE)
 	@cd $(BACKEND_DIR) && GOCACHE=$(BACKEND_GOCACHE) go run ./cmd/manifestcheck --plugin "$(ABS_PLUGIN_FILE)" --sync-catalogs --sync-only
+
+.PHONY: plugin-rbac-sync
+plugin-rbac-sync:
+	@echo "[manifest] syncing route RBAC catalog"
+	@if [ ! -d "$(RBAC_CATALOG_DIR)" ]; then \
+		echo "❌ 未找到 $(RBAC_CATALOG_DIR)，无法生成 RBAC catalog"; \
+		echo "   当前 BACKEND_DIR=$(BACKEND_DIR)"; \
+		exit 1; \
+	fi
+	@mkdir -p $(BACKEND_GOCACHE) plugin.d
+	@cd $(BACKEND_DIR) && GOCACHE=$(BACKEND_GOCACHE) go run ./cmd/rbac_catalog --prefix "/api/v1" --output "$(abspath $(RBAC_CATALOG_FILE))"
 
 .PHONY: verify-manifest
 verify-manifest:

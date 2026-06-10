@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, computed } from 'vue'
+import { onBeforeUnmount, onMounted, computed } from 'vue'
 import { useRoute, useRuntimeConfig } from '#imports'
 import { setupHostBridgeAdapter } from '~/composables/useHostBridgeAdapter'
 // 如果你的主题需要在挂载时同步一次到 DOM（data-theme），可引入：
@@ -31,6 +31,7 @@ const getAdapterRegistry = (win) => {
 
 onMounted(() => {
   if (!import.meta.client) return
+  document.body.classList.add('px-embedded')
 
   const pluginId = (route.query.pluginId as string) || PLUGIN_ID
   const instanceId = (route.query.instanceId as string) || route.fullPath
@@ -77,6 +78,11 @@ onMounted(() => {
   }
 })
 
+onBeforeUnmount(() => {
+  if (!import.meta.client) return
+  document.body.classList.remove('px-embedded')
+})
+
 const requestHostToken = () => {
   if (typeof window === 'undefined') return
   try {
@@ -118,5 +124,11 @@ const handleDelegatedDismiss = () => {
 </template>
 
 <style scoped>
-.embedded-wrap { min-height: 100dvh; }
+.embedded-wrap {
+  block-size: 100dvh;
+  min-block-size: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
 </style>

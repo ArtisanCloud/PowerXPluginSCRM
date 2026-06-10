@@ -152,6 +152,7 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		group.GET("/:lead_id", handler.Get)
 		group.PUT("/:lead_id", handler.Update)
 		group.POST("/:lead_id/assign", handler.Assign)
+		group.POST("/:lead_id/qualification", handler.UpdateQualification)
 		group.POST("/:lead_id/status", handler.UpdateStatus)
 		group.GET("/:lead_id/assignments", handler.ListAssignments)
 		group.GET("/:lead_id/status-history", handler.ListStatusHistory)

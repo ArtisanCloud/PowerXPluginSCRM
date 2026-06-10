@@ -10,6 +10,8 @@ const (
 	LeadStatusNew          = "new"
 	LeadStatusAssigned     = "assigned"
 	LeadStatusInProgress   = "in_progress"
+	LeadStatusMQL          = "mql"
+	LeadStatusSQL          = "sql"
 	LeadStatusConverted    = "converted"
 	LeadStatusClosed       = "closed"
 	LeadStatusDisconnected = "disconnected"

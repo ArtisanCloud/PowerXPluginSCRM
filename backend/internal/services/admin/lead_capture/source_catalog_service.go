@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	model "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/lead_capture"
-	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository"
 	leadrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/lead_capture"
 	"github.com/google/uuid"
 )
@@ -39,28 +38,20 @@ func NewLeadSourceCatalogService(repo *leadrepo.LeadSourceCatalogRepository) *Le
 	return &LeadSourceCatalogService{repo: repo}
 }
 
-func (s *LeadSourceCatalogService) List(ctx context.Context, tenantUUID, category string, enabledOnly bool) ([]*model.LeadSourceCatalog, error) {
+func (s *LeadSourceCatalogService) List(ctx context.Context, category string, enabledOnly bool) ([]*model.LeadSourceCatalog, error) {
 	if s == nil || s.repo == nil {
 		return nil, errors.New("source catalog repository not configured")
-	}
-	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
-	if tenantUUID == "" {
-		return nil, repository.ErrTenantUuidRequired
 	}
 	category = normalizeSourceCatalogCategory(category)
 	if category != "" && !isValidSourceCatalogCategory(category) {
 		return nil, ErrInvalidSourceCatalogCategory
 	}
-	return s.repo.ListByTenant(ctx, tenantUUID, category, enabledOnly)
+	return s.repo.List(ctx, category, enabledOnly)
 }
 
-func (s *LeadSourceCatalogService) Create(ctx context.Context, tenantUUID string, req LeadSourceCatalogCreateRequest) (*model.LeadSourceCatalog, error) {
+func (s *LeadSourceCatalogService) Create(ctx context.Context, req LeadSourceCatalogCreateRequest) (*model.LeadSourceCatalog, error) {
 	if s == nil || s.repo == nil {
 		return nil, errors.New("source catalog repository not configured")
-	}
-	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
-	if tenantUUID == "" {
-		return nil, repository.ErrTenantUuidRequired
 	}
 	category := normalizeSourceCatalogCategory(req.Category)
 	code := strings.ToLower(strings.TrimSpace(req.Code))
@@ -74,7 +65,6 @@ func (s *LeadSourceCatalogService) Create(ctx context.Context, tenantUUID string
 	}
 	item := &model.LeadSourceCatalog{
 		CatalogUUID: uuid.NewString(),
-		TenantUUID:  tenantUUID,
 		Category:    category,
 		Code:        code,
 		Label:       label,
@@ -84,14 +74,13 @@ func (s *LeadSourceCatalogService) Create(ctx context.Context, tenantUUID string
 	return s.repo.Create(ctx, item)
 }
 
-func (s *LeadSourceCatalogService) Update(ctx context.Context, tenantUUID, catalogUUID string, req LeadSourceCatalogUpdateRequest) (*model.LeadSourceCatalog, error) {
+func (s *LeadSourceCatalogService) Update(ctx context.Context, catalogUUID string, req LeadSourceCatalogUpdateRequest) (*model.LeadSourceCatalog, error) {
 	if s == nil || s.repo == nil {
 		return nil, errors.New("source catalog repository not configured")
 	}
-	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
 	catalogUUID = strings.ToLower(strings.TrimSpace(catalogUUID))
-	if tenantUUID == "" || catalogUUID == "" {
-		return nil, repository.ErrTenantUuidRequired
+	if catalogUUID == "" {
+		return nil, leadrepo.ErrSourceCatalogNotFound
 	}
 	updates := map[string]any{}
 	if strings.TrimSpace(req.Code) != "" {
@@ -109,19 +98,18 @@ func (s *LeadSourceCatalogService) Update(ctx context.Context, tenantUUID, catal
 	if len(updates) == 0 {
 		return nil, ErrInvalidSourceCatalogPayload
 	}
-	return s.repo.UpdateByUUID(ctx, tenantUUID, catalogUUID, updates)
+	return s.repo.UpdateByUUID(ctx, catalogUUID, updates)
 }
 
-func (s *LeadSourceCatalogService) Delete(ctx context.Context, tenantUUID, catalogUUID string) error {
+func (s *LeadSourceCatalogService) Delete(ctx context.Context, catalogUUID string) error {
 	if s == nil || s.repo == nil {
 		return errors.New("source catalog repository not configured")
 	}
-	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
 	catalogUUID = strings.ToLower(strings.TrimSpace(catalogUUID))
-	if tenantUUID == "" || catalogUUID == "" {
-		return repository.ErrTenantUuidRequired
+	if catalogUUID == "" {
+		return leadrepo.ErrSourceCatalogNotFound
 	}
-	return s.repo.DeleteByUUID(ctx, tenantUUID, catalogUUID)
+	return s.repo.DeleteByUUID(ctx, catalogUUID)
 }
 
 func normalizeSourceCatalogCategory(value string) string {

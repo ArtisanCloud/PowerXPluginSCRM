@@ -91,9 +91,12 @@ type LeadBatchAssignResult struct {
 }
 
 type LeadUpdateRequest struct {
-	DisplayName string
-	Phone       string
-	Email       string
+	DisplayName       string
+	Phone             string
+	Email             string
+	SourceChannel     string
+	SourceAppType     string
+	SourceAccountUUID string
 }
 
 type LeadStatusUpdateRequest struct {
@@ -338,19 +341,19 @@ func (s *LeadService) Update(ctx context.Context, tenantUUID, leadUUID string, r
 		return nil, repository.ErrTenantUuidRequired
 	}
 	normalized := LeadCreateRequest{
-		DisplayName: req.DisplayName,
-		Phone:       req.Phone,
-		Email:       req.Email,
+		DisplayName:       strings.TrimSpace(req.DisplayName),
+		Phone:             strings.TrimSpace(req.Phone),
+		Email:             strings.ToLower(strings.TrimSpace(req.Email)),
+		SourceChannel:     strings.ToLower(strings.TrimSpace(req.SourceChannel)),
+		SourceAppType:     strings.ToLower(strings.TrimSpace(req.SourceAppType)),
+		SourceAccountUUID: strings.ToLower(strings.TrimSpace(req.SourceAccountUUID)),
 	}
-	if s.normalizationSvc != nil {
-		n := s.normalizationSvc.NormalizeLeadCreateRequest(normalized)
-		normalized.DisplayName = n.DisplayName
-		normalized.Phone = n.Phone
-		normalized.Email = n.Email
-	}
-	if strings.TrimSpace(normalized.DisplayName) == "" &&
-		strings.TrimSpace(normalized.Phone) == "" &&
-		strings.TrimSpace(normalized.Email) == "" {
+	if normalized.DisplayName == "" &&
+		normalized.Phone == "" &&
+		normalized.Email == "" &&
+		normalized.SourceChannel == "" &&
+		normalized.SourceAppType == "" &&
+		normalized.SourceAccountUUID == "" {
 		return nil, ErrInvalidLeadPayload
 	}
 
@@ -364,21 +367,39 @@ func (s *LeadService) Update(ctx context.Context, tenantUUID, leadUUID string, r
 		lead.Phone = normalized.Phone
 		lead.Email = normalized.Email
 		lead.UpdatedAt = time.Now().UTC()
-		if err := tx.Model(&model.Lead{}).
-			Where("tenant_uuid = ? AND lead_uuid = ?", tenantUUID, leadUUID).
-			Updates(map[string]interface{}{
-				"display_name": lead.DisplayName,
-				"phone":        lead.Phone,
-				"email":        lead.Email,
-				"updated_at":   lead.UpdatedAt,
-			}).Error; err != nil {
-			return err
-		}
-		if err := createLeadActivity(ctx, tx, tenantUUID, leadUUID, model.LeadActivityTypeProfileEdit, datatypes.JSONMap{
+		updates := map[string]interface{}{
 			"display_name": lead.DisplayName,
 			"phone":        lead.Phone,
 			"email":        lead.Email,
-		}); err != nil {
+			"updated_at":   lead.UpdatedAt,
+		}
+		activityPayload := datatypes.JSONMap{
+			"display_name": lead.DisplayName,
+			"phone":        lead.Phone,
+			"email":        lead.Email,
+		}
+		if normalized.SourceChannel != "" {
+			lead.SourceChannel = normalized.SourceChannel
+			updates["source_channel"] = lead.SourceChannel
+			activityPayload["source_channel"] = lead.SourceChannel
+		}
+		if normalized.SourceAppType != "" {
+			lead.SourceAppType = normalized.SourceAppType
+			updates["source_app_type"] = lead.SourceAppType
+			activityPayload["source_app_type"] = lead.SourceAppType
+		}
+		if normalized.SourceAccountUUID != "" {
+			sourceAccountUUID := normalized.SourceAccountUUID
+			lead.SourceAccountUUID = &sourceAccountUUID
+			updates["source_account_uuid"] = lead.SourceAccountUUID
+			activityPayload["source_account_uuid"] = sourceAccountUUID
+		}
+		if err := tx.Model(&model.Lead{}).
+			Where("tenant_uuid = ? AND lead_uuid = ?", tenantUUID, leadUUID).
+			Updates(updates).Error; err != nil {
+			return err
+		}
+		if err := createLeadActivity(ctx, tx, tenantUUID, leadUUID, model.LeadActivityTypeProfileEdit, activityPayload); err != nil {
 			return err
 		}
 		updated = lead
@@ -1129,6 +1150,38 @@ func (s *LeadService) UpdateStatus(ctx context.Context, tenantUUID, leadUUID str
 	return updated, nil
 }
 
+func (s *LeadService) UpdateQualification(ctx context.Context, tenantUUID, leadUUID string, req LeadStatusUpdateRequest) (*model.Lead, error) {
+	target := normalizeLeadStatus(req.Status)
+	if target == "rollback" {
+		if s == nil || s.repo == nil {
+			return nil, errors.New("lead repository not configured")
+		}
+		tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
+		leadUUID = strings.ToLower(strings.TrimSpace(leadUUID))
+		if tenantUUID == "" || leadUUID == "" {
+			return nil, repository.ErrTenantUuidRequired
+		}
+		lead, err := s.Get(ctx, tenantUUID, leadUUID)
+		if err != nil {
+			return nil, err
+		}
+		switch normalizeLeadStatus(lead.Status) {
+		case model.LeadStatusSQL:
+			target = model.LeadStatusMQL
+		case model.LeadStatusMQL:
+			target = model.LeadStatusInProgress
+		default:
+			return nil, ErrInvalidLeadStatusTransition
+		}
+	}
+	switch target {
+	case model.LeadStatusMQL, model.LeadStatusSQL:
+	default:
+		return nil, ErrInvalidLeadStatus
+	}
+	return s.UpdateStatus(ctx, tenantUUID, leadUUID, LeadStatusUpdateRequest{Status: target})
+}
+
 func (s *LeadService) ListAssignments(ctx context.Context, tenantUUID, leadUUID string) ([]*model.LeadAssignment, error) {
 	if s == nil || s.repo == nil || s.repo.DB == nil {
 		return nil, errors.New("lead repository not configured")
@@ -1452,6 +1505,8 @@ func isValidLeadStatus(status string) bool {
 	case model.LeadStatusNew,
 		model.LeadStatusAssigned,
 		model.LeadStatusInProgress,
+		model.LeadStatusMQL,
+		model.LeadStatusSQL,
 		model.LeadStatusConverted,
 		model.LeadStatusClosed,
 		model.LeadStatusDisconnected:
@@ -1467,11 +1522,15 @@ func isAllowedLeadStatusTransition(fromStatus, toStatus string) bool {
 	}
 	switch fromStatus {
 	case model.LeadStatusNew:
-		return toStatus == model.LeadStatusAssigned
+		return toStatus == model.LeadStatusAssigned || toStatus == model.LeadStatusMQL
 	case model.LeadStatusAssigned:
-		return toStatus == model.LeadStatusInProgress
+		return toStatus == model.LeadStatusInProgress || toStatus == model.LeadStatusMQL
 	case model.LeadStatusInProgress:
-		return toStatus == model.LeadStatusConverted || toStatus == model.LeadStatusClosed
+		return toStatus == model.LeadStatusMQL || toStatus == model.LeadStatusConverted || toStatus == model.LeadStatusClosed
+	case model.LeadStatusMQL:
+		return toStatus == model.LeadStatusSQL || toStatus == model.LeadStatusInProgress || toStatus == model.LeadStatusClosed
+	case model.LeadStatusSQL:
+		return toStatus == model.LeadStatusMQL || toStatus == model.LeadStatusConverted || toStatus == model.LeadStatusClosed
 	case model.LeadStatusDisconnected:
 		return toStatus == model.LeadStatusAssigned
 	default:

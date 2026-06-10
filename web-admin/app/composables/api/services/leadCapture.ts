@@ -38,11 +38,13 @@ export interface LeadUpdatePayload {
   display_name?: string;
   phone?: string;
   email?: string;
+  source_channel?: string;
+  source_app_type?: string;
+  source_account_uuid?: string;
 }
 
 export interface LeadSourceCatalogRecord {
   catalog_uuid: string;
-  tenant_uuid: string;
   category: "traffic_platform" | "traffic_source";
   code: string;
   label: string;
@@ -98,6 +100,10 @@ export interface LeadBatchAssignResult {
 
 export interface LeadStatusUpdatePayload {
   status: string;
+}
+
+export interface LeadQualificationPayload {
+  target_status: "mql" | "sql" | "rollback";
 }
 
 export interface LeadAssignmentRecord {
@@ -405,6 +411,8 @@ export const useLeadCaptureService = () => {
       apiClient.post<ApiResponse<LeadBatchAssignResult>>(`${baseUrl}/assign/batch`, payload),
     updateLeadStatus: (leadId: string, payload: LeadStatusUpdatePayload) =>
       apiClient.post<ApiResponse<LeadRecord>>(`${baseUrl}/${leadId}/status`, payload),
+    updateLeadQualification: (leadId: string, payload: LeadQualificationPayload) =>
+      apiClient.post<ApiResponse<LeadRecord>>(`${baseUrl}/${leadId}/qualification`, payload),
     listAssignments: (leadId: string) =>
       apiClient.get<ApiResponse<{ items: LeadAssignmentRecord[] }>>(
         `${baseUrl}/${leadId}/assignments`

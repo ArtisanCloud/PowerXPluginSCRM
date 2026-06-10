@@ -13,7 +13,7 @@
 - `amount` (numeric(18,2), nullable)
 - `currency` (varchar(8), default `CNY`)
 - `probability` (int, default `0`, range `0-100`)
-- `owner_user_uuid` (text, required; stores the selected tenant member identifier, UI must render it as a searchable owner selector instead of a raw identifier input)
+- `owner_user_uuid` (text, required; legacy physical column name; stores the selected tenant member UUID in the current implementation)
 - `source_channel` (varchar, nullable)
 - `source_app_type` (varchar, nullable)
 - `source_account_uuid` (UUID, nullable)
@@ -23,7 +23,7 @@
 - `lost_at` (timestamp, nullable)
 - `lost_reason` (text, nullable)
 - `risk_flags` (jsonb, default `[]`)
-- `created_by` / `updated_by` (UUID)
+- `created_by` / `updated_by` (UUID; legacy physical column names; store the acting tenant member UUID)
 - `created_at` / `updated_at` (timestamp)
 
 约束：
@@ -44,6 +44,12 @@
 - `risk_count`：列表工作台按 `risk_flags` 非空数量派生，不落库。
 - `stage_summary`：按阶段聚合数量与金额派生，一期可由前端基于列表结果计算，二期可下沉为服务端聚合接口。
 
+API 兼容字段：
+- 请求支持 `owner_member_uuid`，并兼容旧字段 `owner_user_uuid`。两者同时存在时优先使用 `owner_member_uuid`。
+- 响应同时返回 `owner_user_uuid` 与 `owner_member_uuid`，两者当前值一致。
+- 响应同时返回 `created_by/updated_by` 与 `created_by_member_uuid/updated_by_member_uuid`，member 字段为推荐读取字段。
+- 本期不做破坏性数据库列重命名；若后续要将物理列迁移为 `owner_member_uuid/operator_member_uuid`，应独立建 migration 与数据回填任务。
+
 ## 2. opportunity_activities（商机活动表）
 
 描述：记录商机生命周期活动，用于审计、时间线和回放。
@@ -56,7 +62,7 @@
 - `from_stage` (varchar, nullable)
 - `to_stage` (varchar, nullable)
 - `payload` (jsonb, nullable)
-- `operator_user_uuid` (UUID, required)
+- `operator_user_uuid` (UUID, required; legacy physical column name; stores the acting tenant member UUID)
 - `request_id` (varchar, nullable)
 - `created_at` (timestamp)
 

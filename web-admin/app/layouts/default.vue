@@ -90,6 +90,9 @@ const mainContentClass = computed(() => {
   if (disableShell.value) {
     return "w-full";
   }
+  if (isEmbeddedInPowerX.value) {
+    return "w-full h-[100dvh] overflow-y-auto overflow-x-hidden overscroll-contain p-6";
+  }
   return showNavigation.value ? "flex-1 p-6" : "w-full p-6";
 });
 

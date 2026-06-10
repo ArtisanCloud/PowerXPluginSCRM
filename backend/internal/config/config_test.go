@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -44,6 +45,38 @@ func TestLoadAppliesEnvOverrides(t *testing.T) {
 	}
 	if cfg.Logging.Format != "text" || cfg.Logging.Output != "stdout" {
 		t.Fatalf("日志配置未归一化: format=%q output=%q", cfg.Logging.Format, cfg.Logging.Output)
+	}
+}
+
+func TestLoadMapsHostWebAdminOriginsToCORS(t *testing.T) {
+	tempDir := t.TempDir()
+	configContent := strings.Join([]string{
+		"security:",
+		"  enable_cors: false",
+		"  cors_origins:",
+		"    - http://localhost:3031",
+		"host:",
+		"  web_admin_origins:",
+		"    - https://admin.example.com",
+		"    - http://localhost:3031",
+	}, "\n")
+	configFile := filepath.Join(tempDir, "config.yaml")
+	if err := os.WriteFile(configFile, []byte(configContent), 0o644); err != nil {
+		t.Fatalf("写入测试配置失败: %v", err)
+	}
+	t.Setenv("CONFIG_PATH", tempDir)
+	t.Setenv("POWERX_DEV_MODE", "true")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("加载配置失败: %v", err)
+	}
+	if cfg.Security == nil || !cfg.Security.EnableCORS {
+		t.Fatal("host.web_admin_origins 未启用 CORS")
+	}
+	want := []string{"http://localhost:3031", "https://admin.example.com"}
+	if strings.Join(cfg.Security.CORSOrigins, ",") != strings.Join(want, ",") {
+		t.Fatalf("CORS origins 未合并 host.web_admin_origins, got=%v want=%v", cfg.Security.CORSOrigins, want)
 	}
 }
 

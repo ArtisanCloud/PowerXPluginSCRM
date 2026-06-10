@@ -41,6 +41,9 @@ type Config struct {
 	// PowerX 上下文配置
 	Context *ContextConfig `yaml:"context" json:"context"`
 
+	// 宿主标准配置，由 PowerX host-values.yaml 注入。
+	Host *HostConfig `yaml:"host" json:"host"`
+
 	// 安全配置
 	Security *SecurityConfig `yaml:"security" json:"security"`
 
@@ -215,6 +218,10 @@ type SecurityConfig struct {
 	GatewayAllowlist []string        `yaml:"gateway_allowlist" json:"gateway_allowlist"`
 	RequireTLS13     bool            `yaml:"require_tls13" json:"require_tls13"`
 	ToolGrantSecret  string          `yaml:"toolgrant_secret" json:"toolgrant_secret"`
+}
+
+type HostConfig struct {
+	WebAdminOrigins []string `yaml:"web_admin_origins" json:"web_admin_origins"`
 }
 
 // GatewayConfig 描述 Integration Gateway 所需配置。
@@ -1217,6 +1224,7 @@ func normalizeConfig(cfg *Config) {
 	if cfg == nil {
 		return
 	}
+	applyHostWebAdminOrigins(cfg)
 	if cfg.Server != nil {
 		cfg.Server.BindAddr = resolveConfigValue(cfg.Server.BindAddr)
 		cfg.Server.LogLevel = strings.ToLower(resolveConfigValue(cfg.Server.LogLevel))
@@ -1355,6 +1363,35 @@ func extractPort(addr string) int {
 		}
 	}
 	return 0
+}
+
+func applyHostWebAdminOrigins(cfg *Config) {
+	if cfg == nil || cfg.Host == nil || len(cfg.Host.WebAdminOrigins) == 0 {
+		return
+	}
+	if cfg.Security == nil {
+		cfg.Security = &SecurityConfig{}
+	}
+	cfg.Security.EnableCORS = true
+	cfg.Security.CORSOrigins = appendUniqueStrings(cfg.Security.CORSOrigins, cfg.Host.WebAdminOrigins...)
+}
+
+func appendUniqueStrings(base []string, values ...string) []string {
+	seen := make(map[string]struct{}, len(base)+len(values))
+	out := make([]string, 0, len(base)+len(values))
+	for _, value := range append(base, values...) {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		key := strings.ToLower(trimmed)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, trimmed)
+	}
+	return out
 }
 
 func resolveConfigValue(value string) string {

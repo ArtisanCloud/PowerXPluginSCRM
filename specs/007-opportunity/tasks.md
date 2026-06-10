@@ -51,22 +51,22 @@
 
 ### Tests for User Story 1
 
-- [ ] T014 [P] [US1] 新增资格推进与创建商机合同测试于 `backend/tests/contract/opportunity_us1_contract_test.go`
-- [ ] T015 [P] [US1] 新增 SQL/converted 创建、非合格线索拒绝、活跃冲突集成测试于 `backend/tests/integration/opportunity_us1_integration_test.go`
-- [ ] T049 [US1] 新增来源字段映射断言测试（`source_channel/source_app_type/source_account_uuid`）于 `backend/tests/integration/opportunity_us1_integration_test.go`
+- [X] T014 [P] [US1] 新增资格推进与创建商机合同测试于 `backend/tests/contract/opportunity_contract_test.go`
+- [X] T015 [P] [US1] 新增 SQL/converted 创建、非合格线索拒绝、活跃冲突集成测试于 `backend/internal/services/admin/opportunity/service_test.go`
+- [X] T049 [US1] 新增来源字段映射断言测试（`source_channel/source_app_type/source_account_uuid`）于 `backend/internal/services/admin/opportunity/service_test.go`
 
 ### Implementation for User Story 1
 
-- [ ] T016 [US1] 在 `backend/internal/services/admin/lead_capture/` 扩展资格推进服务逻辑（`mql/sql/rollback`）并落审计
-- [ ] T017 [US1] 实现商机创建服务（`sql/converted` 校验、默认 `stage=open`、默认 `currency=CNY`）于 `backend/internal/services/admin/opportunity/opportunity_service_create.go`
-- [ ] T018 [US1] 实现活跃主商机冲突检测并返回 `409` + 已存在 `opportunity_uuid` 于 `backend/internal/services/admin/opportunity/opportunity_service_create.go`
-- [ ] T019 [US1] 实现创建商机与商机列表/详情 Handler 于 `backend/internal/transport/http/admin/opportunity/handler_create_list_get.go`
-- [ ] T020 [US1] 在 `backend/internal/transport/http/admin/opportunity/dto.go` 增加创建/列表/详情 DTO 与 422/409 错误映射
-- [ ] T021 [US1] 新增前端 Opportunity API Client（create/list/get）于 `web-admin/app/composables/api/opportunity.ts`
-- [ ] T022 [P] [US1] 新增 Lead 详情资格操作与“创建商机”入口联动于 `web-admin/app/pages/scrm/leads/[id].vue`
-- [ ] T023 [US1] 新增 Opportunity 列表页基础展示与筛选（stage/owner/lead）于 `web-admin/app/pages/scrm/opportunity/index.vue`
+- [X] T016 [US1] 在 `backend/internal/services/admin/lead_capture/` 扩展资格推进服务逻辑（`mql/sql/rollback`）并落审计
+- [X] T017 [US1] 实现商机创建服务（`sql/converted` 校验、默认 `stage=open`、默认 `currency=CNY`）于 `backend/internal/services/admin/opportunity/service.go`
+- [X] T018 [US1] 实现活跃主商机冲突检测并返回 `409` + 已存在 `opportunity_uuid` 于 `backend/internal/services/admin/opportunity/service.go`
+- [X] T019 [US1] 实现创建商机与商机列表/详情 Handler 于 `backend/internal/transport/http/admin/opportunity/handler.go`
+- [X] T020 [US1] 在 `backend/internal/transport/http/admin/opportunity/dto.go` 增加创建/列表/详情 DTO 与 422/409 错误映射
+- [X] T021 [US1] 新增前端 Opportunity API Client（create/list/get）于 `web-admin/app/composables/api/services/opportunity.ts`
+- [X] T022 [P] [US1] 新增 Lead 详情资格操作与“创建商机”入口联动于 `web-admin/app/pages/scrm/lead_capture/[lead_id].vue`
+- [X] T023 [US1] 新增 Opportunity 列表页基础展示与筛选（stage/owner/lead）于 `web-admin/app/pages/scrm/opportunity/index.vue`
 - [X] T058 [US1] 增强商机创建弹窗为合格线索选择器，自动带出负责人、联系方式、来源与标题建议于 `web-admin/app/pages/scrm/opportunity/index.vue`
-- [ ] T054 [US1] 新增列表页 UI 验收测试（empty/loading/error + 筛选交互）于 `web-admin/tests/opportunity/opportunity_list_ui.spec.ts`
+- [ ] T054 [US1] 新增列表页 UI 验收测试（empty/loading/error + 筛选交互）于 `web-admin/tests/opportunity/opportunity_list_ui.spec.ts`（后续专项：当前项目未建立稳定 UI E2E 基座，本期用 `npm run test` + `npm run build` + 页面验收文档覆盖）
 
 **Checkpoint**: US1 可独立验收并可作为主链路演示
 
@@ -80,21 +80,21 @@
 
 ### Tests for User Story 2
 
-- [ ] T024 [P] [US2] 新增阶段推进与 close 合同测试于 `backend/tests/contract/opportunity_us2_contract_test.go`
-- [ ] T025 [P] [US2] 新增赢单沉淀客户与输单联动线索关闭集成测试于 `backend/tests/integration/opportunity_us2_integration_test.go`
-- [ ] T050 [US2] 新增 close 接口幂等性测试（重复 close 不重复写终态活动）于 `backend/tests/integration/opportunity_us2_integration_test.go`
-- [ ] T052 [US2] 新增 stage 接口幂等性测试（重复推进同一阶段不重复写活动）于 `backend/tests/integration/opportunity_us2_integration_test.go`
+- [X] T024 [P] [US2] 新增阶段推进与 close 合同测试于 `backend/tests/contract/opportunity_contract_test.go`
+- [X] T025 [P] [US2] 新增赢单沉淀客户与输单联动线索关闭集成测试于 `backend/internal/services/admin/opportunity/service_test.go`
+- [X] T050 [US2] 新增 close 接口幂等性测试（重复 close 不重复写终态活动）于 `backend/internal/services/admin/opportunity/service_test.go`
+- [X] T052 [US2] 新增 stage 接口幂等性测试（重复推进同一阶段不重复写活动）于 `backend/internal/services/admin/opportunity/service_test.go`
 
 ### Implementation for User Story 2
 
-- [ ] T026 [US2] 实现阶段推进服务与非法流转校验于 `backend/internal/services/admin/opportunity/opportunity_service_stage.go`
-- [ ] T027 [US2] 实现赢单/输单服务（写 `won_at/lost_at/lost_reason`）于 `backend/internal/services/admin/opportunity/opportunity_service_close.go`
-- [ ] T028 [US2] 在 close 服务内实现 `lost -> lead.closed` 联动于 `backend/internal/services/admin/opportunity/opportunity_service_close.go`
-- [ ] T029 [US2] 在 close 服务内实现 `won -> customer_accounts` 去重创建/绑定（`tenant_uuid + source_channel + external_userid`，缺失回退手机号）于 `backend/internal/services/admin/opportunity/opportunity_service_close.go`
-- [ ] T030 [US2] 实现阶段推进/close Handler 与 DTO 于 `backend/internal/transport/http/admin/opportunity/handler_stage_close.go`
-- [ ] T031 [US2] 完善活动流写入（`stage_change/close`）于 `backend/internal/services/admin/opportunity/opportunity_activity_service.go`
-- [ ] T032 [US2] 新增商机详情页阶段推进与赢输单操作区于 `web-admin/app/pages/scrm/opportunity/[opportunity_id].vue`
-- [ ] T033 [P] [US2] 新增赢输单弹窗组件（输单原因必填）于 `web-admin/app/components/scrm/opportunity/OpportunityCloseModal.vue`
+- [X] T026 [US2] 实现阶段推进服务与非法流转校验于 `backend/internal/services/admin/opportunity/service.go`
+- [X] T027 [US2] 实现赢单/输单服务（写 `won_at/lost_at/lost_reason`）于 `backend/internal/services/admin/opportunity/service.go`
+- [X] T028 [US2] 在 close 服务内实现 `lost -> lead.closed` 联动于 `backend/internal/services/admin/opportunity/service.go`
+- [X] T029 [US2] 在 close 服务内实现 `won -> customer_accounts` 去重创建/绑定（`tenant_uuid + source_channel + external_userid`，缺失回退手机号）于 `backend/internal/services/admin/opportunity/service.go`
+- [X] T030 [US2] 实现阶段推进/close Handler 与 DTO 于 `backend/internal/transport/http/admin/opportunity/handler.go`
+- [X] T031 [US2] 完善活动流写入（`stage_change/close`）于 `backend/internal/services/admin/opportunity/service.go`
+- [X] T032 [US2] 新增商机详情页阶段推进与赢输单操作区于 `web-admin/app/pages/scrm/opportunity/[opportunity_id].vue`
+- [X] T033 [P] [US2] 新增赢输单弹窗组件（输单原因必填）于 `web-admin/app/components/scrm/opportunity/OpportunityCloseModal.vue`
 - [X] T059 [US2] 增强商机列表工作台指标、阶段管道、关键词/来源/风险筛选与预计成交列于 `web-admin/app/pages/scrm/opportunity/index.vue`
 - [X] T060 [US2] 增强商机详情首屏指标、阶段进度、关联线索卡和核心字段展示于 `web-admin/app/pages/scrm/opportunity/[opportunity_id].vue`
 - [X] T062 [US2] 实现 `/admin/opportunity/dashboard` 服务端聚合接口与列表服务端高级筛选于 `backend/internal/{domain/repository,services,transport/http/admin}/opportunity`
@@ -102,7 +102,7 @@
 - [X] T064 [US2] 增加成交概率字段、报价单附件与跟进任务模型/接口于 `backend/internal/domain/models/opportunity`、`backend/internal/services/admin/opportunity`、`backend/internal/transport/http/admin/opportunity`
 - [X] T065 [US2] 在商机详情页增加成交概率编辑、报价单上传/下载/删除和跟进任务维护于 `web-admin/app/pages/scrm/opportunity/[opportunity_id].vue`
 - [X] T066 [US2] 创建商机弹窗将首个报价明细替换为报价总价与报价单附件上传于 `web-admin/app/pages/scrm/opportunity/index.vue`
-- [ ] T055 [US2] 新增详情页 UI 验收测试（terminal 状态禁用推进、422 校验提示、操作成功反馈）于 `web-admin/tests/opportunity/opportunity_detail_ui.spec.ts`
+- [ ] T055 [US2] 新增详情页 UI 验收测试（terminal 状态禁用推进、422 校验提示、操作成功反馈）于 `web-admin/tests/opportunity/opportunity_detail_ui.spec.ts`（后续专项：当前项目未建立稳定 UI E2E 基座，本期用 `npm run test` + `npm run build` + 页面验收文档覆盖）
 
 **Checkpoint**: US1 + US2 可独立运行，成交闭环可验证
 
@@ -116,20 +116,20 @@
 
 ### Tests for User Story 3
 
-- [ ] T034 [P] [US3] 新增 reopen 与风险标记合同测试于 `backend/tests/contract/opportunity_us3_contract_test.go`
-- [ ] T035 [P] [US3] 新增 disconnected 风险标记集成测试于 `backend/tests/integration/opportunity_us3_integration_test.go`
-- [ ] T051 [US3] 新增风险 Banner 与活动流一致性前端测试于 `web-admin/tests/opportunity/opportunity_risk_banner.spec.ts`
-- [ ] T053 [US3] 新增 reopen 接口幂等性测试（重复 reopen 不重复写重开活动）于 `backend/tests/integration/opportunity_us3_integration_test.go`
+- [X] T034 [P] [US3] 新增 reopen 与风险标记合同测试于 `backend/tests/contract/opportunity_contract_test.go` 与 `backend/internal/services/admin/opportunity/service_test.go`
+- [X] T035 [P] [US3] 新增 disconnected 风险标记集成测试于 `backend/internal/transport/http/webhooks/openwork_callback_handler_test.go`
+- [ ] T051 [US3] 新增风险 Banner 与活动流一致性前端测试于 `web-admin/tests/opportunity/opportunity_risk_banner.spec.ts`（后续专项：当前项目未建立稳定 UI E2E 基座，本期用 `npm run test` + `npm run build` + 页面验收文档覆盖）
+- [X] T053 [US3] 新增 reopen 接口幂等性测试（重复 reopen 不重复写重开活动）于 `backend/internal/services/admin/opportunity/service_test.go`
 
 ### Implementation for User Story 3
 
-- [ ] T036 [US3] 实现终态重开服务（仅 `won/lost -> open`）于 `backend/internal/services/admin/opportunity/opportunity_service_reopen.go`
-- [ ] T037 [US3] 实现风险标记服务（`risk_flags` JSON + `risk_flag` activity）于 `backend/internal/services/admin/opportunity/opportunity_service_risk.go`
-- [ ] T038 [US3] 在 `backend/internal/transport/http/webhooks/openwork_callback_handler.go` 接入 `disconnected` -> 商机风险标记调用
-- [ ] T039 [US3] 实现 reopen/activities Handler 于 `backend/internal/transport/http/admin/opportunity/handler_reopen_activities.go`
-- [ ] T040 [US3] 新增商机活动流组件于 `web-admin/app/components/scrm/opportunity/OpportunityActivityTimeline.vue`
-- [ ] T041 [US3] 在商机详情页渲染 disconnected 风险 Banner 与重开操作于 `web-admin/app/pages/scrm/opportunity/[opportunity_id].vue`
-- [ ] T056 [US3] 新增 Lead 详情入口 UI 验收测试（SQL 才可创建、409 冲突跳转）于 `web-admin/tests/opportunity/lead_opportunity_entry_ui.spec.ts`
+- [X] T036 [US3] 实现终态重开服务（仅 `won/lost -> open`）于 `backend/internal/services/admin/opportunity/service.go`
+- [X] T037 [US3] 实现风险标记服务（`risk_flags` JSON + `risk_flag` activity）于 `backend/internal/services/admin/opportunity/service.go`
+- [X] T038 [US3] 在 `backend/internal/transport/http/webhooks/openwork_callback_handler.go` 接入 `disconnected` -> 商机风险标记调用
+- [X] T039 [US3] 实现 reopen/activities Handler 于 `backend/internal/transport/http/admin/opportunity/handler.go`
+- [X] T040 [US3] 新增商机活动流组件于 `web-admin/app/components/scrm/opportunity/OpportunityActivityTimeline.vue`
+- [X] T041 [US3] 在商机详情页渲染 disconnected 风险 Banner 与重开操作于 `web-admin/app/pages/scrm/opportunity/[opportunity_id].vue`
+- [ ] T056 [US3] 新增 Lead 详情入口 UI 验收测试（SQL 才可创建、409 冲突跳转）于 `web-admin/tests/opportunity/lead_opportunity_entry_ui.spec.ts`（后续专项：当前项目未建立稳定 UI E2E 基座，本期用 `npm run test` + `npm run build` + 页面验收文档覆盖）
 
 **Checkpoint**: 全部用户故事可独立验收，风险联动可视化完成
 
@@ -139,15 +139,15 @@
 
 **Purpose**: 跨故事收尾、回归、文档与质量门禁
 
-- [ ] T042 [P] 更新 Opportunity 模块说明文档于 `docs/guides/`（含资格推进、商机流程、风险标记）
-- [ ] T043 [P] 补充 API 示例到 `specs/007-opportunity/contracts/opportunity.openapi.yaml`（请求/响应样例）
+- [X] T042 [P] 更新 Opportunity 模块说明文档于 `docs/guides/opportunity/README.md`（含资格推进、商机流程、风险标记）
+- [X] T043 [P] 补充 API 示例到 `specs/007-opportunity/contracts/opportunity.openapi.yaml`（请求/响应样例与 owner_member_uuid 兼容字段）
 - [X] T061 [P] 同步商机工作台规格到 `specs/007-opportunity/spec.md`、`plan.md`、`data-model.md`、`contracts/opportunity.openapi.yaml`
-- [ ] T044 执行后端回归测试并修复（最小通过集：`backend/tests/contract/opportunity_*`、`backend/tests/integration/opportunity_*`、`go test ./internal/services/admin/opportunity/...`）
-- [ ] T045 执行前端构建与关键页面检查（最小通过集：`cd web-admin && npm run build`，并完成 `opportunity index/detail + risk banner` 手动冒烟）
-- [ ] T046 按 `specs/007-opportunity/quickstart.md` 完成端到端验收并回填结果到 `specs/007-opportunity/quickstart.md`
-- [ ] T047 [P] 增加多租户隔离验证测试（跨 tenant 不可读写）于 `backend/tests/integration/opportunity_tenant_isolation_test.go`
-- [ ] T048 [P] 增加风险标记时延验证（`disconnected` 到记录落库断言 `<= 60s`）于 `backend/tests/integration/opportunity_risk_latency_test.go`
-- [ ] T057 [P] 新增 UI 一致性验收（risk banner 与活动流事件一致）于 `web-admin/tests/opportunity/opportunity_risk_consistency_ui.spec.ts`
+- [X] T044 执行后端回归测试并修复（当前通过集：`go test ./internal/services/admin/opportunity`、`go test ./tests/contract -run 'TestOpportunityContract'`；全量 `./tests/contract` 仍受既有非商机用例阻塞）
+- [X] T045 执行前端构建与关键页面检查（已执行 `cd web-admin && npm run build`；浏览器手动冒烟未纳入本次自动化）
+- [X] T046 按 `specs/007-opportunity/quickstart.md` 完成端到端验收并回填结果到 `specs/007-opportunity/quickstart.md`（自动化主链路已回填；浏览器手动 E2E 以文档验收项保留）
+- [X] T047 [P] 增加多租户隔离验证测试（跨 tenant 不可读写）于 `backend/internal/services/admin/opportunity/service_test.go`
+- [ ] T048 [P] 增加风险标记时延验证（`disconnected` 到记录落库断言 `<= 60s`）于 `backend/tests/integration/opportunity_risk_latency_test.go`（后续专项：当前已覆盖同步回调方法级风险写入，异步 worker 端到端时延仍待补）
+- [ ] T057 [P] 新增 UI 一致性验收（risk banner 与活动流事件一致）于 `web-admin/tests/opportunity/opportunity_risk_consistency_ui.spec.ts`（后续专项：当前项目未建立稳定 UI E2E 基座）
 
 ---
 

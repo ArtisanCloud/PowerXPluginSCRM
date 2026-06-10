@@ -11,17 +11,19 @@ func RBACEntries(prefix string) map[string]authx.Permission {
 	base := strings.TrimRight(prefix, "/") + "/templates"
 	adminBase := strings.TrimRight(prefix, "/") + "/admin/templates"
 	read := authx.Permission{Resource: "template", Action: "read"}
-	manage := authx.Permission{Resource: "template", Action: "manage"}
+	create := authx.Permission{Resource: "template", Action: "create"}
+	update := authx.Permission{Resource: "template", Action: "update"}
+	delete := authx.Permission{Resource: "template", Action: "delete"}
 
 	return map[string]authx.Permission{
 		"GET:" + base:                        read,
 		"GET:" + base + "/*":                 read,
-		"POST:" + base:                       manage,
-		"PUT:" + base + "/*":                 manage,
-		"DELETE:" + base + "/*":              manage,
-		"POST:" + base + "/batch-clone":      manage,
-		"POST:" + base + "/*/validate":       manage,
-		"POST:" + adminBase + "/batch-clone": manage,
-		"POST:" + adminBase + "/*/validate":  manage,
+		"POST:" + base:                       create,
+		"PUT:" + base + "/*":                 update,
+		"DELETE:" + base + "/*":              delete,
+		"POST:" + base + "/batch-clone":      create,
+		"POST:" + base + "/*/validate":       update,
+		"POST:" + adminBase + "/batch-clone": create,
+		"POST:" + adminBase + "/*/validate":  update,
 	}
 }

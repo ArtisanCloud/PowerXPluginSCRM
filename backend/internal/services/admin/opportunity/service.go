@@ -959,10 +959,10 @@ func ensureCustomerForOpportunityTx(ctx context.Context, tx *gorm.DB, tenantUUID
 func isQualifiedLead(status string) bool {
 	status = cleanLower(status)
 	switch status {
-	case leadmodel.LeadStatusClosed, leadmodel.LeadStatusDisconnected:
-		return false
+	case "sql", leadmodel.LeadStatusConverted:
+		return true
 	default:
-		return status != ""
+		return false
 	}
 }
 

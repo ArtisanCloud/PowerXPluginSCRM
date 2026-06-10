@@ -23,11 +23,15 @@ paths:
           application/json:
             schema:
               type: object
-              required: [target_status]
+              description: 推荐使用 target_status；status 为兼容字段。两者至少传一个，且 target_status 优先。
               properties:
                 target_status:
                   type: string
                   enum: [mql, sql, rollback]
+                status:
+                  type: string
+                  enum: [mql, sql, rollback]
+                  description: 兼容字段，推荐改用 target_status。
                 reason:
                   type: string
       responses:
@@ -91,9 +95,17 @@ paths:
             type: string
         - in: query
           name: owner_user_uuid
+          deprecated: true
           schema:
             type: string
             format: uuid
+          description: 兼容字段；当前语义为租户成员 UUID，推荐使用 owner_member_uuid。
+        - in: query
+          name: owner_member_uuid
+          schema:
+            type: string
+            format: uuid
+          description: 负责人租户成员 UUID。
         - in: query
           name: lead_uuid
           schema:
@@ -134,9 +146,17 @@ paths:
       parameters:
         - in: query
           name: owner_user_uuid
+          deprecated: true
           schema:
             type: string
             format: uuid
+          description: 兼容字段；当前语义为租户成员 UUID，推荐使用 owner_member_uuid。
+        - in: query
+          name: owner_member_uuid
+          schema:
+            type: string
+            format: uuid
+          description: 负责人租户成员 UUID。
         - in: query
           name: source_channel
           schema:
@@ -196,6 +216,12 @@ paths:
                 owner_user_uuid:
                   type: string
                   format: uuid
+                  deprecated: true
+                  description: 兼容字段；当前语义为租户成员 UUID，推荐使用 owner_member_uuid。
+                owner_member_uuid:
+                  type: string
+                  format: uuid
+                  description: 负责人租户成员 UUID。
                 expected_close_at:
                   type: string
                   format: date-time
@@ -487,14 +513,32 @@ components:
         owner_user_uuid:
           type: string
           format: uuid
+          deprecated: true
+          description: 兼容字段；当前语义为租户成员 UUID，推荐使用 owner_member_uuid。
+        owner_member_uuid:
+          type: string
+          format: uuid
+          description: 负责人租户成员 UUID。创建时 owner_user_uuid 与 owner_member_uuid 至少传一个。
         amount:
           type: number
         currency:
           type: string
           default: CNY
+        probability:
+          type: integer
+          minimum: 0
+          maximum: 100
         expected_close_at:
           type: string
           format: date-time
+      example:
+        lead_uuid: 8b86f1aa-3f59-4f85-9869-2f5e9fc8d2af
+        title: 华东门店年度采购商机
+        owner_member_uuid: 60c7f053-0d8b-41b4-b7d9-7fe94d884d50
+        amount: 68000
+        currency: CNY
+        probability: 20
+        expected_close_at: "2026-06-30T10:00:00Z"
     OpportunityRecord:
       type: object
       properties:
@@ -520,6 +564,12 @@ components:
         owner_user_uuid:
           type: string
           format: uuid
+          deprecated: true
+          description: 兼容字段；当前语义为租户成员 UUID，推荐读取 owner_member_uuid。
+        owner_member_uuid:
+          type: string
+          format: uuid
+          description: 负责人租户成员 UUID。
         source_channel:
           type: string
           nullable: true
@@ -552,6 +602,22 @@ components:
           type: array
           items:
             type: string
+        created_by:
+          type: string
+          format: uuid
+          deprecated: true
+          description: 兼容字段；当前语义为创建人租户成员 UUID。
+        created_by_member_uuid:
+          type: string
+          format: uuid
+        updated_by:
+          type: string
+          format: uuid
+          deprecated: true
+          description: 兼容字段；当前语义为更新人租户成员 UUID。
+        updated_by_member_uuid:
+          type: string
+          format: uuid
         created_at:
           type: string
           format: date-time
@@ -608,6 +674,19 @@ components:
           type: string
         download_url:
           type: string
+      example:
+        item_uuid: 0d78d734-508e-4d5f-9285-94f87e7e42f0
+        opportunity_uuid: 9af60723-4c1d-4792-bbe3-d04e37b0d6c9
+        kind: quote_file
+        name: 报价单附件
+        quantity: 1
+        unit_price: 68000
+        total_amount: 68000
+        currency: CNY
+        storage_provider: local
+        file_name: quote-v2.pdf
+        file_size: 1048576
+        content_type: application/pdf
     CreateTaskRequest:
       type: object
       required: [title]
