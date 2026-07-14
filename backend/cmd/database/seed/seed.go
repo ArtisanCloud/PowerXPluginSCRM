@@ -11,7 +11,10 @@ import (
 )
 
 func SeedPluginData(ctx context.Context, db *gorm.DB) error {
-	return seedLeadSourceCatalogs(ctx, db)
+	if err := seedLeadSourceCatalogs(ctx, db); err != nil {
+		return err
+	}
+	return seedOpportunityPipelineTemplates(ctx, db)
 }
 
 func seedLeadSourceCatalogs(ctx context.Context, db *gorm.DB) error {

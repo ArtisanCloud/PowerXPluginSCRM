@@ -224,3 +224,23 @@ T022: web-admin/app/pages/scrm/leads/[id].vue
 - 所有 `[P]` 任务必须避免同文件冲突
 - 所有任务已带文件路径，可直接执行
 - 若实现中发现合同变更，必须先更新 `contracts/opportunity.openapi.yaml` 再改代码
+
+---
+
+## Phase 7-10: 商机完整闭环扩展
+
+以下任务继续归属 `007-opportunity`，必须以现有 `OpportunityRecord`、`OpportunityActivity`、`opportunity_uuid`、租户/member 审计语义为基础循序实现。
+
+- [X] R001 [Phase7] 报价版本、提交审批、审批通过/驳回、当前生效报价、报价金额回写商机金额。
+- [X] R002 [Phase7] 报价审批活动写入商机活动流，并支持按报价版本查看附件和审批轨迹。
+- [X] R003 [Phase8] 赢单商机或生效报价生成/关联合同，支持合同附件、签署状态和合同金额。
+- [X] R004 [Phase8] 回款计划、回款记录、逾期提醒、回款完成率；回款状态不得自动反向改写商机终态。
+- [X] R005 [Phase9] 基于阶段、金额、成交概率、预计成交时间、负责人和来源做预测看板。
+- [X] R006 [Phase10] 阶段自定义、阶段默认赢率、阶段 SLA 和固定阶段迁移策略。
+- [X] R007 [Phase10] 细粒度权限、团队可见范围、商机重复检测与合并，合并必须保留活动流、附件和合同引用。
+
+Roadmap 约束：
+- 不新建第二套商机主对象。
+- 不绕过 `tenant_uuid`、`member_uuid` 和活动流审计。
+- 不把 UUID 手填作为负责人、线索、客户选择的主交互。
+- 新增子 feature 必须同步 OpenAPI、GORM 模型迁移、quickstart、菜单/权限和用户指南；只有 GORM 无法表达的约束才单独补 SQL。

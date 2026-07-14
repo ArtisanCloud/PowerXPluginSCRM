@@ -163,6 +163,24 @@
                     添加
                   </UButton>
                 </div>
+                <div v-else-if="detailTab === 'contracts'" class="flex items-center gap-2">
+                  <UBadge color="neutral" variant="soft">{{ contracts.length }} 份合同</UBadge>
+                  <UButton size="xs" icon="i-heroicons-plus" color="primary" variant="soft" @click="contractOpen = true">
+                    新增合同
+                  </UButton>
+                </div>
+                <div v-else-if="detailTab === 'payments'" class="flex items-center gap-2">
+                  <UBadge color="success" variant="soft">已回款 {{ money(paymentSummary?.paid_amount, paymentSummary?.currency || item.currency) }}</UBadge>
+                  <UButton size="xs" icon="i-heroicons-plus" color="primary" variant="soft" :disabled="!contracts.length" @click="paymentOpen = true">
+                    新增计划
+                  </UButton>
+                </div>
+                <div v-else-if="detailTab === 'governance'" class="flex items-center gap-2">
+                  <UBadge color="warning" variant="soft">{{ duplicates.length }} 个候选</UBadge>
+                  <UButton size="xs" icon="i-heroicons-magnifying-glass" color="primary" variant="soft" :loading="duplicateLoading" @click="loadDuplicates">
+                    检测
+                  </UButton>
+                </div>
               </div>
             </template>
 
@@ -175,13 +193,15 @@
                 <div v-for="(line, index) in lineItems" :key="line.item_uuid" class="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
                   <div class="min-w-0">
                     <div class="flex min-w-0 items-center gap-2">
-                      <UBadge color="neutral" variant="soft">第 {{ lineItems.length - index }} 版</UBadge>
-                      <UBadge v-if="index === 0" color="primary" variant="soft">最近</UBadge>
+                      <UBadge color="neutral" variant="soft">第 {{ line.version_no || lineItems.length - index }} 版</UBadge>
+                      <UBadge v-if="line.is_effective" color="success" variant="soft">生效</UBadge>
+                      <UBadge v-else :color="quoteStatusColor(line.approval_status)" variant="soft">{{ quoteStatusLabel(line.approval_status) }}</UBadge>
                       <div class="truncate font-medium text-gray-900 dark:text-white">{{ quoteTitle(line) }}</div>
                     </div>
                     <div class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-sm text-gray-500">
                       <span>{{ quoteMeta(line) }}</span>
                       <span>{{ formatDateTime(line.created_at) }}</span>
+                      <span v-if="line.approval_comment">备注：{{ line.approval_comment }}</span>
                     </div>
                   </div>
                   <div class="flex flex-wrap items-center gap-2 sm:justify-end">
@@ -196,6 +216,19 @@
                       @click="syncQuoteAmount(line)"
                     >
                       设为商机金额
+                    </UButton>
+                    <UButton
+                      v-for="action in quoteActions(line)"
+                      :key="`${line.item_uuid}-${action.action}`"
+                      size="xs"
+                      variant="soft"
+                      :color="action.color"
+                      :icon="action.icon"
+                      :loading="quoteActionKey === `${line.item_uuid}:${action.action}`"
+                      :disabled="quoteActionKey !== ''"
+                      @click="updateQuoteApproval(line, action.action)"
+                    >
+                      {{ action.label }}
                     </UButton>
                     <UButton
                       v-if="line.download_url"
@@ -234,6 +267,111 @@
                 </div>
               </div>
               <div v-else class="text-sm text-gray-500">暂无跟进任务</div>
+            </template>
+
+            <template v-else-if="detailTab === 'contracts'">
+              <div v-if="contracts.length" class="divide-y divide-gray-100 dark:divide-gray-800">
+                <div v-for="contract in contracts" :key="contract.contract_uuid" class="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div class="min-w-0">
+                    <div class="flex min-w-0 items-center gap-2">
+                      <UBadge :color="contractStatusColor(contract.status)" variant="soft">{{ contractStatusLabel(contract.status) }}</UBadge>
+                      <div class="truncate font-medium text-gray-900 dark:text-white">{{ contract.title }}</div>
+                    </div>
+                    <div class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-sm text-gray-500">
+                      <span>{{ contract.contract_no }}</span>
+                      <span>{{ money(contract.amount, contract.currency) }}</span>
+                      <span>{{ formatDateTime(contract.signed_at) || "未签署" }}</span>
+                    </div>
+                  </div>
+                  <div class="flex flex-wrap items-center gap-2 sm:justify-end">
+                    <UButton v-if="contract.status !== 'signed'" size="xs" color="success" variant="soft" icon="i-heroicons-check" @click="updateContractStatus(contract, 'signed')">
+                      标记签署
+                    </UButton>
+                    <UButton v-if="contract.status !== 'cancelled'" size="xs" color="neutral" variant="ghost" @click="updateContractStatus(contract, 'cancelled')">
+                      取消
+                    </UButton>
+                  </div>
+                </div>
+              </div>
+              <div v-else class="rounded-lg border border-dashed border-gray-200 p-4 text-sm text-gray-500 dark:border-gray-800">
+                暂无合同记录。赢单后可从生效报价或商机金额创建合同。
+              </div>
+            </template>
+
+            <template v-else-if="detailTab === 'payments'">
+              <div class="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+                <div class="rounded-lg bg-gray-50 p-3 dark:bg-gray-900/40">
+                  <div class="text-xs text-gray-500">计划回款</div>
+                  <div class="mt-1 font-semibold">{{ money(paymentSummary?.planned_amount, paymentSummary?.currency || item.currency) }}</div>
+                </div>
+                <div class="rounded-lg bg-gray-50 p-3 dark:bg-gray-900/40">
+                  <div class="text-xs text-gray-500">已回款</div>
+                  <div class="mt-1 font-semibold">{{ money(paymentSummary?.paid_amount, paymentSummary?.currency || item.currency) }}</div>
+                </div>
+                <div class="rounded-lg bg-gray-50 p-3 dark:bg-gray-900/40">
+                  <div class="text-xs text-gray-500">逾期金额</div>
+                  <div class="mt-1 font-semibold">{{ money(paymentSummary?.overdue_amount, paymentSummary?.currency || item.currency) }}</div>
+                </div>
+                <div class="rounded-lg bg-gray-50 p-3 dark:bg-gray-900/40">
+                  <div class="text-xs text-gray-500">完成率</div>
+                  <div class="mt-1 font-semibold">{{ Math.round(paymentSummary?.completion_rate || 0) }}%</div>
+                </div>
+              </div>
+              <div v-if="payments.length" class="divide-y divide-gray-100 dark:divide-gray-800">
+                <div v-for="payment in payments" :key="payment.payment_uuid" class="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <div class="flex items-center gap-2">
+                      <UBadge :color="paymentStatusColor(payment.status)" variant="soft">{{ paymentStatusLabel(payment.status) }}</UBadge>
+                      <span class="font-medium text-gray-900 dark:text-white">{{ payment.title }}</span>
+                    </div>
+                    <div class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-sm text-gray-500">
+                      <span>计划 {{ money(payment.planned_amount, payment.currency) }}</span>
+                      <span>实收 {{ money(payment.paid_amount, payment.currency) }}</span>
+                      <span>到期 {{ formatDate(payment.due_at) || "-" }}</span>
+                    </div>
+                  </div>
+                  <div class="flex flex-wrap items-center gap-2 sm:justify-end">
+                    <UButton v-if="payment.status !== 'paid'" size="xs" color="success" variant="soft" @click="markPaymentPaid(payment)">
+                      登记回款
+                    </UButton>
+                    <UButton v-if="payment.status === 'planned'" size="xs" color="warning" variant="ghost" @click="updatePaymentStatus(payment, 'overdue')">
+                      标记逾期
+                    </UButton>
+                  </div>
+                </div>
+              </div>
+              <div v-else class="rounded-lg border border-dashed border-gray-200 p-4 text-sm text-gray-500 dark:border-gray-800">
+                暂无回款计划。
+              </div>
+            </template>
+
+            <template v-else-if="detailTab === 'governance'">
+              <div class="space-y-3">
+                <div v-if="duplicates.length" class="divide-y divide-gray-100 dark:divide-gray-800">
+                  <div v-for="candidate in duplicates" :key="candidate.opportunity_uuid" class="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div class="min-w-0">
+                      <div class="flex min-w-0 items-center gap-2">
+                        <UBadge color="warning" variant="soft">匹配 {{ candidate.score }}%</UBadge>
+                        <div class="truncate font-medium text-gray-900 dark:text-white">{{ candidate.title }}</div>
+                      </div>
+                      <div class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-sm text-gray-500">
+                        <span>{{ stageLabel(candidate.stage) }}</span>
+                        <span>{{ money(candidate.amount, candidate.currency) }}</span>
+                        <span>{{ candidate.reason || "规则匹配" }}</span>
+                      </div>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2 sm:justify-end">
+                      <UButton size="xs" variant="ghost" color="neutral" icon="i-heroicons-arrow-top-right-on-square" :to="`/scrm/opportunity/${candidate.opportunity_uuid}`" />
+                      <UButton size="xs" color="error" variant="soft" icon="i-heroicons-arrows-right-left" :loading="mergingUUID === candidate.opportunity_uuid" @click="mergeDuplicate(candidate)">
+                        合并到当前
+                      </UButton>
+                    </div>
+                  </div>
+                </div>
+                <div v-else class="rounded-lg border border-dashed border-gray-200 p-4 text-sm text-gray-500 dark:border-gray-800">
+                  暂无重复候选。点击“检测”可按线索、外部联系人、来源账号、负责人和标题相似度重新扫描。
+                </div>
+              </div>
             </template>
           </UCard>
         </div>
@@ -363,6 +501,66 @@
       </template>
     </UModal>
 
+    <UModal v-model:open="contractOpen" :ui="{ content: 'max-w-lg w-full' }">
+      <template #title>新增合同</template>
+      <template #body>
+        <div class="space-y-4">
+          <UFormField label="合同名称" required>
+            <UInput v-model="contractForm.title" placeholder="例如：年度采购合同" class="w-full" />
+          </UFormField>
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <UFormField label="合同编号">
+              <UInput v-model="contractForm.contract_no" placeholder="留空自动生成" />
+            </UFormField>
+            <UFormField label="合同金额">
+              <UInput v-model.number="contractForm.amount" type="number" min="0" />
+            </UFormField>
+          </div>
+          <UFormField label="来源报价">
+            <USelectMenu v-model="contractForm.quote_item_uuid" :items="quoteOptions" value-key="value" label-key="label" placeholder="选择生效报价或留空" class="w-full" />
+          </UFormField>
+        </div>
+      </template>
+      <template #footer>
+        <div class="flex w-full justify-end gap-2">
+          <UButton variant="ghost" color="neutral" @click="contractOpen = false">取消</UButton>
+          <UButton icon="i-heroicons-document-plus" color="primary" :loading="submittingContract" :disabled="!canAddContract" @click="addContract">
+            创建
+          </UButton>
+        </div>
+      </template>
+    </UModal>
+
+    <UModal v-model:open="paymentOpen" :ui="{ content: 'max-w-lg w-full' }">
+      <template #title>新增回款计划</template>
+      <template #body>
+        <div class="space-y-4">
+          <UFormField label="关联合同" required>
+            <USelectMenu v-model="paymentForm.contract_uuid" :items="contractOptions" value-key="value" label-key="label" placeholder="选择合同" class="w-full" />
+          </UFormField>
+          <UFormField label="计划标题" required>
+            <UInput v-model="paymentForm.title" placeholder="例如：首付款" class="w-full" />
+          </UFormField>
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <UFormField label="计划金额">
+              <UInput v-model.number="paymentForm.planned_amount" type="number" min="0" />
+            </UFormField>
+            <UFormField label="计划日期">
+              <UInput v-model="paymentForm.due_date" type="date" />
+            </UFormField>
+          </div>
+        </div>
+      </template>
+      <template #footer>
+        <div class="flex w-full justify-end gap-2">
+          <UButton variant="ghost" color="neutral" @click="paymentOpen = false">取消</UButton>
+          <UButton icon="i-heroicons-plus" color="primary" :loading="submittingPayment" :disabled="!canAddPayment" @click="addPayment">
+            添加
+          </UButton>
+        </div>
+      </template>
+    </UModal>
+
     <UModal v-model:open="taskOpen" :ui="{ content: 'max-w-lg w-full' }">
       <template #title>添加跟进任务</template>
       <template #body>
@@ -442,9 +640,14 @@ import { useLeadCaptureService, type LeadRecord } from "~/composables/api/servic
 import {
   useOpportunityService,
   type OpportunityActivity,
+  type OpportunityContract,
+  type DuplicateOpportunityCandidate,
   type OpportunityLineItem,
+  type OpportunityPayment,
+  type PaymentSummary,
   type OpportunityRecord,
   type OpportunityStage,
+  type OpportunityStageConfig,
   type OpportunityTask,
 } from "~/composables/api/services/opportunity";
 import { useUserStore } from "~/stores/user";
@@ -462,19 +665,31 @@ const lead = ref<LeadRecord | null>(null);
 const activities = ref<OpportunityActivity[]>([]);
 const lineItems = ref<OpportunityLineItem[]>([]);
 const tasks = ref<OpportunityTask[]>([]);
+const contracts = ref<OpportunityContract[]>([]);
+const payments = ref<OpportunityPayment[]>([]);
+const duplicates = ref<DuplicateOpportunityCandidate[]>([]);
+const paymentSummary = ref<PaymentSummary | null>(null);
 const iamMembers = ref<MemberRecord[]>([]);
+const pipelineStages = ref<OpportunityStageConfig[]>([]);
 const loading = ref(false);
 const activityLoading = ref(false);
 const submitting = ref(false);
 const submittingStage = ref("");
 const submittingLineItem = ref(false);
 const submittingTask = ref(false);
+const submittingContract = ref(false);
+const submittingPayment = ref(false);
+const duplicateLoading = ref(false);
+const mergingUUID = ref("");
 const syncingQuoteUUID = ref("");
+const quoteActionKey = ref("");
 const closeOpen = ref(false);
 const editOpen = ref(false);
 const advanceConfirmOpen = ref(false);
 const quoteOpen = ref(false);
 const taskOpen = ref(false);
+const contractOpen = ref(false);
+const paymentOpen = ref(false);
 const pendingStage = ref<OpportunityStage | null>(null);
 const detailTab = ref("activities");
 const errorMessage = ref("");
@@ -497,24 +712,51 @@ const taskForm = reactive({
   title: "",
   due_date: "",
 });
+const contractForm = reactive({
+  title: "",
+  contract_no: "",
+  amount: undefined as number | undefined,
+  quote_item_uuid: "",
+});
+const paymentForm = reactive({
+  contract_uuid: "",
+  title: "",
+  planned_amount: undefined as number | undefined,
+  due_date: "",
+});
 const detailTabs = [
   { label: "活动流", value: "activities", icon: "i-heroicons-clock" },
   { label: "报价单", value: "quotes", icon: "i-heroicons-document-text" },
+  { label: "合同", value: "contracts", icon: "i-heroicons-document-check" },
+  { label: "回款", value: "payments", icon: "i-heroicons-banknotes" },
+  { label: "治理", value: "governance", icon: "i-heroicons-shield-check" },
   { label: "跟进任务", value: "tasks", icon: "i-heroicons-check-circle" },
 ];
 
-const activeStages: Array<{ label: string; value: OpportunityStage }> = [
+const fallbackActiveStages: Array<{ label: string; value: OpportunityStage }> = [
   { label: "打开", value: "open" },
   { label: "已确认", value: "qualified" },
   { label: "方案", value: "proposal" },
   { label: "谈判", value: "negotiation" },
 ];
 
-const stageSteps: Array<{ label: string; value: OpportunityStage }> = [
-  ...activeStages,
-  { label: "赢单", value: "won" },
-  { label: "输单", value: "lost" },
-];
+const activeStages = computed<Array<{ label: string; value: OpportunityStage; config?: OpportunityStageConfig }>>(() => {
+  const stages = pipelineStages.value
+    .filter((stage) => stage.is_active !== false && (stage.stage_type || "active") === "active")
+    .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0))
+    .map((stage) => ({ label: stage.label || stage.fixed_stage, value: stage.fixed_stage as OpportunityStage, config: stage }))
+    .filter((stage) => stage.value);
+  return stages.length ? stages : fallbackActiveStages;
+});
+
+const stageSteps = computed<Array<{ label: string; value: OpportunityStage; config?: OpportunityStageConfig }>>(() => {
+  const terminalStages = pipelineStages.value
+    .filter((stage) => stage.is_active !== false && ["won", "lost"].includes(stage.stage_type || ""))
+    .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0))
+    .map((stage) => ({ label: stage.label || stage.fixed_stage, value: stage.fixed_stage as OpportunityStage, config: stage }))
+    .filter((stage) => stage.value);
+  return terminalStages.length ? [...activeStages.value, ...terminalStages] : [...activeStages.value, { label: "赢单", value: "won" }, { label: "输单", value: "lost" }];
+});
 
 const terminal = computed(() => item.value?.stage === "won" || item.value?.stage === "lost");
 const riskFlags = computed(() => parseRiskFlags(item.value?.risk_flags));
@@ -524,11 +766,11 @@ const sourceText = computed(() =>
 const leadSourceText = computed(() =>
   [lead.value?.source_channel, lead.value?.source_app_type, lead.value?.source_account_uuid].filter(Boolean).join(" / ") || "-"
 );
-const currentStageIndex = computed(() => stageSteps.findIndex((stage) => stage.value === item.value?.stage));
-const currentActiveStageIndex = computed(() => activeStages.findIndex((stage) => stage.value === item.value?.stage));
+const currentStageIndex = computed(() => stageSteps.value.findIndex((stage) => stage.value === item.value?.stage));
+const currentActiveStageIndex = computed(() => activeStages.value.findIndex((stage) => stage.value === item.value?.stage));
 const nextStageActions = computed(() => {
   if (!item.value || terminal.value) return [];
-  const next = activeStages.slice(Math.max(currentActiveStageIndex.value + 1, 1));
+  const next = activeStages.value.slice(Math.max(currentActiveStageIndex.value + 1, 1));
   return next.filter((stage) => canAdvanceTo(stage.value));
 });
 
@@ -579,6 +821,20 @@ const latestQuote = computed(() => lineItems.value[0] || null);
 const openTaskCount = computed(() => tasks.value.filter((task) => task.status !== "done").length);
 const canUploadQuote = computed(() => quoteForm.file && !submittingLineItem.value);
 const canAddTask = computed(() => taskForm.title.trim() && !submittingTask.value);
+const quoteOptions = computed(() =>
+  lineItems.value.map((line) => ({
+    label: `${line.is_effective ? "生效报价 · " : ""}第 ${line.version_no || 1} 版 · ${money(lineAmount(line), line.currency)}`,
+    value: line.item_uuid,
+  }))
+);
+const contractOptions = computed(() =>
+  contracts.value.map((contract) => ({
+    label: `${contract.title} · ${money(contract.amount, contract.currency)}`,
+    value: contract.contract_uuid,
+  }))
+);
+const canAddContract = computed(() => contractForm.title.trim() && !submittingContract.value);
+const canAddPayment = computed(() => paymentForm.contract_uuid && paymentForm.title.trim() && !submittingPayment.value);
 const ownerOptions = computed(() =>
   mergeOwnerOptions([item.value?.owner_user_uuid, lead.value?.owner_user_uuid, editForm.owner_user_uuid])
 );
@@ -591,7 +847,16 @@ watch(ownerSearch, () => {
 });
 
 async function loadAll() {
-  await Promise.all([loadItem(), loadActivities(), loadLineItems(), loadTasks(), loadOwners()]);
+  await Promise.all([loadPipeline(), loadItem(), loadActivities(), loadLineItems(), loadTasks(), loadContracts(), loadPayments(), loadOwners()]);
+}
+
+async function loadPipeline() {
+  try {
+    const resp = await service.defaultPipeline();
+    pipelineStages.value = resp.data?.stages || [];
+  } catch {
+    pipelineStages.value = [];
+  }
 }
 
 async function loadItem() {
@@ -642,6 +907,32 @@ async function loadTasks() {
   if (!opportunityUUID.value) return;
   const resp = await service.tasks(opportunityUUID.value);
   tasks.value = resp.data?.items || [];
+}
+
+async function loadContracts() {
+  if (!opportunityUUID.value) return;
+  const resp = await service.contracts(opportunityUUID.value);
+  contracts.value = resp.data?.items || [];
+}
+
+async function loadPayments() {
+  if (!opportunityUUID.value) return;
+  const resp = await service.payments(opportunityUUID.value);
+  payments.value = resp.data?.items || [];
+  paymentSummary.value = resp.data?.summary || null;
+}
+
+async function loadDuplicates() {
+  if (!opportunityUUID.value) return;
+  duplicateLoading.value = true;
+  try {
+    const resp = await service.duplicates(opportunityUUID.value);
+    duplicates.value = resp.data?.items || [];
+  } catch (error: any) {
+    toast.add({ title: "重复检测失败", description: error?.data?.error?.message || error?.message, color: "red" });
+  } finally {
+    duplicateLoading.value = false;
+  }
 }
 
 async function advance(stage: OpportunityStage) {
@@ -782,6 +1073,35 @@ async function syncQuoteAmount(line: OpportunityLineItem) {
   }
 }
 
+async function updateQuoteApproval(
+  line: OpportunityLineItem,
+  action: "submit" | "withdraw" | "approve" | "reject" | "effective",
+) {
+  const key = `${line.item_uuid}:${action}`;
+  quoteActionKey.value = key;
+  try {
+    const resp = await service.updateQuoteApproval(opportunityUUID.value, line.item_uuid, {
+      action,
+    });
+    const updated = resp.data;
+    if (updated) {
+      const index = lineItems.value.findIndex((item) => item.item_uuid === updated.item_uuid);
+      if (index >= 0) {
+        lineItems.value[index] = updated;
+      }
+    }
+    if (action === "effective") {
+      await loadItem();
+    }
+    await Promise.all([loadLineItems(), loadActivities()]);
+    toast.add({ title: quoteActionSuccessTitle(action), color: "green" });
+  } catch (error: any) {
+    toast.add({ title: "报价状态更新失败", description: error?.data?.error?.message || error?.message, color: "red" });
+  } finally {
+    quoteActionKey.value = "";
+  }
+}
+
 async function addTask() {
   if (!canAddTask.value) return;
   submittingTask.value = true;
@@ -807,6 +1127,126 @@ async function toggleTask(task: OpportunityTask) {
     await Promise.all([loadTasks(), loadActivities()]);
   } catch (error: any) {
     toast.add({ title: "更新任务失败", description: error?.data?.error?.message || error?.message, color: "red" });
+  }
+}
+
+async function addContract() {
+  if (!canAddContract.value) return;
+  submittingContract.value = true;
+  try {
+    const selectedQuote = lineItems.value.find((line) => line.item_uuid === contractForm.quote_item_uuid);
+    await service.addContract(opportunityUUID.value, {
+      title: contractForm.title.trim(),
+      contract_no: contractForm.contract_no.trim() || undefined,
+      quote_item_uuid: contractForm.quote_item_uuid || undefined,
+      amount: contractForm.amount ?? (selectedQuote ? lineAmount(selectedQuote) : item.value?.amount),
+      currency: selectedQuote?.currency || item.value?.currency || "CNY",
+    });
+    contractForm.title = "";
+    contractForm.contract_no = "";
+    contractForm.amount = undefined;
+    contractForm.quote_item_uuid = "";
+    contractOpen.value = false;
+    toast.add({ title: "合同已创建", color: "green" });
+    await Promise.all([loadContracts(), loadPayments(), loadActivities()]);
+  } catch (error: any) {
+    toast.add({ title: "创建合同失败", description: error?.data?.error?.message || error?.message, color: "red" });
+  } finally {
+    submittingContract.value = false;
+  }
+}
+
+async function updateContractStatus(contract: OpportunityContract, status: "draft" | "pending_signature" | "signed" | "cancelled") {
+  submittingContract.value = true;
+  try {
+    const resp = await service.updateContractStatus(opportunityUUID.value, contract.contract_uuid, status);
+    const updated = resp.data;
+    if (updated) {
+      const index = contracts.value.findIndex((item) => item.contract_uuid === updated.contract_uuid);
+      if (index >= 0) contracts.value[index] = updated;
+    }
+    toast.add({ title: status === "signed" ? "合同已标记签署" : "合同状态已更新", color: "green" });
+    await Promise.all([loadContracts(), loadActivities()]);
+  } catch (error: any) {
+    toast.add({ title: "更新合同失败", description: error?.data?.error?.message || error?.message, color: "red" });
+  } finally {
+    submittingContract.value = false;
+  }
+}
+
+async function addPayment() {
+  if (!canAddPayment.value) return;
+  submittingPayment.value = true;
+  try {
+    await service.addPayment(opportunityUUID.value, {
+      contract_uuid: paymentForm.contract_uuid,
+      title: paymentForm.title.trim(),
+      planned_amount: paymentForm.planned_amount || 0,
+      due_at: paymentForm.due_date ? new Date(`${paymentForm.due_date}T18:00:00`).toISOString() : undefined,
+    });
+    paymentForm.contract_uuid = "";
+    paymentForm.title = "";
+    paymentForm.planned_amount = undefined;
+    paymentForm.due_date = "";
+    paymentOpen.value = false;
+    toast.add({ title: "回款计划已添加", color: "green" });
+    await Promise.all([loadPayments(), loadActivities()]);
+  } catch (error: any) {
+    toast.add({ title: "添加回款计划失败", description: error?.data?.error?.message || error?.message, color: "red" });
+  } finally {
+    submittingPayment.value = false;
+  }
+}
+
+async function updatePaymentStatus(
+  payment: OpportunityPayment,
+  status: "planned" | "paid" | "overdue" | "voided",
+  paidAmount?: number,
+) {
+  submittingPayment.value = true;
+  try {
+    const resp = await service.updatePaymentStatus(opportunityUUID.value, payment.payment_uuid, {
+      status,
+      paid_amount: paidAmount,
+      paid_at: status === "paid" ? new Date().toISOString() : undefined,
+    });
+    const updated = resp.data;
+    if (updated) {
+      const index = payments.value.findIndex((item) => item.payment_uuid === updated.payment_uuid);
+      if (index >= 0) payments.value[index] = updated;
+    }
+    toast.add({ title: status === "paid" ? "回款已登记" : "回款状态已更新", color: "green" });
+    await Promise.all([loadPayments(), loadActivities()]);
+  } catch (error: any) {
+    toast.add({ title: "更新回款失败", description: error?.data?.error?.message || error?.message, color: "red" });
+  } finally {
+    submittingPayment.value = false;
+  }
+}
+
+async function markPaymentPaid(payment: OpportunityPayment) {
+  const amount = payment.planned_amount || payment.paid_amount || 0;
+  await updatePaymentStatus(payment, "paid", amount);
+}
+
+async function mergeDuplicate(candidate: DuplicateOpportunityCandidate) {
+  if (!item.value || !candidate.opportunity_uuid) return;
+  const ok = window.confirm(`确认将「${candidate.title}」合并到当前商机？报价、合同、回款和活动会迁移到当前商机。`);
+  if (!ok) return;
+  mergingUUID.value = candidate.opportunity_uuid;
+  try {
+    const resp = await service.merge(opportunityUUID.value, {
+      source_opportunity_uuid: candidate.opportunity_uuid,
+      reason: "重复商机合并",
+    });
+    item.value = resp.data || item.value;
+    duplicates.value = duplicates.value.filter((entry) => entry.opportunity_uuid !== candidate.opportunity_uuid);
+    toast.add({ title: "商机已合并", color: "green" });
+    await Promise.all([loadLineItems(), loadContracts(), loadPayments(), loadActivities(), loadDuplicates()]);
+  } catch (error: any) {
+    toast.add({ title: "合并商机失败", description: error?.data?.error?.message || error?.message, color: "red" });
+  } finally {
+    mergingUUID.value = "";
   }
 }
 
@@ -855,12 +1295,12 @@ async function markRisk() {
 
 function canAdvanceTo(stage: OpportunityStage) {
   if (!item.value || terminal.value) return false;
-  const order = activeStages.map((entry) => entry.value);
+  const order = activeStages.value.map((entry) => entry.value);
   return order.indexOf(stage) >= order.indexOf(item.value.stage);
 }
 
 function stageReached(stage: OpportunityStage) {
-  const index = activeStages.findIndex((entry) => entry.value === stage);
+  const index = activeStages.value.findIndex((entry) => entry.value === stage);
   return currentStageIndex.value >= 0 && index <= currentStageIndex.value;
 }
 
@@ -868,8 +1308,8 @@ function stageCompleted(stage: OpportunityStage) {
   if (!item.value) return false;
   if (stage === "won" || stage === "lost") return false;
   if (terminal.value) return true;
-  const index = activeStages.findIndex((entry) => entry.value === stage);
-  const current = activeStages.findIndex((entry) => entry.value === item.value?.stage);
+  const index = activeStages.value.findIndex((entry) => entry.value === stage);
+  const current = activeStages.value.findIndex((entry) => entry.value === item.value?.stage);
   return current > index && index >= 0;
 }
 
@@ -906,7 +1346,7 @@ function stageStepHint(stage: OpportunityStage) {
 }
 
 function stageLabel(stage?: string) {
-  const found = stageSteps.find((item) => item.value === stage);
+  const found = stageSteps.value.find((item) => item.value === stage);
   if (found) return found.label;
   return stage || "-";
 }
@@ -1012,6 +1452,101 @@ function quoteMeta(line: OpportunityLineItem) {
   const size = formatFileSize(line.file_size);
   if (size) parts.push(size);
   return parts.join(" · ");
+}
+
+function quoteStatusLabel(status?: string) {
+  const value = String(status || "draft").toLowerCase();
+  const labels: Record<string, string> = {
+    draft: "草稿",
+    submitted: "待审批",
+    approved: "已批准",
+    rejected: "已驳回",
+    withdrawn: "已撤回",
+    effective: "生效中",
+  };
+  return labels[value] || value;
+}
+
+function quoteStatusColor(status?: string) {
+  const value = String(status || "draft").toLowerCase();
+  if (value === "submitted") return "warning";
+  if (value === "approved") return "primary";
+  if (value === "rejected") return "error";
+  if (value === "withdrawn") return "neutral";
+  if (value === "effective") return "success";
+  return "neutral";
+}
+
+function quoteActions(line: OpportunityLineItem) {
+  const status = String(line.approval_status || "draft").toLowerCase();
+  if (line.is_effective || status === "effective") return [];
+  if (status === "submitted") {
+    return [
+      { action: "approve" as const, label: "批准", color: "success" as const, icon: "i-heroicons-check" },
+      { action: "reject" as const, label: "驳回", color: "error" as const, icon: "i-heroicons-x-mark" },
+      { action: "withdraw" as const, label: "撤回", color: "neutral" as const, icon: "i-heroicons-arrow-uturn-left" },
+    ];
+  }
+  if (status === "approved") {
+    return [
+      { action: "effective" as const, label: "设为生效", color: "primary" as const, icon: "i-heroicons-star" },
+    ];
+  }
+  if (status === "draft" || status === "withdrawn" || status === "rejected") {
+    return [
+      { action: "submit" as const, label: "提交审批", color: "primary" as const, icon: "i-heroicons-paper-airplane" },
+    ];
+  }
+  return [];
+}
+
+function quoteActionSuccessTitle(action: string) {
+  const labels: Record<string, string> = {
+    submit: "报价已提交审批",
+    withdraw: "报价已撤回",
+    approve: "报价已批准",
+    reject: "报价已驳回",
+    effective: "报价已设为生效",
+  };
+  return labels[action] || "报价状态已更新";
+}
+
+function contractStatusLabel(status?: string) {
+  const value = String(status || "draft").toLowerCase();
+  const labels: Record<string, string> = {
+    draft: "草稿",
+    pending_signature: "待签署",
+    signed: "已签署",
+    cancelled: "已取消",
+  };
+  return labels[value] || value;
+}
+
+function contractStatusColor(status?: string) {
+  const value = String(status || "draft").toLowerCase();
+  if (value === "signed") return "success";
+  if (value === "pending_signature") return "warning";
+  if (value === "cancelled") return "error";
+  return "neutral";
+}
+
+function paymentStatusLabel(status?: string) {
+  const value = String(status || "planned").toLowerCase();
+  const labels: Record<string, string> = {
+    planned: "计划中",
+    paid: "已回款",
+    overdue: "已逾期",
+    voided: "已作废",
+  };
+  return labels[value] || value;
+}
+
+function paymentStatusColor(status?: string) {
+  const value = String(status || "planned").toLowerCase();
+  if (value === "paid") return "success";
+  if (value === "overdue") return "error";
+  if (value === "voided") return "neutral";
+  return "warning";
 }
 
 function formatFileSize(value?: number) {

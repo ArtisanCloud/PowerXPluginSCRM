@@ -123,6 +123,12 @@ var businessTables = []interface{}{
 	&domainOpportunityModel.OpportunityActivity{},
 	&domainOpportunityModel.OpportunityLineItem{},
 	&domainOpportunityModel.OpportunityTask{},
+	&domainOpportunityModel.OpportunityContract{},
+	&domainOpportunityModel.OpportunityPayment{},
+	&domainOpportunityModel.OpportunityPipelineGroup{},
+	&domainOpportunityModel.OpportunityStageConfig{},
+	&domainOpportunityModel.OpportunityPipelineTemplate{},
+	&domainOpportunityModel.OpportunityPipelineTemplateStage{},
 }
 
 var iamTables = []interface{}{

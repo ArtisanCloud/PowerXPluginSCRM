@@ -6,6 +6,12 @@
         <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">从有效线索进入销售管道，管理阶段、金额、负责人、预计成交和风险状态。</p>
       </div>
       <div class="flex items-center gap-2">
+        <UButton icon="i-heroicons-chart-bar-square" variant="soft" color="neutral" to="/scrm/opportunity/analytics">
+          预测看板
+        </UButton>
+        <UButton icon="i-heroicons-adjustments-horizontal" variant="soft" color="neutral" to="/scrm/opportunity/settings">
+          商机配置
+        </UButton>
         <UButton icon="i-heroicons-arrow-path" variant="soft" :loading="loading" @click="loadAll">
           刷新
         </UButton>
@@ -333,6 +339,7 @@ import {
   type OpportunityDashboard,
   type OpportunityRecord,
   type OpportunityStage,
+  type OpportunityStageConfig,
 } from "~/composables/api/services/opportunity";
 import { useUserStore } from "~/stores/user";
 
@@ -349,6 +356,7 @@ const items = ref<OpportunityRecord[]>([]);
 const leads = ref<LeadRecord[]>([]);
 const iamMembers = ref<MemberRecord[]>([]);
 const dashboard = ref<OpportunityDashboard | null>(null);
+const pipelineStages = ref<OpportunityStageConfig[]>([]);
 const selectedLeadUUID = ref("");
 const ownerSearch = ref("");
 let ownerSearchTimer: ReturnType<typeof setTimeout> | null = null;
@@ -381,7 +389,7 @@ const createForm = reactive({
   next_task_due_date: "",
 });
 
-const stageOptions: Array<{ label: string; value: OpportunityStage }> = [
+const fallbackStageOptions: Array<{ label: string; value: OpportunityStage }> = [
   { label: "打开", value: "open" },
   { label: "已确认", value: "qualified" },
   { label: "方案", value: "proposal" },
@@ -389,6 +397,19 @@ const stageOptions: Array<{ label: string; value: OpportunityStage }> = [
   { label: "赢单", value: "won" },
   { label: "输单", value: "lost" },
 ];
+
+const stageOptions = computed<Array<{ label: string; value: OpportunityStage; config?: OpportunityStageConfig }>>(() => {
+  const stages = pipelineStages.value
+    .filter((stage) => stage.is_active !== false)
+    .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0))
+    .map((stage) => ({
+      label: stage.label || stage.fixed_stage,
+      value: stage.fixed_stage as OpportunityStage,
+      config: stage,
+    }))
+    .filter((stage) => stage.value);
+  return stages.length ? stages : fallbackStageOptions;
+});
 
 const columns = [
   { accessorKey: "title", header: "商机" },
@@ -401,7 +422,7 @@ const columns = [
   { accessorKey: "actions", header: "" },
 ];
 
-const stageFilterOptions = computed(() => [{ label: "全部", value: "" }, ...stageOptions]);
+const stageFilterOptions = computed(() => [{ label: "全部", value: "" }, ...stageOptions.value]);
 const leadByUUID = computed(() => new Map(leads.value.map((lead) => [lead.lead_uuid, lead])));
 const selectedLead = computed(() => leadByUUID.value.get(selectedLeadUUID.value));
 const activeItems = computed(() => items.value.filter((item) => item.stage !== "won" && item.stage !== "lost"));
@@ -441,7 +462,7 @@ const qualifiedLeadOptions = availableLeadOptions;
 
 const stageSummaries = computed(() => {
   const dashboardStages = new Map((dashboard.value?.stage_summaries || []).map((item) => [item.stage, item]));
-  return stageOptions.map((stage) => {
+  return stageOptions.value.map((stage) => {
     const remote = dashboardStages.get(stage.value);
     return {
       ...stage,
@@ -538,12 +559,14 @@ async function loadAll() {
   loading.value = true;
   errorMessage.value = "";
   try {
-    const [opportunityResp, dashboardResp, leadResp] = await Promise.all([
+    const [pipelineResp, opportunityResp, dashboardResp, leadResp] = await Promise.all([
+      service.defaultPipeline(),
       service.list(listQuery()),
       service.dashboard(listQuery()),
       leadService.listLeads(),
       loadOwners(),
     ]);
+    pipelineStages.value = pipelineResp.data?.stages || [];
     items.value = opportunityResp.data?.items || [];
     dashboard.value = dashboardResp.data || null;
     leads.value = leadResp.data?.items || [];
@@ -654,7 +677,7 @@ function stageAmount(stage: OpportunityStage) {
 }
 
 function stageLabel(stage?: string) {
-  return stageOptions.find((item) => item.value === stage)?.label || stage || "-";
+  return stageOptions.value.find((item) => item.value === stage)?.label || stage || "-";
 }
 
 async function createInitialDetails(opportunityUUID: string) {

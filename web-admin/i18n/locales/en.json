@@ -238,6 +238,8 @@
     "scrmOpenWorkFoundation": "WeCom OpenWork Foundation",
     "scrmLeadList": "Lead Management",
     "scrmOpportunity": "Opportunities",
+    "scrmOpportunityAnalytics": "Opportunity Forecast",
+    "scrmOpportunitySettings": "Opportunity Settings",
     "scrmLeadSourceCatalog": "Lead Source Config",
     "scrmLeadEntry": "Lead Tracking",
     "scrmWecomSync": "WeCom Lead Sync",

@@ -1482,7 +1482,8 @@ import {
   type McpSession,
   type McpInvokeResult,
 } from "~/composables/api/useMcpSession";
-import { resolveApiBase } from "~/composables/api/_base";
+import { createPluginSSEClient } from "@artisan-cloud/plugin-framework-client";
+import { resolveApiBase, getAuthToken, getTenantUuid } from "~/composables/api/_base";
 import { useNormalizedColumns } from "~/utils/table";
 
 definePageMeta({
@@ -2660,10 +2661,22 @@ function connectMcpStream(sessionId: string) {
     return;
   }
   disconnectMcpStream();
-  const endpoint = buildApiUrl("mcp/sse");
-  const url = new URL(endpoint);
-  url.searchParams.set("session_id", sessionId);
-  const source = new EventSource(url.toString());
+  const runtimePublic = useRuntimeConfig().public as any;
+  const source = createPluginSSEClient({
+    pluginId: "com.powerx.plugins.scrm",
+    apiBaseURL: resolveApiBase(),
+    hostBaseURL: String(runtimePublic?.powerxCoreBase || ""),
+    insidePowerX: Boolean(runtimePublic?.insidePowerX),
+    token: getAuthToken(),
+    tenantUuid: getTenantUuid(),
+    withCredentials: false,
+  }).connect({
+    path: "mcp/sse",
+    params: { session_id: sessionId },
+    token: getAuthToken(),
+    tenantUuid: getTenantUuid(),
+    withCredentials: false,
+  });
   mcpEventSource.value = source;
   source.onopen = () => {
     mcpStreamConnected.value = true;
