@@ -52,7 +52,7 @@ func adminTenantGroup(parent *gin.RouterGroup, deps *app.Deps) *gin.RouterGroup 
 		return nil
 	}
 	needTenant := false
-	if deps != nil && deps.IAMMode == iamservice.IAMModeDelegated {
+	if deps != nil && deps.ProviderMode == iamservice.ProviderModeDelegated {
 		needTenant = true
 	}
 	if !needTenant {

@@ -11,7 +11,7 @@ import (
 	"time"
 
 	pwtransferreq "github.com/ArtisanCloud/PowerWeChat/v3/src/work/externalContact/transfer/request"
-	iammodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/iam"
+	iamentity "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/iam"
 	model "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/lead_capture"
 	orgmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/org_sync"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository"
@@ -1469,7 +1469,7 @@ func ensureMemberExists(ctx context.Context, tx *gorm.DB, tenantUUID string, mem
 	if tx == nil {
 		return errors.New("database transaction is nil")
 	}
-	var member iammodel.Member
+	var member iamentity.Member
 	err := tx.WithContext(ctx).
 		Where("tenant_uuid = ? AND id = ?", tenantUUID, memberID).
 		First(&member).Error

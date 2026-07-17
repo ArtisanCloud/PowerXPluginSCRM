@@ -5,15 +5,15 @@
 ## 0. IAM 与运行位置（统一语义）
 
 - 仅使用两个变量：
-- `IAMMode`（`delegated` / `local`）
+- `POWERX_PROVIDER_MODE`（`delegated` / `local`）
 - `POWERX_PROXY`（`1` 宿主代理 / `0` 独立运行）
 - 推荐默认：
-- 宿主安装默认：`IAMMode=delegated` + `POWERX_PROXY=1`
-- 本地开发默认：`IAMMode=local` + `POWERX_PROXY=0`
+- 宿主安装默认：`POWERX_PROVIDER_MODE=delegated` + `POWERX_PROXY=1`
+- 本地开发默认：`POWERX_PROVIDER_MODE=local` + `POWERX_PROXY=0`
 
 四态矩阵（用于排障）：
 
-| IAMMode | POWERX_PROXY | IAM 语义 | 运行位置 |
+| POWERX_PROVIDER_MODE | POWERX_PROXY | provider 语义 | 运行位置 |
 | --- | --- | --- | --- |
 | delegated | 1 | 宿主委派 | 宿主代理 |
 | delegated | 0 | 宿主委派 | 独立运行 |

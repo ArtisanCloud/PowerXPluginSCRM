@@ -51,8 +51,8 @@ type Deps struct {
 	LeadCaptureRepos    *leadrepo.Bundle
 	EventEmitter        fweventbridge.Emitter
 	WSBusHub            fwwsbus.LocalHub
-	IAMMode             iamservice.IAMMode
-	IAMModeSource       string
+	ProviderMode        iamservice.ProviderMode
+	ProviderModeSource  string
 	AuthProxy           DelegatedAuthProxy
 	IAMDirectory        iamservice.IAMDirectory
 }
@@ -113,11 +113,11 @@ func (d *Deps) RuntimeLogger(ctx context.Context, component string, extra logger
 }
 
 func (d *Deps) LocalIAMEnabled() bool {
-	return d != nil && d.IAMMode == iamservice.IAMModeLocal && d.IAMDirectory != nil
+	return d != nil && d.ProviderMode == iamservice.ProviderModeLocal && d.IAMDirectory != nil
 }
 
 func (d *Deps) DelegatedIAMEnabled() bool {
-	return d != nil && d.IAMMode == iamservice.IAMModeDelegated && d.AuthProxy != nil
+	return d != nil && d.ProviderMode == iamservice.ProviderModeDelegated && d.AuthProxy != nil
 }
 
 func (d *Deps) LocalDirectory() iamservice.IAMDirectory {

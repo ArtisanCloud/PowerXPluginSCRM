@@ -154,3 +154,39 @@ func TestLoadUsesConfigPathPlaceholder(t *testing.T) {
 		t.Fatalf("CONFIG_PATH 配置未生效，log level=%q", cfg.Server.LogLevel)
 	}
 }
+
+func TestValidateProviderModeRequiresExplicitMode(t *testing.T) {
+	t.Setenv("POWERX_PROVIDER_MODE", "")
+	t.Setenv("POWERX_PROXY", "1")
+
+	cfg := getDefaultConfig()
+	cfg.Context.ProviderMode = ""
+
+	if err := validateProviderModeSource("", cfg); err == nil {
+		t.Fatal("缺少 POWERX_PROVIDER_MODE/context.provider_mode 时应失败")
+	}
+}
+
+func TestValidateProviderModeRejectsEnvYAMLConflict(t *testing.T) {
+	t.Setenv("POWERX_PROVIDER_MODE", "delegated")
+	t.Setenv("POWERX_PROXY", "1")
+
+	cfg := getDefaultConfig()
+	cfg.Context.ProviderMode = "delegated"
+
+	if err := validateProviderModeSource("local", cfg); err == nil {
+		t.Fatal("POWERX_PROVIDER_MODE 与 context.provider_mode 冲突时应失败")
+	}
+}
+
+func TestValidateProviderModeRejectsDelegatedWithoutProxy(t *testing.T) {
+	t.Setenv("POWERX_PROVIDER_MODE", "delegated")
+	t.Setenv("POWERX_PROXY", "0")
+
+	cfg := getDefaultConfig()
+	cfg.Context.ProviderMode = "delegated"
+
+	if err := validateProviderModeSource("", cfg); err == nil {
+		t.Fatal("POWERX_PROVIDER_MODE=delegated 且 POWERX_PROXY!=1 时应失败")
+	}
+}

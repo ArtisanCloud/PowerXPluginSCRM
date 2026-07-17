@@ -15,7 +15,7 @@ import (
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models"
 	adminconsoleModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/admin_console"
 	customerModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/customer"
-	iammodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/iam"
+	iamentity "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/iam"
 	integrationModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/integration"
 	leadCaptureModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/lead_capture"
 	marketplaceModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/marketplace"
@@ -132,16 +132,16 @@ var businessTables = []interface{}{
 }
 
 var iamTables = []interface{}{
-	&iammodel.Tenant{},
-	&iammodel.User{},
-	&iammodel.Member{},
-	&iammodel.Role{},
-	&iammodel.Permission{},
-	&iammodel.Department{},
-	&iammodel.MemberRole{},
-	&iammodel.RolePermission{},
-	&iammodel.RefreshToken{},
-	&iammodel.AuditLog{},
+	&iamentity.Tenant{},
+	&iamentity.User{},
+	&iamentity.Member{},
+	&iamentity.Role{},
+	&iamentity.Permission{},
+	&iamentity.Department{},
+	&iamentity.MemberRole{},
+	&iamentity.RolePermission{},
+	&iamentity.RefreshToken{},
+	&iamentity.AuditLog{},
 }
 
 // MigratePluginModels 只做 AutoMigrate（最小实现）

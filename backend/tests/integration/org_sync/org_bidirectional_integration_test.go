@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	basemodels "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models"
-	iammodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/iam"
+	iamentity "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/iam"
 	orgmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/org_sync"
 	socialmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/social_channel_governance"
 	orgrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/org_sync"
@@ -89,7 +89,7 @@ func TestOrgSingleMasterPullWritesIAMAndBindings(t *testing.T) {
 	)
 	require.NoError(t, svc.SyncIAMAndBindingsFromPull(context.Background(), tenantUUID, channelAccountUUID))
 
-	var departments []iammodel.Department
+	var departments []iamentity.Department
 	require.NoError(t, db.Where("tenant_uuid = ?", tenantUUID).Order("id asc").Find(&departments).Error)
 	require.GreaterOrEqual(t, len(departments), 2)
 
@@ -105,7 +105,7 @@ func TestOrgSingleMasterPullWritesIAMAndBindings(t *testing.T) {
 	mainMemberID, err := strconv.ParseUint(memberBinding.MainMemberID, 10, 64)
 	require.NoError(t, err)
 
-	var member iammodel.Member
+	var member iamentity.Member
 	require.NoError(t, db.Where("id = ? AND tenant_uuid = ?", mainMemberID, tenantUUID).First(&member).Error)
 	require.Equal(t, "wosdnEDAAA001", member.Username)
 	require.NotNil(t, member.DepartmentID)

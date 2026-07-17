@@ -35,9 +35,12 @@ func main() {
 	}
 	models.InitSchemaFrom(cfg.Database.Schema) // 必须在所有 DB 操作之前
 
-	iamResolver := pluginbootstrap.NewIAMResolver(cfg)
-	includeIAM := iamResolver.Mode() == iamservice.IAMModeLocal
-	log.Printf("[iam] mode=%s source=%s includeIAM=%v", iamResolver.Mode(), iamResolver.Source(), includeIAM)
+	providerResolver, err := pluginbootstrap.NewProviderResolver(cfg)
+	if err != nil {
+		log.Fatalf("解析 provider mode 失败: %v", err)
+	}
+	includeIAM := providerResolver.Mode() == iamservice.ProviderModeLocal
+	log.Printf("[provider] mode=%s source=%s includeIAM=%v", providerResolver.Mode(), providerResolver.Source(), includeIAM)
 
 	ctx := context.Background()
 	// 连接数据库
@@ -58,7 +61,7 @@ func main() {
 			log.Fatal("seed failed:", err)
 		}
 		if includeIAM {
-			if err := iamservice.SeedLocalAdmin(ctx, db, cfg, iamResolver.Mode()); err != nil {
+			if err := iamservice.SeedLocalAdmin(ctx, db, cfg, providerResolver.Mode()); err != nil {
 				log.Fatal("iam seed failed:", err)
 			}
 		}
@@ -71,7 +74,7 @@ func main() {
 		fmt.Println("migrate ok")
 
 		if includeIAM {
-			if err := iamservice.SeedLocalAdmin(ctx, db, cfg, iamResolver.Mode()); err != nil {
+			if err := iamservice.SeedLocalAdmin(ctx, db, cfg, providerResolver.Mode()); err != nil {
 				log.Fatal("iam seed failed:", err)
 			}
 		}
@@ -94,7 +97,7 @@ func main() {
 		fmt.Println("migrate ok")
 
 		if includeIAM {
-			if err := iamservice.SeedLocalAdmin(ctx, db, cfg, iamResolver.Mode()); err != nil {
+			if err := iamservice.SeedLocalAdmin(ctx, db, cfg, providerResolver.Mode()); err != nil {
 				log.Fatal("iam seed failed:", err)
 			}
 		}

@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	iammodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/iam"
+	iamentity "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/iam"
 	orgmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/org_sync"
 	repository "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository"
 	orgobs "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/org_sync"
@@ -45,9 +45,9 @@ func (s *MainViewService) List(ctx context.Context, tenantUUID, query string) ([
 		MainMemberName string
 	}{}
 	memberQry := s.db.WithContext(ctx).
-		Table(iammodel.Member{}.TableName()+" m").
+		Table(iamentity.Member{}.TableName()+" m").
 		Select("m.id::text AS main_member_id, COALESCE(NULLIF(m.display_name, ''), NULLIF(u.display_name, ''), m.username) AS main_member_name").
-		Joins("JOIN "+iammodel.User{}.TableName()+" u ON u.id = m.user_id").
+		Joins("JOIN "+iamentity.User{}.TableName()+" u ON u.id = m.user_id").
 		Where("m.tenant_uuid = ?", tenantUUID)
 	if keyword != "" {
 		like := "%" + strings.ToLower(keyword) + "%"
@@ -65,8 +65,8 @@ func (s *MainViewService) List(ctx context.Context, tenantUUID, query string) ([
 	qry := s.db.WithContext(ctx).
 		Table(orgmodel.MemberBinding{}.TableName()+" mb").
 		Select("mb.main_member_id, COALESCE(m.display_name, u.display_name) AS main_member_name, mb.channel_account_uuid, mb.external_member_id").
-		Joins("JOIN "+iammodel.Member{}.TableName()+" m ON m.id::text = mb.main_member_id").
-		Joins("JOIN "+iammodel.User{}.TableName()+" u ON u.id = m.user_id").
+		Joins("JOIN "+iamentity.Member{}.TableName()+" m ON m.id::text = mb.main_member_id").
+		Joins("JOIN "+iamentity.User{}.TableName()+" u ON u.id = m.user_id").
 		Where("mb.tenant_uuid = ?", tenantUUID)
 	if keyword != "" {
 		like := "%" + strings.ToLower(keyword) + "%"

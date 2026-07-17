@@ -11,16 +11,16 @@ import (
 )
 
 type STSHandler struct {
-	mode iamservice.IAMMode
+	mode iamservice.ProviderMode
 	svc  *iamservice.STSService
 }
 
-func NewSTSHandler(mode iamservice.IAMMode, svc *iamservice.STSService) *STSHandler {
+func NewSTSHandler(mode iamservice.ProviderMode, svc *iamservice.STSService) *STSHandler {
 	return &STSHandler{mode: mode, svc: svc}
 }
 
 func (h *STSHandler) Mint(c *gin.Context) {
-	if h == nil || h.svc == nil || h.mode != iamservice.IAMModeLocal {
+	if h == nil || h.svc == nil || h.mode != iamservice.ProviderModeLocal {
 		contracts.ResponseServiceUnavailable(c, "当前路由仅在 Standalone 模式生效", nil)
 		return
 	}

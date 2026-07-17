@@ -26,7 +26,7 @@ func resolveGatewayBearerToken(c *gin.Context, deps *app.Deps) string {
 			return ""
 		}
 	}
-	if deps.IAMMode != iamservice.IAMModeDelegated {
+	if deps.ProviderMode != iamservice.ProviderModeDelegated {
 		return ""
 	}
 	if raw, ok := middleware.GetRawBearerToken(c); ok {
@@ -99,7 +99,7 @@ func logGatewayAuthSelection(c *gin.Context, deps *app.Deps, outboundBearer stri
 
 	logger.WithFields(logger.Fields{
 		"component":               "ws_bus_gateway_auth",
-		"iam_mode":                deps.IAMMode,
+		"provider_mode":           deps.ProviderMode,
 		"inbound_bearer_present":  inboundBearerPresent,
 		"inbound_bearer_prefix":   inboundBearerPrefix,
 		"outbound_token_source":   outboundSource,

@@ -96,7 +96,7 @@ func NewLocalDirectory(db *gorm.DB, cfg *config.Config) (*LocalDirectory, error)
 	}, nil
 }
 
-func (d *LocalDirectory) Mode() IAMMode { return IAMModeLocal }
+func (d *LocalDirectory) Mode() ProviderMode { return ProviderModeLocal }
 
 func (d *LocalDirectory) Login(ctx context.Context, req LoginRequest) (*AuthTokens, *UserContext, error) {
 	identifier := strings.TrimSpace(req.Identifier)
