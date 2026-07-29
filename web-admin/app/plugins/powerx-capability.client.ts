@@ -138,6 +138,13 @@ export default defineNuxtPlugin((nuxtApp) => {
   const runtimeConfig = useRuntimeConfig()
   const publicConfig = runtimeConfig?.public as Record<string, any> | undefined
   const powerxConfig = (publicConfig?.powerx ?? {}) as Record<string, any>
+  const appWithCapability = nuxtApp as typeof nuxtApp & {
+    $powerxCapability?: PowerXCapabilityBridge
+  }
+
+  if ('$powerxCapability' in appWithCapability) {
+    return
+  }
 
   const bridge = createBridge({
     apiBase: (powerxConfig.apiBase as string | undefined) ?? '',
@@ -145,11 +152,7 @@ export default defineNuxtPlugin((nuxtApp) => {
     fetcher: nuxtApp.$fetch
   })
 
-  return {
-    provide: {
-      powerxCapability: bridge
-    }
-  }
+  nuxtApp.provide('powerxCapability', bridge)
 })
 
 declare module '#app' {

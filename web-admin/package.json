@@ -12,8 +12,8 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
-    "@artisan-cloud/plugin-framework-admin": "0.0.8",
-    "@artisan-cloud/plugin-framework-client": "0.0.8",
+    "@artisan-cloud/plugin-framework-admin": "0.0.10",
+    "@artisan-cloud/plugin-framework-client": "0.0.10",
     "@nuxt/icon": "^2.0.0",
     "@nuxt/ui": "^3.3.2",
     "@nuxtjs/color-mode": "^3.5.2",

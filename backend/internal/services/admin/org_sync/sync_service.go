@@ -23,7 +23,7 @@ import (
 	workuserreq "github.com/ArtisanCloud/PowerWeChat/v3/src/work/user/request"
 	fwwsbus "github.com/ArtisanCloud/PowerXPlugin/framework/backend/go/runtime/wsbus"
 	basemodels "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models"
-	iammodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/iam"
+	iamentity "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/iam"
 	model "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/org_sync"
 	socialModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/social_channel_governance"
 	repository "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository"
@@ -472,7 +472,7 @@ func (s *SyncService) buildDefaultPushbackChangesFromIAM(ctx context.Context, te
 	}
 	db := s.repo.DB.WithContext(ctx)
 	departments := make([]localDepartmentRow, 0)
-	if err := db.Table(iammodel.Department{}.TableName()).
+	if err := db.Table(iamentity.Department{}.TableName()).
 		Select("id, name, parent_id, sort_order").
 		Where("tenant_uuid = ?", tenantUUID).
 		Order("path ASC, sort_order ASC, id ASC").
@@ -569,9 +569,9 @@ func (s *SyncService) buildDefaultPushbackChangesFromIAM(ctx context.Context, te
 		})
 	}
 	members := make([]localMemberRow, 0)
-	if err := db.Table(iammodel.Member{}.TableName()+" AS m").
+	if err := db.Table(iamentity.Member{}.TableName()+" AS m").
 		Select("m.id, m.username, COALESCE(NULLIF(m.display_name,''), NULLIF(u.display_name,''), m.username) AS display_name, u.email, u.phone, m.department_id, m.status").
-		Joins("JOIN "+iammodel.User{}.TableName()+" AS u ON u.id = m.user_id").
+		Joins("JOIN "+iamentity.User{}.TableName()+" AS u ON u.id = m.user_id").
 		Where("m.tenant_uuid = ?", tenantUUID).
 		Order("m.id ASC").
 		Scan(&members).Error; err != nil {
@@ -2558,13 +2558,13 @@ func (s *SyncService) SyncIAMAndBindingsFromPull(ctx context.Context, tenantUUID
 			}
 			unitBindingByExternal[externalID] = binding
 		}
-		departments := make([]iammodel.Department, 0)
+		departments := make([]iamentity.Department, 0)
 		if err := tx.WithContext(ctx).
 			Where("tenant_uuid = ?", tenantUUID).
 			Find(&departments).Error; err != nil {
 			return err
 		}
-		departmentByID := make(map[uint64]*iammodel.Department, len(departments))
+		departmentByID := make(map[uint64]*iamentity.Department, len(departments))
 		for i := range departments {
 			departmentByID[departments[i].ID] = &departments[i]
 		}
@@ -2644,7 +2644,7 @@ func (s *SyncService) SyncIAMAndBindingsFromPull(ctx context.Context, tenantUUID
 			}
 			if deptID > 0 {
 				if err := tx.WithContext(ctx).
-					Model(&iammodel.Department{}).
+					Model(&iamentity.Department{}).
 					Where("id = ? AND tenant_uuid = ?", deptID, tenantUUID).
 					Updates(map[string]any{
 						"name":        name,
@@ -2659,7 +2659,7 @@ func (s *SyncService) SyncIAMAndBindingsFromPull(ctx context.Context, tenantUUID
 					return 0, err
 				}
 			} else {
-				dept := &iammodel.Department{
+				dept := &iamentity.Department{
 					BaseModel: basemodels.BaseModel{
 						TenantUuid: tenantUUID,
 					},
@@ -2674,7 +2674,7 @@ func (s *SyncService) SyncIAMAndBindingsFromPull(ctx context.Context, tenantUUID
 				}
 				deptID = dept.ID
 			}
-			departmentByID[deptID] = &iammodel.Department{
+			departmentByID[deptID] = &iamentity.Department{
 				BaseModel: basemodels.BaseModel{
 					ID:         deptID,
 					TenantUuid: tenantUUID,
@@ -2726,13 +2726,13 @@ func (s *SyncService) SyncIAMAndBindingsFromPull(ctx context.Context, tenantUUID
 			}
 			memberBindingByExternal[externalID] = binding
 		}
-		existingMembers := make([]iammodel.Member, 0)
+		existingMembers := make([]iamentity.Member, 0)
 		if err := tx.WithContext(ctx).
 			Where("tenant_uuid = ?", tenantUUID).
 			Find(&existingMembers).Error; err != nil {
 			return err
 		}
-		memberByID := make(map[uint64]iammodel.Member, len(existingMembers))
+		memberByID := make(map[uint64]iamentity.Member, len(existingMembers))
 		for _, member := range existingMembers {
 			memberByID[member.ID] = member
 		}
@@ -2759,7 +2759,7 @@ func (s *SyncService) SyncIAMAndBindingsFromPull(ctx context.Context, tenantUUID
 				Create(&record).Error
 		}
 		findOrCreateUser := func(name, email, phone string) (uint64, error) {
-			var user iammodel.User
+			var user iamentity.User
 			if strings.TrimSpace(email) != "" {
 				err := tx.WithContext(ctx).
 					Unscoped().
@@ -2768,7 +2768,7 @@ func (s *SyncService) SyncIAMAndBindingsFromPull(ctx context.Context, tenantUUID
 				if err == nil {
 					if user.DeletedAt.Valid {
 						if err := tx.WithContext(ctx).
-							Model(&iammodel.User{}).
+							Model(&iamentity.User{}).
 							Unscoped().
 							Where("id = ?", user.ID).
 							Updates(map[string]any{
@@ -2792,7 +2792,7 @@ func (s *SyncService) SyncIAMAndBindingsFromPull(ctx context.Context, tenantUUID
 				if err == nil {
 					if user.DeletedAt.Valid {
 						if err := tx.WithContext(ctx).
-							Model(&iammodel.User{}).
+							Model(&iamentity.User{}).
 							Unscoped().
 							Where("id = ?", user.ID).
 							Updates(map[string]any{
@@ -2812,12 +2812,12 @@ func (s *SyncService) SyncIAMAndBindingsFromPull(ctx context.Context, tenantUUID
 			if resolvedEmail == "" {
 				resolvedEmail = buildOrgSyncPlaceholderEmail(tenantUUID, channelAccountUUID, strings.TrimSpace(phone), strings.TrimSpace(name))
 			}
-			user = iammodel.User{
+			user = iamentity.User{
 				TenantUuid:   tenantUUID,
 				Email:        resolvedEmail,
 				Phone:        strings.TrimSpace(phone),
 				DisplayName:  strings.TrimSpace(name),
-				Status:       iammodel.StatusActive,
+				Status:       iamentity.StatusActive,
 				PasswordHash: "org_sync_pull_placeholder_hash",
 			}
 			if user.DisplayName == "" {
@@ -2832,7 +2832,7 @@ func (s *SyncService) SyncIAMAndBindingsFromPull(ctx context.Context, tenantUUID
 					if errQuery == nil {
 						if user.DeletedAt.Valid {
 							if restoreErr := tx.WithContext(ctx).
-								Model(&iammodel.User{}).
+								Model(&iamentity.User{}).
 								Unscoped().
 								Where("id = ?", user.ID).
 								Updates(map[string]any{
@@ -2862,9 +2862,9 @@ func (s *SyncService) SyncIAMAndBindingsFromPull(ctx context.Context, tenantUUID
 			phone := strings.TrimSpace(sourceMember.Phone)
 			status := strings.ToLower(strings.TrimSpace(sourceMember.Status))
 			if status == "" || status == "active" {
-				status = iammodel.StatusActive
+				status = iamentity.StatusActive
 			} else {
-				status = iammodel.StatusDisabled
+				status = iamentity.StatusDisabled
 			}
 			var departmentID *uint64
 			if deptExternal := strings.TrimSpace(primaryDeptByMemberExternal[externalMemberID]); deptExternal != "" {
@@ -2893,13 +2893,13 @@ func (s *SyncService) SyncIAMAndBindingsFromPull(ctx context.Context, tenantUUID
 						userUpdates["phone"] = phone
 					}
 					if err := tx.WithContext(ctx).
-						Model(&iammodel.User{}).
+						Model(&iamentity.User{}).
 						Where("id = ?", member.UserID).
 						Updates(userUpdates).Error; err != nil {
 						if isIAMUserEmailUniqueViolation(err) {
 							delete(userUpdates, "email")
 							if retryErr := tx.WithContext(ctx).
-								Model(&iammodel.User{}).
+								Model(&iamentity.User{}).
 								Where("id = ?", member.UserID).
 								Updates(userUpdates).Error; retryErr != nil {
 								return retryErr
@@ -2916,7 +2916,7 @@ func (s *SyncService) SyncIAMAndBindingsFromPull(ctx context.Context, tenantUUID
 						}
 					}
 					if err := tx.WithContext(ctx).
-						Model(&iammodel.Member{}).
+						Model(&iamentity.Member{}).
 						Where("id = ? AND tenant_uuid = ?", memberID, tenantUUID).
 						Updates(map[string]any{
 							"username":      externalMemberID,
@@ -2938,7 +2938,7 @@ func (s *SyncService) SyncIAMAndBindingsFromPull(ctx context.Context, tenantUUID
 			if err != nil {
 				return err
 			}
-			newMember := &iammodel.Member{
+			newMember := &iamentity.Member{
 				BaseModel: basemodels.BaseModel{
 					TenantUuid: tenantUUID,
 				},

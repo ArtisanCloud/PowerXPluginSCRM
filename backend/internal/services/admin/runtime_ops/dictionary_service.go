@@ -64,7 +64,7 @@ func NewDictionaryService(deps *app.Deps) *DictionaryService {
 
 func (s *DictionaryService) List(ctx context.Context, tenantUUID, namespace string, enabledOnly bool) ([]DictionaryItem, error) {
 	namespace = normalizeNamespace(namespace)
-	if !isLocalNamespace(namespace) && s.deps != nil && s.deps.IAMMode == iamservice.IAMModeDelegated {
+	if !isLocalNamespace(namespace) && s.deps != nil && s.deps.ProviderMode == iamservice.ProviderModeDelegated {
 		return s.listDelegated(ctx, namespace, enabledOnly)
 	}
 	return s.listLocal(ctx, tenantUUID, namespace, enabledOnly)
@@ -77,7 +77,7 @@ func (s *DictionaryService) Create(ctx context.Context, tenantUUID string, req D
 	if ns == "" || code == "" || label == "" {
 		return nil, ErrInvalidDictionaryPayload
 	}
-	if !isLocalNamespace(ns) && s.deps != nil && s.deps.IAMMode == iamservice.IAMModeDelegated {
+	if !isLocalNamespace(ns) && s.deps != nil && s.deps.ProviderMode == iamservice.ProviderModeDelegated {
 		payload := map[string]any{
 			"namespace": ns,
 			"code":      code,
@@ -121,7 +121,7 @@ func (s *DictionaryService) Update(ctx context.Context, tenantUUID, itemID, name
 		return nil, ErrInvalidDictionaryPayload
 	}
 	ns := normalizeNamespace(namespace)
-	if !isLocalNamespace(ns) && s.deps != nil && s.deps.IAMMode == iamservice.IAMModeDelegated {
+	if !isLocalNamespace(ns) && s.deps != nil && s.deps.ProviderMode == iamservice.ProviderModeDelegated {
 		payload := map[string]any{}
 		if ns != "" {
 			payload["namespace"] = ns
@@ -183,7 +183,7 @@ func (s *DictionaryService) Delete(ctx context.Context, tenantUUID, itemID, name
 		return ErrInvalidDictionaryPayload
 	}
 	ns := normalizeNamespace(namespace)
-	if !isLocalNamespace(ns) && s.deps != nil && s.deps.IAMMode == iamservice.IAMModeDelegated {
+	if !isLocalNamespace(ns) && s.deps != nil && s.deps.ProviderMode == iamservice.ProviderModeDelegated {
 		path := "/admin/runtime/dictionaries/" + url.PathEscape(itemID)
 		if ns != "" {
 			path += "?namespace=" + url.QueryEscape(ns)

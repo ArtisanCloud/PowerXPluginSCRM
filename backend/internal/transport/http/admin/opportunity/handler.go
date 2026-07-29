@@ -67,6 +67,27 @@ func (h *Handler) Dashboard(c *gin.Context) {
 	contracts.ResponseSuccess(c, item)
 }
 
+func (h *Handler) Forecast(c *gin.Context) {
+	tenantUUID, ok := tenantUUID(c)
+	if !ok {
+		return
+	}
+	var query listOpportunityQuery
+	if err := c.ShouldBindQuery(&query); err != nil {
+		contracts.ResponseBadRequest(c, "invalid query: "+err.Error())
+		return
+	}
+	filter, ok := parseListFilter(c, query)
+	if !ok {
+		return
+	}
+	item, err := h.svc.Forecast(c.Request.Context(), tenantUUID, filter)
+	if handleServiceError(c, err) {
+		return
+	}
+	contracts.ResponseSuccess(c, item)
+}
+
 func (h *Handler) Create(c *gin.Context) {
 	tenantUUID, ok := tenantUUID(c)
 	if !ok {
@@ -249,6 +270,322 @@ func (h *Handler) DeleteLineItem(c *gin.Context) {
 		return
 	}
 	contracts.ResponseSuccess(c, gin.H{"deleted": true})
+}
+
+func (h *Handler) UpdateQuoteApproval(c *gin.Context) {
+	tenantUUID, ok := tenantUUID(c)
+	if !ok {
+		return
+	}
+	var req quoteApprovalRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		contracts.ResponseBadRequest(c, "invalid body: "+err.Error())
+		return
+	}
+	item, err := h.svc.UpdateQuoteApproval(c.Request.Context(), tenantUUID, c.Param("opportunity_uuid"), c.Param("item_uuid"), oppsvc.QuoteApprovalRequest{
+		Action:        req.Action,
+		Comment:       req.Comment,
+		ActorUserUUID: actorFromContext(c),
+	})
+	if handleServiceError(c, err) {
+		return
+	}
+	contracts.ResponseSuccess(c, item)
+}
+
+func (h *Handler) ListContracts(c *gin.Context) {
+	tenantUUID, ok := tenantUUID(c)
+	if !ok {
+		return
+	}
+	items, err := h.svc.ListContracts(c.Request.Context(), tenantUUID, c.Param("opportunity_uuid"))
+	if handleServiceError(c, err) {
+		return
+	}
+	contracts.ResponseSuccess(c, gin.H{"items": items})
+}
+
+func (h *Handler) AddContract(c *gin.Context) {
+	tenantUUID, ok := tenantUUID(c)
+	if !ok {
+		return
+	}
+	var req contractRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		contracts.ResponseBadRequest(c, "invalid body: "+err.Error())
+		return
+	}
+	signedAt, err := parseOptionalTime(req.SignedAt)
+	if err != nil {
+		contracts.ResponseBadRequest(c, "signed_at must be RFC3339")
+		return
+	}
+	item, err := h.svc.AddContract(c.Request.Context(), tenantUUID, c.Param("opportunity_uuid"), oppsvc.ContractRequest{
+		Title:         req.Title,
+		ContractNo:    req.ContractNo,
+		CustomerUUID:  req.CustomerUUID,
+		QuoteItemUUID: req.QuoteItemUUID,
+		Amount:        req.Amount,
+		Currency:      req.Currency,
+		Status:        req.Status,
+		SignedAt:      signedAt,
+		ActorUserUUID: actorFromContext(c),
+	})
+	if handleServiceError(c, err) {
+		return
+	}
+	contracts.ResponseCreated(c, item)
+}
+
+func (h *Handler) UpdateContractStatus(c *gin.Context) {
+	tenantUUID, ok := tenantUUID(c)
+	if !ok {
+		return
+	}
+	var req contractStatusRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		contracts.ResponseBadRequest(c, "invalid body: "+err.Error())
+		return
+	}
+	signedAt, err := parseOptionalTime(req.SignedAt)
+	if err != nil {
+		contracts.ResponseBadRequest(c, "signed_at must be RFC3339")
+		return
+	}
+	item, err := h.svc.UpdateContractStatus(c.Request.Context(), tenantUUID, c.Param("opportunity_uuid"), c.Param("contract_uuid"), oppsvc.ContractStatusRequest{
+		Status:        req.Status,
+		SignedAt:      signedAt,
+		ActorUserUUID: actorFromContext(c),
+	})
+	if handleServiceError(c, err) {
+		return
+	}
+	contracts.ResponseSuccess(c, item)
+}
+
+func (h *Handler) ListPayments(c *gin.Context) {
+	tenantUUID, ok := tenantUUID(c)
+	if !ok {
+		return
+	}
+	items, summary, err := h.svc.ListPayments(c.Request.Context(), tenantUUID, c.Param("opportunity_uuid"))
+	if handleServiceError(c, err) {
+		return
+	}
+	contracts.ResponseSuccess(c, gin.H{"items": items, "summary": summary})
+}
+
+func (h *Handler) AddPayment(c *gin.Context) {
+	tenantUUID, ok := tenantUUID(c)
+	if !ok {
+		return
+	}
+	var req paymentRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		contracts.ResponseBadRequest(c, "invalid body: "+err.Error())
+		return
+	}
+	dueAt, err := parseOptionalTime(req.DueAt)
+	if err != nil {
+		contracts.ResponseBadRequest(c, "due_at must be RFC3339")
+		return
+	}
+	item, err := h.svc.AddPayment(c.Request.Context(), tenantUUID, c.Param("opportunity_uuid"), oppsvc.PaymentRequest{
+		ContractUUID:  req.ContractUUID,
+		Title:         req.Title,
+		PlannedAmount: req.PlannedAmount,
+		DueAt:         dueAt,
+		ActorUserUUID: actorFromContext(c),
+	})
+	if handleServiceError(c, err) {
+		return
+	}
+	contracts.ResponseCreated(c, item)
+}
+
+func (h *Handler) UpdatePaymentStatus(c *gin.Context) {
+	tenantUUID, ok := tenantUUID(c)
+	if !ok {
+		return
+	}
+	var req paymentStatusRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		contracts.ResponseBadRequest(c, "invalid body: "+err.Error())
+		return
+	}
+	paidAt, err := parseOptionalTime(req.PaidAt)
+	if err != nil {
+		contracts.ResponseBadRequest(c, "paid_at must be RFC3339")
+		return
+	}
+	item, err := h.svc.UpdatePaymentStatus(c.Request.Context(), tenantUUID, c.Param("opportunity_uuid"), c.Param("payment_uuid"), oppsvc.PaymentStatusRequest{
+		Status:        req.Status,
+		PaidAmount:    req.PaidAmount,
+		PaidAt:        paidAt,
+		Method:        req.Method,
+		TransactionNo: req.TransactionNo,
+		Note:          req.Note,
+		ActorUserUUID: actorFromContext(c),
+	})
+	if handleServiceError(c, err) {
+		return
+	}
+	contracts.ResponseSuccess(c, item)
+}
+
+func (h *Handler) ListStageConfigs(c *gin.Context) {
+	tenantUUID, ok := tenantUUID(c)
+	if !ok {
+		return
+	}
+	items, err := h.svc.ListStageConfigs(c.Request.Context(), tenantUUID)
+	if handleServiceError(c, err) {
+		return
+	}
+	contracts.ResponseSuccess(c, gin.H{"items": items})
+}
+
+func (h *Handler) DefaultPipeline(c *gin.Context) {
+	tenantUUID, ok := tenantUUID(c)
+	if !ok {
+		return
+	}
+	item, err := h.svc.DefaultPipeline(c.Request.Context(), tenantUUID, oppsvc.PipelineQueryRequest{
+		ActorUserUUID: actorFromContext(c),
+	})
+	if handleServiceError(c, err) {
+		return
+	}
+	contracts.ResponseSuccess(c, item)
+}
+
+func (h *Handler) ListPipelineGroups(c *gin.Context) {
+	tenantUUID, ok := tenantUUID(c)
+	if !ok {
+		return
+	}
+	items, err := h.svc.ListPipelineGroups(c.Request.Context(), tenantUUID, oppsvc.PipelineQueryRequest{
+		ActorUserUUID: actorFromContext(c),
+	})
+	if handleServiceError(c, err) {
+		return
+	}
+	contracts.ResponseSuccess(c, gin.H{"items": items})
+}
+
+func (h *Handler) ListPipelineTemplates(c *gin.Context) {
+	items, err := h.svc.ListPipelineTemplates(c.Request.Context())
+	if handleServiceError(c, err) {
+		return
+	}
+	contracts.ResponseSuccess(c, gin.H{"items": items})
+}
+
+func (h *Handler) GetPipelineGroup(c *gin.Context) {
+	tenantUUID, ok := tenantUUID(c)
+	if !ok {
+		return
+	}
+	item, err := h.svc.GetPipelineGroup(c.Request.Context(), tenantUUID, c.Param("group_uuid"))
+	if handleServiceError(c, err) {
+		return
+	}
+	contracts.ResponseSuccess(c, item)
+}
+
+func (h *Handler) CreatePipelineGroup(c *gin.Context) {
+	tenantUUID, ok := tenantUUID(c)
+	if !ok {
+		return
+	}
+	var req pipelineGroupRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		contracts.ResponseBadRequest(c, "invalid body: "+err.Error())
+		return
+	}
+	item, err := h.svc.CreatePipelineGroup(c.Request.Context(), tenantUUID, oppsvc.PipelineGroupRequest{
+		GroupKey:      req.GroupKey,
+		Name:          req.Name,
+		Description:   req.Description,
+		IsDefault:     req.IsDefault,
+		CopyFromGroup: req.CopyFromGroup,
+		TemplateKey:   req.TemplateKey,
+		ActorUserUUID: actorFromContext(c),
+	})
+	if handleServiceError(c, err) {
+		return
+	}
+	contracts.ResponseCreated(c, item)
+}
+
+func (h *Handler) SaveStageConfig(c *gin.Context) {
+	tenantUUID, ok := tenantUUID(c)
+	if !ok {
+		return
+	}
+	var req stageConfigRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		contracts.ResponseBadRequest(c, "invalid body: "+err.Error())
+		return
+	}
+	pathStageKey := strings.TrimSpace(c.Param("stage_key"))
+	if req.StageKey == "" {
+		req.StageKey = pathStageKey
+	}
+	if pathStageKey != "" && req.StageKey != pathStageKey {
+		contracts.ResponseBadRequest(c, "stage_key path/body mismatch")
+		return
+	}
+	item, err := h.svc.SaveStageConfig(c.Request.Context(), tenantUUID, oppsvc.StageConfigRequest{
+		PipelineGroupUUID: req.PipelineGroupUUID,
+		StageKey:          req.StageKey,
+		Label:             req.Label,
+		SortOrder:         req.SortOrder,
+		DefaultWinRate:    req.DefaultWinRate,
+		SLADays:           req.SLADays,
+		StageType:         req.StageType,
+		FixedStage:        req.FixedStage,
+		IsActive:          req.IsActive,
+		MigrationPolicy:   req.MigrationPolicy,
+		ActorUserUUID:     actorFromContext(c),
+	})
+	if handleServiceError(c, err) {
+		return
+	}
+	contracts.ResponseSuccess(c, item)
+}
+
+func (h *Handler) DetectDuplicates(c *gin.Context) {
+	tenantUUID, ok := tenantUUID(c)
+	if !ok {
+		return
+	}
+	items, err := h.svc.DetectDuplicates(c.Request.Context(), tenantUUID, c.Param("opportunity_uuid"))
+	if handleServiceError(c, err) {
+		return
+	}
+	contracts.ResponseSuccess(c, gin.H{"items": items})
+}
+
+func (h *Handler) MergeOpportunity(c *gin.Context) {
+	tenantUUID, ok := tenantUUID(c)
+	if !ok {
+		return
+	}
+	var req mergeOpportunityRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		contracts.ResponseBadRequest(c, "invalid body: "+err.Error())
+		return
+	}
+	item, err := h.svc.MergeOpportunity(c.Request.Context(), tenantUUID, c.Param("opportunity_uuid"), oppsvc.MergeRequest{
+		SourceOpportunityUUID: req.SourceOpportunityUUID,
+		Reason:                req.Reason,
+		ActorUserUUID:         actorFromContext(c),
+	})
+	if handleServiceError(c, err) {
+		return
+	}
+	contracts.ResponseSuccess(c, opportunityRecordPayload(item))
 }
 
 func (h *Handler) ListTasks(c *gin.Context) {
@@ -451,6 +788,8 @@ func handleServiceError(c *gin.Context, err error) bool {
 		errors.Is(err, oppsvc.ErrLostReasonRequired),
 		errors.Is(err, oppsvc.ErrOpportunityNotTerminal),
 		errors.Is(err, oppsvc.ErrActorUserUUIDRequired),
+		errors.Is(err, oppsvc.ErrInvalidQuoteStatus),
+		errors.Is(err, oppsvc.ErrInvalidQuoteTransition),
 		errors.Is(err, opprepo.ErrTenantUUIDMissing):
 		contracts.ResponseError(c, http.StatusUnprocessableEntity, contracts.ErrCodeValidationFailed, err.Error())
 	case errors.Is(err, opprepo.ErrDBNotReady):

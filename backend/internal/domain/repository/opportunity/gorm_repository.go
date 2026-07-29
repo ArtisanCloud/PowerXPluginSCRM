@@ -146,6 +146,142 @@ func (r *opportunityRepository) Dashboard(ctx context.Context, tenantUUID string
 	return out, nil
 }
 
+func (r *opportunityRepository) Forecast(ctx context.Context, tenantUUID string, filter OpportunityListFilter) (*OpportunityForecast, error) {
+	if r == nil || r.db == nil {
+		return nil, ErrDBNotReady
+	}
+	tenantUUID, err := normalizeTenantUUID(tenantUUID)
+	if err != nil {
+		return nil, err
+	}
+	base := r.applyListFilter(r.db.WithContext(ctx).Model(&oppmodel.OpportunityRecord{}), tenantUUID, filter).
+		Where("stage IN ?", activeStages())
+	out := &OpportunityForecast{
+		StageForecasts:      make([]OpportunityForecastBucket, 0, len(activeStages())),
+		OwnerForecasts:      []OpportunityForecastBucket{},
+		SourceForecasts:     []OpportunityForecastBucket{},
+		CloseMonthForecasts: []OpportunityForecastBucket{},
+	}
+	weightSQL := "COALESCE(amount, 0) * (CASE WHEN probability > 0 THEN probability ELSE CASE stage WHEN 'open' THEN 20 WHEN 'qualified' THEN 40 WHEN 'proposal' THEN 60 WHEN 'negotiation' THEN 80 ELSE 0 END END) / 100.0"
+	if err := base.Session(&gorm.Session{}).
+		Select("COALESCE(SUM(amount), 0)").
+		Scan(&out.TotalAmount).Error; err != nil {
+		return nil, err
+	}
+	if err := base.Session(&gorm.Session{}).
+		Select("COALESCE(SUM(" + weightSQL + "), 0)").
+		Scan(&out.WeightedAmount).Error; err != nil {
+		return nil, err
+	}
+	if err := base.Session(&gorm.Session{}).Where("expected_close_at IS NOT NULL").Count(&out.ExpectedCount).Error; err != nil {
+		return nil, err
+	}
+	if err := base.Session(&gorm.Session{}).Where("expected_close_at IS NULL").Count(&out.UnscheduledCount).Error; err != nil {
+		return nil, err
+	}
+	if err := base.Session(&gorm.Session{}).Where("expected_close_at < ?", time.Now().UTC()).Count(&out.OverdueCount).Error; err != nil {
+		return nil, err
+	}
+	stageRows, err := r.forecastBuckets(base, "stage", "stage", weightSQL, 20)
+	if err != nil {
+		return nil, err
+	}
+	byStage := map[string]OpportunityForecastBucket{}
+	for _, row := range stageRows {
+		byStage[row.Key] = row
+	}
+	for _, stage := range activeStages() {
+		row := byStage[stage]
+		if row.Key == "" {
+			row.Key = stage
+			row.Label = stage
+		}
+		out.StageForecasts = append(out.StageForecasts, row)
+	}
+	out.OwnerForecasts, err = r.forecastBuckets(base, "owner_user_uuid", "owner_user_uuid", weightSQL, 12)
+	if err != nil {
+		return nil, err
+	}
+	out.SourceForecasts, err = r.forecastBuckets(base, "COALESCE(NULLIF(source_channel, ''), 'unknown')", "source_channel", weightSQL, 12)
+	if err != nil {
+		return nil, err
+	}
+	out.CloseMonthForecasts, err = r.forecastBuckets(base, "COALESCE(to_char(expected_close_at, 'YYYY-MM'), 'unscheduled')", "close_month", weightSQL, 12)
+	if err != nil {
+		return nil, err
+	}
+	out.HighProbabilityDeals, err = r.highProbabilityDeals(base, weightSQL)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (r *opportunityRepository) forecastBuckets(base *gorm.DB, expr, label string, weightSQL string, limit int) ([]OpportunityForecastBucket, error) {
+	type row struct {
+		Key            string
+		Count          int64
+		Amount         float64
+		WeightedAmount float64
+		AverageRate    float64
+	}
+	var rows []row
+	query := base.Session(&gorm.Session{}).
+		Select(expr + " AS key, COUNT(*) AS count, COALESCE(SUM(amount), 0) AS amount, COALESCE(SUM(" + weightSQL + "), 0) AS weighted_amount, COALESCE(AVG(CASE WHEN probability > 0 THEN probability ELSE CASE stage WHEN 'open' THEN 20 WHEN 'qualified' THEN 40 WHEN 'proposal' THEN 60 WHEN 'negotiation' THEN 80 ELSE 0 END END), 0) AS average_rate").
+		Group("key").
+		Order("weighted_amount DESC")
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+	if err := query.Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	out := make([]OpportunityForecastBucket, 0, len(rows))
+	for _, item := range rows {
+		key := strings.TrimSpace(item.Key)
+		if key == "" {
+			key = "unknown"
+		}
+		out = append(out, OpportunityForecastBucket{
+			Key:            key,
+			Label:          forecastBucketLabel(label, key),
+			Count:          item.Count,
+			Amount:         item.Amount,
+			WeightedAmount: item.WeightedAmount,
+			AverageRate:    item.AverageRate,
+		})
+	}
+	return out, nil
+}
+
+func (r *opportunityRepository) highProbabilityDeals(base *gorm.DB, weightSQL string) ([]OpportunityForecastDeal, error) {
+	type row struct {
+		OpportunityUUID string
+		Title           string
+		Stage           string
+		Amount          float64
+		Currency        string
+		Probability     int
+		WeightedAmount  float64
+		OwnerUserUUID   string
+		SourceChannel   string
+		ExpectedCloseAt *time.Time
+	}
+	var rows []row
+	if err := base.Session(&gorm.Session{}).
+		Select("opportunity_uuid, title, stage, COALESCE(amount, 0) AS amount, currency, probability, " + weightSQL + " AS weighted_amount, owner_user_uuid, source_channel, expected_close_at").
+		Order("weighted_amount DESC, expected_close_at ASC NULLS LAST").
+		Limit(10).
+		Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	out := make([]OpportunityForecastDeal, 0, len(rows))
+	for _, item := range rows {
+		out = append(out, OpportunityForecastDeal(item))
+	}
+	return out, nil
+}
+
 func (r *opportunityRepository) applyListFilter(query *gorm.DB, tenantUUID string, filter OpportunityListFilter) *gorm.DB {
 	query = query.Where("tenant_uuid = ?", tenantUUID)
 	if stage := strings.ToLower(strings.TrimSpace(filter.Stage)); stage != "" {
@@ -439,4 +575,29 @@ func allStages() []string {
 		oppmodel.StageWon,
 		oppmodel.StageLost,
 	}
+}
+
+func forecastBucketLabel(kind string, key string) string {
+	if key == "" {
+		return "unknown"
+	}
+	if kind == "stage" {
+		switch key {
+		case oppmodel.StageOpen:
+			return "打开"
+		case oppmodel.StageQualified:
+			return "已确认"
+		case oppmodel.StageProposal:
+			return "方案"
+		case oppmodel.StageNegotiation:
+			return "谈判"
+		}
+	}
+	if kind == "source_channel" && key == "unknown" {
+		return "未标记来源"
+	}
+	if kind == "close_month" && key == "unscheduled" {
+		return "未设置预计成交"
+	}
+	return key
 }

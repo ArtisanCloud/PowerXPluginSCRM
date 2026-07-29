@@ -1,6 +1,6 @@
-# 社交销售与外勤协同模块规划总览
+# 社交触达节奏与协作提醒模块规划总览
 
-> 适用范围：PowerX SCRM 插件的社交销售与外勤协同业务域，场景依据 `../../../../PowerXDocs/docs/meta/scenarios/scrm/social_selling_field_collab` 目录。
+> 适用范围：PowerX SCRM 插件的社交触达节奏、裂变活动执行和协作提醒。销售管道、外勤任务和成交管理由 CRM/Field Sales 系统承载。
 
 ## 1. 文档目的
 - 汇总该业务域的主用例与子场景，形成统一规划入口。
@@ -11,7 +11,7 @@
 | 序号 | 主用例 | 场景文档 |
 | --- | --- | --- |
 | 1 | 客群裂变与活动执行 | `../../../../PowerXDocs/docs/meta/scenarios/scrm/social_selling_field_collab/social_referral_campaign_execution/primary.md` |
-| 2 | 销售触达与跟进节奏 | `../../../../PowerXDocs/docs/meta/scenarios/scrm/social_selling_field_collab/social_selling_cadence/primary.md` |
+| 2 | 社交触达与跟进节奏 | `../../../../PowerXDocs/docs/meta/scenarios/scrm/social_selling_field_collab/social_selling_cadence/primary.md` |
 
 ## 3. 角色与价值
 | 角色 | 价值/诉求 |
@@ -23,12 +23,14 @@
 
 ## 4. 关键能力与规划要点
 - 客群裂变与活动执行
-- 销售触达与跟进节奏
+- 社交触达与跟进节奏
+- CRM/Field Sales 外部任务摘要引用
+- 不在 SCRM 内维护销售阶段、商机任务、外勤作业和成交结果主数据
 
 ## 5. 依赖与集成
 - 统一身份/权限与审计日志能力。
 - 社交平台/企业微信接口与消息能力（如有）。
-- CRM/订单/会员/内容等业务系统或数据中台对接。
+- 外部 CRM/订单/会员/内容系统的摘要、事件或能力引用；不得在 SCRM 内复制其主数据。
 - 数据指标与标签体系的统一治理与同步。
 
 ## 6. 迭代建议

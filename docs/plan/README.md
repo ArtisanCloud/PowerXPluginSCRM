@@ -13,15 +13,15 @@
 | 社群与客户运营 | `docs/plan/community_customer_engagement` | 2 |
 | 合规、安全与风控 | `docs/plan/compliance_security_risk_control` | 2 |
 | 内容分发与互动自动化 | `docs/plan/content_engagement_automation` | 2 |
-| 客户成功与运营协作闭环 | `docs/plan/customer_service_collaboration_loop` | 2 |
+| 客服接待与外部工单协作 | `docs/plan/customer_service_collaboration_loop` | 2 |
 | 线索获取与智能分配 | `docs/plan/lead_capture` | 2 |
-| 移动前线作业能力 | `docs/plan/mobile_frontline_capabilities` | 4 |
+| 移动触达辅助与外勤系统引用 | `docs/plan/mobile_frontline_capabilities` | 4 |
 | 平台生态与可扩展性 | `docs/plan/platform_ecosystem_extensibility` | 4 |
 | 智能标签与客户分群 | `docs/plan/smart_tagging_customer_segmentation` | 4 |
 | 社交触点接入与账号治理 | `docs/plan/social_channel_governance` | 2 |
-| 社交交易与分销 | `docs/plan/social_commerce_distribution` | 4 |
-| 社交销售与外勤协同 | `docs/plan/social_selling_field_collab` | 2 |
-| 系统集成与数据流转 | `docs/plan/system_integration_data_orchestration` | 4 |
+| 社交交易事件与外部订单引用 | `docs/plan/social_commerce_distribution` | 4 |
+| 社交触达节奏与协作提醒 | `docs/plan/social_selling_field_collab` | 2 |
+| 外部系统事件与数据引用 | `docs/plan/system_integration_data_orchestration` | 4 |
 
 ## 3. 排序与依赖划分
 ### 3.1 推荐推进顺序
@@ -29,20 +29,26 @@
 2. 线索获取与智能分配
 3. 社群与客户运营
 4. 内容分发与互动自动化
-5. 社交销售与外勤协同
-6. 移动前线作业能力
+5. 社交触达节奏与协作提醒
+6. 移动触达辅助与外勤系统引用
 7. 智能标签与客户分群
-8. 客户成功与运营协作闭环
-9. 系统集成与数据流转
-10. 社交交易与分销
+8. 客服接待与外部工单协作
+9. 外部系统事件与数据引用
+10. 社交交易事件与外部订单引用
 11. 合规、安全与风控
 12. 数据分析与洞察
 13. AIGC 自动化智能
 14. 平台生态与可扩展性
 
 ### 3.2 依赖边界说明
-- **SCRM 自身闭环优先**：社交触点接入与账号治理、线索获取与智能分配、社群与客户运营、内容分发与互动自动化、社交销售与外勤协同、移动前线作业能力、智能标签与客户分群、客户成功与运营协作闭环。
-- **需对接 PowerX 底座**：系统集成与数据流转、社交交易与分销、合规、安全与风控、数据分析与洞察、AIGC 自动化智能、平台生态与可扩展性。
+- **SCRM 自身闭环优先**：社交触点接入与账号治理、线索获取与智能分配、社群与客户运营、内容分发与互动自动化、社交触达节奏与协作提醒、智能标签与客户分群、客服接待与外部工单协作。
+- **需对接 PowerX 底座**：外部系统事件与数据引用、社交交易事件与外部订单引用、合规、安全与风控、数据分析与洞察、AIGC 自动化智能、平台生态与可扩展性。
+
+### 3.2.1 SCRM 与 CRM 边界
+- **SCRM 负责**：社交渠道接入、外部联系人同步、线索采集、来源归因、标签分群、社群运营、内容触达、会话桥接、渠道健康与合规留痕。
+- **SCRM 不负责**：商机主数据、销售管道、报价审批、合同、订单、回款、发票、销售预测、销售配额。
+- **交接方式**：当线索达到可销售状态时，SCRM 只产生标准化 CRM 交接请求与审计记录；商机、合同、回款等后续对象必须由 CRM/Sales/Order 等外部能力承载。
+- **页面边界**：SCRM 管理台不得新增“商机管理”“合同管理”“回款管理”等主页面；如需展示后续销售结果，只能作为线索详情的外部系统摘要或跳转入口。
 
 ### 3.3 Skeleton 能力封装与多实现策略
 - **统一对外接口**：即使在 Skeleton 模式下，也必须暴露与 PowerX 底座一致的能力契约与调用接口，保证前端/工作流/集成侧的调用方式不变。
@@ -62,6 +68,7 @@
 - 以“社交渠道治理 → 线索与客户运营 → 内容与交易 → 数据与智能”的顺序推进。
 - 每个模块先完成“核心流程 + 关键数据回流 + 权限审计”。
 - 模块达成后再扩展自动化、智能化与生态能力。
+- 涉及 CRM/订单/会员/客服主数据的能力，优先定义对接契约与事件同步，不在 SCRM 插件内新增主业务对象。
 
 ## 6. 下一步动作
 - [ ] 对每个模块补充具体页面/接口映射（如需）。

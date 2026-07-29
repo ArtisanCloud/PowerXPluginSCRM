@@ -1,9 +1,9 @@
 # Skeleton 插件示例配置
 # 将本文件复制为 backend/etc/config.yaml 即可覆盖默认配置。
 #
-# Auth / IAM / 运行模式环境变量速查（未在 YAML 中硬编码，以免泄露敏感信息）：
-#   IAMMode                    - IAM 语义：delegated | local（推荐显式配置）
-#   POWERX_PROXY                - 设为 1 时表示运行在宿主 iframe/代理下（Delegated 模式）
+# Auth / Provider / 运行链路环境变量速查（未在 YAML 中硬编码，以免泄露敏感信息）：
+#   POWERX_PROVIDER_MODE        - 业务 provider 模式：delegated | local（必填）
+#   POWERX_PROXY                - 设为 1 时表示连接宿主代理/网关/WS/Scheduler 链路
 #   POWERX_CORE_ENDPOINT        - Delegated 模式访问宿主 Core API 的基址（默认 http://localhost:8077）
 #   POWERX_AUTH_TOKEN           - 插件向宿主 Core 鉴权用的服务 Token
 #   POWERX_AUTH_OPTIONAL        - 调试专用，true 时允许未携带 Token 的请求（仅限本地）
@@ -11,7 +11,8 @@
 #   PLUGIN_IAM_ADMIN_EMAIL      - Standalone 模式默认管理员邮箱（用于 migrate/seed）
 #   PLUGIN_IAM_ADMIN_PASSWORD   - Standalone 模式默认管理员密码（用于 migrate/seed）
 #   NUXT_PUBLIC_INSIDE_POWERX   - 前端运行时使用，'1' 代表宿主模式；否则渲染 Standalone 菜单（含“组织与权限”）
-#   NUXT_PUBLIC_POWERX_PROXY    - 与上类似，供 runtimeConfig 判断 API Base
+#   NUXT_PUBLIC_POWERX_PROVIDER_MODE - 前端公开 provider mode，仅用于诊断展示
+#   NUXT_PUBLIC_POWERX_PROXY    - 前端公开 proxy 状态，仅用于诊断展示
 
 server:
   bind_addr: ":8078"
@@ -112,6 +113,7 @@ runtime_ops:
     billing_anomaly: 0.2
 
 context:
+  provider_mode: "local"
   hmac_secret: "dev-hmac-secret"
   key_id: "dev"
   jwks_url: ""

@@ -52,7 +52,22 @@ export interface OpportunityLineItem {
   name: string
   quantity: number
   unit_price: number
+  total_amount?: number
   currency: string
+  kind?: string
+  file_name?: string
+  file_size?: number
+  content_type?: string
+  download_url?: string
+  version_no?: number
+  approval_status?: 'draft' | 'submitted' | 'approved' | 'rejected' | 'withdrawn' | 'effective' | string
+  is_effective?: boolean
+  submitted_at?: string
+  approved_at?: string
+  rejected_at?: string
+  effective_at?: string
+  approval_comment?: string
+  approved_by?: string
 }
 
 export interface OpportunityTask {

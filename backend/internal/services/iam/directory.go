@@ -6,14 +6,14 @@ import (
 	"time"
 )
 
-type IAMMode string
+type ProviderMode string
 
 const (
-	IAMModeDelegated IAMMode = "delegated"
-	IAMModeLocal     IAMMode = "local"
+	ProviderModeDelegated ProviderMode = "delegated"
+	ProviderModeLocal     ProviderMode = "local"
 )
 
-func (m IAMMode) String() string { return string(m) }
+func (m ProviderMode) String() string { return string(m) }
 
 var (
 	ErrUnsupportedMode  = errors.New("iam: unsupported mode")
@@ -92,7 +92,7 @@ type TenantContext struct {
 }
 
 type IAMDirectory interface {
-	Mode() IAMMode
+	Mode() ProviderMode
 	Login(ctx context.Context, req LoginRequest) (*AuthTokens, *UserContext, error)
 	Refresh(ctx context.Context, refreshToken string) (*AuthTokens, error)
 	Logout(ctx context.Context, refreshToken string) error

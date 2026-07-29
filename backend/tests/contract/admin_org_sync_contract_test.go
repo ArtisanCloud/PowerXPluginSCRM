@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	basemodels "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models"
-	iammodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/iam"
+	iamentity "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/iam"
 	orgmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/org_sync"
 	socialmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/social_channel_governance"
 	orgrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/org_sync"
@@ -115,7 +115,7 @@ func TestOrgPushPreviewContract_LocalUnmappedCreateCandidates(t *testing.T) {
 		DisplayName:        "default-wecom",
 		Status:             orgmodel.SourceAccountStatusActive,
 	}).Error)
-	require.NoError(t, db.WithContext(context.Background()).Create(&iammodel.Department{
+	require.NoError(t, db.WithContext(context.Background()).Create(&iamentity.Department{
 		BaseModel: basemodels.BaseModel{
 			TenantUuid: tenantUUID,
 		},
@@ -124,25 +124,25 @@ func TestOrgPushPreviewContract_LocalUnmappedCreateCandidates(t *testing.T) {
 		Path:      "sales",
 		SortOrder: 1,
 	}).Error)
-	var dept iammodel.Department
+	var dept iamentity.Department
 	require.NoError(t, db.WithContext(context.Background()).Where("tenant_uuid = ?", tenantUUID).First(&dept).Error)
-	require.NoError(t, db.WithContext(context.Background()).Create(&iammodel.User{
+	require.NoError(t, db.WithContext(context.Background()).Create(&iamentity.User{
 		Email:        "org-preview@example.com",
 		Phone:        "13800002222",
 		DisplayName:  "李四",
-		Status:       iammodel.StatusActive,
+		Status:       iamentity.StatusActive,
 		PasswordHash: "preview_hash",
 	}).Error)
-	var user iammodel.User
+	var user iamentity.User
 	require.NoError(t, db.WithContext(context.Background()).Where("email = ?", "org-preview@example.com").First(&user).Error)
-	require.NoError(t, db.WithContext(context.Background()).Create(&iammodel.Member{
+	require.NoError(t, db.WithContext(context.Background()).Create(&iamentity.Member{
 		BaseModel: basemodels.BaseModel{
 			TenantUuid: tenantUUID,
 		},
 		UserID:       user.ID,
 		Username:     "lisi",
 		DisplayName:  "李四",
-		Status:       iammodel.StatusActive,
+		Status:       iamentity.StatusActive,
 		DepartmentID: &dept.ID,
 	}).Error)
 

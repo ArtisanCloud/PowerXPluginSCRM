@@ -1,19 +1,19 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "Lead Management API",
+    "title": "Lead Capture Pool API",
     "version": "0.1.0"
   },
   "paths": {
     "/api/v1/admin/leads": {
       "get": {
-        "summary": "List leads",
+        "summary": "List lead capture pool records",
         "responses": {
           "200": {"description": "OK"}
         }
       },
       "post": {
-        "summary": "Create lead",
+        "summary": "Create lead capture pool record",
         "responses": {
           "201": {"description": "Created"}
         }
@@ -32,7 +32,7 @@
     },
     "/api/v1/admin/leads/{lead_id}/assign": {
       "post": {
-        "summary": "Assign lead",
+        "summary": "Assign lead capture pool record",
         "parameters": [
           {"name": "lead_id", "in": "path", "required": true, "schema": {"type": "string"}}
         ],
@@ -43,7 +43,7 @@
     },
     "/api/v1/admin/leads/{lead_id}/status": {
       "post": {
-        "summary": "Update lead status",
+        "summary": "Update lead capture pool status",
         "parameters": [
           {"name": "lead_id", "in": "path", "required": true, "schema": {"type": "string"}}
         ],

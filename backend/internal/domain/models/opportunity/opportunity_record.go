@@ -13,6 +13,8 @@ type OpportunityRecord struct {
 	LeadUUID          string         `gorm:"column:lead_uuid;type:uuid;not null;index:idx_opp_tenant_lead,priority:2" json:"lead_uuid"`
 	Title             string         `gorm:"column:title;type:varchar(255);not null" json:"title"`
 	Stage             string         `gorm:"column:stage;type:varchar(32);not null;default:'open';index:idx_opp_tenant_stage,priority:2;index:idx_opp_tenant_owner_stage,priority:3" json:"stage"`
+	PipelineGroupUUID string         `gorm:"column:pipeline_group_uuid;type:uuid;index:idx_opp_tenant_pipeline_stage,priority:2" json:"pipeline_group_uuid,omitempty"`
+	CurrentStageUUID  string         `gorm:"column:current_stage_uuid;type:uuid;index:idx_opp_tenant_pipeline_stage,priority:3" json:"current_stage_uuid,omitempty"`
 	Amount            *float64       `gorm:"column:amount;type:numeric(18,2)" json:"amount,omitempty"`
 	Currency          string         `gorm:"column:currency;type:varchar(8);not null;default:'CNY'" json:"currency"`
 	Probability       int            `gorm:"column:probability;type:int;not null;default:0" json:"probability"`

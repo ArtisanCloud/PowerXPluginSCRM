@@ -359,8 +359,8 @@ type ContextConfig struct {
 	Audience string        `yaml:"audience" json:"audience"`
 	TTL      time.Duration `yaml:"ttl" json:"ttl"`
 
-	// IAM 模式（可选）：delegated / local，留空按环境变量规则推断
-	IAMMode string `yaml:"iam_mode" json:"iam_mode"`
+	// Provider 模式（必填）：delegated / local
+	ProviderMode string `yaml:"provider_mode" json:"provider_mode"`
 }
 
 // Load 加载配置，优先级：YAML 文件 > 默认值（不再从环境变量覆盖）
@@ -393,8 +393,16 @@ func loadWithValidation(validateRuntimeGateway bool) (*Config, error) {
 
 	loadSecurityBaselineConfig(cfg)
 
+	yamlProviderMode := ""
+	if cfg.Context != nil {
+		yamlProviderMode = strings.TrimSpace(cfg.Context.ProviderMode)
+	}
+
 	// 宿主注入的环境变量优先级最高，用于覆盖敏感配置（例如数据库凭据）
 	loadEnvConfig(cfg)
+	if err := validateProviderModeSource(yamlProviderMode, cfg); err != nil {
+		return nil, err
+	}
 
 	// 统一归一化配置值，避免大小写/空白差异导致校验失败
 	normalizeConfig(cfg)
@@ -1060,10 +1068,8 @@ func loadEnvConfig(cfg *Config) {
 			cfg.Context.TTL = ttl
 		}
 	}
-	if iamMode := resolveConfigValue(os.Getenv("IAM_MODE")); iamMode != "" {
-		cfg.Context.IAMMode = iamMode
-	} else if iamModeCamel := resolveConfigValue(os.Getenv("IAMMode")); iamModeCamel != "" {
-		cfg.Context.IAMMode = iamModeCamel
+	if providerMode := resolveConfigValue(os.Getenv("POWERX_PROVIDER_MODE")); providerMode != "" {
+		cfg.Context.ProviderMode = providerMode
 	}
 
 	// gRPC 上游配置
@@ -1444,6 +1450,28 @@ func resolveConfigValueWithDepth(value string, depth, maxDepth int) string {
 	}
 	resolved, _ := resolvePlaceholder(trimmed, depth, maxDepth)
 	return resolved
+}
+
+func validateProviderModeSource(yamlProviderMode string, cfg *Config) error {
+	envProviderMode := strings.TrimSpace(resolveConfigValue(os.Getenv("POWERX_PROVIDER_MODE")))
+	if envProviderMode != "" && strings.TrimSpace(yamlProviderMode) != "" &&
+		!strings.EqualFold(envProviderMode, yamlProviderMode) {
+		return NewConfigError("POWERX_PROVIDER_MODE conflicts with context.provider_mode")
+	}
+	if cfg == nil || cfg.Context == nil {
+		return NewConfigError("context.provider_mode is required")
+	}
+	mode := strings.ToLower(strings.TrimSpace(cfg.Context.ProviderMode))
+	switch mode {
+	case "local", "delegated":
+		cfg.Context.ProviderMode = mode
+	default:
+		return NewConfigError("POWERX_PROVIDER_MODE or context.provider_mode must be one of: local, delegated")
+	}
+	if mode == "delegated" && strings.TrimSpace(os.Getenv("POWERX_PROXY")) != "1" {
+		return NewConfigError("POWERX_PROVIDER_MODE=delegated requires POWERX_PROXY=1")
+	}
+	return nil
 }
 
 func firstNonEmpty(values ...string) string {

@@ -1181,6 +1181,36 @@ routes:
         action: read
         resource: scrm.opportunity
     - method: GET
+      path: /admin/opportunity/forecast
+      permission:
+        action: read
+        resource: scrm.opportunity
+    - method: GET
+      path: /admin/opportunity/pipeline-groups
+      permission:
+        action: read
+        resource: scrm.opportunity
+    - method: POST
+      path: /admin/opportunity/pipeline-groups
+      permission:
+        action: write
+        resource: scrm.opportunity
+    - method: GET
+      path: /admin/opportunity/pipeline-groups/:group_uuid
+      permission:
+        action: read
+        resource: scrm.opportunity
+    - method: GET
+      path: /admin/opportunity/pipeline-templates
+      permission:
+        action: read
+        resource: scrm.opportunity
+    - method: GET
+      path: /admin/opportunity/pipeline/default
+      permission:
+        action: read
+        resource: scrm.opportunity
+    - method: GET
       path: /admin/opportunity/records
       permission:
         action: read
@@ -1211,6 +1241,26 @@ routes:
         action: write
         resource: scrm.opportunity
     - method: GET
+      path: /admin/opportunity/records/:opportunity_uuid/contracts
+      permission:
+        action: read
+        resource: scrm.opportunity
+    - method: POST
+      path: /admin/opportunity/records/:opportunity_uuid/contracts
+      permission:
+        action: write
+        resource: scrm.opportunity
+    - method: PATCH
+      path: /admin/opportunity/records/:opportunity_uuid/contracts/:contract_uuid/status
+      permission:
+        action: write
+        resource: scrm.opportunity
+    - method: GET
+      path: /admin/opportunity/records/:opportunity_uuid/duplicates
+      permission:
+        action: read
+        resource: scrm.opportunity
+    - method: GET
       path: /admin/opportunity/records/:opportunity_uuid/line-items
       permission:
         action: read
@@ -1225,10 +1275,35 @@ routes:
       permission:
         action: write
         resource: scrm.opportunity
+    - method: PATCH
+      path: /admin/opportunity/records/:opportunity_uuid/line-items/:item_uuid/approval
+      permission:
+        action: write
+        resource: scrm.opportunity
     - method: GET
       path: /admin/opportunity/records/:opportunity_uuid/line-items/:item_uuid/download
       permission:
         action: read
+        resource: scrm.opportunity
+    - method: POST
+      path: /admin/opportunity/records/:opportunity_uuid/merge
+      permission:
+        action: write
+        resource: scrm.opportunity
+    - method: GET
+      path: /admin/opportunity/records/:opportunity_uuid/payments
+      permission:
+        action: read
+        resource: scrm.opportunity
+    - method: POST
+      path: /admin/opportunity/records/:opportunity_uuid/payments
+      permission:
+        action: write
+        resource: scrm.opportunity
+    - method: PATCH
+      path: /admin/opportunity/records/:opportunity_uuid/payments/:payment_uuid/status
+      permission:
+        action: write
         resource: scrm.opportunity
     - method: POST
       path: /admin/opportunity/records/:opportunity_uuid/quote-files
@@ -1262,6 +1337,16 @@ routes:
         resource: scrm.opportunity
     - method: PATCH
       path: /admin/opportunity/records/:opportunity_uuid/tasks/:task_uuid/status
+      permission:
+        action: write
+        resource: scrm.opportunity
+    - method: GET
+      path: /admin/opportunity/stage-configs
+      permission:
+        action: read
+        resource: scrm.opportunity
+    - method: PUT
+      path: /admin/opportunity/stage-configs/:stage_key
       permission:
         action: write
         resource: scrm.opportunity

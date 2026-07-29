@@ -512,6 +512,16 @@ const scrmSections: ScrmNavSection[] = [
         labelKey: "navigation.scrmOpportunity",
         icon: "i-heroicons-currency-dollar",
       },
+      {
+        to: "/scrm/opportunity/analytics",
+        labelKey: "navigation.scrmOpportunityAnalytics",
+        icon: "i-heroicons-chart-bar-square",
+      },
+      {
+        to: "/scrm/opportunity/settings",
+        labelKey: "navigation.scrmOpportunitySettings",
+        icon: "i-heroicons-adjustments-horizontal",
+      },
     ],
   },
   {

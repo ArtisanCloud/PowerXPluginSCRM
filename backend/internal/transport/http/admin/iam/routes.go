@@ -25,7 +25,7 @@ func RegisterRoutes(admin *gin.RouterGroup, deps *app.Deps) {
 	roleMembersHandler := NewRoleMembersHandler(roleSvc)
 	permissionHandler := NewPermissionHandler(roleSvc)
 	auditHandler := NewAuditHandler(audit)
-	stsHandler := NewSTSHandler(deps.IAMMode, stsSvc)
+	stsHandler := NewSTSHandler(deps.ProviderMode, stsSvc)
 
 	group.GET("/tenants", tenantHandler.List)
 	group.POST("/tenants", tenantHandler.Create)

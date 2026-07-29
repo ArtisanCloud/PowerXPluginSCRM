@@ -27,17 +27,17 @@ type authProxy interface {
 
 // AuthHandler exposes /api/v1/auth public endpoints.
 type AuthHandler struct {
-	mode  iamservice.IAMMode
+	mode  iamservice.ProviderMode
 	proxy authProxy
 	local iamservice.IAMDirectory
 }
 
-// NewAuthHandler builds a handler for the given IAM mode.
+// NewAuthHandler builds a handler for the given provider mode.
 func NewAuthHandler(deps *app.Deps) *AuthHandler {
 	if deps == nil {
 		return &AuthHandler{}
 	}
-	return &AuthHandler{mode: deps.IAMMode, proxy: deps.AuthProxy, local: deps.IAMDirectory}
+	return &AuthHandler{mode: deps.ProviderMode, proxy: deps.AuthProxy, local: deps.IAMDirectory}
 }
 
 // RegisterAuthRoutes wires /auth routes beneath the API prefix.
@@ -57,12 +57,12 @@ func RegisterAuthRoutes(group *gin.RouterGroup, deps *app.Deps) {
 // Login proxies login requests to PowerX Core.
 func (h *AuthHandler) Login(c *gin.Context) {
 	switch h.mode {
-	case iamservice.IAMModeDelegated:
+	case iamservice.ProviderModeDelegated:
 		if !h.ensureDelegated(c) {
 			return
 		}
 		h.handleDelegatedLogin(c)
-	case iamservice.IAMModeLocal:
+	case iamservice.ProviderModeLocal:
 		h.handleLocalLogin(c)
 	default:
 		contracts.ResponseServiceUnavailable(c, "当前 IAM 模式未启用", nil)
@@ -72,12 +72,12 @@ func (h *AuthHandler) Login(c *gin.Context) {
 // Refresh exchanges refresh_token for a new access token.
 func (h *AuthHandler) Refresh(c *gin.Context) {
 	switch h.mode {
-	case iamservice.IAMModeDelegated:
+	case iamservice.ProviderModeDelegated:
 		if !h.ensureDelegated(c) {
 			return
 		}
 		h.handleDelegatedRefresh(c)
-	case iamservice.IAMModeLocal:
+	case iamservice.ProviderModeLocal:
 		h.handleLocalRefresh(c)
 	default:
 		contracts.ResponseServiceUnavailable(c, "当前 IAM 模式未启用", nil)
@@ -87,12 +87,12 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 // Logout revokes the current refresh token upstream.
 func (h *AuthHandler) Logout(c *gin.Context) {
 	switch h.mode {
-	case iamservice.IAMModeDelegated:
+	case iamservice.ProviderModeDelegated:
 		if !h.ensureDelegated(c) {
 			return
 		}
 		h.handleDelegatedLogout(c)
-	case iamservice.IAMModeLocal:
+	case iamservice.ProviderModeLocal:
 		h.handleLocalLogout(c)
 	default:
 		contracts.ResponseServiceUnavailable(c, "当前 IAM 模式未启用", nil)
@@ -102,12 +102,12 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 // MeContext fetches the active user context from PowerX Core.
 func (h *AuthHandler) MeContext(c *gin.Context) {
 	switch h.mode {
-	case iamservice.IAMModeDelegated:
+	case iamservice.ProviderModeDelegated:
 		if !h.ensureDelegated(c) {
 			return
 		}
 		h.handleDelegatedMeContext(c)
-	case iamservice.IAMModeLocal:
+	case iamservice.ProviderModeLocal:
 		h.handleLocalMeContext(c)
 	default:
 		contracts.ResponseServiceUnavailable(c, "当前 IAM 模式未启用", nil)
@@ -115,7 +115,7 @@ func (h *AuthHandler) MeContext(c *gin.Context) {
 }
 
 func (h *AuthHandler) ensureDelegated(c *gin.Context) bool {
-	if h.mode != iamservice.IAMModeDelegated {
+	if h.mode != iamservice.ProviderModeDelegated {
 		contracts.ResponseServiceUnavailable(c, "当前路由仅支持 Delegated 模式", nil)
 		return false
 	}

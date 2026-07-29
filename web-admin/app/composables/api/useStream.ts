@@ -1,23 +1,45 @@
-import { resolveApiBase } from "./_base";
+import { createPluginSSEClient, createPluginWsClient } from "@artisan-cloud/plugin-framework-client";
+import { resolveApiBase, getAuthToken, getTenantUuid } from "./_base";
+
+function runtimePublicConfig() {
+  return typeof useRuntimeConfig === "function" ? (useRuntimeConfig() as any)?.public || {} : {};
+}
+
+function createFrameworkSSEClient() {
+  const publicConfig = runtimePublicConfig();
+  return createPluginSSEClient({
+    pluginId: "com.powerx.plugins.scrm",
+    apiBaseURL: resolveApiBase(),
+    hostBaseURL: String(publicConfig?.powerxCoreBase || ""),
+    insidePowerX: Boolean(publicConfig?.insidePowerX),
+    token: getAuthToken(),
+    tenantUuid: getTenantUuid(),
+    withCredentials: false,
+  });
+}
 
 export function createSSE(path: string, params?: Record<string, any>) {
-  const base = resolveApiBase();
-  const url = new URL(path.replace(/^\/+/, ""), base + "/");
-  if (params) {
-    for (const [k, v] of Object.entries(params)) {
-      if (v != null) url.searchParams.set(k, String(v));
-    }
-  }
-  return new EventSource(url.toString(), { withCredentials: false });
+  return createFrameworkSSEClient().connect({
+    path,
+    params,
+    token: getAuthToken(),
+    tenantUuid: getTenantUuid(),
+    withCredentials: false,
+  });
 }
 
 export function createWS(path: string) {
-  const base = resolveApiBase();
-  const a = document.createElement("a");
-  a.href = base; // 解析协议/主机
-  const wsProto = a.protocol === "https:" ? "wss:" : "ws:";
-  const wsUrl = `${wsProto}//${a.host}${a.pathname.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
-  return new WebSocket(wsUrl);
+  const publicConfig = runtimePublicConfig();
+  const wsPath = `/${path.replace(/^\/+/, "")}`;
+  return createPluginWsClient({
+    pluginId: "com.powerx.plugins.scrm",
+    apiBaseURL: resolveApiBase(),
+    hostBaseURL: String(publicConfig?.powerxCoreBase || ""),
+    insidePowerX: Boolean(publicConfig?.insidePowerX),
+    wsPath,
+    token: getAuthToken(),
+    tenantUuid: getTenantUuid(),
+  }).connect();
 }
 
 // 便捷的实时数据流组合式函数

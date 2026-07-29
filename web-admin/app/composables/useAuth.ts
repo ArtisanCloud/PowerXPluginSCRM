@@ -104,30 +104,20 @@ const safeLocalStorage = {
   },
 };
 
-const resolveInsidePowerX = (value: unknown) => {
-  if (value === true) return true;
-  if (typeof value === "string") {
-    const normalized = value.trim().toLowerCase();
-    return normalized === "true" || normalized === "1" || normalized === "yes";
-  }
-  return false;
-};
-
-const resolveIAMMode = (value: unknown, insidePowerX: boolean) => {
+const resolveProviderMode = (value: unknown) => {
   if (typeof value === "string") {
     const normalized = value.trim().toLowerCase();
     if (normalized === "delegated" || normalized === "local") {
       return normalized;
     }
   }
-  return insidePowerX ? "delegated" : "local";
+  return "";
 };
 
 export const useAuth = () => {
   const runtimeConfig = useRuntimeConfig();
-  const insidePowerX = resolveInsidePowerX(runtimeConfig.public?.insidePowerX);
-  const iamMode = resolveIAMMode(runtimeConfig.public?.iamMode, insidePowerX);
-  const isDelegatedMode = iamMode === "delegated";
+  const providerMode = resolveProviderMode(runtimeConfig.public?.providerMode);
+  const isDelegatedMode = providerMode === "delegated";
   // Standalone 模式下宿主/脚手架可能只广播 access token（无 refresh token），允许继续维持会话。
   const allowRefreshlessSession = !isDelegatedMode;
 
@@ -341,7 +331,7 @@ export const useAuth = () => {
     }
   };
 
-  const setIAMModeFlags = (isDelegated: boolean) => {
+  const setProviderModeFlags = (isDelegated: boolean) => {
     delegatedIAM.value = isDelegated;
     localIAMEnabled.value = !isDelegated;
   };
@@ -457,6 +447,6 @@ export const useAuth = () => {
     restoreFromStorage: syncFromStorage,
     localIAMEnabled: readonly(localIAMEnabled),
     delegatedIAM: readonly(delegatedIAM),
-    setIAMModeFlags,
+    setProviderModeFlags,
   };
 };

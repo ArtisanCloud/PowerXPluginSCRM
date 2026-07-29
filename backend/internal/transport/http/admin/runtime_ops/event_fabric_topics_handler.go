@@ -72,7 +72,7 @@ func EventFabricCreateTopicHandler(deps *app.Deps) gin.HandlerFunc {
 			return
 		}
 
-		endpoint := buildGatewayEndpoint(deps.Config.Gateway, "/admin/event-fabric/topics")
+		endpoint := buildGatewayEndpoint(deps.Config.Gateway, "/event-fabric/topics")
 		requestID := strings.TrimSpace(c.GetHeader("X-Request-ID"))
 		if requestID == "" {
 			requestID = uuid.NewString()

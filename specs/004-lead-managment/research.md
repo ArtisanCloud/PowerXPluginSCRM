@@ -77,7 +77,7 @@ go test ./internal/services/admin/lead_capture ./tests/contract ./tests/integrat
 - 建议显式传 `channel_account_uuid`，避免默认账号解析带来的调试歧义。
 - standalone 联调需确认：
   - `POWERX_PROXY=0`
-  - `IAMMode=local`
+  - `POWERX_PROVIDER_MODE=local`
   - runtime bus driver 使用 local（ws/task/event）
 
 ### 失败与重试建议

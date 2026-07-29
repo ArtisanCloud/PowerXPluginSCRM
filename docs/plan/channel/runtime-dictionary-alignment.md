@@ -4,8 +4,8 @@
 
 统一 `Channel/SCRM` 相关“来源类配置”的维护入口，沉淀为系统级数据字典能力，且在插件运行模式下行为一致：
 
-- `IAMMode=local`：读写插件本地数据字典存储。
-- `IAMMode=delegated`：透传到宿主（PowerX）运行时字典服务。
+- `POWERX_PROVIDER_MODE=local`：读写插件本地数据字典存储。
+- `POWERX_PROVIDER_MODE=delegated`：透传到宿主（PowerX）运行时字典服务。
 
 这份文档同时作为 PowerXPlugin framework 对齐清单，要求新插件可直接复用该能力。
 
@@ -31,10 +31,10 @@
 
 入口服务：`DictionaryService`
 
-- `IAMMode=local`
+- `POWERX_PROVIDER_MODE=local`
   - 直接访问本地仓储（当前实现复用 `lead_capture_source_catalogs`）。
   - `tenant_uuid` 必须存在并参与隔离。
-- `IAMMode=delegated`
+- `POWERX_PROVIDER_MODE=delegated`
   - 通过 `AuthProxy.ProxyRequest(...)` 透传宿主同路径接口。
   - 插件不做宿主侧业务语义判断，按宿主返回为准。
 
@@ -84,7 +84,7 @@
    - `ProxyRequest(ctx, method, path, payload, out, extraHeaders)`
 2. 框架 skeleton 提供 runtime dictionary 路由模板：
    - `GET/POST/PATCH/DELETE /admin/runtime/dictionaries`
-3. 框架服务模板内置 `IAMMode local/delegated` 分流范式。
+3. 框架服务模板内置 `POWERX_PROVIDER_MODE local/delegated` 分流范式。
 4. Nuxt admin 模板提供可复用字典页基线能力：
    - 动态 namespace；
    - 分组折叠；
@@ -108,7 +108,7 @@
 
 宿主（delegated）：
 
-1. `IAMMode=delegated` 启动插件
+1. `POWERX_PROVIDER_MODE=delegated` 启动插件
 2. 插件管理页操作字典项
 3. 抓取请求，确认走 `AuthProxy.ProxyRequest`
 4. 校验宿主字典数据已变更，且插件端展示同步

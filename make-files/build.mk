@@ -36,11 +36,11 @@ build:
 
 .PHONY: frontend-build
 frontend-build:
-	cd $(FRONTEND_DIR) && POWERX_PROXY=1 POWERX_PLUGIN_ID="$(PLUGIN_ID)" POWERX_PLUGIN_VERSION="$(VERSION)" NUXT_PUBLIC_POWERX_PLUGIN_ID="$(PLUGIN_ID)" NUXT_PUBLIC_POWERX_PLUGIN_VERSION="$(VERSION)" NUXT_PUBLIC_API_BASE= NUXT_PUBLIC_API_PREFIX= POWERX_ADMIN_BASE="$(POWERX_ADMIN_BASE)" NODE_ENV=production npm run build
+	cd $(FRONTEND_DIR) && POWERX_PROVIDER_MODE=delegated NUXT_PUBLIC_POWERX_PROVIDER_MODE=delegated POWERX_PROXY=1 NUXT_PUBLIC_POWERX_PROXY=1 POWERX_PLUGIN_ID="$(PLUGIN_ID)" POWERX_PLUGIN_VERSION="$(VERSION)" NUXT_PUBLIC_POWERX_PLUGIN_ID="$(PLUGIN_ID)" NUXT_PUBLIC_POWERX_PLUGIN_VERSION="$(VERSION)" NUXT_PUBLIC_API_BASE= NUXT_PUBLIC_API_PREFIX= POWERX_ADMIN_BASE="$(POWERX_ADMIN_BASE)" NODE_ENV=production npm run build
 
 .PHONY: frontend-build-standalone
 frontend-build-standalone:
-	cd $(FRONTEND_DIR) && POWERX_PROXY=0 POWERX_PLUGIN_ID="$(PLUGIN_ID)" POWERX_PLUGIN_VERSION="$(VERSION)" NUXT_PUBLIC_POWERX_PLUGIN_ID="$(PLUGIN_ID)" NUXT_PUBLIC_POWERX_PLUGIN_VERSION="$(VERSION)" NODE_ENV=production npm run build
+	cd $(FRONTEND_DIR) && POWERX_PROVIDER_MODE=local NUXT_PUBLIC_POWERX_PROVIDER_MODE=local POWERX_PROXY=0 NUXT_PUBLIC_POWERX_PROXY=0 POWERX_PLUGIN_ID="$(PLUGIN_ID)" POWERX_PLUGIN_VERSION="$(VERSION)" NUXT_PUBLIC_POWERX_PLUGIN_ID="$(PLUGIN_ID)" NUXT_PUBLIC_POWERX_PLUGIN_VERSION="$(VERSION)" NODE_ENV=production npm run build
 
 .PHONY: dist
 dist: plugin-yaml-check build frontend-build
@@ -85,6 +85,10 @@ dist-verify:
 			test -f "$(DIST_WEBADMIN_OUTPUT)/public/$$ICON_PATH" || { echo "❌ dist 验证失败：metadata.icon 指向的文件不存在：$(DIST_WEBADMIN_OUTPUT)/public/$$ICON_PATH"; exit 1; }; \
 		fi
 		@awk '/^[[:space:]]*runtime:[[:space:]]*$$/{in_runtime=1; next} in_runtime && /^[^[:space:]]/ {in_runtime=0} in_runtime && /^[[:space:]]*entry:[[:space:]]*backend\/bin\/plugin[[:space:]]*$$/ {found=1} END{exit found?0:1}' "$(DIST_DIR)/plugin.yaml" || { echo "❌ plugin.yaml runtime.entry 必须是 backend/bin/plugin"; exit 1; }
+	@rg -q 'POWERX_BIND_ADDR:[[:space:]]*":__POWERX_DYNAMIC_PORT__"' "$(DIST_DIR)/plugin.yaml" || { echo "❌ plugin.yaml runtime.env.POWERX_BIND_ADDR 必须是 :__POWERX_DYNAMIC_PORT__"; exit 1; }
+	@rg -q 'POWERX_PLUGIN_REGISTRATION_MODE:[[:space:]]*"installed"' "$(DIST_DIR)/plugin.yaml" || { echo "❌ plugin.yaml runtime.env.POWERX_PLUGIN_REGISTRATION_MODE 必须是 installed"; exit 1; }
+	@awk '/^[[:space:]]*backend:[[:space:]]*$$/{in_backend=1; next} in_backend && /^[^[:space:]]/ {in_backend=0} in_backend && /^[[:space:]]*port:[[:space:]]*0[[:space:]]*$$/ {found=1} END{exit found?0:1}' "$(DIST_DIR)/plugin.yaml" || { echo "❌ plugin.yaml backend.port 必须是 0"; exit 1; }
+	@! rg -q '(^|[^0-9])(8078|8086)([^0-9]|$$)' "$(DIST_DIR)/plugin.yaml" || { echo "❌ plugin.yaml 不得固化旧 backend port：8078/8086"; exit 1; }
 	@awk '/^[[:space:]]*migrations:[[:space:]]*$$/{in_migrations=1; next} in_migrations && /^[^[:space:]]/ {in_migrations=0} in_migrations && /^[[:space:]]*entry:[[:space:]]*backend\/bin\/migrate[[:space:]]*$$/ {found=1} END{exit found?0:1}' "$(DIST_DIR)/plugin.yaml" || { echo "❌ plugin.yaml migrations.entry 必须是 backend/bin/migrate"; exit 1; }
 	@rg -q "resource: scrm.opportunity" "$(DIST_DIR)/plugin.d/rbac.yaml" || { echo "❌ dist 验证失败：rbac 缺少 scrm.opportunity"; exit 1; }
 	@rg -q "resource: scrm.leads" "$(DIST_DIR)/plugin.d/rbac.yaml" || { echo "❌ dist 验证失败：rbac 缺少 scrm.leads"; exit 1; }

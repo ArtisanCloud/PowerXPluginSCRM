@@ -1,6 +1,6 @@
-# 移动前线作业能力模块规划总览
+# 移动触达辅助与外勤系统引用模块规划总览
 
-> 适用范围：PowerX SCRM 插件的移动前线作业能力业务域，场景依据 `../../../../PowerXDocs/docs/meta/scenarios/scrm/mobile_frontline_capabilities` 目录。
+> 适用范围：PowerX SCRM 插件的移动触达提醒、企微侧操作入口与外部外勤系统引用。拜访打卡、轨迹、审批主流程由外部 Field Service/Sales 系统承载。
 
 ## 1. 文档目的
 - 汇总该业务域的主用例与子场景，形成统一规划入口。
@@ -10,8 +10,8 @@
 ## 2. 场景清单
 | 序号 | 主用例 | 场景文档 |
 | --- | --- | --- |
-| 1 | 拜访打卡与轨迹管理 | `../../../../PowerXDocs/docs/meta/scenarios/scrm/mobile_frontline_capabilities/location_checkin_visit_tracking/primary.md` |
-| 2 | 移动审批与扫码作业 | `../../../../PowerXDocs/docs/meta/scenarios/scrm/mobile_frontline_capabilities/mobile_approval_code_operations/primary.md` |
+| 1 | 外部拜访记录摘要引用 | `../../../../PowerXDocs/docs/meta/scenarios/scrm/mobile_frontline_capabilities/location_checkin_visit_tracking/primary.md` |
+| 2 | 移动扫码触达入口 | `../../../../PowerXDocs/docs/meta/scenarios/scrm/mobile_frontline_capabilities/mobile_approval_code_operations/primary.md` |
 | 3 | 离线消息与提醒 | `../../../../PowerXDocs/docs/meta/scenarios/scrm/mobile_frontline_capabilities/offline_messaging_alerts/primary.md` |
 | 4 | 语音转写与要点提炼 | `../../../../PowerXDocs/docs/meta/scenarios/scrm/mobile_frontline_capabilities/voice_to_text_insight_extraction/primary.md` |
 
@@ -24,15 +24,16 @@
 | 数据/技术 | 数据可用、接口稳定、易于集成 |
 
 ## 4. 关键能力与规划要点
-- 拜访打卡与轨迹管理
-- 移动审批与扫码作业
+- 外部拜访记录摘要引用
+- 移动扫码触达入口
 - 离线消息与提醒
 - 语音转写与要点提炼
+- 不在 SCRM 内维护打卡、轨迹、审批单和外勤绩效主数据
 
 ## 5. 依赖与集成
 - 统一身份/权限与审计日志能力。
 - 社交平台/企业微信接口与消息能力（如有）。
-- CRM/订单/会员/内容等业务系统或数据中台对接。
+- 外部 CRM/订单/会员/内容系统的摘要、事件或能力引用；不得在 SCRM 内复制其主数据。
 - 数据指标与标签体系的统一治理与同步。
 
 ## 6. 迭代建议

@@ -7,6 +7,8 @@ import { definePowerXAdminConfig } from "@artisan-cloud/plugin-framework-admin";
 if (!process.env.QUIET_START) {
   const inspectEnv = [
     "POWERX_PROXY",
+    "POWERX_PROVIDER_MODE",
+    "NUXT_PUBLIC_POWERX_PROVIDER_MODE",
     "NUXT_PUBLIC_API_BASE",
     "NUXT_PUBLIC_API_PREFIX",
     "NUXT_DEV_API_PROXY",
@@ -120,16 +122,20 @@ const vueUseReal = resolvePath(
 );
 
 const INSIDE_POWERX = process.env.POWERX_PROXY === "1";
-const resolveIAMMode = () => {
-  const raw = (process.env.IAM_MODE || process.env.IAMMode || "")
+const resolveProviderMode = () => {
+  const raw = (
+    process.env.NUXT_PUBLIC_POWERX_PROVIDER_MODE ||
+    process.env.POWERX_PROVIDER_MODE ||
+    ""
+  )
     .trim()
     .toLowerCase();
   if (raw === "delegated" || raw === "local") {
     return raw;
   }
-  return INSIDE_POWERX ? "delegated" : "local";
+  return "";
 };
-const IAM_MODE = resolveIAMMode();
+const PROVIDER_MODE = resolveProviderMode();
 const capabilityInvokeEndpoint = "/integration/capabilities/invoke";
 const capabilityApiBase = INSIDE_POWERX ? hostApiBase : localApiBase;
 // 在宿主代理模式下指定 api base，即“模拟 standalone” 场景
@@ -149,7 +155,7 @@ if (!INSIDE_POWERX || simulateStandalone) {
 if (!process.env.QUIET_START) {
   console.info("[web-admin] resolved config →");
   console.info(`  insidePowerX=${INSIDE_POWERX}`);
-  console.info(`  iamMode=${IAM_MODE}`);
+  console.info(`  providerMode=${PROVIDER_MODE || "unset"}`);
   console.info(
     `  runtime apiBase=${INSIDE_POWERX ? hostApiBase : localApiBase}`,
   );
@@ -336,7 +342,7 @@ export default defineNuxtConfig({
       apiBaseUrl: INSIDE_POWERX ? hostApiBase : localApiBase,
       pluginApiBase,
       insidePowerX: INSIDE_POWERX,
-      iamMode: IAM_MODE,
+      providerMode: PROVIDER_MODE,
       pluginAdminBase,
       bridgeDebug: BRIDGE_DEBUG,
       powerxCoreBase,

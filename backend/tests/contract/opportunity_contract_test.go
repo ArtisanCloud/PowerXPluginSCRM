@@ -69,6 +69,16 @@ func (r *opportunityContractRepo) Dashboard(ctx context.Context, tenantUUID stri
 	return &opprepo.OpportunityDashboard{ActiveCount: activeCount}, nil
 }
 
+func (r *opportunityContractRepo) Forecast(ctx context.Context, tenantUUID string, _ opprepo.OpportunityListFilter) (*opprepo.OpportunityForecast, error) {
+	var expectedCount int64
+	if err := r.WithContext(ctx).Model(&oppmodel.OpportunityRecord{}).
+		Where("tenant_uuid = ? AND stage IN ?", tenantUUID, []string{oppmodel.StageOpen, oppmodel.StageQualified, oppmodel.StageProposal, oppmodel.StageNegotiation}).
+		Count(&expectedCount).Error; err != nil {
+		return nil, err
+	}
+	return &opprepo.OpportunityForecast{ExpectedCount: expectedCount}, nil
+}
+
 func (r *opportunityContractRepo) FindActiveByLead(ctx context.Context, tenantUUID, leadUUID string) (*oppmodel.OpportunityRecord, error) {
 	var out oppmodel.OpportunityRecord
 	err := r.WithContext(ctx).
@@ -247,6 +257,8 @@ func ensureOpportunityContractTables(db *gorm.DB) error {
 			lead_uuid TEXT NOT NULL,
 			title TEXT NOT NULL,
 			stage TEXT NOT NULL,
+			pipeline_group_uuid TEXT,
+			current_stage_uuid TEXT,
 			amount NUMERIC,
 			currency TEXT NOT NULL,
 			probability INTEGER NOT NULL,
@@ -260,6 +272,38 @@ func ensureOpportunityContractTables(db *gorm.DB) error {
 			lost_at DATETIME,
 			lost_reason TEXT,
 			risk_flags TEXT NOT NULL,
+			created_by TEXT NOT NULL,
+			updated_by TEXT NOT NULL,
+			created_at DATETIME,
+			updated_at DATETIME
+		);`,
+		`CREATE TABLE IF NOT EXISTS opportunity_pipeline_groups (
+			group_uuid TEXT PRIMARY KEY,
+			tenant_uuid TEXT NOT NULL,
+			group_key TEXT NOT NULL,
+			name TEXT NOT NULL,
+			description TEXT,
+			is_default BOOLEAN NOT NULL DEFAULT false,
+			is_active BOOLEAN NOT NULL DEFAULT true,
+			sort_order INTEGER NOT NULL DEFAULT 0,
+			created_by TEXT NOT NULL,
+			updated_by TEXT NOT NULL,
+			created_at DATETIME,
+			updated_at DATETIME
+		);`,
+		`CREATE TABLE IF NOT EXISTS opportunity_stage_configs (
+			config_uuid TEXT PRIMARY KEY,
+			tenant_uuid TEXT NOT NULL,
+			pipeline_group_uuid TEXT,
+			stage_key TEXT NOT NULL,
+			label TEXT NOT NULL,
+			sort_order INTEGER NOT NULL DEFAULT 0,
+			default_win_rate INTEGER NOT NULL DEFAULT 0,
+			sla_days INTEGER NOT NULL DEFAULT 0,
+			stage_type TEXT NOT NULL DEFAULT 'active',
+			fixed_stage TEXT NOT NULL,
+			is_active BOOLEAN NOT NULL DEFAULT true,
+			migration_policy TEXT NOT NULL DEFAULT 'map_to_fixed',
 			created_by TEXT NOT NULL,
 			updated_by TEXT NOT NULL,
 			created_at DATETIME,

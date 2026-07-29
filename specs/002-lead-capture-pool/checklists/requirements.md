@@ -1,4 +1,4 @@
-# Specification Quality Checklist: 线索管理
+# Specification Quality Checklist: 线索采集池
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-01-19

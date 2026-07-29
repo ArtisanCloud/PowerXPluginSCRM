@@ -31,13 +31,9 @@ type defaultRoleSeed struct {
 	ScopeType   string
 }
 
-func SeedLocalAdmin(ctx context.Context, db *gorm.DB, cfg *config.Config, mode IAMMode) error {
-	if mode != IAMModeLocal {
+func SeedLocalAdmin(ctx context.Context, db *gorm.DB, cfg *config.Config, mode ProviderMode) error {
+	if mode != ProviderModeLocal {
 		log.Printf("[iam] skip local admin seed (mode=%s)", mode)
-		return nil
-	}
-	if reason, ok := delegatedModeOverride(); ok {
-		log.Printf("[iam] %s indicates delegated mode, skip local admin seed", reason)
 		return nil
 	}
 	if db == nil {
@@ -204,21 +200,6 @@ func SeedLocalAdmin(ctx context.Context, db *gorm.DB, cfg *config.Config, mode I
 		}
 		return nil
 	})
-}
-
-func delegatedModeOverride() (string, bool) {
-	if mode := strings.ToLower(strings.TrimSpace(resolveConfigValue(os.Getenv("IAM_MODE"), os.Getenv("IAMMode")))); mode != "" {
-		switch mode {
-		case "delegated":
-			return "IAMMode", true
-		case "local":
-			return "", false
-		}
-	}
-	if strings.TrimSpace(os.Getenv("POWERX_PROXY")) == "1" {
-		return "POWERX_PROXY", true
-	}
-	return "", false
 }
 
 func loadSeedOptionsFromEnv() (SeedOptions, []string) {

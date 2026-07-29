@@ -312,12 +312,12 @@ func (r *Router) buildRBAC() *middleware.RBACConfig {
 
 func shouldDelegateToPowerX(cfg *config.Config) bool {
 	if cfg != nil && cfg.Context != nil {
-		switch strings.ToLower(strings.TrimSpace(cfg.Context.IAMMode)) {
+		switch strings.ToLower(strings.TrimSpace(cfg.Context.ProviderMode)) {
 		case "delegated":
 			return true
 		case "local":
 			return false
 		}
 	}
-	return os.Getenv("POWERX_PROXY") == "1"
+	return false
 }

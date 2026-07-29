@@ -19,7 +19,7 @@ func RequestTrace() gin.HandlerFunc {
 	}
 
 	mode := requestMode()
-	iamMode := iamModeFromEnv()
+	providerMode := providerModeFromEnv()
 	return func(c *gin.Context) {
 		start := time.Now()
 
@@ -28,9 +28,9 @@ func RequestTrace() gin.HandlerFunc {
 		traceID := traceIdentifier(c)
 		tenantCtx, _ := authx.GetTenantContext(c)
 
-		log.Printf("[PLUGIN-REQ-TRACE] stage=begin mode=%s iam_mode=%s method=%s path=%s auth=%s auth.head=%s tenant_uuid=%s user_id=%d user_uuid=%s trace=%s ip=%s ua=%s",
+		log.Printf("[PLUGIN-REQ-TRACE] stage=begin mode=%s provider_mode=%s method=%s path=%s auth=%s auth.head=%s tenant_uuid=%s user_id=%d user_uuid=%s trace=%s ip=%s ua=%s",
 			mode,
-			iamMode,
+			providerMode,
 			c.Request.Method,
 			c.Request.URL.Path,
 			authMode,
@@ -53,9 +53,9 @@ func RequestTrace() gin.HandlerFunc {
 			authMode = "bearer(validated)"
 		}
 
-		log.Printf("[PLUGIN-REQ-TRACE] stage=end mode=%s iam_mode=%s status=%d latency=%s auth=%s auth.head=%s tenant_uuid=%s user_id=%d user_uuid=%s trace=%s",
+		log.Printf("[PLUGIN-REQ-TRACE] stage=end mode=%s provider_mode=%s status=%d latency=%s auth=%s auth.head=%s tenant_uuid=%s user_id=%d user_uuid=%s trace=%s",
 			mode,
-			iamMode,
+			providerMode,
 			status,
 			latency,
 			authMode,
@@ -95,17 +95,14 @@ func detectAuth(c *gin.Context) (mode, preview string) {
 	return "none", ""
 }
 
-func iamModeFromEnv() string {
-	switch strings.ToLower(strings.TrimSpace(resolveConfigValue(os.Getenv("IAM_MODE"), os.Getenv("IAMMode")))) {
+func providerModeFromEnv() string {
+	switch strings.ToLower(strings.TrimSpace(resolveConfigValue(os.Getenv("POWERX_PROVIDER_MODE")))) {
 	case "delegated":
 		return "delegated"
 	case "local":
 		return "local"
 	default:
-		if strings.TrimSpace(os.Getenv("POWERX_PROXY")) == "1" {
-			return "delegated"
-		}
-		return "local"
+		return "unset"
 	}
 }
 

@@ -14,7 +14,7 @@ import (
 
 const defaultLocalIAMSecretFile = "tmp/local-iam-secret.key"
 
-// EnsureLocalIAMSecret makes sure local IAM mode reuses a stable HMAC secret across restarts.
+// EnsureLocalIAMSecret makes sure local provider mode reuses a stable HMAC secret across restarts.
 // When context.hmac_secret is empty, the helper loads it from PLUGIN_LOCAL_IAM_SECRET_FILE or
 // generates a random 32-byte hex string and persists it to disk.
 func EnsureLocalIAMSecret(cfg *config.Config) error {

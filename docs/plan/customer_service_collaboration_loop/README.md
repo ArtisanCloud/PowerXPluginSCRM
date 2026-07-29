@@ -1,6 +1,6 @@
-# 客户成功与运营协作闭环模块规划总览
+# 客服接待与外部工单协作模块规划总览
 
-> 适用范围：PowerX SCRM 插件的客户成功与运营协作闭环业务域，场景依据 `../../../../PowerXDocs/docs/meta/scenarios/scrm/customer_service_collaboration_loop` 目录。
+> 适用范围：PowerX SCRM 插件的企微客服接待、会话桥接与外部工单引用业务域。客户成功主流程与工单主数据由外部 CS/Ticket 系统承载。
 
 ## 1. 文档目的
 - 汇总该业务域的主用例与子场景，形成统一规划入口。
@@ -10,8 +10,8 @@
 ## 2. 场景清单
 | 序号 | 主用例 | 场景文档 |
 | --- | --- | --- |
-| 1 | 客户成功与运营协作 | `../../../../PowerXDocs/docs/meta/scenarios/scrm/customer_service_collaboration_loop/cs_ops_collaboration/primary.md` |
-| 2 | 企微客服接待与工单同步 | `../../../../PowerXDocs/docs/meta/scenarios/scrm/customer_service_collaboration_loop/wecom_service_desk_ticket_sync/primary.md` |
+| 1 | 企微客服接待与会话桥接 | `../../../../PowerXDocs/docs/meta/scenarios/scrm/customer_service_collaboration_loop/wecom_service_desk_ticket_sync/primary.md` |
+| 2 | 外部工单摘要引用 | `../../../../PowerXDocs/docs/meta/scenarios/scrm/customer_service_collaboration_loop/cs_ops_collaboration/primary.md` |
 
 ## 3. 角色与价值
 | 角色 | 价值/诉求 |
@@ -22,13 +22,15 @@
 | 数据/技术 | 数据可用、接口稳定、易于集成 |
 
 ## 4. 关键能力与规划要点
-- 客户成功与运营协作
-- 企微客服接待与工单同步
+- 企微客服接待与会话桥接
+- 外部工单创建/同步请求
+- 线索或会话详情中的外部工单摘要与跳转
+- 不在 SCRM 内维护工单主对象、SLA、派单、关单和客服绩效
 
 ## 5. 依赖与集成
 - 统一身份/权限与审计日志能力。
 - 社交平台/企业微信接口与消息能力（如有）。
-- CRM/订单/会员/内容等业务系统或数据中台对接。
+- 外部 CS/Ticket/CRM 系统对接。
 - 数据指标与标签体系的统一治理与同步。
 
 ## 6. 迭代建议

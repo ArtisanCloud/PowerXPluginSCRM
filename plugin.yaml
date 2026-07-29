@@ -15,10 +15,11 @@ runtime:
   kind: process
   entry: backend/bin/plugin
   env:
-    POWERX_BIND_ADDR: ${POWERX_BIND_ADDR:-:8086}
+    POWERX_BIND_ADDR: ":__POWERX_DYNAMIC_PORT__"
+    POWERX_PROVIDER_MODE: "delegated"
     POWERX_PROXY: "1"
-    IAMMode: "delegated"
     POWERX_PLUGIN_ID: "com.powerx.plugins.scrm"
+    POWERX_PLUGIN_REGISTRATION_MODE: "installed"
     POWERX_SECURITY_JWT_ISSUER: "powerx-auth"
     POWERX_SECURITY_JWT_AUDIENCE: "plugin:com.powerx.plugins.scrm"
     POWERX_SECURITY_JWT_SECRET: "${POWERX_AUTH_JWTSECRET}"
@@ -29,7 +30,7 @@ runtime:
 
 backend:
   entry: backend/bin/plugin
-  port: 8086
+  port: 0
   health: /healthz
 
 endpoints:
@@ -51,8 +52,10 @@ frontend:
       env:
         NODE_ENV: production
         NITRO_HOST: 127.0.0.1
+        POWERX_PROVIDER_MODE: "delegated"
+        NUXT_PUBLIC_POWERX_PROVIDER_MODE: "delegated"
+        NUXT_PUBLIC_POWERX_PROXY: "1"
         POWERX_PROXY: "1"
-        IAMMode: "delegated"
       health:
         http: /healthz
         interval: 5s

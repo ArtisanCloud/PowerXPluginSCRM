@@ -169,16 +169,19 @@ func main() {
 		}
 	}
 
-	iamResolver := pluginbootstrap.NewIAMResolver(cfg)
+	providerResolver, err := pluginbootstrap.NewProviderResolver(cfg)
+	if err != nil {
+		logger.WithError(err).Fatal("Failed to resolve provider mode")
+	}
 	logger.WithFields(logger.Fields{
-		"mode":   iamResolver.Mode(),
-		"source": iamResolver.Source(),
-	}).Info("IAM mode resolved")
-	auth.ObserveMode(iamResolver.Mode().String())
+		"mode":   providerResolver.Mode(),
+		"source": providerResolver.Source(),
+	}).Info("provider mode resolved")
+	auth.ObserveMode(providerResolver.Mode().String())
 
 	var authClient *authproxy.DelegatedClient
 	var localIAM iamservice.IAMDirectory
-	if iamResolver.Mode() == iamservice.IAMModeDelegated {
+	if providerResolver.Mode() == iamservice.ProviderModeDelegated {
 		client, err := authproxy.NewDelegatedClient("", "")
 		if err != nil {
 			logger.WithError(err).Warn("Failed to initialize delegated auth proxy; auth endpoints will be unavailable")
@@ -284,8 +287,8 @@ func main() {
 		LeadCaptureMetrics:  leadmetrics.NewMetrics(),
 		EventEmitter:        bridgeEmitter,
 		WSBusHub:            wsHub,
-		IAMMode:             iamResolver.Mode(),
-		IAMModeSource:       iamResolver.Source(),
+		ProviderMode:        providerResolver.Mode(),
+		ProviderModeSource:  providerResolver.Source(),
 		AuthProxy:           authClient,
 		IAMDirectory:        localIAM,
 	}

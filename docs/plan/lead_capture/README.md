@@ -16,6 +16,7 @@
 - 第三方导入接口：`docs/plan/lead_capture/external_intake/README.md`
 - 企业微信线索拉取：`docs/plan/lead_capture/wecom_lead_sync/README.md`
 - 企业微信对话桥接（员工/App/Bot）：`docs/plan/lead_capture/wecom_conversation_bridge/README.md`
+- CRM 交接：`docs/plan/lead_capture/crm_handoff/README.md`
 
 
 ## 上游场景映射（已合并）
@@ -35,11 +36,19 @@
 8) 质量控制（quality）
 9) 企业微信线索拉取（wecom_lead_sync）
 10) 企业微信对话桥接（wecom_conversation_bridge）
+11) CRM 交接（crm_handoff）
 
 ## 依赖关系
 - social_channel_governance：渠道账号与应用配置
 - IAM：用户/成员体系（负责人、分配）
-- customer_service_collaboration_loop：转化与后续协作
+- CRM/Sales：承接商机、销售管道、报价、合同、回款等销售闭环
+- customer_service_collaboration_loop：接待、服务协作与后续客户运营
+
+## 边界约束
+- 线索模块可以维护采集、归因、去重、分配、质量、生命周期与交接状态。
+- 线索模块不得内建商机主对象、销售管道、合同、回款或预测模型。
+- 达到可销售状态的线索必须通过 CRM 交接契约移交，交接成功后仅记录外部引用与状态摘要。
+- 外部 CRM 返回失败时必须显示明确错误与可重试动作，不允许静默创建本地替代商机。
 
 ## Spec-Kit 规范对齐
 所有子功能必须遵循 `.specify/memory` 规则集：
