@@ -1,6 +1,6 @@
-# 社交交易与分销模块规划总览
+# 社交交易事件与外部订单引用模块规划总览
 
-> 适用范围：PowerX SCRM 插件的社交交易与分销业务域，场景依据 `../../../../PowerXDocs/docs/meta/scenarios/scrm/social_commerce_distribution` 目录。
+> 适用范围：PowerX SCRM 插件的社交触达、交易事件接入与外部订单/会员/分销对象引用。支付、订单、商城、分销和核销主数据由外部 Commerce/Order/Member 系统承载。
 
 ## 1. 文档目的
 - 汇总该业务域的主用例与子场景，形成统一规划入口。
@@ -10,10 +10,10 @@
 ## 2. 场景清单
 | 序号 | 主用例 | 场景文档 |
 | --- | --- | --- |
-| 1 | 群内支付与优惠核销 | `../../../../PowerXDocs/docs/meta/scenarios/scrm/social_commerce_distribution/group_payment_coupon_redemption/primary.md` |
+| 1 | 群内支付结果事件接入 | `../../../../PowerXDocs/docs/meta/scenarios/scrm/social_commerce_distribution/group_payment_coupon_redemption/primary.md` |
 | 2 | 私域个性化推荐 | `../../../../PowerXDocs/docs/meta/scenarios/scrm/social_commerce_distribution/personalized_social_commerce_recommendations/primary.md` |
-| 3 | 社交分销与合伙人 | `../../../../PowerXDocs/docs/meta/scenarios/scrm/social_commerce_distribution/social_affiliate_partner_selling/primary.md` |
-| 4 | 企微小程序商城下单 | `../../../../PowerXDocs/docs/meta/scenarios/scrm/social_commerce_distribution/wecom_mini_program_commerce/primary.md` |
+| 3 | 外部分销关系摘要引用 | `../../../../PowerXDocs/docs/meta/scenarios/scrm/social_commerce_distribution/social_affiliate_partner_selling/primary.md` |
+| 4 | 企微小程序订单事件接入 | `../../../../PowerXDocs/docs/meta/scenarios/scrm/social_commerce_distribution/wecom_mini_program_commerce/primary.md` |
 
 ## 3. 角色与价值
 | 角色 | 价值/诉求 |
@@ -24,15 +24,16 @@
 | 数据/技术 | 数据可用、接口稳定、易于集成 |
 
 ## 4. 关键能力与规划要点
-- 群内支付与优惠核销
+- 群内支付结果事件接入
 - 私域个性化推荐
-- 社交分销与合伙人
-- 企微小程序商城下单
+- 外部分销关系摘要引用
+- 企微小程序订单事件接入
+- 不在 SCRM 内维护支付、订单、商城、核销、分销结算主数据
 
 ## 5. 依赖与集成
 - 统一身份/权限与审计日志能力。
 - 社交平台/企业微信接口与消息能力（如有）。
-- CRM/订单/会员/内容等业务系统或数据中台对接。
+- Commerce/Order/Member/CRM 等外部系统对接。
 - 数据指标与标签体系的统一治理与同步。
 
 ## 6. 迭代建议

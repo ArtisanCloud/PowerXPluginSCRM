@@ -1,6 +1,6 @@
-# 系统集成与数据流转模块规划总览
+# 外部系统事件与数据引用模块规划总览
 
-> 适用范围：PowerX SCRM 插件的系统集成与数据流转业务域，场景依据 `../../../../PowerXDocs/docs/meta/scenarios/scrm/system_integration_data_orchestration` 目录。
+> 适用范围：PowerX SCRM 插件的外部系统事件接入、摘要引用和触达条件编排。CRM、库存、会员、订单、履约主数据由外部系统承载。
 
 ## 1. 文档目的
 - 汇总该业务域的主用例与子场景，形成统一规划入口。
@@ -10,10 +10,10 @@
 ## 2. 场景清单
 | 序号 | 主用例 | 场景文档 |
 | --- | --- | --- |
-| 1 | CRM 与 SCRM 双向同步 | `../../../../PowerXDocs/docs/meta/scenarios/scrm/system_integration_data_orchestration/crm_scrm_bidirectional_sync/primary.md` |
-| 2 | 库存与推荐联动 | `../../../../PowerXDocs/docs/meta/scenarios/scrm/system_integration_data_orchestration/inventory_recommendation_orchestration/primary.md` |
-| 3 | 会员等级与权益同步 | `../../../../PowerXDocs/docs/meta/scenarios/scrm/system_integration_data_orchestration/membership_entitlement_sync/primary.md` |
-| 4 | 订单与履约事件推送 | `../../../../PowerXDocs/docs/meta/scenarios/scrm/system_integration_data_orchestration/order_fulfillment_event_relay/primary.md` |
+| 1 | CRM 交接与状态摘要 | `../../../../PowerXDocs/docs/meta/scenarios/scrm/system_integration_data_orchestration/crm_scrm_bidirectional_sync/primary.md` |
+| 2 | 库存摘要与推荐条件引用 | `../../../../PowerXDocs/docs/meta/scenarios/scrm/system_integration_data_orchestration/inventory_recommendation_orchestration/primary.md` |
+| 3 | 会员等级与权益摘要引用 | `../../../../PowerXDocs/docs/meta/scenarios/scrm/system_integration_data_orchestration/membership_entitlement_sync/primary.md` |
+| 4 | 订单与履约事件接入 | `../../../../PowerXDocs/docs/meta/scenarios/scrm/system_integration_data_orchestration/order_fulfillment_event_relay/primary.md` |
 
 ## 3. 角色与价值
 | 角色 | 价值/诉求 |
@@ -24,15 +24,16 @@
 | 数据/技术 | 数据可用、接口稳定、易于集成 |
 
 ## 4. 关键能力与规划要点
-- CRM 与 SCRM 双向同步
-- 库存与推荐联动
-- 会员等级与权益同步
-- 订单与履约事件推送
+- CRM 交接与状态摘要
+- 库存摘要与推荐条件引用
+- 会员等级与权益摘要引用
+- 订单与履约事件接入
+- 不在 SCRM 内维护 CRM、库存、会员、订单、履约主数据
 
 ## 5. 依赖与集成
 - 统一身份/权限与审计日志能力。
 - 社交平台/企业微信接口与消息能力（如有）。
-- CRM/订单/会员/内容等业务系统或数据中台对接。
+- 外部 CRM/订单/会员/内容系统的摘要、事件或能力引用；不得在 SCRM 内复制其主数据。
 - 数据指标与标签体系的统一治理与同步。
 
 ## 6. 迭代建议

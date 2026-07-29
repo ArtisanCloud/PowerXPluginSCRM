@@ -1,6 +1,6 @@
-# Tasks: 线索管理
+# Tasks: 线索采集池
 
-**Input**: Design documents from `/specs/002-lead-management/`
+**Input**: Design documents from `/specs/002-lead-capture-pool/`
 **Prerequisites**: plan.md (required), spec.md (required for user stories), research.md, data-model.md, contracts/
 
 **Tests**: 本次规格未强制要求测试用例，任务列表不包含测试项。
@@ -53,7 +53,7 @@
 - [x] T107 [US1] 实现 Handler：`backend/internal/transport/http/admin/lead_capture/lead_handler.go`
 - [x] T108 [US1] 将路由挂载到 admin router 并补充 RBAC
 - [x] T113 [US1] 校验规则落地（姓名/手机号/邮箱至少一项）：`backend/internal/services/admin/lead_capture/lead_service.go` + DTO 校验
-- [x] T114 [US1] 创建默认状态 new：`backend/internal/services/admin/lead_capture/lead_service.go`
+- [x] T114 [US1] 创建默认状态 captured：`backend/internal/services/admin/lead_capture/lead_service.go`
 - [x] T109 [P] [US1] 前端 API Client：`web-admin/app/composables/api/services/leadCapture.ts`
 - [x] T110 [P] [US1] 前端 Store：`web-admin/app/stores/scrm/lead_capture/lead_store.ts`
 - [x] T111 [US1] 前端列表页：`web-admin/app/pages/scrm/lead_capture/index.vue`
@@ -72,9 +72,9 @@
 
 ---
 
-## Phase 4: User Story 2 - 分配与跟进状态 (Priority: P2)
+## Phase 4: User Story 2 - 分配与采集池状态 (Priority: P2)
 
-**Goal**: 支持负责人分配与状态流转，并记录历史
+**Goal**: 支持负责人分配与采集池状态流转，并记录历史
 
 **Independent Test**: 在详情页分配负责人并更新状态，历史可追溯
 
@@ -87,7 +87,8 @@
 - [x] T205 [US2] Handler 扩展：`backend/internal/transport/http/admin/lead_capture/lead_handler.go`（assign/status endpoints）
 - [x] T206 [US2] 前端详情页增加“负责人选择 + 状态变更 + 历史记录”
 - [x] T207 [US2] 负责人为租户 member 校验：`backend/internal/services/admin/lead_capture/lead_service.go`
-- [x] T208 [US2] 状态机约束校验：`backend/internal/services/admin/lead_capture/lead_service.go`
+- [x] T208 [US2] 采集池状态机约束校验：`backend/internal/services/admin/lead_capture/lead_service.go`
+- [ ] T209 [US2] 去除 SCRM 内 MQL/SQL、商机、合同、回款状态依赖，仅保留 CRM 交接外部引用
 
 **Checkpoint**: US1 与 US2 可独立验收
 
@@ -112,7 +113,7 @@
 ## Phase N: Polish & Cross-Cutting Concerns
 
 - [x] T901 [P] 更新文档与示例：`docs/plan/lead_capture/*`
-- [x] T902 校验 quickstart：`specs/002-lead-management/quickstart.md`
+- [x] T902 校验 quickstart：`specs/002-lead-capture-pool/quickstart.md`
 - [x] T903 [P] 增加线索创建/分配/状态变更的审计与事件记录：`backend/internal/observability/lead_capture/`
 - [x] T904 性能基线验证（列表查询 p95 < 300ms）：`backend/internal/services/admin/lead_capture/` + 简单性能记录说明
 

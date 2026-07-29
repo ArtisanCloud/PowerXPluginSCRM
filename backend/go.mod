@@ -7,7 +7,7 @@ replace github.com/ArtisanCloud/PowerWeChat/v3 => /private/var/www/html/ArtisanC
 require (
 	github.com/ArtisanCloud/PowerLibs/v3 v3.3.2
 	github.com/ArtisanCloud/PowerWeChat/v3 v3.4.38
-	github.com/ArtisanCloud/PowerXPlugin/framework/backend/go v0.0.18
+	github.com/ArtisanCloud/PowerXPlugin/framework/backend/go v0.0.20
 	github.com/gin-gonic/gin v1.10.1
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/uuid v1.6.0
@@ -29,7 +29,7 @@ require (
 	github.com/gin-contrib/sse v1.1.0
 	github.com/jackc/pgconn v1.14.3
 	github.com/stretchr/testify v1.11.1
-	golang.org/x/crypto v0.44.0
+	golang.org/x/crypto v0.46.0
 	google.golang.org/protobuf v1.36.10
 	modernc.org/sqlite v1.42.2
 )
@@ -92,6 +92,7 @@ require (
 	golang.org/x/sys v0.39.0 // indirect
 	golang.org/x/text v0.32.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251022142026-3a174f9686a8 // indirect
+	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gorm.io/driver/mysql v1.6.0 // indirect
 	modernc.org/libc v1.66.10 // indirect

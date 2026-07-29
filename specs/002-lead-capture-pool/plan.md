@@ -1,11 +1,11 @@
-# Implementation Plan: 线索管理
+# Implementation Plan: 线索采集池
 
-**Branch**: `002-lead-management` | **Date**: 2026-01-19 | **Spec**: [specs/002-lead-management/spec.md](spec.md)
-**Input**: Feature specification from `/specs/002-lead-management/spec.md`
+**Branch**: `002-lead-capture-pool` | **Date**: 2026-01-19 | **Spec**: [specs/002-lead-capture-pool/spec.md](spec.md)
+**Input**: Feature specification from `/specs/002-lead-capture-pool/spec.md`
 
 ## Summary
 
-本功能交付“线索管理”最小闭环：线索入库与可见、负责人分配与状态流转、去重与合并规则落地，并保证来源可追溯与历史记录可查询。
+本功能交付“SCRM 线索采集池”最小闭环：社交线索入池与可见、负责人分配与采集池状态流转、去重与合并规则落地，并保证来源可追溯、历史记录可查询、达到条件后可交接外部 CRM。
 
 ## Technical Context
 
@@ -35,7 +35,7 @@
 ### Documentation (this feature)
 
 ```text
-specs/002-lead-management/
+specs/002-lead-capture-pool/
 ├── plan.md              # This file
 ├── research.md          # Phase 0 output
 ├── data-model.md        # Phase 1 output
@@ -67,9 +67,10 @@ web-admin/
 ## Phase 0: Outline & Research
 
 ### Research Tasks
-- 线索状态机（new -> assigned -> in_progress -> converted/closed）的最小可行流转与边界策略
+- 采集池状态机（captured -> routed -> engaging -> qualified_for_handoff -> handoff_pending -> handoff_accepted）的最小可行流转与边界策略
 - 线索去重合并的字段保留策略与审计规则
 - 线索负责人选择与 IAM member 绑定约束（租户隔离）
+- CRM 交接边界：本功能只保存外部引用，不创建本地商机、合同、回款
 
 ### research.md 结构
 - Decision / Rationale / Alternatives
@@ -81,7 +82,7 @@ web-admin/
 - 字段、关系、唯一性规则、索引与状态流转
 
 ### contracts/
-- 管理端 CRUD（线索列表、详情、创建、分配、状态变更）
+- 管理端 CRUD（采集池列表、详情、创建、分配、状态变更）
 - 去重行为与合并事件
 
 ### quickstart.md
