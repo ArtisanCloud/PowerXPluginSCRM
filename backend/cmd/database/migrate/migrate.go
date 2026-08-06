@@ -11,7 +11,6 @@ import (
 	domainmodels "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/domain/models"
 	domainAcquisitionModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/domain/models/acquisition"
 	domainLeadCaptureModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/domain/models/lead_capture"
-	domainOpportunityModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/domain/models/opportunity"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models"
 	adminconsoleModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/admin_console"
 	customerModel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/customer"
@@ -94,6 +93,7 @@ var businessTables = []interface{}{
 	&leadCaptureModel.Lead{},
 	&leadCaptureModel.LeadSource{},
 	&leadCaptureModel.LeadActivity{},
+	&leadCaptureModel.LeadAttachment{},
 	&leadCaptureModel.LeadAssignment{},
 	&leadCaptureModel.LeadStatusHistory{},
 	&leadCaptureModel.LeadSyncTask{},
@@ -103,6 +103,11 @@ var businessTables = []interface{}{
 	&leadCaptureModel.LeadRealtimeProjection{},
 	&leadCaptureModel.LeadSourceCatalog{},
 	&leadCaptureModel.ChannelRule{},
+	&leadCaptureModel.LeadBridgeMapping{},
+	&leadCaptureModel.LeadHandoff{},
+	&leadCaptureModel.HandoffAttempt{},
+	&leadCaptureModel.LeadIdentitySyncState{},
+	&leadCaptureModel.LeadBridgeConflict{},
 	&domainLeadCaptureModel.ChannelCode{},
 	&domainLeadCaptureModel.CodeWelcomeConfig{},
 	&domainLeadCaptureModel.CodeWelcomeSyncAttempt{},
@@ -119,16 +124,6 @@ var businessTables = []interface{}{
 	&domainAcquisitionModel.GroupTagDefinition{},
 	&domainAcquisitionModel.GroupTagBinding{},
 	&domainAcquisitionModel.GroupTagRuleRun{},
-	&domainOpportunityModel.OpportunityRecord{},
-	&domainOpportunityModel.OpportunityActivity{},
-	&domainOpportunityModel.OpportunityLineItem{},
-	&domainOpportunityModel.OpportunityTask{},
-	&domainOpportunityModel.OpportunityContract{},
-	&domainOpportunityModel.OpportunityPayment{},
-	&domainOpportunityModel.OpportunityPipelineGroup{},
-	&domainOpportunityModel.OpportunityStageConfig{},
-	&domainOpportunityModel.OpportunityPipelineTemplate{},
-	&domainOpportunityModel.OpportunityPipelineTemplateStage{},
 }
 
 var iamTables = []interface{}{

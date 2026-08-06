@@ -15,7 +15,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func TestStaffWelcomeSyncRetryIntegration_ManualRequiredAfterRetries(t *testing.T) {
+func TestStaffWelcomeSyncRetryIntegration_ReadyAfterConfigSync(t *testing.T) {
 	db := openStaffWelcomeIntegrationDB(t, "staff_welcome_sync_retry_integration")
 	tenantUUID := "00000000-0000-0000-0000-000000000411"
 	staffCodeUUID := "33333333-3333-4333-8333-333333333411"
@@ -35,18 +35,19 @@ func TestStaffWelcomeSyncRetryIntegration_ManualRequiredAfterRetries(t *testing.
 
 	result, err := svc.TriggerSync(context.Background(), tenantUUID, staffCodeUUID, "")
 	require.NoError(t, err)
-	require.Equal(t, acqmodel.WelcomeSyncStatusManualRequired, result.SyncStatus)
-	require.Equal(t, 3, result.AttemptNo)
+	require.Equal(t, acqmodel.WelcomeSyncStatusSuccess, result.SyncStatus)
+	require.Equal(t, 1, result.AttemptNo)
+	require.Contains(t, result.Message, "welcome_code")
 
 	status, err := svc.GetSyncStatus(context.Background(), tenantUUID, staffCodeUUID)
 	require.NoError(t, err)
-	require.Equal(t, acqmodel.WelcomeSyncStatusManualRequired, status.SyncStatus)
-	require.Equal(t, 3, status.LatestAttemptNo)
-	require.Contains(t, status.LastSyncError, "not implemented")
+	require.Equal(t, acqmodel.WelcomeSyncStatusSuccess, status.SyncStatus)
+	require.Equal(t, 1, status.LatestAttemptNo)
+	require.Empty(t, status.LastSyncError)
 
 	attempts, err := repos.StaffWelcomeAttempt.ListByStaffCodeUUID(context.Background(), tenantUUID, staffCodeUUID, 10)
 	require.NoError(t, err)
-	require.Len(t, attempts, 3)
+	require.Len(t, attempts, 1)
 }
 
 func openStaffWelcomeIntegrationDB(t *testing.T, name string) *gorm.DB {

@@ -48,7 +48,7 @@ func TestLeadCaptureChannelFactoryIntegration_SelectAdapterByChannelAppType(t *t
 		DisplayName:     "企微主账号",
 		Status:          socialmodel.ChannelAccountStatusConnected,
 		OrgSyncDefault:  true,
-		OwnerMemberUUID: "owner-001",
+		OwnerMemberUUID: "00000000-0000-0000-0000-000000000101",
 	}).Error)
 	require.NoError(t, db.Create(&socialmodel.ChannelAccount{
 		AccountUUID:     accountMini,
@@ -59,7 +59,7 @@ func TestLeadCaptureChannelFactoryIntegration_SelectAdapterByChannelAppType(t *t
 		DisplayName:     "企微应用账号",
 		Status:          socialmodel.ChannelAccountStatusConnected,
 		OrgSyncDefault:  true,
-		OwnerMemberUUID: "owner-001",
+		OwnerMemberUUID: "00000000-0000-0000-0000-000000000101",
 	}).Error)
 
 	taskRepo := leadrepo.NewLeadSyncTaskRepository(db)
@@ -79,7 +79,7 @@ func TestLeadCaptureChannelFactoryIntegration_SelectAdapterByChannelAppType(t *t
 		AppType:    "wecom",
 	})
 	require.NoError(t, err)
-	require.Equal(t, "success", taskA.Status)
+	require.Equal(t, "success", taskA.Status, taskA.ErrorMessage)
 	require.Equal(t, 1, taskA.StatsCreated)
 
 	taskB, err := svc.TriggerSync(context.Background(), leadsvc.TriggerSyncRequest{

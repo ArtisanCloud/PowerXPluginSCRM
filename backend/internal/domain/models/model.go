@@ -19,16 +19,6 @@ const (
 	TableAcquisitionGroupTagDefinitions      = "acquisition_group_tag_definitions"
 	TableAcquisitionGroupTagBindings         = "acquisition_group_tag_bindings"
 	TableAcquisitionGroupTagRuleRuns         = "acquisition_group_tag_rule_runs"
-	TableOpportunityRecords                  = "opportunity_records"
-	TableOpportunityActivities               = "opportunity_activities"
-	TableOpportunityLineItems                = "opportunity_line_items"
-	TableOpportunityTasks                    = "opportunity_tasks"
-	TableOpportunityContracts                = "opportunity_contracts"
-	TableOpportunityPayments                 = "opportunity_payments"
-	TableOpportunityPipelineGroups           = "opportunity_pipeline_groups"
-	TableOpportunityStageConfigs             = "opportunity_stage_configs"
-	TableOpportunityPipelineTemplates        = "opportunity_pipeline_templates"
-	TableOpportunityPipelineTemplateStages   = "opportunity_pipeline_template_stages"
 )
 
 // S delegates to entity schema helper so domain models follow the same schema prefix.

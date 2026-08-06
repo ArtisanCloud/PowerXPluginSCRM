@@ -11,7 +11,6 @@ import (
 	adminlead "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/transport/http/admin/lead_capture"
 	adminmarketplace "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/transport/http/admin/marketplace"
 	adminoperations "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/transport/http/admin/operations"
-	adminopportunity "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/transport/http/admin/opportunity"
 	adminorgsync "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/transport/http/admin/org_sync"
 	adminruntime "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/transport/http/admin/runtime_ops"
 	adminsecurity "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/transport/http/admin/security"
@@ -41,7 +40,6 @@ func RegisterAPIRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		AdminSocial.RegisterRoutes(adminTenantGroup(admin, deps), deps)
 		adminlead.RegisterRoutes(adminTenantGroup(admin, deps), deps)
 		adminacquisition.RegisterRoutes(adminTenantGroup(admin, deps), deps)
-		adminopportunity.RegisterRoutes(adminTenantGroup(admin, deps), deps)
 		adminorgsync.RegisterRoutes(adminTenantGroup(admin, deps), deps)
 		adminiam.RegisterRoutes(admin, deps)
 	}

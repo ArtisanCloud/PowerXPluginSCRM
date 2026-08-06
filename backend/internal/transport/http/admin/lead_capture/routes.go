@@ -157,6 +157,10 @@ func RegisterRoutes(rg *gin.RouterGroup, deps *app.Deps) {
 		group.GET("/:lead_id/assignments", handler.ListAssignments)
 		group.GET("/:lead_id/status-history", handler.ListStatusHistory)
 		group.GET("/:lead_id/activities", handler.ListActivities)
+		group.POST("/:lead_id/activities", handler.RecordActivity)
+		group.GET("/:lead_id/activities/:activity_id/attachments", handler.ListActivityAttachments)
+		group.POST("/:lead_id/activities/:activity_id/attachments", handler.UploadActivityAttachment)
+		group.GET("/:lead_id/attachments/:attachment_id/download", handler.DownloadAttachment)
 		group.GET("/:lead_id/sources", handler.ListSourceEvents)
 
 		group.POST("/wecom/sync", wecomSyncHandler.TriggerSync)

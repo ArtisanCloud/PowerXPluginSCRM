@@ -45,7 +45,7 @@ func TestLeadCaptureWeComSyncIntegration_TenantIsolationAndStats(t *testing.T) {
 		DisplayName:     "租户A账号",
 		Status:          socialmodel.ChannelAccountStatusConnected,
 		OrgSyncDefault:  true,
-		OwnerMemberUUID: "owner-a",
+		OwnerMemberUUID: "00000000-0000-0000-0000-000000000131",
 	}).Error)
 	require.NoError(t, db.Create(&socialmodel.ChannelAccount{
 		AccountUUID:     accountB,
@@ -56,18 +56,19 @@ func TestLeadCaptureWeComSyncIntegration_TenantIsolationAndStats(t *testing.T) {
 		DisplayName:     "租户B账号",
 		Status:          socialmodel.ChannelAccountStatusConnected,
 		OrgSyncDefault:  true,
-		OwnerMemberUUID: "owner-b",
+		OwnerMemberUUID: "00000000-0000-0000-0000-000000000132",
 	}).Error)
 
 	require.NoError(t, db.Create(&leadmodel.Lead{
-		LeadUUID:      "33333333-3333-4333-8333-333333333333",
-		TenantUUID:    tenantA,
-		DisplayName:   "历史线索",
-		Phone:         "13800000002",
-		Email:         "",
-		Status:        leadmodel.LeadStatusNew,
-		SourceChannel: "wechat",
-		SourceAppType: "wecom",
+		LeadUUID:          "33333333-3333-4333-8333-333333333333",
+		TenantUUID:        tenantA,
+		DisplayName:       "历史线索",
+		Phone:             "13800000002",
+		Email:             "",
+		Status:            leadmodel.LeadStatusCaptured,
+		SourceChannel:     "wechat",
+		SourceAppType:     "wecom",
+		SourceAccountUUID: &accountA,
 	}).Error)
 
 	taskRepo := leadrepo.NewLeadSyncTaskRepository(db)
@@ -168,6 +169,15 @@ func createIntegrationTestSchema(db *gorm.DB) error {
 			source_channel TEXT,
 			source_app_type TEXT,
 			source_account_uuid TEXT,
+			created_at DATETIME,
+			updated_at DATETIME
+		);`,
+		`CREATE TABLE IF NOT EXISTS lead_capture_activities (
+			activity_uuid TEXT PRIMARY KEY,
+			lead_uuid TEXT NOT NULL,
+			tenant_uuid TEXT NOT NULL,
+			activity_type TEXT NOT NULL,
+			payload TEXT,
 			created_at DATETIME,
 			updated_at DATETIME
 		);`,

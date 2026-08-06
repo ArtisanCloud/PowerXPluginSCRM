@@ -47,7 +47,7 @@ func TestWeComSyncService_ProviderFallbackAndStatusFlow(t *testing.T) {
 		DisplayName:     "企微主账号",
 		Status:          socialmodel.ChannelAccountStatusConnected,
 		OrgSyncDefault:  true,
-		OwnerMemberUUID: "owner-001",
+		OwnerMemberUUID: "00000000-0000-0000-0000-000000000201",
 	}).Error)
 
 	taskRepo := leadrepo.NewLeadSyncTaskRepository(db)
@@ -88,7 +88,7 @@ func TestWeComSyncService_FailedThenRetryToQueued(t *testing.T) {
 		DisplayName:     "企微主账号",
 		Status:          socialmodel.ChannelAccountStatusConnected,
 		OrgSyncDefault:  true,
-		OwnerMemberUUID: "owner-001",
+		OwnerMemberUUID: "00000000-0000-0000-0000-000000000201",
 	}).Error)
 
 	taskRepo := leadrepo.NewLeadSyncTaskRepository(db)
@@ -129,7 +129,7 @@ func TestWeComSyncService_WriteExternalUserSourceTraceActivity(t *testing.T) {
 		DisplayName:     "企微主账号",
 		Status:          socialmodel.ChannelAccountStatusConnected,
 		OrgSyncDefault:  true,
-		OwnerMemberUUID: "owner-001",
+		OwnerMemberUUID: "00000000-0000-0000-0000-000000000201",
 	}).Error)
 
 	taskRepo := leadrepo.NewLeadSyncTaskRepository(db)
@@ -194,7 +194,7 @@ func TestWeComSyncService_PullAutoBindOwnerFromMemberBinding(t *testing.T) {
 		DisplayName:     "企微主账号",
 		Status:          socialmodel.ChannelAccountStatusConnected,
 		OrgSyncDefault:  true,
-		OwnerMemberUUID: "owner-001",
+		OwnerMemberUUID: "00000000-0000-0000-0000-000000000201",
 	}).Error)
 	require.NoError(t, db.Exec(
 		`INSERT INTO org_sync_member_bindings (member_binding_uuid, tenant_uuid, channel_account_uuid, main_member_id, external_member_id, sync_status, created_at, updated_at)
@@ -246,7 +246,7 @@ func TestWeComSyncService_UpsertSyncTraceActivity(t *testing.T) {
 		DisplayName:     "企微主账号",
 		Status:          socialmodel.ChannelAccountStatusConnected,
 		OrgSyncDefault:  true,
-		OwnerMemberUUID: "owner-001",
+		OwnerMemberUUID: "00000000-0000-0000-0000-000000000201",
 	}).Error)
 
 	taskRepo := leadrepo.NewLeadSyncTaskRepository(db)
@@ -317,7 +317,7 @@ func TestWeComSyncService_NoContactInfo_ShouldUpsertByExternalIdentity(t *testin
 		DisplayName:     "企微代开发账号",
 		Status:          socialmodel.ChannelAccountStatusConnected,
 		OrgSyncDefault:  true,
-		OwnerMemberUUID: "owner-001",
+		OwnerMemberUUID: "00000000-0000-0000-0000-000000000201",
 	}).Error)
 
 	taskRepo := leadrepo.NewLeadSyncTaskRepository(db)
@@ -373,7 +373,7 @@ func TestWeComSyncService_TriggerSyncAsync_ReturnQueuedThenFinish(t *testing.T) 
 		DisplayName:     "企微主账号",
 		Status:          socialmodel.ChannelAccountStatusConnected,
 		OrgSyncDefault:  true,
-		OwnerMemberUUID: "owner-001",
+		OwnerMemberUUID: "00000000-0000-0000-0000-000000000201",
 	}).Error)
 
 	taskRepo := leadrepo.NewLeadSyncTaskRepository(db)

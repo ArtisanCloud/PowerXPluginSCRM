@@ -12,14 +12,11 @@
               "dashboard": "触点看板",
               "accounts": "账号接入"
             },
-            "leads_opportunity": {
-              "title": "线索与商机"
+            "lead_operations": {
+              "title": "线索运营"
             },
             "leads": {
-              "title": "线索管理"
-            },
-            "opportunity": {
-              "title": "商机管理"
+              "title": "线索采集池"
             },
             "channel_org_tags": {
               "title": "渠道组织与标签"

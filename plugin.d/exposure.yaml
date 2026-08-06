@@ -127,114 +127,6 @@ exposure:
       rbac: scrm.leads:write
       type: rest
     - auth: jwt
-      capability: com.powerx.plugins.scrm.opportunity.read
-      entrypoint: ${POWERX_PLUGIN_HTTP_BASE:-/api/v1}/admin/opportunity/dashboard
-      method: GET
-      rbac: scrm.opportunity:read
-      type: rest
-    - auth: jwt
-      capability: com.powerx.plugins.scrm.opportunity.read
-      entrypoint: ${POWERX_PLUGIN_HTTP_BASE:-/api/v1}/admin/opportunity/records
-      method: GET
-      rbac: scrm.opportunity:read
-      type: rest
-    - auth: jwt
-      capability: com.powerx.plugins.scrm.opportunity.read
-      entrypoint: ${POWERX_PLUGIN_HTTP_BASE:-/api/v1}/admin/opportunity/records/{opportunity_uuid}
-      method: GET
-      rbac: scrm.opportunity:read
-      type: rest
-    - auth: jwt
-      capability: com.powerx.plugins.scrm.opportunity.read
-      entrypoint: ${POWERX_PLUGIN_HTTP_BASE:-/api/v1}/admin/opportunity/records/{opportunity_uuid}/line-items
-      method: GET
-      rbac: scrm.opportunity:read
-      type: rest
-    - auth: jwt
-      capability: com.powerx.plugins.scrm.opportunity.read
-      entrypoint: ${POWERX_PLUGIN_HTTP_BASE:-/api/v1}/admin/opportunity/records/{opportunity_uuid}/line-items/{item_uuid}/download
-      method: GET
-      rbac: scrm.opportunity:read
-      type: rest
-    - auth: jwt
-      capability: com.powerx.plugins.scrm.opportunity.read
-      entrypoint: ${POWERX_PLUGIN_HTTP_BASE:-/api/v1}/admin/opportunity/records/{opportunity_uuid}/tasks
-      method: GET
-      rbac: scrm.opportunity:read
-      type: rest
-    - auth: jwt
-      capability: com.powerx.plugins.scrm.opportunity.read
-      entrypoint: ${POWERX_PLUGIN_HTTP_BASE:-/api/v1}/admin/opportunity/records/{opportunity_uuid}/activities
-      method: GET
-      rbac: scrm.opportunity:read
-      type: rest
-    - auth: jwt
-      capability: com.powerx.plugins.scrm.opportunity.write
-      entrypoint: ${POWERX_PLUGIN_HTTP_BASE:-/api/v1}/admin/opportunity/records
-      method: POST
-      rbac: scrm.opportunity:write
-      type: rest
-    - auth: jwt
-      capability: com.powerx.plugins.scrm.opportunity.write
-      entrypoint: ${POWERX_PLUGIN_HTTP_BASE:-/api/v1}/admin/opportunity/records/{opportunity_uuid}
-      method: PUT
-      rbac: scrm.opportunity:write
-      type: rest
-    - auth: jwt
-      capability: com.powerx.plugins.scrm.opportunity.write
-      entrypoint: ${POWERX_PLUGIN_HTTP_BASE:-/api/v1}/admin/opportunity/records/{opportunity_uuid}/line-items
-      method: POST
-      rbac: scrm.opportunity:write
-      type: rest
-    - auth: jwt
-      capability: com.powerx.plugins.scrm.opportunity.write
-      entrypoint: ${POWERX_PLUGIN_HTTP_BASE:-/api/v1}/admin/opportunity/records/{opportunity_uuid}/quote-files
-      method: POST
-      rbac: scrm.opportunity:write
-      type: rest
-    - auth: jwt
-      capability: com.powerx.plugins.scrm.opportunity.write
-      entrypoint: ${POWERX_PLUGIN_HTTP_BASE:-/api/v1}/admin/opportunity/records/{opportunity_uuid}/line-items/{item_uuid}
-      method: DELETE
-      rbac: scrm.opportunity:write
-      type: rest
-    - auth: jwt
-      capability: com.powerx.plugins.scrm.opportunity.write
-      entrypoint: ${POWERX_PLUGIN_HTTP_BASE:-/api/v1}/admin/opportunity/records/{opportunity_uuid}/tasks
-      method: POST
-      rbac: scrm.opportunity:write
-      type: rest
-    - auth: jwt
-      capability: com.powerx.plugins.scrm.opportunity.write
-      entrypoint: ${POWERX_PLUGIN_HTTP_BASE:-/api/v1}/admin/opportunity/records/{opportunity_uuid}/tasks/{task_uuid}/status
-      method: PATCH
-      rbac: scrm.opportunity:write
-      type: rest
-    - auth: jwt
-      capability: com.powerx.plugins.scrm.opportunity.write
-      entrypoint: ${POWERX_PLUGIN_HTTP_BASE:-/api/v1}/admin/opportunity/records/{opportunity_uuid}/stage
-      method: POST
-      rbac: scrm.opportunity:write
-      type: rest
-    - auth: jwt
-      capability: com.powerx.plugins.scrm.opportunity.write
-      entrypoint: ${POWERX_PLUGIN_HTTP_BASE:-/api/v1}/admin/opportunity/records/{opportunity_uuid}/close
-      method: POST
-      rbac: scrm.opportunity:write
-      type: rest
-    - auth: jwt
-      capability: com.powerx.plugins.scrm.opportunity.write
-      entrypoint: ${POWERX_PLUGIN_HTTP_BASE:-/api/v1}/admin/opportunity/records/{opportunity_uuid}/reopen
-      method: POST
-      rbac: scrm.opportunity:write
-      type: rest
-    - auth: jwt
-      capability: com.powerx.plugins.scrm.opportunity.write
-      entrypoint: ${POWERX_PLUGIN_HTTP_BASE:-/api/v1}/admin/opportunity/records/{opportunity_uuid}/risk
-      method: POST
-      rbac: scrm.opportunity:write
-      type: rest
-    - auth: jwt
       capability: com.powerx.plugins.scrm.runtime_ops.invoke
       entrypoint: ${POWERX_PLUGIN_HTTP_BASE:-/api/v1}/admin/runtime/bootstrap
       method: POST
@@ -540,6 +432,26 @@ exposure:
       method: POST
       rbac: template:read
       type: rest
+    - auth: jwt
+      capability: com.powerx.plugins.scrm.lead.activity.record
+      rbac: scrm.leads:write
+      type: capability
+    - auth: jwt
+      capability: com.powerx.plugins.scrm.lead.conflict.resolve
+      rbac: scrm.leads:write
+      type: capability
+    - auth: jwt
+      capability: com.powerx.plugins.scrm.lead.identity.update
+      rbac: scrm.leads:write
+      type: capability
+    - auth: jwt
+      capability: com.powerx.plugins.scrm.lead.mapping.upsert
+      rbac: scrm.leads:write
+      type: capability
+    - auth: jwt
+      capability: com.powerx.plugins.scrm.lead.status.get
+      rbac: scrm.leads:read
+      type: capability
     - auth: jwt
       capability: com.powerx.plugins.scrm.template.audit
       type: agent_tool

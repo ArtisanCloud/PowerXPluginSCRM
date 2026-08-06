@@ -13,6 +13,7 @@ import (
 	dbtemplate "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/template"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/mcp/stream"
 	authx "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/middleware"
+	leadsvc "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/services/admin/lead_capture"
 	srvtemplates "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/services/admin/templates"
 	"github.com/sirupsen/logrus"
 )
@@ -77,7 +78,7 @@ type CapabilityInvoker struct {
 }
 
 // NewCapabilityInvoker wires business handlers with HostInvoker contract.
-func NewCapabilityInvoker(templateService *srvtemplates.TemplateService, broker *stream.Broker, logger *logrus.Entry, fallback HostInvoker) HostInvoker {
+func NewCapabilityInvoker(templateService *srvtemplates.TemplateService, leadBridgeService *leadsvc.LeadBridgeService, broker *stream.Broker, logger *logrus.Entry, fallback HostInvoker) HostInvoker {
 	registry := NewHandlerRegistry()
 	registry.Register(&templateListHandler{svc: templateService}, "agent.template.list")
 	registry.Register(&templateReadHandler{svc: templateService}, "agent.template.read")
@@ -87,6 +88,11 @@ func NewCapabilityInvoker(templateService *srvtemplates.TemplateService, broker 
 	registry.Register(&templateComposeHandler{svc: templateService, broker: broker, logger: logger}, "agent.template.compose")
 	registry.Register(&templateAuditHandler{svc: templateService, broker: broker, logger: logger}, "agent.template.audit")
 	registry.Register(&templateQualityHandler{svc: templateService, broker: broker, logger: logger}, "agent.template.quality_distribute")
+	registry.Register(&leadIdentityUpdateHandler{svc: leadBridgeService}, "scrm.lead.identity.update")
+	registry.Register(&leadActivityRecordHandler{svc: leadBridgeService}, "scrm.lead.activity.record")
+	registry.Register(&leadMappingUpsertHandler{svc: leadBridgeService}, "scrm.lead.mapping.upsert")
+	registry.Register(&leadStatusGetHandler{svc: leadBridgeService}, "scrm.lead.status.get")
+	registry.Register(&leadConflictResolveHandler{svc: leadBridgeService}, "scrm.lead.conflict.resolve")
 
 	return &CapabilityInvoker{
 		registry: registry,
@@ -605,6 +611,121 @@ func (h *templateQualityHandler) CapabilityID() string {
 	return "com.powerx.plugins.scrm.template.quality_distribute"
 }
 
+type leadIdentityUpdateHandler struct {
+	svc *leadsvc.LeadBridgeService
+}
+
+func (h *leadIdentityUpdateHandler) CapabilityID() string {
+	return "com.powerx.plugins.scrm.lead.identity.update"
+}
+
+func (h *leadIdentityUpdateHandler) Handle(ctx context.Context, envelope *domain.IntegrationEnvelope) (*HostInvocationResult, error) {
+	if h == nil || h.svc == nil {
+		return nil, errors.New("lead bridge service unavailable")
+	}
+	var payload leadsvc.LeadBridgeIdentityUpdateRequest
+	if err := decodeInlinePayload(envelope.PayloadRef, &payload); err != nil {
+		return nil, err
+	}
+	result, err := h.svc.UpdateIdentity(ctx, envelope.TenantUuid, payload)
+	if err != nil {
+		return nil, err
+	}
+	return jsonInvocationResult("accepted", result)
+}
+
+type leadActivityRecordHandler struct {
+	svc *leadsvc.LeadBridgeService
+}
+
+func (h *leadActivityRecordHandler) CapabilityID() string {
+	return "com.powerx.plugins.scrm.lead.activity.record"
+}
+
+func (h *leadActivityRecordHandler) Handle(ctx context.Context, envelope *domain.IntegrationEnvelope) (*HostInvocationResult, error) {
+	if h == nil || h.svc == nil {
+		return nil, errors.New("lead bridge service unavailable")
+	}
+	var payload leadsvc.LeadBridgeActivityRequest
+	if err := decodeInlinePayload(envelope.PayloadRef, &payload); err != nil {
+		return nil, err
+	}
+	result, err := h.svc.RecordActivity(ctx, envelope.TenantUuid, payload)
+	if err != nil {
+		return nil, err
+	}
+	return jsonInvocationResult("accepted", result)
+}
+
+type leadMappingUpsertHandler struct {
+	svc *leadsvc.LeadBridgeService
+}
+
+func (h *leadMappingUpsertHandler) CapabilityID() string {
+	return "com.powerx.plugins.scrm.lead.mapping.upsert"
+}
+
+func (h *leadMappingUpsertHandler) Handle(ctx context.Context, envelope *domain.IntegrationEnvelope) (*HostInvocationResult, error) {
+	if h == nil || h.svc == nil {
+		return nil, errors.New("lead bridge service unavailable")
+	}
+	var payload leadsvc.LeadBridgeMappingRequest
+	if err := decodeInlinePayload(envelope.PayloadRef, &payload); err != nil {
+		return nil, err
+	}
+	result, err := h.svc.UpsertMapping(ctx, envelope.TenantUuid, payload)
+	if err != nil {
+		return nil, err
+	}
+	return jsonInvocationResult("accepted", result)
+}
+
+type leadStatusGetHandler struct {
+	svc *leadsvc.LeadBridgeService
+}
+
+func (h *leadStatusGetHandler) CapabilityID() string {
+	return "com.powerx.plugins.scrm.lead.status.get"
+}
+
+func (h *leadStatusGetHandler) Handle(ctx context.Context, envelope *domain.IntegrationEnvelope) (*HostInvocationResult, error) {
+	if h == nil || h.svc == nil {
+		return nil, errors.New("lead bridge service unavailable")
+	}
+	var payload leadsvc.LeadBridgeStatusRequest
+	if err := decodeInlinePayload(envelope.PayloadRef, &payload); err != nil {
+		return nil, err
+	}
+	result, err := h.svc.GetStatus(ctx, envelope.TenantUuid, payload)
+	if err != nil {
+		return nil, err
+	}
+	return jsonInvocationResult("accepted", result)
+}
+
+type leadConflictResolveHandler struct {
+	svc *leadsvc.LeadBridgeService
+}
+
+func (h *leadConflictResolveHandler) CapabilityID() string {
+	return "com.powerx.plugins.scrm.lead.conflict.resolve"
+}
+
+func (h *leadConflictResolveHandler) Handle(ctx context.Context, envelope *domain.IntegrationEnvelope) (*HostInvocationResult, error) {
+	if h == nil || h.svc == nil {
+		return nil, errors.New("lead bridge service unavailable")
+	}
+	var payload leadsvc.LeadBridgeConflictResolveRequest
+	if err := decodeInlinePayload(envelope.PayloadRef, &payload); err != nil {
+		return nil, err
+	}
+	result, err := h.svc.ResolveConflict(ctx, envelope.TenantUuid, payload)
+	if err != nil {
+		return nil, err
+	}
+	return jsonInvocationResult("accepted", result)
+}
+
 func emitEvent(broker *stream.Broker, envelope *domain.IntegrationEnvelope, eventType string, payload interface{}) {
 	if broker == nil {
 		return
@@ -619,6 +740,14 @@ func emitEvent(broker *stream.Broker, envelope *domain.IntegrationEnvelope, even
 		Payload:   payload,
 		Timestamp: time.Now().UTC(),
 	})
+}
+
+func jsonInvocationResult(status string, payload interface{}) (*HostInvocationResult, error) {
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+	return &HostInvocationResult{Status: status, Payload: payloadBytes}, nil
 }
 
 func sessionIDFromEnvelope(envelope *domain.IntegrationEnvelope) string {

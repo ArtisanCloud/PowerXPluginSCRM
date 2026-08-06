@@ -6,7 +6,6 @@ export * from "./useCapabilityRegistry";
 export * from "./useCapabilityExposure";
 export * from "./useCapabilityLifecycle";
 export * from "./useCapabilityCatalog";
-export * from "./services/opportunity";
 export {
   useApiClient,
   apiGet,

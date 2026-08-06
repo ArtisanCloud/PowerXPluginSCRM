@@ -41,6 +41,10 @@ func main() {
 	}
 	includeIAM := providerResolver.Mode() == iamservice.ProviderModeLocal
 	log.Printf("[provider] mode=%s source=%s includeIAM=%v", providerResolver.Mode(), providerResolver.Source(), includeIAM)
+	seedOptions := seed.PluginSeedOptions{
+		ProviderMode: string(providerResolver.Mode()),
+		DevMode:      isDevMode(cfg),
+	}
 
 	ctx := context.Background()
 	// 连接数据库
@@ -57,13 +61,13 @@ func main() {
 		fmt.Println("migrate ok")
 
 	case "seed":
-		if err := seed.SeedPluginData(ctx, db); err != nil {
-			log.Fatal("seed failed:", err)
-		}
 		if includeIAM {
 			if err := iamservice.SeedLocalAdmin(ctx, db, cfg, providerResolver.Mode()); err != nil {
 				log.Fatal("iam seed failed:", err)
 			}
+		}
+		if err := seed.SeedPluginData(ctx, db, seedOptions); err != nil {
+			log.Fatal("seed failed:", err)
 		}
 		fmt.Println("seed ok")
 
@@ -78,7 +82,7 @@ func main() {
 				log.Fatal("iam seed failed:", err)
 			}
 		}
-		if err := seed.SeedPluginData(ctx, db); err != nil {
+		if err := seed.SeedPluginData(ctx, db, seedOptions); err != nil {
 			log.Fatal("seed failed:", err)
 		}
 		fmt.Println("seed ok")
@@ -102,7 +106,7 @@ func main() {
 			}
 		}
 		// 最后 seed
-		if err := seed.SeedPluginData(ctx, db); err != nil {
+		if err := seed.SeedPluginData(ctx, db, seedOptions); err != nil {
 			log.Fatal("seed failed:", err)
 		}
 		fmt.Println("seed ok")
@@ -110,6 +114,16 @@ func main() {
 	default:
 		log.Fatalf("Unknown command: %s", cmd)
 	}
+}
+
+func isDevMode(cfg *config.Config) bool {
+	if cfg == nil {
+		return false
+	}
+	if cfg.DevMode {
+		return true
+	}
+	return cfg.Server != nil && cfg.Server.DevMode
 }
 
 func ensureMigrationJWTSecret(cmd string) {

@@ -34,6 +34,116 @@
       <template #description>{{ store.error }}</template>
     </UAlert>
 
+    <UCard v-if="lead">
+      <template #header>
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="flex items-center gap-2">
+            <UIcon name="i-heroicons-funnel" class="text-primary" />
+            <span class="font-medium">{{ t("leadCapture.lifecycle.title") }}</span>
+          </div>
+          <UBadge color="neutral" variant="soft">
+            {{ t("leadCapture.lifecycle.template", { code: leadLifecycle.templateCode }) }}
+          </UBadge>
+        </div>
+      </template>
+
+      <div class="space-y-4">
+        <LeadLifecycleNav
+          :nodes="lifecycleNodes"
+          :selected-key="selectedLifecycleNodeKey"
+          @select="selectLifecycleNode"
+        />
+
+        <div class="grid gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(320px,0.7fr)]">
+          <div class="rounded-lg border border-gray-200 bg-gray-50/70 p-4 dark:border-gray-800 dark:bg-gray-900/40">
+            <div class="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <div class="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                  {{ selectedLifecycleNode?.label }}
+                </div>
+                <div class="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">
+                  {{ selectedLifecycleNode?.description }}
+                </div>
+              </div>
+              <UBadge :color="selectedLifecycleNode?.color || 'neutral'" variant="soft">
+                {{ lifecycleStateLabel(selectedLifecycleNode?.state) }}
+              </UBadge>
+            </div>
+
+            <div v-if="selectedLifecycleNode?.state === 'current'" class="flex flex-wrap items-center gap-2">
+              <UButton
+                v-if="selectedLifecycleNode.key === 'routed'"
+                size="xs"
+                color="primary"
+                variant="soft"
+                icon="i-heroicons-user-plus"
+                @click="openAssignModal"
+              >
+                {{ selectedLifecycleNode.actionLabel }}
+              </UButton>
+              <UButton
+                v-else-if="selectedLifecycleNode.key === 'engaging'"
+                size="xs"
+                color="primary"
+                variant="soft"
+                icon="i-heroicons-check-badge"
+                :loading="qualificationSaving && pendingQualification === 'qualified_for_handoff'"
+                @click="submitQualification('qualified_for_handoff')"
+              >
+                {{ selectedLifecycleNode.actionLabel }}
+              </UButton>
+              <UButton
+                v-else-if="selectedLifecycleNode.key === 'qualified_for_handoff'"
+                size="xs"
+                color="primary"
+                variant="soft"
+                icon="i-heroicons-arrow-path-rounded-square"
+                :loading="qualificationSaving && pendingQualification === 'handoff_pending'"
+                @click="submitQualification('handoff_pending')"
+              >
+                {{ selectedLifecycleNode.actionLabel }}
+              </UButton>
+              <UButton
+                v-else
+                size="xs"
+                color="neutral"
+                variant="soft"
+                disabled
+              >
+                {{ selectedLifecycleNode.actionLabel }}
+              </UButton>
+            </div>
+            <div v-else class="text-sm text-gray-500 dark:text-gray-400">
+              {{ t("leadCapture.lifecycle.readonlyNode") }}
+            </div>
+          </div>
+
+          <div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950">
+            <div class="mb-3 flex items-center gap-2">
+              <UIcon name="i-heroicons-clock" class="text-primary" />
+              <span class="text-sm font-medium text-gray-900 dark:text-gray-100">
+                {{ t("leadCapture.lifecycle.traceSummary") }}
+              </span>
+            </div>
+            <div class="grid grid-cols-3 gap-2 text-center">
+              <div class="rounded-md bg-gray-50 px-2 py-3 dark:bg-gray-900">
+                <div class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ selectedNodeTraceCounts.status }}</div>
+                <div class="text-xs text-gray-500">{{ t("leadCapture.lifecycle.trace.status") }}</div>
+              </div>
+              <div class="rounded-md bg-gray-50 px-2 py-3 dark:bg-gray-900">
+                <div class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ selectedNodeTraceCounts.activity }}</div>
+                <div class="text-xs text-gray-500">{{ t("leadCapture.lifecycle.trace.activity") }}</div>
+              </div>
+              <div class="rounded-md bg-gray-50 px-2 py-3 dark:bg-gray-900">
+                <div class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ selectedNodeTraceCounts.source }}</div>
+                <div class="text-xs text-gray-500">{{ t("leadCapture.lifecycle.trace.source") }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </UCard>
+
     <UCard>
       <template #header>
         <div class="flex items-center justify-between gap-3">
@@ -85,7 +195,7 @@
           </div>
         </div>
 
-        <UDivider />
+        <USeparator />
 
         <div class="space-y-3">
           <div class="text-sm font-medium text-gray-900 dark:text-white">来源信息</div>
@@ -103,9 +213,9 @@
               </div>
             </div>
             <div>
-              <div class="text-xs text-gray-500">渠道账号 UUID</div>
+              <div class="text-xs text-gray-500">渠道账号</div>
               <div class="text-sm text-gray-900 dark:text-white">
-                {{ lead.source_account_uuid || '未知' }}
+                {{ lead.source_account_uuid ? t('leadCapture.listDisplay.sourceAccountLinked') : t('leadCapture.listDisplay.sourceAccountUnknown') }}
               </div>
             </div>
             <div>
@@ -158,19 +268,19 @@
               size="xs"
               variant="soft"
               :disabled="!lead || qualificationSaving"
-              :loading="qualificationSaving && pendingQualification === 'mql'"
-              @click="submitQualification('mql')"
+              :loading="qualificationSaving && pendingQualification === 'qualified_for_handoff'"
+              @click="submitQualification('qualified_for_handoff')"
             >
-              设为 MQL
+              标记可交接
             </UButton>
             <UButton
               size="xs"
               variant="soft"
               :disabled="!lead || qualificationSaving"
-              :loading="qualificationSaving && pendingQualification === 'sql'"
-              @click="submitQualification('sql')"
+              :loading="qualificationSaving && pendingQualification === 'handoff_pending'"
+              @click="submitQualification('handoff_pending')"
             >
-              设为 SQL
+              提交交接
             </UButton>
             <UButton
               size="xs"
@@ -180,15 +290,6 @@
               @click="submitQualification('rollback')"
             >
               回退资格
-            </UButton>
-            <UButton
-              size="xs"
-              color="primary"
-              :disabled="!canCreateOpportunity"
-              :loading="opportunityCreating"
-              @click="createOpportunityFromLead"
-            >
-              创建商机
             </UButton>
             <UButton
               color="primary"
@@ -205,7 +306,7 @@
         <div>
           <div class="text-xs text-gray-500">负责人</div>
           <div class="text-sm text-gray-900 dark:text-white">
-            {{ memberLabel(lead.owner_user_uuid) || lead.owner_user_uuid || '未分配' }}
+            {{ memberLabel(lead.owner_user_uuid) || t('leadCapture.listDisplay.ownerUnassigned') }}
           </div>
         </div>
         <div>
@@ -315,8 +416,8 @@
           <UFormField label="会话 ID">
             <UInput v-model="bindConversationForm.conversation_id" placeholder="conv-001" />
           </UFormField>
-          <UFormField label="渠道账号 UUID">
-            <UInput v-model="bindConversationForm.channel_account_uuid" placeholder="渠道账号 UUID" />
+          <UFormField label="渠道账号">
+            <UInput v-model="bindConversationForm.channel_account_uuid" placeholder="请选择或填入渠道账号" />
           </UFormField>
           <div class="flex items-end">
             <UButton
@@ -405,7 +506,7 @@
               class="rounded-lg border border-gray-200 dark:border-gray-700 p-3"
             >
               <div class="text-sm text-gray-900 dark:text-white">
-                {{ memberLabel(item.owner_user_uuid) || item.owner_user_uuid }}
+                {{ memberLabel(item.owner_user_uuid) || t('leadCapture.listDisplay.ownerUnknown') }}
               </div>
               <div class="text-xs text-gray-500 dark:text-gray-400">
                 {{ item.created_at }}
@@ -494,8 +595,8 @@
               />
             </UFormField>
           </div>
-          <UFormField label="渠道账号 UUID">
-            <UInput v-model="editForm.source_account_uuid" placeholder="渠道账号 UUID" />
+          <UFormField label="渠道账号">
+            <UInput v-model="editForm.source_account_uuid" placeholder="请选择或填入渠道账号" />
           </UFormField>
           <p class="text-xs text-gray-500">
             说明：若该线索没有 external_userid，仅能保存本地信息，无法回写到渠道。
@@ -568,18 +669,23 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
-import { useRoute, useRouter } from "#imports";
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
+import { useI18n, useRoute, useRouter } from "#imports";
 import { useLeadCaptureStore } from "~/stores/scrm/lead_capture/lead_store";
 import { useMemberService } from "~/composables/api/services/memberService";
 import type { Member } from "~/composables/api/services/memberService";
 import { useLeadCaptureService, type LeadConversationEvent, type LeadConversationSummary } from "~/composables/api/services/leadCapture";
-import { useOpportunityService } from "~/composables/api/services/opportunity";
+import LeadLifecycleNav from "~/components/scrm/lead_capture/LeadLifecycleNav.vue";
 import {
   RuntimeDictionaryNamespaces,
   useRuntimeDictionaryService,
   type RuntimeDictionaryItem,
 } from "~/composables/api/services/runtimeDictionary";
+import {
+  privateDomainStatusValues,
+  type PrivateDomainLeadStatus,
+  useLeadLifecycle,
+} from "~/composables/scrm/lead_capture/useLeadLifecycle";
 import { useWsBusClient } from "~/composables/useWsBusClient";
 import ToastAlert from "~/components/ToastAlert.vue";
 
@@ -589,11 +695,12 @@ definePageMeta({
 
 const route = useRoute();
 const router = useRouter();
+const { t } = useI18n();
 const store = useLeadCaptureStore();
 const memberService = useMemberService();
 const leadCaptureService = useLeadCaptureService();
-const opportunityService = useOpportunityService();
 const runtimeDictionaryService = useRuntimeDictionaryService();
+const leadLifecycle = useLeadLifecycle();
 const wsBus = useWsBusClient();
 
 const leadId = computed(() => String(route.params.lead_id || ""));
@@ -628,6 +735,7 @@ const latestAssignmentReason = computed(() => assignments.value[0]?.reason || ""
 const members = ref<Member[]>([]);
 const sourceCatalogs = ref<RuntimeDictionaryItem[]>([]);
 const selectedOwner = ref<string>("");
+const selectedLifecycleNodeKey = ref("");
 const memberSearch = ref("");
 const infoModalOpen = ref(false);
 const infoSaving = ref(false);
@@ -636,8 +744,7 @@ const conversationLoading = ref(false);
 const conversationBinding = ref(false);
 const conversationEventsLoading = ref(false);
 const qualificationSaving = ref(false);
-const pendingQualification = ref<"mql" | "sql" | "rollback" | "">("");
-const opportunityCreating = ref(false);
+const pendingQualification = ref<"qualified_for_handoff" | "handoff_pending" | "rollback" | "">("");
 const selectedConversationId = ref("");
 const leadConversations = ref<LeadConversationSummary[]>([]);
 const conversationEvents = ref<LeadConversationEvent[]>([]);
@@ -679,33 +786,62 @@ const toast = reactive({
   duration: 3000,
 });
 
-const statusMeta = (status?: string) => {
-  switch (status) {
-    case "assigned":
-      return { label: "已分配", color: "primary" };
-    case "in_progress":
-      return { label: "跟进中", color: "warning" };
-    case "mql":
-      return { label: "MQL", color: "warning" };
-    case "sql":
-      return { label: "SQL", color: "success" };
-    case "converted":
-      return { label: "已转化", color: "success" };
-    case "closed":
-      return { label: "已关闭", color: "neutral" };
-    case "disconnected":
-      return { label: "已断开关系", color: "error" };
-    case "new":
-    default:
-      return { label: "新线索", color: "info" };
-  }
+const statusMeta = leadLifecycle.statusMeta;
+
+const currentLifecycleStatus = computed<PrivateDomainLeadStatus>(() => {
+  const status = String(lead.value?.status || "").trim() as PrivateDomainLeadStatus;
+  return privateDomainStatusValues.includes(status) ? status : "captured";
+});
+
+const activityStageKey = (activity: any) => {
+  const payload = activity?.payload || {};
+  return String(payload.stage_key || payload.stageKey || payload.to_status || payload.status || "").trim();
 };
 
-const canRollbackQualification = computed(() => ["mql", "sql"].includes(String(lead.value?.status || "").trim().toLowerCase()));
-const canCreateOpportunity = computed(() => {
-  const status = String(lead.value?.status || "").trim().toLowerCase();
-  return !!lead.value && ["sql", "converted"].includes(status) && !opportunityCreating.value;
+const nodeTraceCount = (status: PrivateDomainLeadStatus) => {
+  const statusCount = statusHistory.value.filter((item) =>
+    [item.from_status, item.to_status].includes(status)
+  ).length;
+  const activityCount = activities.value.filter((item) =>
+    activityStageKey(item) === status || (!activityStageKey(item) && status === currentLifecycleStatus.value)
+  ).length;
+  const sourceCount = status === "captured" ? sourceEvents.value.length : 0;
+  return statusCount + activityCount + sourceCount;
+};
+
+const lifecycleNodes = computed(() =>
+  leadLifecycle.buildLifecycleNodes(currentLifecycleStatus.value, nodeTraceCount)
+);
+
+const selectedLifecycleNode = computed(() =>
+  lifecycleNodes.value.find((node) => node.key === selectedLifecycleNodeKey.value) || lifecycleNodes.value[0]
+);
+
+const selectedNodeTraceCounts = computed(() => {
+  const key = selectedLifecycleNode.value?.key || currentLifecycleStatus.value;
+  return {
+    status: statusHistory.value.filter((item) => [item.from_status, item.to_status].includes(key)).length,
+    activity: activities.value.filter((item) =>
+      activityStageKey(item) === key || (!activityStageKey(item) && key === currentLifecycleStatus.value)
+    ).length,
+    source: key === "captured" ? sourceEvents.value.length : 0,
+  };
 });
+
+const lifecycleStateLabel = (state?: string) => {
+  if (state === "done") return t("leadCapture.lifecycle.state.done");
+  if (state === "current") return t("leadCapture.lifecycle.state.current");
+  if (state === "terminal") return t("leadCapture.lifecycle.state.terminal");
+  return t("leadCapture.lifecycle.state.pending");
+};
+
+const selectLifecycleNode = (node: { key: string }) => {
+  selectedLifecycleNodeKey.value = node.key;
+};
+
+const canRollbackQualification = computed(() =>
+  ["qualified_for_handoff", "handoff_pending"].includes(String(lead.value?.status || "").trim().toLowerCase())
+);
 
 const relationStatusMeta = (status?: string) => {
   if (String(status || "").trim().toLowerCase() === "disconnected") {
@@ -813,7 +949,7 @@ const submitBindConversation = async () => {
   const conversationId = bindConversationForm.conversation_id.trim();
   const accountUUID = bindConversationForm.channel_account_uuid.trim();
   if (!conversationId || !accountUUID) {
-    showToast("请填写会话 ID 与渠道账号 UUID", "warning");
+    showToast("请填写会话 ID 与渠道账号", "warning");
     return;
   }
   conversationBinding.value = true;
@@ -973,7 +1109,7 @@ const submitAssignForm = async () => {
   }
 };
 
-const submitQualification = async (target: "mql" | "sql" | "rollback") => {
+const submitQualification = async (target: "qualified_for_handoff" | "handoff_pending" | "rollback") => {
   if (!leadId.value || !lead.value) return;
   qualificationSaving.value = true;
   pendingQualification.value = target;
@@ -986,42 +1122,6 @@ const submitQualification = async (target: "mql" | "sql" | "rollback") => {
   } finally {
     qualificationSaving.value = false;
     pendingQualification.value = "";
-  }
-};
-
-const createOpportunityFromLead = async () => {
-  if (!lead.value || !leadId.value) return;
-  const ownerUUID = String(lead.value.owner_user_uuid || "").trim();
-  if (!ownerUUID) {
-    showToast("创建商机前请先选择负责人", "warning");
-    return;
-  }
-  opportunityCreating.value = true;
-  try {
-    const title = `${lead.value.display_name || lead.value.phone || "线索"} 商机`;
-    const resp = await opportunityService.create({
-      lead_uuid: leadId.value,
-      title,
-      owner_user_uuid: ownerUUID,
-      owner_member_uuid: ownerUUID,
-      currency: "CNY",
-      probability: 20,
-    });
-    const opportunityUUID = (resp as any)?.data?.opportunity_uuid;
-    if (opportunityUUID) {
-      showToast("商机已创建", "success");
-      await router.push(`/scrm/opportunity/${opportunityUUID}`);
-    }
-  } catch (err: any) {
-    const existing = err?.data?.error?.details?.opportunity_uuid;
-    if (existing) {
-      showToast("该线索已有活跃商机", "warning");
-      await router.push(`/scrm/opportunity/${existing}`);
-      return;
-    }
-    showToast(err?.data?.error?.message || err?.message || "创建商机失败", "error");
-  } finally {
-    opportunityCreating.value = false;
   }
 };
 
@@ -1038,6 +1138,16 @@ const loadSourceCatalogs = async () => {
   const resp = await runtimeDictionaryService.listDictionaries({ enabled: true });
   sourceCatalogs.value = (((resp as any)?.data?.items || []) as RuntimeDictionaryItem[]);
 };
+
+watch(
+  currentLifecycleStatus,
+  (status) => {
+    if (!selectedLifecycleNodeKey.value || !lifecycleNodes.value.some((node) => node.key === selectedLifecycleNodeKey.value)) {
+      selectedLifecycleNodeKey.value = status;
+    }
+  },
+  { immediate: true }
+);
 
 onMounted(async () => {
   await loadMembers();

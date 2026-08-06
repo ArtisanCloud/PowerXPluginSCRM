@@ -14,6 +14,11 @@ seed: ## 运行数据种子脚本
 	@echo "运行数据种子..."
 	cd $(BACKEND_DIR) && go run ./cmd/database/main.go seed
 
+.PHONY: seed-demo-leads
+seed-demo-leads: ## 运行数据种子脚本；local/dev 模式会自动写入线索采集池样例数据
+	@echo "运行线索采集池样例数据种子..."
+	cd $(BACKEND_DIR) && go run ./cmd/database/main.go seed
+
 .PHONY: setup-db
 setup-db: ## 执行迁移并填充初始数据
 	@echo "运行迁移并填充初始数据..."

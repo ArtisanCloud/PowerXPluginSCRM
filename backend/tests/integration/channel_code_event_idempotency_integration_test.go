@@ -34,7 +34,7 @@ func TestChannelCodeEventIdempotencyIntegration_IngestAndTrace(t *testing.T) {
 		DisplayName:     "企微集成账号",
 		Status:          socialmodel.ChannelAccountStatusConnected,
 		OrgSyncDefault:  true,
-		OwnerMemberUUID: "owner-int",
+		OwnerMemberUUID: "00000000-0000-0000-0000-000000000151",
 		CreatedAt:       time.Now().UTC(),
 		UpdatedAt:       time.Now().UTC(),
 	}).Error)

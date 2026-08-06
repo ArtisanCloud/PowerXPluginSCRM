@@ -26,7 +26,7 @@
       </div>
     </div>
 
-    <UDivider class="my-4" />
+    <USeparator class="my-4" />
 
     <form class="space-y-3" @submit.prevent="submit">
       <USelect v-model="form.entry_type" :options="entryTypes" label="Entry Type" size="sm" />

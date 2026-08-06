@@ -461,12 +461,12 @@ func (b *configLoadLogBuffer) flush(cfg *Config) {
 	if b == nil || len(b.entries) == 0 {
 		return
 	}
-	out := configureConfigStandardLogger(cfg)
+	loadLogger, out := newConfigLoadLogger(cfg)
 	if out != nil {
 		defer out.Close()
 	}
 	for _, entry := range b.entries {
-		logger := logrus.WithFields(entry.fields)
+		logger := loadLogger.WithFields(entry.fields)
 		switch entry.level {
 		case logrus.WarnLevel:
 			logger.Warn(entry.msg)
@@ -476,26 +476,38 @@ func (b *configLoadLogBuffer) flush(cfg *Config) {
 	}
 }
 
-func configureConfigStandardLogger(cfg *Config) *os.File {
+func newConfigLoadLogger(cfg *Config) (*logrus.Logger, *os.File) {
+	loadLogger := logrus.New()
+	loadLogger.SetOutput(os.Stdout)
+	loadLogger.SetFormatter(&logrus.TextFormatter{FullTimestamp: true})
+	loadLogger.SetLevel(logrus.InfoLevel)
+	if cfg != nil && cfg.Logging != nil {
+		if level, err := logrus.ParseLevel(strings.ToLower(strings.TrimSpace(cfg.Logging.Level))); err == nil {
+			loadLogger.SetLevel(level)
+		}
+		if strings.EqualFold(strings.TrimSpace(cfg.Logging.Format), "json") {
+			loadLogger.SetFormatter(&logrus.JSONFormatter{})
+		}
+	}
 	if cfg == nil || cfg.Logging == nil || !strings.EqualFold(strings.TrimSpace(cfg.Logging.Output), "file") {
-		return nil
+		return loadLogger, nil
 	}
 	filePath := strings.TrimSpace(cfg.Logging.FilePath)
 	if filePath == "" {
-		return nil
+		return loadLogger, nil
 	}
 	dir := filepath.Dir(filePath)
 	if dir != "." {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return nil
+			return loadLogger, nil
 		}
 	}
 	file, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
-		return nil
+		return loadLogger, nil
 	}
-	logrus.SetOutput(file)
-	return file
+	loadLogger.SetOutput(file)
+	return loadLogger, file
 }
 
 // getDefaultConfig 获取默认配置

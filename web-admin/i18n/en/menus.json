@@ -12,14 +12,11 @@
               "dashboard": "Touchpoint Dashboard",
               "accounts": "Account Access"
             },
-            "leads_opportunity": {
-              "title": "Leads & Opportunities"
+            "lead_operations": {
+              "title": "Lead Operations"
             },
             "leads": {
-              "title": "Lead Management"
-            },
-            "opportunity": {
-              "title": "Opportunities"
+              "title": "Lead Capture Pool"
             },
             "channel_org_tags": {
               "title": "Channel Org & Tags"

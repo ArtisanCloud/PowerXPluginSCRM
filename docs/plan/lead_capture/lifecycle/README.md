@@ -4,10 +4,40 @@
 定义 SCRM 线索采集池阶段与状态流转，记录变更历史。销售漏斗、商机、合同、回款不属于本模块。
 
 ## 阶段
-- captured -> routed -> engaging -> qualified_for_handoff -> handoff_pending -> handoff_accepted
+- captured -> enriched -> deduplicated -> routed -> engaging -> qualified_for_handoff -> handoff_pending -> handoff_accepted
 - handoff_pending -> handoff_failed -> handoff_pending
 - 任一处理中阶段在外部联系人关系删除后可进入 disconnected（已断开关系）
 - 不使用 MQL/SQL、converted、closed 表达 CRM 销售阶段；需要销售承接时使用 CRM 交接状态。
+
+## 私域线索生命周期节点说明
+
+SCRM 生命周期固定采用系统模板 `scrm_private_domain_v1`。该模板不是 CRM 销售管道模板，不允许在第一版由管理员任意新增、删除或重排核心状态；可扩展的是节点展示名、说明、SLA、操作表单、附件/活动记录策略和渠道适用范围。
+
+| 状态 key | 用户可见节点 | 业务作用 | 推进来源 | 手动操作边界 |
+| --- | --- | --- | --- | --- |
+| `captured` | 已采集 | 线索从私域渠道、本地导入、员工活码、群活码、渠道回调或第三方入口进入采集池。该节点确认“已入池”，不表达销售意向。 | 渠道同步、导入、Bot 命令、外部入口创建。 | 通常没有手动推进按钮；页面应展示来源入池信息、采集事件与下一步补全/去重说明。 |
+| `enriched` | 已补全 | 补齐联系人身份、手机号/邮箱、来源渠道、渠道账号、外部联系人标识、标签或其他必要业务字段，为后续去重、分配和交接提供可靠数据。 | 标准化服务、渠道同步字段补全、人工编辑基础信息。 | 可配置补全表单或字段校验；不能用自由文本解析兜底缺失结构化字段。 |
+| `deduplicated` | 已去重 | 完成身份匹配、重复判定与合并策略，避免同一客户因多个渠道事件重复进入运营队列。 | 去重/合并服务、来源作用域匹配、人工冲突确认。 | 可展示命中规则、合并字段和来源追溯；不应隐藏冲突或静默覆盖旧值。 |
+| `routed` | 已分配 | 将线索路由给负责人、员工、运营队列或处理角色，形成明确责任归属。 | 分配服务、批量分配、路由规则。 | 核心手动操作是“分配负责人”；负责人必须是当前租户 member。 |
+| `engaging` | 互动中 | 负责人围绕私域会话、触达记录、标签、活动记录和运营动作持续跟进，判断是否达到交接条件。 | 会话桥接、活动记录、运营动作、人工状态更新。 | 可记录活动、查看会话与触达留痕；满足条件后可手动“标记可交接”。 |
+| `qualified_for_handoff` | 可交接 | 线索已满足交接条件，例如身份字段完整、来源清晰、负责人确认、意向或上下文足以让下游接收。 | 人工资格确认、质量规则、运营策略。 | 核心手动操作是“提交交接”；提交前应展示必要校验失败原因。 |
+| `handoff_pending` | 交接中 | 交接请求已提交，等待下游 CRM/销售系统确认接收或返回失败。 | CRM 交接能力调用、异步回执、重试任务。 | 一般不提供普通手动推进；只允许查看状态、重试失败交接或取消/回滚等显式受控动作。 |
+| `handoff_accepted` | 已交接 | 下游已确认接收，SCRM 采集生命周期结束。后续销售阶段、商机、赢输单、合同和回款由 CRM/Sales 系统承载。 | 下游接受回执、交接状态同步。 | 只读查看结果和留痕，不继续做 SCRM 运营推进。 |
+
+终态/异常状态：
+
+- `handoff_failed`：交接失败，必须记录失败原因、可见恢复动作和重试 trace；可恢复到 `handoff_pending`。
+- `archived`：运营归档，不代表销售关闭或输单。
+- `disconnected`：外部联系人关系已断开，应停止依赖该渠道关系的触达动作。
+
+### 节点设计原则
+
+- 顶部漏斗卡片用于统计与筛选，不代表节点操作表单本身。
+- 节点操作应在详情页或弹层工作台中呈现，且只对当前可操作节点开放。
+- 历史节点和未来节点默认只读，用于查看来源、活动、附件、会话、状态历史和交接结果。
+- `captured`、`enriched`、`deduplicated` 多数由同步、标准化、去重服务驱动；不要把它们伪装成必须人工点击推进的销售动作。
+- `routed`、`engaging`、`qualified_for_handoff` 是第一版主要人工操作节点。
+- `handoff_pending`、`handoff_accepted` 由下游交接结果驱动；不得在 SCRM 内实现 CRM 销售阶段。
 
 ## 数据模型（核心）
 - LeadStatusHistory
@@ -26,7 +56,7 @@
 - 状态变更操作
 
 ## MVP
-- captured / routed / engaging / qualified_for_handoff / handoff_pending / handoff_accepted / handoff_failed / archived / disconnected
+- captured / enriched / deduplicated / routed / engaging / qualified_for_handoff / handoff_pending / handoff_accepted / handoff_failed / archived / disconnected
 
 ## SCRM/CRM 线索映射与双向同步策略
 

@@ -24,7 +24,7 @@ require (
 )
 
 require (
-	github.com/ArtisanCloud/PowerSocialite/v3 v3.0.10
+	github.com/ArtisanCloud/PowerSocialite/v3 v3.0.11
 	github.com/ArtisanCloud/PowerX/api/grpc/gen/go v0.1.0-alpha
 	github.com/gin-contrib/sse v1.1.0
 	github.com/jackc/pgconn v1.14.3

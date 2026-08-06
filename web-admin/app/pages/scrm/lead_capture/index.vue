@@ -3,10 +3,10 @@
     <div class="flex flex-wrap items-start justify-between gap-4">
       <div class="space-y-2">
         <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">
-          线索管理
+          {{ t("leadCapture.pool.title") }}
         </h1>
         <p class="text-gray-600 dark:text-gray-300">
-          统一查看线索来源、状态与基础信息。
+          {{ t("leadCapture.pool.description") }}
         </p>
       </div>
       <div class="flex items-center gap-2">
@@ -15,7 +15,7 @@
           variant="soft"
           to="/admin/iam/dictionaries"
         >
-          来源配置
+          {{ t("leadCapture.actions.sourceConfig") }}
         </UButton>
         <UButton
           icon="i-heroicons-arrow-path"
@@ -23,69 +23,59 @@
           :loading="store.loading"
           @click="refreshLeads"
         >
-          刷新
-        </UButton>
-        <UButton
-          icon="i-heroicons-arrow-up-tray"
-          variant="soft"
-          @click="openImportModal"
-        >
-          批量导入
+          {{ t("leadCapture.actions.refresh") }}
         </UButton>
         <UButton
           icon="i-heroicons-adjustments-horizontal"
           variant="soft"
           @click="syncCenterOpen = true"
         >
-          同步中心
-        </UButton>
-        <UButton icon="i-heroicons-plus" color="primary" @click="openCreateModal">
-          新建线索
+          {{ t("leadCapture.actions.syncCenter") }}
         </UButton>
       </div>
     </div>
 
     <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
       <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
-        <UFormField label="搜索" class="w-full sm:w-64">
+        <UFormField :label="t('leadCapture.filters.search')" class="w-full sm:w-64">
           <UInput
             v-model="searchText"
             icon="i-heroicons-magnifying-glass"
-            placeholder="搜索姓名/手机号/邮箱"
+            :placeholder="t('leadCapture.filters.searchPlaceholder')"
             class="w-full"
           />
         </UFormField>
-        <UFormField label="状态" class="w-full sm:w-40">
+        <UFormField :label="t('leadCapture.filters.status')" class="w-full sm:w-40">
           <USelectMenu
             v-model="statusFilter"
             :items="statusFilterOptions"
             value-key="value"
             label-key="label"
-            placeholder="全部状态"
+            :placeholder="t('leadCapture.filters.allStatuses')"
             class="w-full"
             :portal="false"
             :ui="{ content: 'z-[200]' }"
           />
         </UFormField>
-        <UFormField label="流量平台" class="w-full sm:w-40">
+        <UFormField :label="t('leadCapture.filters.trafficPlatform')" class="w-full sm:w-40">
           <USelectMenu
             v-model="channelFilter"
             :items="channelOptions"
             value-key="value"
             label-key="label"
-            placeholder="全部渠道"
+            :placeholder="t('leadCapture.filters.allChannels')"
             class="w-full"
             :portal="false"
             :ui="{ content: 'z-[200]' }"
           />
         </UFormField>
-        <UFormField label="流量来源" class="w-full sm:w-40">
+        <UFormField :label="t('leadCapture.filters.trafficSource')" class="w-full sm:w-40">
           <USelectMenu
             v-model="appTypeFilter"
             :items="appTypeOptions"
             value-key="value"
             label-key="label"
-            placeholder="全部应用"
+            :placeholder="t('leadCapture.filters.allApps')"
             class="w-full"
             :portal="false"
             :ui="{ content: 'z-[200]' }"
@@ -93,24 +83,68 @@
         </UFormField>
       </div>
       <div class="text-sm text-gray-500 dark:text-gray-400">
-        共 {{ filteredLeads.length }} 条
+        {{ t("leadCapture.pool.total", { count: filteredLeads.length }) }}
       </div>
     </div>
 
-    <UCard>
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <div class="text-sm text-gray-600 dark:text-gray-300">
-          同步中心已收纳为弹层，当前仅展示线索列表主视图。
-        </div>
+    <div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+      <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div class="flex items-center gap-2">
-          <UBadge variant="soft" :color="syncTasks.some((item) => item.status === 'failed') ? 'error' : 'success'">
-            同步任务 {{ syncTasks.length }} 条
-          </UBadge>
-          <UButton size="xs" variant="soft" :loading="syncLoading" @click="refreshSyncTasks">刷新</UButton>
-          <UButton size="xs" color="primary" @click="syncCenterOpen = true">打开同步中心</UButton>
+          <UIcon name="i-heroicons-funnel" class="text-primary" />
+          <span class="text-sm font-medium text-gray-900 dark:text-gray-100">
+            {{ t("leadCapture.funnel.title") }}
+          </span>
         </div>
+        <UButton
+          size="xs"
+          variant="soft"
+          color="neutral"
+          :disabled="statusFilter === ALL_OPTION_VALUE"
+          @click="statusFilter = ALL_OPTION_VALUE"
+        >
+          {{ t("leadCapture.funnel.clear") }}
+        </UButton>
       </div>
-    </UCard>
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-6">
+        <button
+          v-for="(stage, index) in funnelStages"
+          :key="stage.value"
+          type="button"
+          class="group min-h-[104px] rounded-md border p-3 text-left transition hover:border-primary-300 hover:shadow-sm"
+          :class="[
+            stage.toneClass,
+            statusFilter === stage.value
+              ? 'border-primary-500 ring-1 ring-primary-500'
+              : 'border-gray-200 dark:border-gray-800'
+          ]"
+          @click="statusFilter = stage.value"
+        >
+          <div class="flex items-start justify-between gap-2">
+            <div class="flex min-w-0 items-center gap-2">
+              <span
+                class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold"
+                :class="stage.indexClass"
+              >
+                {{ index + 1 }}
+              </span>
+              <span class="min-w-0 text-sm font-semibold leading-4 text-gray-950 dark:text-white">
+                {{ stage.label }}
+              </span>
+            </div>
+            <UIcon name="i-heroicons-arrow-right" class="mt-1 h-4 w-4 shrink-0 text-gray-400 transition group-hover:translate-x-0.5" />
+          </div>
+          <div class="mt-4 flex items-end justify-between gap-2">
+            <div class="flex items-baseline gap-1">
+              <span class="text-2xl font-semibold leading-none text-gray-950 dark:text-white">{{ stage.count }}</span>
+              <span class="text-xs text-gray-500 dark:text-gray-400">{{ t("leadCapture.funnel.metric") }}</span>
+            </div>
+            <UBadge size="xs" variant="soft" :color="stage.color">
+              {{ stage.shortLabel }}
+            </UBadge>
+          </div>
+        </button>
+      </div>
+    </div>
 
     <UModal
       v-model:open="syncCenterOpen"
@@ -781,6 +815,22 @@
             <UBadge v-if="selectedLeadUUIDsForAssign.length > 0" variant="soft" color="warning">
               已选 {{ selectedLeadUUIDsForAssign.length }} 条
             </UBadge>
+            <div class="hidden items-center gap-2 lg:flex">
+              <span class="text-xs text-gray-500 dark:text-gray-400">
+                当前第 {{ currentPage }} / {{ totalPages }} 页
+              </span>
+              <USelectMenu
+                v-model="pageSize"
+                :items="pageSizeOptions"
+                value-key="value"
+                label-key="label"
+                class="w-24"
+                :portal="false"
+                :ui="{ content: 'z-[200]' }"
+              />
+              <UButton size="xs" variant="soft" :disabled="currentPage <= 1" @click="prevPage">上一页</UButton>
+              <UButton size="xs" variant="soft" :disabled="currentPage >= totalPages" @click="nextPage">下一页</UButton>
+            </div>
             <UButton size="xs" variant="soft" :disabled="pagedLeads.length === 0" @click="toggleSelectAllCurrentPageForAssign">
               {{ allCurrentPageSelectedForAssign ? "取消当前页全选" : "全选当前页" }}
             </UButton>
@@ -809,19 +859,8 @@
           />
         </template>
         <template #display_name-cell="{ row }">
-          <div class="space-y-1">
-            <div class="font-medium text-gray-900 dark:text-white">
-              {{ row.original.display_name || row.original.phone || row.original.email || '未命名线索' }}
-            </div>
-            <div class="text-xs text-gray-500 dark:text-gray-400">
-              {{ row.original.lead_uuid }}
-            </div>
-          </div>
-        </template>
-        <template #contact-cell="{ row }">
-          <div class="space-y-1 text-sm text-gray-600 dark:text-gray-300">
-            <div>{{ row.original.phone || '暂无手机号' }}</div>
-            <div>{{ row.original.email || '暂无邮箱' }}</div>
+          <div class="font-medium text-gray-900 dark:text-white">
+            {{ leadDisplayName(row.original) }}
           </div>
         </template>
         <template #status-cell="{ row }">
@@ -834,15 +873,17 @@
                 已合并
               </UBadge>
             </div>
-            <div v-if="String(row.original.owner_user_uuid || '').trim()" class="text-xs text-gray-500 dark:text-gray-400">
+            <div class="text-xs text-gray-500 dark:text-gray-400">
               {{ resolveLeadOwnerDisplayName(row.original.owner_user_uuid) }}
             </div>
           </div>
         </template>
         <template #source-cell="{ row }">
           <div class="space-y-1 text-sm text-gray-600 dark:text-gray-300">
-            <div class="flex items-center gap-2">
-              <span>{{ row.original.source_channel || '未知渠道' }}</span>
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="font-medium text-gray-800 dark:text-gray-100">
+                {{ leadSourceSummary(row.original) }}
+              </span>
               <UBadge size="xs" :color="leadOriginMeta(row.original).color" variant="soft">
                 {{ leadOriginMeta(row.original).label }}
               </UBadge>
@@ -855,53 +896,28 @@
                 {{ leadSyncStateMeta(row.original).label }}
               </UBadge>
             </div>
-            <div class="text-xs text-gray-500 dark:text-gray-400">
-              {{ row.original.source_app_type || '未知应用' }}
-            </div>
-            <div class="text-xs text-gray-500 dark:text-gray-400">
-              渠道账号：{{ resolveLeadSourceAccountLabel(row.original) }}
-            </div>
-            <div class="text-xs text-gray-500 dark:text-gray-400">
-              外部联系人ID：{{
-                isChannelLead(row.original)
-                  ? (leadSyncExternalInfo(row.original.lead_uuid).externalLeadId || '未记录（不可回写）')
-                  : '本地线索不适用'
-              }}
-            </div>
-            <div class="text-xs text-gray-500 dark:text-gray-400">
-              微信号：{{
-                isChannelLead(row.original)
-                  ? (leadSyncExternalInfo(row.original.lead_uuid).externalWechatId || '未记录（需重跑同步）')
-                  : '本地线索不适用'
-              }}
-            </div>
-            <div class="text-xs text-gray-500 dark:text-gray-400">
-              企微添加人：{{
-                isChannelLead(row.original)
-                  ? (String((row.original as any).wecom_adder_userid || '').trim() || '未记录（需重跑同步）')
-                  : '本地线索不适用'
-              }}
-            </div>
-            <div class="text-xs text-gray-500 dark:text-gray-400">
-              关系状态：{{
-                isChannelLead(row.original)
-                  ? relationStatusMeta(row.original.status).label
-                  : '本地线索不适用'
-              }}
+            <div v-if="isChannelLead(row.original)" class="truncate text-xs text-gray-500 dark:text-gray-400">
+              {{ resolveLeadSourceAccountLabel(row.original) }}
             </div>
           </div>
         </template>
         <template #actions-cell="{ row }">
           <div class="flex flex-wrap gap-2">
-            <UButton size="xs" variant="soft" @click="openDetail(row.original.lead_uuid)">
-              查看
+            <UButton
+              size="xs"
+              variant="soft"
+              :color="leadLifecycleActionButton(row.original).color"
+              :icon="leadLifecycleActionButton(row.original).icon"
+              @click="openLeadLifecycleModal(row.original)"
+            >
+              {{ leadLifecycleActionButton(row.original).label }}
             </UButton>
           </div>
         </template>
       </UTable>
 
       <div v-if="!store.loading && filteredLeads.length === 0" class="py-6 text-center text-sm text-gray-500 dark:text-gray-400">
-        暂无线索，先创建一条试试。
+        {{ t("leadCapture.pool.emptyChannelSync") }}
       </div>
     </UCard>
 
@@ -923,6 +939,689 @@
         <UButton variant="soft" :disabled="currentPage >= totalPages" @click="nextPage">下一页</UButton>
       </div>
     </div>
+
+    <UModal
+      v-model:open="leadLifecycleModalOpen"
+      :prevent-close="leadLifecycleSaving"
+      :dismissible="!leadLifecycleSaving"
+      :modal="true"
+      :ui="{ content: 'w-[min(96vw,1360px)] max-w-none' }"
+    >
+      <template #title>{{ t("leadCapture.lifecycle.modalTitle") }}</template>
+      <template #description>
+        {{ selectedLifecycleLead ? leadDisplayName(selectedLifecycleLead) : "" }}
+      </template>
+      <template #body>
+        <div v-if="selectedLifecycleLead" class="grid gap-6 p-1 lg:grid-cols-[minmax(0,1.65fr)_minmax(360px,0.8fr)]">
+          <div class="flex flex-col gap-4">
+            <div class="order-1 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950">
+              <div class="mb-3 flex items-center justify-between gap-3">
+                <div class="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                  {{ t("leadCapture.lifecycle.nodeChainTitle") }}
+                </div>
+                <div class="text-xs text-gray-500 dark:text-gray-400">
+                  {{ t("leadCapture.lifecycle.advanceMode") }}
+                </div>
+              </div>
+              <LeadLifecycleNav
+                :nodes="selectedLeadLifecycleNodes"
+                :selected-key="selectedLeadLifecycleNodeKey"
+                @select="selectLeadLifecycleNode"
+              />
+            </div>
+
+            <div class="order-4 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950">
+              <div class="mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <div class="text-base font-semibold text-gray-900 dark:text-gray-100">
+                    {{ t("leadCapture.lifecycle.nodeActionTitle") }}
+                  </div>
+                  <div class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    {{ selectedLeadLifecycleNode?.label }}
+                  </div>
+                </div>
+                <UBadge :color="selectedLeadLifecycleNode?.color || 'neutral'" variant="soft">
+                  {{ t("leadCapture.lifecycle.currentStage", { stage: selectedLeadLifecycleNode?.label || '' }) }}
+                </UBadge>
+              </div>
+
+              <div class="mb-4 grid gap-3 rounded-md border border-gray-100 bg-gray-50 p-3 text-sm dark:border-gray-800 dark:bg-gray-900/60 md:grid-cols-3">
+                <div>
+                  <div class="text-xs font-medium text-gray-500 dark:text-gray-400">
+                    {{ t("leadCapture.lifecycle.operation.goal") }}
+                  </div>
+                  <div class="mt-1 text-gray-900 dark:text-gray-100">
+                    {{ selectedLeadLifecycleOperationSummary.goal }}
+                  </div>
+                </div>
+                <div>
+                  <div class="text-xs font-medium text-gray-500 dark:text-gray-400">
+                    {{ t("leadCapture.lifecycle.operation.requirements") }}
+                  </div>
+                  <div class="mt-1 text-gray-900 dark:text-gray-100">
+                    {{ selectedLeadLifecycleOperationSummary.requirements }}
+                  </div>
+                </div>
+                <div>
+                  <div class="text-xs font-medium text-gray-500 dark:text-gray-400">
+                    {{ t("leadCapture.lifecycle.operation.result") }}
+                  </div>
+                  <div class="mt-1 text-gray-900 dark:text-gray-100">
+                    {{ selectedLeadLifecycleOperationSummary.result }}
+                  </div>
+                </div>
+              </div>
+
+              <div
+                v-if="selectedLeadLifecycleNode?.key === 'captured'"
+                class="mb-4 rounded-md border border-gray-100 bg-gray-50 p-3 text-sm dark:border-gray-800 dark:bg-gray-900/60"
+              >
+                <div class="mb-2 text-xs font-medium text-gray-500 dark:text-gray-400">
+                  {{ t("leadCapture.lifecycle.enrichment.checklistTitle") }}
+                </div>
+                <div class="grid gap-2 md:grid-cols-3">
+                  <div
+                    v-for="item in leadLifecycleEnrichmentChecklist"
+                    :key="item.key"
+                    class="flex items-center justify-between gap-3 rounded border border-gray-100 bg-white px-3 py-2 dark:border-gray-800 dark:bg-gray-950"
+                  >
+                    <span class="text-gray-600 dark:text-gray-300">{{ item.label }}</span>
+                    <UBadge :color="item.complete ? 'success' : 'warning'" variant="soft" size="xs">
+                      {{ item.complete ? t("leadCapture.lifecycle.enrichment.complete") : t("leadCapture.lifecycle.enrichment.incomplete") }}
+                    </UBadge>
+                  </div>
+                </div>
+                <div class="mt-3 rounded-md border border-gray-100 bg-white p-3 dark:border-gray-800 dark:bg-gray-950">
+                  <div class="mb-2 text-xs font-medium text-gray-500 dark:text-gray-400">
+                    {{ t("leadCapture.lifecycle.enrichment.missingTitle") }}
+                  </div>
+                  <div v-if="leadLifecycleMissingItems.length" class="space-y-1">
+                    <div
+                      v-for="item in leadLifecycleMissingItems"
+                      :key="item.key"
+                      class="text-amber-600 dark:text-amber-300"
+                    >
+                      {{ item.missingLabel }}
+                    </div>
+                  </div>
+                  <div v-else class="text-green-600 dark:text-green-300">
+                    {{ t("leadCapture.lifecycle.enrichment.noMissing") }}
+                  </div>
+                </div>
+              </div>
+
+              <template v-if="selectedLeadLifecycleNode?.state === 'current'">
+                <div v-if="selectedLeadLifecycleNode.key === 'captured'" class="space-y-4">
+                  <UForm :state="leadLifecycleEnrichmentForm" class="space-y-4" @submit.prevent="submitLeadLifecycleEnrichment">
+                    <div class="grid gap-3 md:grid-cols-3">
+                      <UFormField :label="t('leadCapture.lifecycle.enrichment.displayName')" required>
+                        <UInput
+                          v-model="leadLifecycleEnrichmentForm.display_name"
+                          :placeholder="t('leadCapture.lifecycle.enrichment.displayNamePlaceholder')"
+                          class="w-full"
+                        />
+                      </UFormField>
+                      <UFormField :label="t('leadCapture.lifecycle.enrichment.phone')">
+                        <UInput
+                          v-model="leadLifecycleEnrichmentForm.phone"
+                          :placeholder="t('leadCapture.lifecycle.enrichment.phonePlaceholder')"
+                          class="w-full"
+                        />
+                      </UFormField>
+                      <UFormField :label="t('leadCapture.lifecycle.enrichment.email')">
+                        <UInput
+                          v-model="leadLifecycleEnrichmentForm.email"
+                          :placeholder="t('leadCapture.lifecycle.enrichment.emailPlaceholder')"
+                          class="w-full"
+                        />
+                      </UFormField>
+                    </div>
+                    <div class="grid gap-3 md:grid-cols-3">
+                      <UFormField :label="t('leadCapture.lifecycle.enrichment.sourceChannel')">
+                        <USelectMenu
+                          v-model="leadLifecycleEnrichmentForm.source_channel"
+                          :items="createSourceChannelOptions"
+                          value-key="value"
+                          label-key="label"
+                          :placeholder="t('leadCapture.lifecycle.enrichment.sourceChannelPlaceholder')"
+                          class="w-full"
+                          :portal="false"
+                          :ui="{ content: 'z-[220]' }"
+                        />
+                      </UFormField>
+                      <UFormField :label="t('leadCapture.lifecycle.enrichment.sourceAppType')">
+                        <USelectMenu
+                          v-model="leadLifecycleEnrichmentForm.source_app_type"
+                          :items="createSourceAppTypeOptions"
+                          value-key="value"
+                          label-key="label"
+                          :placeholder="t('leadCapture.lifecycle.enrichment.sourceAppTypePlaceholder')"
+                          class="w-full"
+                          :portal="false"
+                          :ui="{ content: 'z-[220]' }"
+                        />
+                      </UFormField>
+                      <UFormField :label="t('leadCapture.lifecycle.enrichment.sourceAccount')">
+                        <USelectMenu
+                          v-model="leadLifecycleEnrichmentForm.source_account_uuid"
+                          :items="leadLifecycleSourceAccountOptions"
+                          value-key="value"
+                          label-key="label"
+                          :placeholder="t('leadCapture.lifecycle.enrichment.sourceAccountPlaceholder')"
+                          class="w-full"
+                          :portal="false"
+                          :ui="{ content: 'z-[220]' }"
+                        />
+                      </UFormField>
+                    </div>
+                    <div v-if="leadLifecycleEnrichmentError" class="text-sm text-error">
+                      {{ leadLifecycleEnrichmentError }}
+                    </div>
+                    <div class="flex justify-end">
+                      <UButton
+                        type="submit"
+                        color="primary"
+                        :loading="leadLifecycleSaving"
+                        icon="i-heroicons-sparkles"
+                      >
+                        {{ selectedLeadLifecycleNode.actionLabel }}
+                      </UButton>
+                    </div>
+                  </UForm>
+                </div>
+
+                <div v-else-if="selectedLeadLifecycleNode.key === 'enriched'" class="space-y-3">
+                  <div class="text-sm text-gray-600 dark:text-gray-300">
+                    {{ t("leadCapture.lifecycle.actions.dedupHint") }}
+                  </div>
+                  <UButton
+                    color="primary"
+                    :loading="leadLifecycleSaving"
+                    icon="i-heroicons-square-2-stack"
+                    @click="submitLeadLifecycleStatus('deduplicated')"
+                  >
+                    {{ selectedLeadLifecycleNode.actionLabel }}
+                  </UButton>
+                </div>
+
+                <div v-else-if="selectedLeadLifecycleNode.key === 'deduplicated'" class="space-y-3">
+                  <UFormField :label="t('leadCapture.lifecycle.assign.owner')" required>
+                    <USelectMenu
+                      v-model="leadLifecycleAssignOwnerOption"
+                      :items="memberOptions"
+                      value-key="value"
+                      label-key="label"
+                      searchable
+                      class="w-full"
+                      :portal="false"
+                      :ui="{ content: 'z-[220]' }"
+                    />
+                  </UFormField>
+                  <UFormField :label="t('leadCapture.lifecycle.assign.reason')">
+                    <UInput v-model="leadLifecycleAssignForm.reason" class="w-full" />
+                  </UFormField>
+                  <UButton
+                    color="primary"
+                    :loading="leadLifecycleSaving"
+                    icon="i-heroicons-user-plus"
+                    @click="submitLeadLifecycleAssign"
+                  >
+                    {{ selectedLeadLifecycleNode.actionLabel }}
+                  </UButton>
+                </div>
+
+                <div v-else-if="selectedLeadLifecycleNode.key === 'routed'" class="space-y-3">
+                  <div class="text-sm text-gray-600 dark:text-gray-300">
+                    {{ t("leadCapture.lifecycle.actions.startEngagementHint") }}
+                  </div>
+                  <UButton
+                    color="primary"
+                    :loading="leadLifecycleSaving"
+                    icon="i-heroicons-chat-bubble-left-right"
+                    @click="submitLeadLifecycleStatus('engaging')"
+                  >
+                    {{ selectedLeadLifecycleNode.actionLabel }}
+                  </UButton>
+                </div>
+
+                <div v-else-if="selectedLeadLifecycleNode.key === 'engaging'" class="space-y-3">
+                  <div class="text-sm text-gray-600 dark:text-gray-300">
+                    {{ t("leadCapture.lifecycle.actions.qualifyHint") }}
+                  </div>
+                  <UButton
+                    color="primary"
+                    :loading="leadLifecycleSaving"
+                    icon="i-heroicons-check-badge"
+                    @click="submitLeadLifecycleQualification('qualified_for_handoff')"
+                  >
+                    {{ selectedLeadLifecycleNode.actionLabel }}
+                  </UButton>
+                </div>
+
+                <div v-else-if="selectedLeadLifecycleNode.key === 'qualified_for_handoff'" class="space-y-3">
+                  <div class="text-sm text-gray-600 dark:text-gray-300">
+                    {{ t("leadCapture.lifecycle.actions.handoffHint") }}
+                  </div>
+                  <UButton
+                    color="primary"
+                    :loading="leadLifecycleSaving"
+                    icon="i-heroicons-arrow-path-rounded-square"
+                    @click="submitLeadLifecycleQualification('handoff_pending')"
+                  >
+                    {{ selectedLeadLifecycleNode.actionLabel }}
+                  </UButton>
+                </div>
+
+                <div v-else class="rounded-md border border-dashed border-gray-200 bg-white p-3 text-sm text-gray-500 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-400">
+                  {{ t("leadCapture.lifecycle.actions.noManualAction") }}
+                </div>
+              </template>
+
+              <div v-else class="rounded-md border border-dashed border-gray-200 bg-white p-3 text-sm text-gray-500 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-400">
+                {{ t("leadCapture.lifecycle.readonlyNode") }}
+              </div>
+            </div>
+
+            <div class="order-2 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950">
+              <div class="mb-3 flex items-center justify-between gap-3">
+                <div class="flex min-w-0 items-center gap-2">
+                  <UIcon name="i-heroicons-pencil-square" class="text-primary" />
+                  <span class="text-sm font-medium text-gray-900 dark:text-gray-100">
+                    {{ t("leadCapture.lifecycle.tracePanel.activityRecords") }}
+                  </span>
+                  <UBadge size="xs" variant="soft" color="neutral">
+                    {{ selectedLeadLifecycleActivities.length }}
+                  </UBadge>
+                </div>
+                <UButton size="xs" color="primary" variant="soft" icon="i-heroicons-plus" @click.stop="openLeadLifecycleActivityModal">
+                  {{ t("leadCapture.lifecycle.activityRecordAction") }}
+                </UButton>
+              </div>
+              <div v-if="selectedLeadLifecycleActivities.length" class="overflow-hidden rounded-md border border-gray-200 dark:border-gray-800">
+                <div class="grid grid-cols-[92px_90px_minmax(0,1fr)_96px_28px] items-center gap-2 bg-gray-50 px-3 py-2 text-xs font-medium text-gray-500 dark:bg-gray-900 dark:text-gray-400">
+                  <span>{{ t("leadCapture.lifecycle.activityTable.time") }}</span>
+                  <span>{{ t("leadCapture.lifecycle.activityTable.type") }}</span>
+                  <span>{{ t("leadCapture.lifecycle.activityTable.subject") }}</span>
+                  <span>{{ t("leadCapture.lifecycle.activityTable.result") }}</span>
+                  <span />
+                </div>
+                <button
+                  v-for="item in selectedLeadLifecycleActivities.slice(0, 5)"
+                  :key="item.activity_uuid"
+                  type="button"
+                  class="grid w-full grid-cols-[92px_90px_minmax(0,1fr)_96px_28px] items-center gap-2 border-t px-3 py-2 text-left text-sm transition hover:bg-gray-50 dark:hover:bg-gray-900"
+                  :class="selectedLeadLifecycleActivity?.activity_uuid === item.activity_uuid
+                    ? 'border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/30'
+                    : 'border-gray-100 dark:border-gray-800'"
+                  @click="selectedLeadLifecycleActivityId = item.activity_uuid"
+                >
+                  <span class="truncate text-gray-500">{{ formatLeadLifecycleTime(item.created_at) }}</span>
+                  <span class="truncate text-gray-600 dark:text-gray-300">{{ activityMethodLabel(item.payload?.method) }}</span>
+                  <span class="truncate font-medium text-gray-900 dark:text-gray-100">{{ activityDescription(item) }}</span>
+                  <span class="truncate text-gray-500">{{ activityResultLabel(item.payload?.result) }}</span>
+                  <UIcon name="i-heroicons-chevron-right" class="h-4 w-4 text-gray-400" />
+                </button>
+              </div>
+              <div v-else class="text-sm text-gray-500">
+                {{ t("leadCapture.lifecycle.tracePanel.emptyActivityRecords") }}
+              </div>
+            </div>
+
+            <div class="order-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950">
+              <div class="mb-3 flex items-center justify-between gap-3">
+                <div class="flex items-center gap-2">
+                  <UIcon name="i-heroicons-paper-clip" class="text-primary" />
+                  <span class="text-sm font-medium text-gray-900 dark:text-gray-100">
+                    {{ t("leadCapture.lifecycle.attachments.title") }}
+                  </span>
+                  <UBadge size="xs" variant="soft" color="neutral">
+                    {{ t("leadCapture.lifecycle.attachments.provider") }}
+                  </UBadge>
+                </div>
+                <UButton size="xs" color="primary" icon="i-heroicons-arrow-up-tray" disabled>
+                  {{ t("leadCapture.lifecycle.attachments.upload") }}
+                </UButton>
+              </div>
+              <div class="rounded-md border border-dashed border-gray-200 bg-gray-50 p-4 text-sm text-gray-600 dark:border-gray-800 dark:bg-gray-900/60 dark:text-gray-300">
+                <div class="font-medium text-gray-900 dark:text-gray-100">
+                  {{ t("leadCapture.lifecycle.attachments.unavailableTitle") }}
+                </div>
+                <div class="mt-2 leading-5">
+                  {{ t("leadCapture.lifecycle.attachments.unavailableDescription") }}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="space-y-4">
+            <div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950">
+              <div class="mb-4 flex items-center gap-2">
+                <UIcon name="i-heroicons-identification" class="text-primary" />
+                <span class="text-sm font-medium text-gray-900 dark:text-gray-100">
+                  {{ t("leadCapture.lifecycle.modalLeadSummary") }}
+                </span>
+              </div>
+              <div class="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <div class="text-xs text-gray-500">{{ t("leadCapture.lifecycle.summary.name") }}</div>
+                  <div class="font-medium text-gray-900 dark:text-gray-100">
+                    {{ leadDisplayName(selectedLifecycleLead) }}
+                  </div>
+                </div>
+                <div>
+                  <div class="text-xs text-gray-500">{{ t("leadCapture.lifecycle.summary.contact") }}</div>
+                  <div class="text-gray-900 dark:text-gray-100">
+                    {{ leadContactSummary(selectedLifecycleLead) }}
+                  </div>
+                </div>
+                <div>
+                  <div class="text-xs text-gray-500">{{ t("leadCapture.lifecycle.summary.status") }}</div>
+                  <UBadge :color="statusMeta(selectedLifecycleLead.status).color" variant="soft">
+                    {{ statusMeta(selectedLifecycleLead.status).label }}
+                  </UBadge>
+                </div>
+                <div>
+                  <div class="text-xs text-gray-500">{{ t("leadCapture.lifecycle.summary.owner") }}</div>
+                  <div class="text-gray-900 dark:text-gray-100">
+                    {{ resolveLeadOwnerDisplayName(selectedLifecycleLead.owner_user_uuid) }}
+                  </div>
+                </div>
+                <div class="col-span-2">
+                  <div class="text-xs text-gray-500">{{ t("leadCapture.lifecycle.summary.source") }}</div>
+                  <div class="text-gray-900 dark:text-gray-100">
+                    {{ leadSourceSummary(selectedLifecycleLead) }}
+                  </div>
+                </div>
+                <div class="col-span-2">
+                  <div class="text-xs text-gray-500">{{ t("leadCapture.lifecycle.summary.createdAt") }}</div>
+                  <div class="text-gray-900 dark:text-gray-100">
+                    {{ formatLeadLifecycleTime(selectedLifecycleLead.created_at) }}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950">
+              <div class="mb-3 flex items-center justify-between gap-3">
+                <div class="flex items-center gap-2">
+                  <UIcon name="i-heroicons-pencil-square" class="text-primary" />
+                  <span class="text-sm font-medium text-gray-900 dark:text-gray-100">
+                    {{ t("leadCapture.lifecycle.activityDetail.title") }}
+                  </span>
+                </div>
+                <UBadge size="xs" variant="soft" color="neutral">
+                  {{ t("leadCapture.lifecycle.activityRecordAction") }}
+                </UBadge>
+              </div>
+              <div v-if="selectedLeadLifecycleActivity" class="space-y-3 text-sm">
+                <div class="grid grid-cols-2 gap-3">
+                  <div>
+                    <div class="text-xs text-gray-500">{{ t("leadCapture.lifecycle.activityDetail.occurredAt") }}</div>
+                    <div class="mt-1 text-gray-900 dark:text-gray-100">
+                      {{ formatLeadLifecycleTime(selectedLeadLifecycleActivity.created_at) }}
+                    </div>
+                  </div>
+                  <div>
+                    <div class="text-xs text-gray-500">{{ t("leadCapture.lifecycle.activityDetail.operator") }}</div>
+                    <div class="mt-1 text-gray-900 dark:text-gray-100">
+                      {{ t("leadCapture.lifecycle.activityDetail.systemOperator") }}
+                    </div>
+                  </div>
+                  <div>
+                    <div class="text-xs text-gray-500">{{ t("leadCapture.lifecycle.activityDetail.stage") }}</div>
+                    <div class="mt-1 text-gray-900 dark:text-gray-100">
+                      {{ selectedLeadLifecycleActivityStageLabel }}
+                    </div>
+                  </div>
+                  <div>
+                    <div class="text-xs text-gray-500">{{ t("leadCapture.lifecycle.activityDetail.method") }}</div>
+                    <div class="mt-1 text-gray-900 dark:text-gray-100">
+                      {{ activityMethodLabel(selectedLeadLifecycleActivityPayload.method) }}
+                    </div>
+                  </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                  <div>
+                    <div class="text-xs text-gray-500">{{ t("leadCapture.lifecycle.activityDetail.subject") }}</div>
+                    <div class="mt-1 text-gray-900 dark:text-gray-100">
+                      {{ selectedLeadLifecycleActivityPayload.subject || "-" }}
+                    </div>
+                  </div>
+                  <div>
+                    <div class="text-xs text-gray-500">{{ t("leadCapture.lifecycle.activityDetail.result") }}</div>
+                    <div class="mt-1 text-gray-900 dark:text-gray-100">
+                      {{ activityResultLabel(selectedLeadLifecycleActivityPayload.result) }}
+                    </div>
+                  </div>
+                </div>
+                <div class="rounded-md bg-gray-50 p-3 text-gray-700 dark:bg-gray-900 dark:text-gray-200">
+                  <div class="mb-1 text-xs text-gray-500">{{ t("leadCapture.lifecycle.activityDetail.content") }}</div>
+                  <div class="whitespace-pre-wrap break-words leading-6">
+                    {{ selectedLeadLifecycleActivityPayload.content || activityDescription(selectedLeadLifecycleActivity) }}
+                  </div>
+                </div>
+                <div
+                  v-if="selectedLeadLifecycleActivityPayload.next_step || selectedLeadLifecycleActivityPayload.next_follow_up_at"
+                  class="rounded-md bg-gray-50 p-3 text-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                >
+                  <div class="mb-1 text-xs text-gray-500">{{ t("leadCapture.lifecycle.activityDetail.nextStep") }}</div>
+                  <div class="whitespace-pre-wrap break-words leading-6">
+                    {{ selectedLeadLifecycleActivityPayload.next_step || "-" }}
+                  </div>
+                  <div v-if="selectedLeadLifecycleActivityPayload.next_follow_up_at" class="mt-2 text-xs text-gray-500">
+                    {{ t("leadCapture.lifecycle.activityDetail.nextFollowUpAt") }} {{ formatLeadLifecycleTime(selectedLeadLifecycleActivityPayload.next_follow_up_at) }}
+                  </div>
+                </div>
+                <div class="rounded-md border border-gray-100 p-3 dark:border-gray-800">
+                  <div class="mb-2 flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-gray-100">
+                    <UIcon name="i-heroicons-paper-clip" class="h-4 w-4 text-gray-500" />
+                    {{ t("leadCapture.lifecycle.activityForm.attachmentTitle") }}
+                  </div>
+                  <div v-if="selectedLeadLifecycleActivityAttachments.length" class="divide-y divide-gray-100 dark:divide-gray-800">
+                    <div
+                      v-for="file in selectedLeadLifecycleActivityAttachments"
+                      :key="file.attachment_uuid"
+                      class="flex items-center justify-between gap-3 py-2"
+                    >
+                      <div class="min-w-0">
+                        <div class="truncate text-gray-900 dark:text-gray-100">{{ file.file_name }}</div>
+                        <div class="text-xs text-gray-500">{{ formatFileSize(file.file_size) }}</div>
+                      </div>
+                      <UButton
+                        size="xs"
+                        variant="soft"
+                        icon="i-heroicons-arrow-down-tray"
+                        @click="downloadLeadLifecycleAttachment(file)"
+                      >
+                        {{ t("leadCapture.lifecycle.activityForm.downloadFile") }}
+                      </UButton>
+                    </div>
+                  </div>
+                  <div v-else class="text-sm text-gray-500">
+                    {{ t("leadCapture.lifecycle.activityForm.emptyAttachments") }}
+                  </div>
+                </div>
+              </div>
+              <div v-else class="text-sm text-gray-500">
+                {{ t("leadCapture.lifecycle.activityDetail.empty") }}
+              </div>
+            </div>
+
+            <div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950">
+              <div class="mb-3 flex items-center justify-between gap-3">
+                <div class="flex min-w-0 items-center gap-2">
+                  <UIcon name="i-heroicons-clipboard-document-list" class="text-primary" />
+                  <span class="text-sm font-medium text-gray-900 dark:text-gray-100">
+                    {{ t("leadCapture.lifecycle.traceDetail.title") }}
+                  </span>
+                </div>
+                <div class="text-xs text-gray-500">
+                  {{ selectedLeadLifecycleTimelineIndex }} / {{ selectedLeadLifecycleTimelineItems.length }}
+                </div>
+              </div>
+              <div v-if="leadLifecycleTraceLoading" class="text-sm text-gray-500">
+                {{ t("leadCapture.lifecycle.tracePanel.loading") }}
+              </div>
+              <div v-else-if="selectedLeadLifecycleTimelineItems.length" class="space-y-3">
+                <button
+                  v-for="item in selectedLeadLifecycleTimelineItems.slice(0, 6)"
+                  :key="item.id"
+                  type="button"
+                  class="relative w-full rounded-lg border p-3 pl-11 text-left text-sm transition hover:border-primary-300"
+                  :class="selectedLeadLifecycleTimelineItem?.id === item.id
+                    ? 'border-green-500 bg-green-50 ring-1 ring-green-500 dark:bg-green-950/30'
+                    : 'border-gray-100 bg-gray-50 dark:border-gray-800 dark:bg-gray-900/60'"
+                  @click="selectedLeadLifecycleTraceId = item.id"
+                >
+                  <div class="absolute left-3 top-3 flex h-6 w-6 items-center justify-center rounded-full bg-primary-50 text-primary-600 dark:bg-primary-950/40">
+                    <UIcon :name="item.kind === 'activity' ? 'i-heroicons-pencil-square' : 'i-heroicons-plus-circle'" class="h-4 w-4" />
+                  </div>
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="font-medium text-gray-900 dark:text-gray-100">{{ item.title }}</div>
+                    <div class="shrink-0 text-xs text-gray-500">{{ formatLeadLifecycleTime(item.time) }}</div>
+                  </div>
+                  <div class="mt-1 text-xs text-gray-500">{{ item.subtitle }}</div>
+                  <div class="mt-1 text-gray-600 dark:text-gray-300">{{ item.description }}</div>
+                </button>
+              </div>
+              <div v-else class="text-sm text-gray-500">
+                {{ t("leadCapture.lifecycle.tracePanel.emptyAuditTrail") }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+      <template #footer>
+        <div class="flex w-full justify-end">
+          <UButton variant="ghost" :disabled="leadLifecycleSaving" @click="closeLeadLifecycleModal">
+            {{ t("leadCapture.lifecycle.closeModal") }}
+          </UButton>
+        </div>
+      </template>
+    </UModal>
+
+    <UModal
+      v-model:open="leadLifecycleActivityModalOpen"
+      :prevent-close="leadLifecycleActivitySaving"
+      :dismissible="!leadLifecycleActivitySaving"
+      :modal="true"
+      :ui="{ content: 'w-[min(92vw,560px)] max-w-none' }"
+    >
+      <template #title>{{ t("leadCapture.lifecycle.activityForm.title") }}</template>
+      <template #description>
+        {{ selectedLeadLifecycleNode?.label || "" }}
+      </template>
+      <template #body>
+        <UForm :state="leadLifecycleActivityForm" class="space-y-4 p-4 sm:p-5" @submit.prevent="submitLeadLifecycleActivity">
+          <UFormField :label="t('leadCapture.lifecycle.activityForm.method')" required>
+            <USelectMenu
+              v-model="leadLifecycleActivityForm.method"
+              :items="leadLifecycleActivityMethodOptions"
+              value-key="value"
+              label-key="label"
+              class="w-full"
+              :portal="false"
+              :ui="{ content: 'z-[240]' }"
+            />
+          </UFormField>
+          <UFormField :label="t('leadCapture.lifecycle.activityForm.subject')">
+            <UInput
+              v-model="leadLifecycleActivityForm.subject"
+              :placeholder="t('leadCapture.lifecycle.activityForm.subjectPlaceholder')"
+              class="w-full"
+            />
+          </UFormField>
+          <UFormField :label="t('leadCapture.lifecycle.activityForm.content')" required>
+            <UTextarea
+              v-model="leadLifecycleActivityForm.content"
+              :rows="4"
+              :placeholder="t('leadCapture.lifecycle.activityForm.contentPlaceholder')"
+              class="w-full"
+            />
+          </UFormField>
+          <UFormField :label="t('leadCapture.lifecycle.activityForm.result')">
+            <USelectMenu
+              v-model="leadLifecycleActivityForm.result"
+              :items="leadLifecycleActivityResultOptions"
+              value-key="value"
+              label-key="label"
+              class="w-full"
+              :portal="false"
+              :ui="{ content: 'z-[240]' }"
+            />
+          </UFormField>
+          <UFormField :label="t('leadCapture.lifecycle.activityForm.attachmentTitle')">
+            <div class="rounded border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900">
+              <div class="flex items-center justify-between gap-3">
+                <div class="flex min-w-0 items-center gap-2">
+                  <UIcon name="i-heroicons-paper-clip" class="h-4 w-4 text-gray-500" />
+                  <div class="truncate text-sm font-medium text-gray-900 dark:text-gray-100">
+                    {{ t("leadCapture.lifecycle.activityForm.attachmentTitle") }}
+                  </div>
+                  <UBadge size="xs" variant="soft" color="neutral">
+                    {{ t("leadCapture.lifecycle.activityForm.attachmentProvider") }}
+                  </UBadge>
+                </div>
+                <input
+                  ref="leadLifecycleActivityAttachmentInputRef"
+                  type="file"
+                  multiple
+                  class="hidden"
+                  @change="handleLeadLifecycleActivityFiles(($event.target as HTMLInputElement).files)"
+                />
+                <UButton size="xs" color="primary" icon="i-heroicons-arrow-up-tray" @click="leadLifecycleActivityAttachmentInputRef?.click()">
+                  {{ t("leadCapture.lifecycle.activityForm.chooseFile") }}
+                </UButton>
+              </div>
+              <div class="mt-3 text-sm text-gray-600 dark:text-gray-300">
+                {{
+                  leadLifecycleActivityPendingFiles.length
+                    ? t("leadCapture.lifecycle.activityForm.attachmentPendingCount", { count: leadLifecycleActivityPendingFiles.length })
+                    : t("leadCapture.lifecycle.activityForm.attachmentPendingText")
+                }}
+              </div>
+              <div v-if="leadLifecycleActivityPendingFiles.length" class="mt-2 flex flex-wrap gap-2">
+                <UBadge
+                  v-for="file in leadLifecycleActivityPendingFiles"
+                  :key="`${file.name}-${file.size}-${file.lastModified}`"
+                  variant="soft"
+                  color="neutral"
+                  class="max-w-full"
+                >
+                  <span class="max-w-[360px] truncate">{{ file.name }}</span>
+                </UBadge>
+              </div>
+            </div>
+          </UFormField>
+          <div class="rounded border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900">
+            <UCheckbox v-model="leadLifecycleActivityForm.create_follow_up_task" :label="t('leadCapture.lifecycle.activityForm.createFollowUpTask')" />
+            <div v-if="leadLifecycleActivityForm.create_follow_up_task" class="mt-3 grid gap-3">
+              <UFormField :label="t('leadCapture.lifecycle.activityForm.nextStep')">
+                <UTextarea
+                  v-model="leadLifecycleActivityForm.next_step"
+                  :rows="3"
+                  :placeholder="t('leadCapture.lifecycle.activityForm.nextStepPlaceholder')"
+                  class="w-full"
+                />
+              </UFormField>
+              <UFormField :label="t('leadCapture.lifecycle.activityForm.nextFollowUpAt')">
+                <UInput v-model="leadLifecycleActivityForm.next_follow_up_at" type="datetime-local" class="w-full" />
+              </UFormField>
+            </div>
+          </div>
+        </UForm>
+      </template>
+      <template #footer>
+        <div class="flex w-full justify-start gap-2">
+          <UButton color="primary" :loading="leadLifecycleActivitySaving" @click="submitLeadLifecycleActivity">
+            {{ t("leadCapture.lifecycle.activityForm.submit") }}
+          </UButton>
+          <UButton variant="ghost" :disabled="leadLifecycleActivitySaving" @click="closeLeadLifecycleActivityModal">
+            {{ t("leadCapture.lifecycle.activityForm.cancel") }}
+          </UButton>
+        </div>
+      </template>
+    </UModal>
 
     <UModal
       v-model:open="batchAssignModalOpen"
@@ -1242,8 +1941,8 @@
             </UFormField>
           </div>
           <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <UFormField label="渠道账号 UUID" required>
-              <UInput v-model="channelCodeCreateForm.channel_account_uuid" placeholder="渠道账号 UUID" />
+            <UFormField label="渠道账号" required>
+              <UInput v-model="channelCodeCreateForm.channel_account_uuid" placeholder="请选择或填入渠道账号" />
             </UFormField>
             <UFormField label="渠道码 Key" required>
               <UInput v-model="channelCodeCreateForm.code_key" placeholder="campaign-key" />
@@ -1282,11 +1981,12 @@
 
 <script setup lang="ts">
 import { computed, onActivated, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
-import { useRouter } from "#imports";
+import { useI18n, useRouter } from "#imports";
 import type { LeadCreatePayload } from "~/types/lead_capture/lead";
 import { useLeadCaptureStore } from "~/stores/scrm/lead_capture/lead_store";
 import { useLeadChannelCodeStore } from "~/stores/scrm/lead_capture/channel_code_store";
 import { useUserStore } from "~/stores/user";
+import LeadLifecycleNav from "~/components/scrm/lead_capture/LeadLifecycleNav.vue";
 import ToastAlert from "~/components/ToastAlert.vue";
 import {
   useLeadCaptureService,
@@ -1297,6 +1997,11 @@ import {
   type WeComSyncTaskRecord,
   type WeComCustomerDMRule,
   type LeadBatchAssignResult,
+  type LeadActivityRecord,
+  type LeadAttachmentRecord,
+  type LeadAssignmentRecord,
+  type LeadSourceEventRecord,
+  type LeadStatusHistoryRecord,
 } from "~/composables/api/services/leadCapture";
 import {
   RuntimeDictionaryNamespaces,
@@ -1311,6 +2016,11 @@ import {
   useIAMService,
   type MemberRecord,
 } from "~/composables/api/services/iamService";
+import {
+  privateDomainStatusValues,
+  type PrivateDomainLeadStatus,
+  useLeadLifecycle,
+} from "~/composables/scrm/lead_capture/useLeadLifecycle";
 import { useWsBusClient } from "~/composables/useWsBusClient";
 
 definePageMeta({
@@ -1321,10 +2031,12 @@ const store = useLeadCaptureStore();
 const channelCodeStore = useLeadChannelCodeStore();
 const userStore = useUserStore();
 const router = useRouter();
+const { t } = useI18n();
 const leadCaptureService = useLeadCaptureService();
 const runtimeDictionaryService = useRuntimeDictionaryService();
 const socialChannelService = useSocialChannelGovernanceService();
 const iamService = useIAMService();
+const leadLifecycle = useLeadLifecycle();
 const wsBus = useWsBusClient();
 
 const ALL_OPTION_VALUE = "__all__";
@@ -1339,6 +2051,24 @@ const creating = ref(false);
 const createFormError = ref("");
 const batchAssignModalOpen = ref(false);
 const batchAssignSubmitting = ref(false);
+const leadLifecycleModalOpen = ref(false);
+const leadLifecycleSaving = ref(false);
+const selectedLifecycleLead = ref<any | null>(null);
+const selectedLeadLifecycleNodeKey = ref("");
+const leadLifecycleAssignOwnerOption = ref<any>(null);
+const leadLifecycleEnrichmentError = ref("");
+const leadLifecycleTraceLoading = ref(false);
+const leadLifecycleActivityModalOpen = ref(false);
+const leadLifecycleActivitySaving = ref(false);
+const leadLifecycleActivityAttachmentInputRef = ref<HTMLInputElement | null>(null);
+const leadLifecycleActivityPendingFiles = ref<File[]>([]);
+const selectedLeadLifecycleActivityId = ref("");
+const selectedLeadLifecycleTraceId = ref("");
+const leadLifecycleActivities = ref<LeadActivityRecord[]>([]);
+const leadLifecycleActivityAttachments = ref<Record<string, LeadAttachmentRecord[]>>({});
+const leadLifecycleAssignments = ref<LeadAssignmentRecord[]>([]);
+const leadLifecycleSourceEvents = ref<LeadSourceEventRecord[]>([]);
+const leadLifecycleStatusHistory = ref<LeadStatusHistoryRecord[]>([]);
 const currentPage = ref(1);
 const pageSize = ref(10);
 const importModalOpen = ref(false);
@@ -1391,6 +2121,8 @@ const syncActivePollingTaskUUID = ref("");
 const lastLeadAutoRefreshTaskSignature = ref("");
 const lastActiveTaskToastSignature = ref("");
 const syncLastResolveSource = ref("");
+let leadRefreshInFlight: Promise<void> | null = null;
+let syncTasksRefreshInFlight: Promise<void> | null = null;
 const wecomCustomerDMRuleLoading = ref(false);
 const wecomCustomerDMRuleSaving = ref(false);
 const wecomCustomerDMAutoCreate = ref(false);
@@ -1406,7 +2138,7 @@ const importFields = [
   { key: "email", label: "邮箱", required: false },
   { key: "source_channel", label: "渠道", required: false },
   { key: "source_app_type", label: "应用类型", required: false },
-  { key: "source_account_uuid", label: "渠道账号 UUID", required: false },
+  { key: "source_account_uuid", label: "渠道账号", required: false },
   { key: "owner_user_uuid", label: "负责人", required: false },
 ];
 
@@ -1454,6 +2186,26 @@ const createForm = reactive<LeadCreatePayload>({
 const batchAssignForm = reactive({
   reason: "",
 });
+const leadLifecycleAssignForm = reactive({
+  reason: "",
+});
+const leadLifecycleActivityForm = reactive({
+  method: "sync_trace",
+  subject: "",
+  content: "",
+  result: "",
+  create_follow_up_task: false,
+  next_step: "",
+  next_follow_up_at: "",
+});
+const leadLifecycleEnrichmentForm = reactive<LeadCreatePayload>({
+  display_name: "",
+  phone: "",
+  email: "",
+  source_channel: "",
+  source_app_type: "",
+  source_account_uuid: "",
+});
 
 const batchAssignOwnerOption = ref<any>(null);
 
@@ -1479,23 +2231,92 @@ const TOAST_DEDUP_WINDOW_MS = 3000;
 const leadColumns = [
   { accessorKey: "select", header: "" },
   { accessorKey: "display_name", header: "线索" },
-  { accessorKey: "contact", header: "联系方式" },
   { accessorKey: "status", header: "状态" },
   { accessorKey: "source", header: "来源" },
   { accessorKey: "actions", header: "操作" },
 ] satisfies any;
 
-const statusFilterOptions = [
-  { label: "全部", value: ALL_OPTION_VALUE },
-  { label: "新线索", value: "new" },
-  { label: "已分配", value: "assigned" },
-  { label: "跟进中", value: "in_progress" },
-  { label: "MQL", value: "mql" },
-  { label: "SQL", value: "sql" },
-  { label: "已转化", value: "converted" },
-  { label: "已关闭", value: "closed" },
-  { label: "已断开关系", value: "disconnected" },
-];
+const privateDomainFunnelStatusValues = leadLifecycle.privateDomainStatusValues;
+const statusFilterOptions = leadLifecycle.statusFilterOptions;
+
+const funnelStages = computed(() =>
+  leadLifecycle.buildLifecycleNodes(
+    statusFilter.value === ALL_OPTION_VALUE ? undefined : statusFilter.value,
+    (value) => store.leads.filter((lead) => lead.status === value).length
+  ).map((node) => ({
+    value: node.key,
+    label: node.label,
+    shortLabel: node.shortLabel,
+    color: node.color,
+    count: node.count,
+    toneClass: node.toneClass,
+    indexClass: node.indexClass,
+  }))
+);
+
+const leadDisplayName = (lead?: any) => {
+  const name = String(lead?.display_name || "").trim();
+  if (name) return name;
+  return t("leadCapture.listDisplay.unnamedLead");
+};
+
+const leadContactSummary = (lead?: any) => {
+  const phone = String(lead?.phone || "").trim();
+  const email = String(lead?.email || "").trim();
+  return [phone, email].filter(Boolean).join(" / ") || "-";
+};
+
+const leadLifecycleStatus = (lead?: any): PrivateDomainLeadStatus => {
+  const status = String(lead?.status || "").trim() as PrivateDomainLeadStatus;
+  return privateDomainStatusValues.includes(status) ? status : "captured";
+};
+
+const leadLifecycleActionButton = (lead?: any) => {
+  const status = leadLifecycleStatus(lead);
+  const node = leadLifecycle.buildLifecycleNodes(status).find((item) => item.key === status);
+  return {
+    label: node?.actionLabel || t("leadCapture.lifecycle.actions.open"),
+    icon: node?.icon || "i-heroicons-funnel",
+    color: node?.key === "handoff_accepted" ? "success" : node?.color || "primary",
+  };
+};
+
+const selectedLeadLifecycleStatus = computed(() => leadLifecycleStatus(selectedLifecycleLead.value));
+const selectedLeadLifecycleNodes = computed(() =>
+  leadLifecycle.buildLifecycleNodes(selectedLeadLifecycleStatus.value)
+);
+const selectedLeadLifecycleNode = computed(() =>
+  selectedLeadLifecycleNodes.value.find((node) => node.key === selectedLeadLifecycleNodeKey.value) ||
+  selectedLeadLifecycleNodes.value.find((node) => node.key === selectedLeadLifecycleStatus.value) ||
+  selectedLeadLifecycleNodes.value[0]
+);
+
+const lifecycleStateLabel = (state?: string) => {
+  if (state === "done") return t("leadCapture.lifecycle.state.done");
+  if (state === "current") return t("leadCapture.lifecycle.state.current");
+  if (state === "terminal") return t("leadCapture.lifecycle.state.terminal");
+  return t("leadCapture.lifecycle.state.pending");
+};
+
+const selectLeadLifecycleNode = (node: { key: string }) => {
+  selectedLeadLifecycleNodeKey.value = node.key;
+  selectedLeadLifecycleActivityId.value = "";
+  selectedLeadLifecycleTraceId.value = "";
+};
+
+const selectedLeadLifecycleNodeKeyValue = computed(() =>
+  String(selectedLeadLifecycleNode.value?.key || selectedLeadLifecycleStatus.value || "captured")
+);
+
+const memberOptions = computed(() =>
+  iamMembers.value
+    .map((member) => {
+      const value = String((member as any).member_id ?? member.id ?? "").trim();
+      const label = String(member.display_name || member.username || member.email || "").trim();
+      return { value, label };
+    })
+    .filter((item) => item.value && item.label)
+);
 
 const pageSizeOptions = [
   { label: "10/页", value: 10 },
@@ -1507,13 +2328,28 @@ const syncTriggerActionOptions = [
   { label: "拉取外部联系人到线索", value: "pull_external_contacts" },
 ];
 
+const leadLifecycleActivityMethodOptions = computed(() => [
+  { label: t("leadCapture.lifecycle.activityMethod.phone"), value: "phone" },
+  { label: t("leadCapture.lifecycle.activityMethod.wechat"), value: "wechat" },
+  { label: t("leadCapture.lifecycle.activityMethod.email"), value: "email" },
+  { label: t("leadCapture.lifecycle.activityMethod.syncTrace"), value: "sync_trace" },
+  { label: t("leadCapture.lifecycle.activityMethod.note"), value: "note" },
+]);
+
+const leadLifecycleActivityResultOptions = computed(() => [
+  { label: t("leadCapture.lifecycle.activityResult.done"), value: "done" },
+  { label: t("leadCapture.lifecycle.activityResult.interested"), value: "interested" },
+  { label: t("leadCapture.lifecycle.activityResult.pending"), value: "pending" },
+  { label: t("leadCapture.lifecycle.activityResult.invalid"), value: "invalid" },
+]);
+
 const pushLeadSelectionOptions = computed(() =>
   filteredLeads.value.map((lead) => {
     const name = (lead.display_name || "").trim();
     const phone = (lead.phone || "").trim();
     const email = (lead.email || "").trim();
     const status = statusMeta(lead.status).label;
-    const title = name || phone || email || lead.lead_uuid;
+    const title = name || phone || email || t("leadCapture.listDisplay.unnamedLead");
     const desc = [phone || "-", email || "-", status].join(" / ");
     return {
       value: lead.lead_uuid,
@@ -1537,11 +2373,11 @@ const writebackFieldOptions = [
   { label: "姓名（display_name）", value: "display_name" },
   { label: "手机号（phone）", value: "phone" },
   { label: "邮箱（email）", value: "email" },
-  { label: "负责人（owner_user_uuid）", value: "owner_user_uuid" },
+  { label: "负责人", value: "owner_user_uuid" },
   { label: "状态（status）", value: "status" },
-  { label: "线索UUID（lead_uuid）", value: "lead_uuid" },
-  { label: "租户UUID（tenant_uuid）", value: "tenant_uuid" },
-  { label: "来源账号（source_account_uuid）", value: "source_account_uuid" },
+  { label: "线索标识", value: "lead_uuid" },
+  { label: "租户", value: "tenant_uuid" },
+  { label: "来源账号", value: "source_account_uuid" },
   { label: "来源渠道（source_channel）", value: "source_channel" },
   { label: "来源应用（source_app_type）", value: "source_app_type" },
 ];
@@ -1869,6 +2705,179 @@ const createAccountOptions = computed(() => {
   }));
 });
 
+const leadLifecycleSourceAccountOptions = computed(() => {
+  const selectedChannel = leadLifecycleEnrichmentForm.source_channel?.trim().toLowerCase() || "";
+  const selectedAppType = leadLifecycleEnrichmentForm.source_app_type?.trim().toLowerCase() || "";
+  return channelAccounts.value
+    .filter((account) => {
+      const channel = (account.channel_code || "").trim().toLowerCase();
+      const appType = (account.app_type || "").trim().toLowerCase();
+      if (selectedChannel && channel !== selectedChannel) return false;
+      if (selectedAppType && appType !== selectedAppType) return false;
+      return true;
+    })
+    .map((account) => ({
+      label: `${account.display_name || account.account_id} (${account.channel_code}/${account.app_type})`,
+      value: account.account_uuid,
+    }));
+});
+
+const hasLeadLifecycleIdentityFields = computed(() =>
+  Boolean(
+    leadLifecycleEnrichmentForm.display_name?.trim() ||
+    leadLifecycleEnrichmentForm.phone?.trim() ||
+    leadLifecycleEnrichmentForm.email?.trim()
+  )
+);
+
+const leadLifecycleEnrichmentChecklist = computed(() => [
+  {
+    key: "identity",
+    label: t("leadCapture.lifecycle.enrichment.identityChecklist"),
+    complete: hasLeadLifecycleIdentityFields.value,
+    missingLabel: t("leadCapture.lifecycle.enrichment.identityMissing"),
+  },
+  {
+    key: "source",
+    label: t("leadCapture.lifecycle.enrichment.sourceChecklist"),
+    complete: Boolean(
+      leadLifecycleEnrichmentForm.source_channel?.trim() ||
+      leadLifecycleEnrichmentForm.source_app_type?.trim()
+    ),
+    missingLabel: t("leadCapture.lifecycle.enrichment.sourceMissing"),
+  },
+  {
+    key: "account",
+    label: t("leadCapture.lifecycle.enrichment.accountChecklist"),
+    complete: Boolean(leadLifecycleEnrichmentForm.source_account_uuid?.trim()),
+    missingLabel: t("leadCapture.lifecycle.enrichment.accountMissing"),
+  },
+]);
+
+const leadLifecycleMissingItems = computed(() =>
+  leadLifecycleEnrichmentChecklist.value.filter((item) => !item.complete)
+);
+
+const selectedLeadLifecycleOperationSummary = computed(() => {
+  const key = selectedLeadLifecycleNodeKeyValue.value;
+  return {
+    goal: t(`leadCapture.lifecycle.operation.${key}.goal`),
+    requirements: t(`leadCapture.lifecycle.operation.${key}.requirements`),
+    result: t(`leadCapture.lifecycle.operation.${key}.result`),
+  };
+});
+
+const activityStageKey = (activity?: LeadActivityRecord) => {
+  const payload = (activity?.payload || {}) as Record<string, any>;
+  return String(payload.stage_key || payload.stageKey || payload.to_status || payload.status || "").trim();
+};
+
+const isLeadLifecycleUserActivity = (activity?: LeadActivityRecord) => {
+  const payload = (activity?.payload || {}) as Record<string, any>;
+  if (String(activity?.activity_type || "").trim() !== "manual_activity") return false;
+  return [
+    payload.content,
+    payload.subject,
+    payload.result,
+    payload.next_step,
+  ].some((item) => String(item || "").trim());
+};
+
+const selectedLeadLifecycleActivities = computed(() => {
+  const key = selectedLeadLifecycleNodeKeyValue.value;
+  return leadLifecycleActivities.value.filter((item) => {
+    if (!isLeadLifecycleUserActivity(item)) return false;
+    const stageKey = activityStageKey(item);
+    return stageKey === key || (!stageKey && key === selectedLeadLifecycleStatus.value);
+  });
+});
+
+const selectedLeadLifecycleActivity = computed(() =>
+  selectedLeadLifecycleActivities.value.find((item) => item.activity_uuid === selectedLeadLifecycleActivityId.value) ||
+  selectedLeadLifecycleActivities.value[0] ||
+  null
+);
+
+const selectedLeadLifecycleActivityPayload = computed<Record<string, any>>(
+  () => (selectedLeadLifecycleActivity.value?.payload || {}) as Record<string, any>
+);
+
+const selectedLeadLifecycleActivityStageLabel = computed(() =>
+  statusMeta(activityStageKey(selectedLeadLifecycleActivity.value) || selectedLeadLifecycleNodeKeyValue.value).label
+);
+
+const selectedLeadLifecycleTraceItems = computed(() => {
+  const key = selectedLeadLifecycleNodeKeyValue.value;
+  const statusItems = leadLifecycleStatusHistory.value
+    .filter((item) => item.from_status === key || item.to_status === key)
+    .map((item) => ({
+      id: `status:${item.history_uuid}`,
+      title: t("leadCapture.lifecycle.traceItems.statusChanged"),
+      description: `${statusMeta(item.from_status).label} -> ${statusMeta(item.to_status).label}`,
+      time: item.changed_at,
+    }));
+  const assignmentItems = key === "routed"
+    ? leadLifecycleAssignments.value.map((item) => ({
+        id: `assign:${item.assignment_uuid}`,
+        title: t("leadCapture.lifecycle.traceItems.assigned"),
+        description: [
+          resolveLeadOwnerDisplayName(item.owner_user_uuid),
+          String(item.reason || "").trim(),
+        ].filter(Boolean).join(" / "),
+        time: item.created_at,
+      }))
+    : [];
+  const sourceItems = key === "captured"
+    ? leadLifecycleSourceEvents.value.map((item) => ({
+        id: `source:${item.source_uuid}`,
+        title: t("leadCapture.lifecycle.traceItems.sourceCaptured"),
+        description: [item.channel_code, item.app_type].filter(Boolean).join(" / ") || t("leadCapture.listDisplay.noSource"),
+        time: item.created_at,
+      }))
+    : [];
+  return [...statusItems, ...assignmentItems, ...sourceItems]
+    .sort((a, b) => new Date(b.time || 0).getTime() - new Date(a.time || 0).getTime());
+});
+
+const selectedLeadLifecycleTimelineItems = computed<LeadLifecycleTimelineItem[]>(() => {
+  const key = selectedLeadLifecycleNodeKeyValue.value;
+  const traceItems = selectedLeadLifecycleTraceItems.value.map((item) => ({
+    id: item.id,
+    kind: "trace" as const,
+    title: item.title,
+    subtitle: t("leadCapture.lifecycle.tracePanel.auditTrail"),
+    description: item.description,
+    time: item.time,
+    stageLabel: selectedLeadLifecycleNode.value?.label || statusMeta(key).label,
+    operator: t("leadCapture.lifecycle.activityDetail.systemOperator"),
+    actionLabel: item.title,
+  }));
+  return traceItems
+    .sort((a, b) => new Date(b.time || 0).getTime() - new Date(a.time || 0).getTime());
+});
+
+const selectedLeadLifecycleTimelineItem = computed(() =>
+  selectedLeadLifecycleTimelineItems.value.find((item) => item.id === selectedLeadLifecycleTraceId.value) ||
+  selectedLeadLifecycleTimelineItems.value[0] ||
+  null
+);
+
+const selectedLeadLifecycleTimelineIndex = computed(() => {
+  const selected = selectedLeadLifecycleTimelineItem.value;
+  if (!selected) return 0;
+  const index = selectedLeadLifecycleTimelineItems.value.findIndex((item) => item.id === selected.id);
+  return index >= 0 ? index + 1 : 0;
+});
+
+const selectedLeadLifecycleActivityUUID = computed(() => {
+  return String(selectedLeadLifecycleActivity.value?.activity_uuid || "").trim();
+});
+
+const selectedLeadLifecycleActivityAttachments = computed(() => {
+  const activityUUID = selectedLeadLifecycleActivityUUID.value;
+  return activityUUID ? leadLifecycleActivityAttachments.value[activityUUID] || [] : [];
+});
+
 const defaultSyncAccount = computed(() => {
   const activeWeComAccounts = channelAccounts.value.filter((account) => {
     const channel = (account.channel_code || "").trim().toLowerCase();
@@ -1986,27 +2995,7 @@ const nextPage = () => {
   currentPage.value = Math.min(totalPages.value, currentPage.value + 1);
 };
 
-const statusMeta = (status?: string) => {
-  switch (status) {
-    case "assigned":
-      return { label: "已分配", color: "primary" };
-    case "in_progress":
-      return { label: "跟进中", color: "warning" };
-    case "mql":
-      return { label: "MQL", color: "warning" };
-    case "sql":
-      return { label: "SQL", color: "success" };
-    case "converted":
-      return { label: "已转化", color: "success" };
-    case "closed":
-      return { label: "已关闭", color: "neutral" };
-    case "disconnected":
-      return { label: "已断开关系", color: "error" };
-    case "new":
-    default:
-      return { label: "新线索", color: "info" };
-  }
-};
+const statusMeta = leadLifecycle.statusMeta;
 
 const relationStatusMeta = (status?: string) => {
   if (String(status || "").trim().toLowerCase() === "disconnected") {
@@ -2042,6 +3031,15 @@ const leadOriginMeta = (lead?: any) => {
 const isChannelLead = (lead?: any) =>
   String(lead?.lead_origin_type || "").trim().toLowerCase() === "channel";
 
+const leadSourceSummary = (lead?: any) => {
+  const channel = String(lead?.source_channel || "").trim();
+  const appType = String(lead?.source_app_type || "").trim();
+  if (channel && appType) return `${channel} / ${appType}`;
+  if (channel) return channel;
+  if (appType) return appType;
+  return t("leadCapture.listDisplay.noSource");
+};
+
 const leadSyncStateMeta = (lead?: any) => {
   const v = String(lead?.channel_sync_status || "").trim().toLowerCase();
   if (v === "synced") return { label: "已同步", color: "success" };
@@ -2053,11 +3051,17 @@ const leadSyncStateMeta = (lead?: any) => {
 };
 
 const refreshLeads = async () => {
-  await store.fetchLeads();
-  pruneSelectedLeadsForAssign();
-  if (store.error) {
-    showToast(store.error, "error", "线索列表加载失败");
-  }
+  if (leadRefreshInFlight) return leadRefreshInFlight;
+  leadRefreshInFlight = (async () => {
+    await store.fetchLeads();
+    pruneSelectedLeadsForAssign();
+    if (store.error) {
+      showToast(store.error, "error", "线索列表加载失败");
+    }
+  })().finally(() => {
+    leadRefreshInFlight = null;
+  });
+  return leadRefreshInFlight;
 };
 
 const syncStatusMeta = (status?: string) => {
@@ -2352,16 +3356,16 @@ const resolveSyncAccountLabel = (task?: WeComSyncTaskRecord) => {
 
 const resolveLeadSourceAccountLabel = (lead?: any) => {
   const uuid = String(lead?.source_account_uuid || "").trim();
-  if (!uuid) return "未记录";
+  if (!uuid) return t("leadCapture.listDisplay.sourceAccountUnknown");
   const label = syncAccountLabelMap.value.get(uuid.toLowerCase());
-  if (label) return `${label} · ${shortUUID(uuid)}`;
-  return shortUUID(uuid);
+  if (label) return label;
+  return t("leadCapture.listDisplay.sourceAccountLinked");
 };
 
 const resolveLeadOwnerDisplayName = (ownerUserUUID?: string) => {
   const id = String(ownerUserUUID || "").trim();
-  if (!id) return "-";
-  return iamMemberNameMap.value.get(id) || id;
+  if (!id) return t("leadCapture.listDisplay.ownerUnassigned");
+  return iamMemberNameMap.value.get(id) || t("leadCapture.listDisplay.ownerUnknown");
 };
 
 const toggleWritebackSelection = (scope: "whitelist" | "protected", field: string, checked: boolean) => {
@@ -2491,54 +3495,60 @@ const replayWritebackDeadLetter = async (deadLetterUUID?: string) => {
 };
 
 const refreshSyncTasks = async () => {
-  syncLoading.value = true;
-  try {
-    const resp = await leadCaptureService.listWeComSyncTasks({
-      limit: 100,
-    });
-    syncTasks.value = ((resp as any)?.data?.items || []) as WeComSyncTaskRecord[];
-    if (syncTaskPage.value > syncTaskTotalPages.value) {
-      syncTaskPage.value = syncTaskTotalPages.value;
-    }
-    const activeTaskUUID = (syncActivePollingTaskUUID.value || "").trim();
-    if (activeTaskUUID) {
-      const activeTask = syncTasks.value.find((item) => (item?.task_uuid || "").trim() === activeTaskUUID);
-      if (activeTask && (activeTask.status === "success" || activeTask.status === "failed")) {
-        const signature = `${activeTask.task_uuid}:${activeTask.finished_at || activeTask.status}`;
-        if (activeTask.status === "success" && signature !== lastLeadAutoRefreshTaskSignature.value) {
-          lastLeadAutoRefreshTaskSignature.value = signature;
-          await refreshLeads();
-        }
-        if (signature !== lastActiveTaskToastSignature.value) {
-          lastActiveTaskToastSignature.value = signature;
-          showToast(
-            activeTask.status === "success" ? "同步任务已完成" : `同步任务失败：${activeTask.error_message || "请查看任务详情"}`,
-            activeTask.status === "success" ? "success" : "error"
-          );
-        }
-        syncTaskPanelOpen.value = true;
-        syncTaskPage.value = 1;
-        syncActivePollingTaskUUID.value = "";
-      } else if (!activeTask) {
-        syncActivePollingTaskUUID.value = "";
+  if (syncTasksRefreshInFlight) return syncTasksRefreshInFlight;
+  syncTasksRefreshInFlight = (async () => {
+    syncLoading.value = true;
+    try {
+      const resp = await leadCaptureService.listWeComSyncTasks({
+        limit: 100,
+      });
+      syncTasks.value = ((resp as any)?.data?.items || []) as WeComSyncTaskRecord[];
+      if (syncTaskPage.value > syncTaskTotalPages.value) {
+        syncTaskPage.value = syncTaskTotalPages.value;
       }
-    } else {
-      const latestFinishedSuccess = syncTasks.value
-        .filter((item) => item?.status === "success" && !!item?.finished_at)
-        .sort((a, b) => String(b.finished_at || "").localeCompare(String(a.finished_at || "")))[0];
-      if (latestFinishedSuccess) {
-        const signature = `${latestFinishedSuccess.task_uuid}:${latestFinishedSuccess.finished_at}`;
-        if (signature !== lastLeadAutoRefreshTaskSignature.value) {
-          lastLeadAutoRefreshTaskSignature.value = signature;
-          await refreshLeads();
+      const activeTaskUUID = (syncActivePollingTaskUUID.value || "").trim();
+      if (activeTaskUUID) {
+        const activeTask = syncTasks.value.find((item) => (item?.task_uuid || "").trim() === activeTaskUUID);
+        if (activeTask && (activeTask.status === "success" || activeTask.status === "failed")) {
+          const signature = `${activeTask.task_uuid}:${activeTask.finished_at || activeTask.status}`;
+          if (activeTask.status === "success" && signature !== lastLeadAutoRefreshTaskSignature.value) {
+            lastLeadAutoRefreshTaskSignature.value = signature;
+            await refreshLeads();
+          }
+          if (signature !== lastActiveTaskToastSignature.value) {
+            lastActiveTaskToastSignature.value = signature;
+            showToast(
+              activeTask.status === "success" ? "同步任务已完成" : `同步任务失败：${activeTask.error_message || "请查看任务详情"}`,
+              activeTask.status === "success" ? "success" : "error"
+            );
+          }
+          syncTaskPanelOpen.value = true;
+          syncTaskPage.value = 1;
+          syncActivePollingTaskUUID.value = "";
+        } else if (!activeTask) {
+          syncActivePollingTaskUUID.value = "";
+        }
+      } else {
+        const latestFinishedSuccess = syncTasks.value
+          .filter((item) => item?.status === "success" && !!item?.finished_at)
+          .sort((a, b) => String(b.finished_at || "").localeCompare(String(a.finished_at || "")))[0];
+        if (latestFinishedSuccess) {
+          const signature = `${latestFinishedSuccess.task_uuid}:${latestFinishedSuccess.finished_at}`;
+          if (signature !== lastLeadAutoRefreshTaskSignature.value) {
+            lastLeadAutoRefreshTaskSignature.value = signature;
+            await refreshLeads();
+          }
         }
       }
+    } catch (err: any) {
+      showToast(err?.message || "同步任务加载失败", "error");
+    } finally {
+      syncLoading.value = false;
     }
-  } catch (err: any) {
-    showToast(err?.message || "同步任务加载失败", "error");
-  } finally {
-    syncLoading.value = false;
-  }
+  })().finally(() => {
+    syncTasksRefreshInFlight = null;
+  });
+  return syncTasksRefreshInFlight;
 };
 
 const triggerWeComSync = async () => {
@@ -2623,6 +3633,402 @@ const saveWeComCustomerDMRule = async () => {
     showToast(err?.message || "保存渠道规则失败", "error");
   } finally {
     wecomCustomerDMRuleSaving.value = false;
+  }
+};
+
+const formatLeadLifecycleTime = (value?: string) => {
+  const text = String(value || "").trim();
+  if (!text) return "-";
+  const date = new Date(text);
+  if (Number.isNaN(date.getTime())) return text;
+  return date.toLocaleString("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+const formatFileSize = (value?: number) => {
+  const size = Number(value || 0);
+  if (!Number.isFinite(size) || size <= 0) return "0 B";
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / 1024 / 1024).toFixed(1)} MB`;
+};
+
+const downloadLeadLifecycleAttachment = async (file: LeadAttachmentRecord) => {
+  const leadUUID = String(selectedLifecycleLead.value?.lead_uuid || "").trim();
+  const attachmentUUID = String(file?.attachment_uuid || "").trim();
+  if (!leadUUID || !attachmentUUID) return;
+  try {
+    const blob = await leadCaptureService.downloadAttachment(leadUUID, attachmentUUID);
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = String(file.file_name || "attachment").trim() || "attachment";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  } catch (err: any) {
+    showToast(err?.data?.error?.message || err?.message || t("leadCapture.lifecycle.activityForm.downloadFailed"), "error");
+  }
+};
+
+const activityTypeLabel = (type?: string) => {
+  const key = String(type || "unknown").trim();
+  return t(`leadCapture.lifecycle.activityTypes.${key}`);
+};
+
+const activityMethodLabel = (method?: string) => {
+  const key = String(method || "note").trim();
+  const found = leadLifecycleActivityMethodOptions.value.find((item) => item.value === key);
+  return found?.label || key;
+};
+
+const activityResultLabel = (result?: string) => {
+  const key = String(result || "").trim();
+  if (!key) return "-";
+  const found = leadLifecycleActivityResultOptions.value.find((item) => item.value === key);
+  return found?.label || key;
+};
+
+const activityDescription = (activity?: LeadActivityRecord) => {
+  const payload = (activity?.payload || {}) as Record<string, any>;
+  const parts = [
+    payload.content,
+    payload.summary,
+    payload.message,
+    payload.reason,
+    payload.match_on ? `${t("leadCapture.lifecycle.activityFields.matchOn")} ${payload.match_on}` : "",
+    Array.isArray(payload.merged_fields) && payload.merged_fields.length
+      ? `${t("leadCapture.lifecycle.activityFields.mergedFields")} ${payload.merged_fields.join(", ")}`
+      : "",
+    payload.from_status && payload.to_status
+      ? `${statusMeta(payload.from_status).label} -> ${statusMeta(payload.to_status).label}`
+      : "",
+  ].map((item) => String(item || "").trim()).filter(Boolean);
+  return parts[0] || t("leadCapture.lifecycle.activityFields.noDetail");
+};
+
+type LeadLifecycleTimelineItem = {
+  id: string;
+  kind: "activity" | "trace";
+  title: string;
+  subtitle: string;
+  description: string;
+  time: string;
+  stageLabel: string;
+  operator: string;
+  actionLabel: string;
+};
+
+const clearLeadLifecycleTrace = () => {
+  leadLifecycleActivities.value = [];
+  leadLifecycleActivityAttachments.value = {};
+  leadLifecycleAssignments.value = [];
+  leadLifecycleSourceEvents.value = [];
+  leadLifecycleStatusHistory.value = [];
+  selectedLeadLifecycleActivityId.value = "";
+  selectedLeadLifecycleTraceId.value = "";
+};
+
+const loadLeadLifecycleTrace = async (leadUUID: string) => {
+  const id = String(leadUUID || "").trim();
+  if (!id) {
+    clearLeadLifecycleTrace();
+    return;
+  }
+  leadLifecycleTraceLoading.value = true;
+  try {
+    const [activitiesResult, assignmentsResult, sourceEventsResult, statusHistoryResult] = await Promise.allSettled([
+      leadCaptureService.listActivities(id),
+      leadCaptureService.listAssignments(id),
+      leadCaptureService.listSourceEvents(id),
+      leadCaptureService.listStatusHistory(id),
+    ]);
+    leadLifecycleActivities.value =
+      activitiesResult.status === "fulfilled"
+        ? (((activitiesResult.value as any)?.data?.items || []) as LeadActivityRecord[])
+        : [];
+    const attachmentEntries = await Promise.allSettled(
+      leadLifecycleActivities.value
+        .map((item) => String(item.activity_uuid || "").trim())
+        .filter(Boolean)
+        .map(async (activityUUID) => {
+          const result = await leadCaptureService.listActivityAttachments(id, activityUUID);
+          return [activityUUID, (((result as any)?.data?.items || []) as LeadAttachmentRecord[])] as const;
+        })
+    );
+    leadLifecycleActivityAttachments.value = attachmentEntries.reduce<Record<string, LeadAttachmentRecord[]>>((acc, item) => {
+      if (item.status === "fulfilled") {
+        acc[item.value[0]] = item.value[1];
+      }
+      return acc;
+    }, {});
+    leadLifecycleAssignments.value =
+      assignmentsResult.status === "fulfilled"
+        ? (((assignmentsResult.value as any)?.data?.items || []) as LeadAssignmentRecord[])
+        : [];
+    leadLifecycleSourceEvents.value =
+      sourceEventsResult.status === "fulfilled"
+        ? (((sourceEventsResult.value as any)?.data?.items || []) as LeadSourceEventRecord[])
+        : [];
+    leadLifecycleStatusHistory.value =
+      statusHistoryResult.status === "fulfilled"
+        ? (((statusHistoryResult.value as any)?.data?.items || []) as LeadStatusHistoryRecord[])
+        : [];
+    const currentActivity = selectedLeadLifecycleActivities.value.find((item) => item.activity_uuid === selectedLeadLifecycleActivityId.value);
+    if (!currentActivity) {
+      selectedLeadLifecycleActivityId.value = selectedLeadLifecycleActivities.value[0]?.activity_uuid || "";
+    }
+    const current = selectedLeadLifecycleTimelineItems.value.find((item) => item.id === selectedLeadLifecycleTraceId.value);
+    if (!current) {
+      selectedLeadLifecycleTraceId.value = selectedLeadLifecycleTimelineItems.value[0]?.id || "";
+    }
+  } finally {
+    leadLifecycleTraceLoading.value = false;
+  }
+};
+
+const resetLeadLifecycleEnrichmentForm = () => {
+  leadLifecycleEnrichmentForm.display_name = "";
+  leadLifecycleEnrichmentForm.phone = "";
+  leadLifecycleEnrichmentForm.email = "";
+  leadLifecycleEnrichmentForm.source_channel = "";
+  leadLifecycleEnrichmentForm.source_app_type = "";
+  leadLifecycleEnrichmentForm.source_account_uuid = "";
+  leadLifecycleEnrichmentError.value = "";
+};
+
+const populateLeadLifecycleEnrichmentForm = (lead: any) => {
+  leadLifecycleEnrichmentForm.display_name = String(lead?.display_name || "").trim();
+  leadLifecycleEnrichmentForm.phone = String(lead?.phone || "").trim();
+  leadLifecycleEnrichmentForm.email = String(lead?.email || "").trim();
+  leadLifecycleEnrichmentForm.source_channel = String(lead?.source_channel || "").trim();
+  leadLifecycleEnrichmentForm.source_app_type = String(lead?.source_app_type || "").trim();
+  leadLifecycleEnrichmentForm.source_account_uuid = String(lead?.source_account_uuid || "").trim();
+  leadLifecycleEnrichmentError.value = "";
+};
+
+const resetLeadLifecycleActivityForm = () => {
+  leadLifecycleActivityForm.method = "sync_trace";
+  leadLifecycleActivityForm.subject = "";
+  leadLifecycleActivityForm.content = "";
+  leadLifecycleActivityForm.result = "";
+  leadLifecycleActivityForm.create_follow_up_task = false;
+  leadLifecycleActivityForm.next_step = "";
+  leadLifecycleActivityForm.next_follow_up_at = "";
+  leadLifecycleActivityPendingFiles.value = [];
+  if (leadLifecycleActivityAttachmentInputRef.value) {
+    leadLifecycleActivityAttachmentInputRef.value.value = "";
+  }
+};
+
+const handleLeadLifecycleActivityFiles = (files: FileList | null) => {
+  leadLifecycleActivityPendingFiles.value = files?.length ? Array.from(files) : [];
+  if (leadLifecycleActivityAttachmentInputRef.value) {
+    leadLifecycleActivityAttachmentInputRef.value.value = "";
+  }
+};
+
+const openLeadLifecycleActivityModal = () => {
+  resetLeadLifecycleActivityForm();
+  leadLifecycleActivityForm.subject = selectedLeadLifecycleNode.value?.label || "";
+  leadLifecycleActivityModalOpen.value = true;
+};
+
+const closeLeadLifecycleActivityModal = () => {
+  if (leadLifecycleActivitySaving.value) return;
+  blurActiveElement();
+  leadLifecycleActivityModalOpen.value = false;
+  resetLeadLifecycleActivityForm();
+};
+
+const openLeadLifecycleModal = async (lead: any) => {
+  selectedLifecycleLead.value = lead;
+  selectedLeadLifecycleNodeKey.value = leadLifecycleStatus(lead);
+  leadLifecycleAssignOwnerOption.value = null;
+  leadLifecycleAssignForm.reason = "";
+  populateLeadLifecycleEnrichmentForm(lead);
+  if (iamMembers.value.length === 0 || channelAccounts.value.length === 0 || sourceCatalogs.value.length === 0) {
+    await loadCreateLookupOptions();
+  }
+  await loadLeadLifecycleTrace(String(lead?.lead_uuid || "").trim());
+  leadLifecycleModalOpen.value = true;
+};
+
+const closeLeadLifecycleModal = () => {
+  if (leadLifecycleSaving.value) return;
+  blurActiveElement();
+  leadLifecycleModalOpen.value = false;
+  resetLeadLifecycleEnrichmentForm();
+  clearLeadLifecycleTrace();
+};
+
+const refreshSelectedLifecycleLead = () => {
+  const id = String(selectedLifecycleLead.value?.lead_uuid || "").trim();
+  if (!id) return;
+  const latest = store.leads.find((lead) => String(lead.lead_uuid || "").trim() === id);
+  if (latest) {
+    selectedLifecycleLead.value = latest;
+    selectedLeadLifecycleNodeKey.value = leadLifecycleStatus(latest);
+    populateLeadLifecycleEnrichmentForm(latest);
+  }
+};
+
+const sanitizeLeadLifecycleEnrichmentPayload = (): LeadCreatePayload => {
+  const payload: LeadCreatePayload = {};
+  const displayName = leadLifecycleEnrichmentForm.display_name?.trim();
+  const phone = leadLifecycleEnrichmentForm.phone?.trim();
+  const email = leadLifecycleEnrichmentForm.email?.trim();
+  const sourceChannel = leadLifecycleEnrichmentForm.source_channel?.trim();
+  const sourceAppType = leadLifecycleEnrichmentForm.source_app_type?.trim();
+  const sourceAccountUUID = leadLifecycleEnrichmentForm.source_account_uuid?.trim();
+
+  if (displayName) payload.display_name = displayName;
+  if (phone) payload.phone = phone;
+  if (email) payload.email = email;
+  if (sourceChannel) payload.source_channel = sourceChannel;
+  if (sourceAppType) payload.source_app_type = sourceAppType;
+  if (sourceAccountUUID) payload.source_account_uuid = sourceAccountUUID;
+  return payload;
+};
+
+const validateLeadLifecycleEnrichmentForm = () => {
+  if (!hasLeadLifecycleIdentityFields.value) {
+    leadLifecycleEnrichmentError.value = t("leadCapture.lifecycle.enrichment.identityRequired");
+    return false;
+  }
+  leadLifecycleEnrichmentError.value = "";
+  return true;
+};
+
+const submitLeadLifecycleEnrichment = async () => {
+  const leadUUID = String(selectedLifecycleLead.value?.lead_uuid || "").trim();
+  if (!leadUUID || !validateLeadLifecycleEnrichmentForm()) return;
+  leadLifecycleSaving.value = true;
+  try {
+    await leadCaptureService.updateLead(leadUUID, sanitizeLeadLifecycleEnrichmentPayload());
+    await leadCaptureService.updateLeadStatus(leadUUID, { status: "enriched" });
+    await refreshLeads();
+    await loadLeadLifecycleTrace(leadUUID);
+    refreshSelectedLifecycleLead();
+    showToast(t("leadCapture.lifecycle.enrichment.saved"), "success");
+  } catch (err: any) {
+    showToast(err?.data?.error?.message || err?.message || t("leadCapture.lifecycle.enrichment.saveFailed"), "error");
+  } finally {
+    leadLifecycleSaving.value = false;
+  }
+};
+
+const submitLeadLifecycleActivity = async () => {
+  const leadUUID = String(selectedLifecycleLead.value?.lead_uuid || "").trim();
+  const method = String(leadLifecycleActivityForm.method || "").trim();
+  const content = String(leadLifecycleActivityForm.content || "").trim();
+  if (!leadUUID || !method || !content) {
+    showToast(t("leadCapture.lifecycle.activityForm.required"), "warning");
+    return;
+  }
+  leadLifecycleActivitySaving.value = true;
+  try {
+    const resp = await leadCaptureService.createActivity(leadUUID, {
+      method,
+      subject: String(leadLifecycleActivityForm.subject || "").trim() || undefined,
+      content,
+      result: String(leadLifecycleActivityForm.result || "").trim() || undefined,
+      next_step: leadLifecycleActivityForm.create_follow_up_task
+        ? String(leadLifecycleActivityForm.next_step || "").trim() || undefined
+        : undefined,
+      next_follow_up_at: leadLifecycleActivityForm.create_follow_up_task
+        ? String(leadLifecycleActivityForm.next_follow_up_at || "").trim() || undefined
+        : undefined,
+      stage_key: selectedLeadLifecycleNodeKeyValue.value,
+      action_key: "activity",
+    });
+    const activityUUID = String((resp as any)?.data?.activity_uuid || "").trim();
+    if (leadLifecycleActivityPendingFiles.value.length) {
+      if (!activityUUID) {
+        throw new Error(t("leadCapture.lifecycle.activityForm.attachmentMissingActivity"));
+      }
+      for (const file of leadLifecycleActivityPendingFiles.value) {
+        await leadCaptureService.uploadActivityAttachment(leadUUID, activityUUID, file, {
+          stage_key: selectedLeadLifecycleNodeKeyValue.value,
+          action_key: "activity",
+        });
+      }
+    }
+    await loadLeadLifecycleTrace(leadUUID);
+    if (activityUUID) {
+      selectedLeadLifecycleActivityId.value = activityUUID;
+    }
+    leadLifecycleActivityModalOpen.value = false;
+    resetLeadLifecycleActivityForm();
+    showToast(t("leadCapture.lifecycle.activityForm.saved"), "success");
+  } catch (err: any) {
+    showToast(err?.data?.error?.message || err?.message || t("leadCapture.lifecycle.activityForm.saveFailed"), "error");
+  } finally {
+    leadLifecycleActivitySaving.value = false;
+  }
+};
+
+const submitLeadLifecycleAssign = async () => {
+  const leadUUID = String(selectedLifecycleLead.value?.lead_uuid || "").trim();
+  if (!leadUUID) return;
+  const ownerUserUUID = resolveOwnerUserUUID(leadLifecycleAssignOwnerOption.value);
+  if (!ownerUserUUID) {
+    showToast(t("leadCapture.lifecycle.assign.ownerRequired"), "warning");
+    return;
+  }
+  leadLifecycleSaving.value = true;
+  try {
+    await leadCaptureService.assignLead(leadUUID, {
+      owner_user_uuid: ownerUserUUID,
+      reason: String(leadLifecycleAssignForm.reason || "").trim() || undefined,
+    });
+    await refreshLeads();
+    await loadLeadLifecycleTrace(leadUUID);
+    refreshSelectedLifecycleLead();
+    showToast(t("leadCapture.lifecycle.actions.assignSaved"), "success");
+  } catch (err: any) {
+    showToast(err?.message || t("leadCapture.lifecycle.actions.assignFailed"), "error");
+  } finally {
+    leadLifecycleSaving.value = false;
+  }
+};
+
+const submitLeadLifecycleStatus = async (target: PrivateDomainLeadStatus) => {
+  const leadUUID = String(selectedLifecycleLead.value?.lead_uuid || "").trim();
+  if (!leadUUID) return;
+  leadLifecycleSaving.value = true;
+  try {
+    await leadCaptureService.updateLeadStatus(leadUUID, { status: target });
+    await refreshLeads();
+    await loadLeadLifecycleTrace(leadUUID);
+    refreshSelectedLifecycleLead();
+    showToast(t("leadCapture.lifecycle.actions.statusSaved"), "success");
+  } catch (err: any) {
+    showToast(err?.data?.error?.message || err?.message || t("leadCapture.lifecycle.actions.statusFailed"), "error");
+  } finally {
+    leadLifecycleSaving.value = false;
+  }
+};
+
+const submitLeadLifecycleQualification = async (target: "qualified_for_handoff" | "handoff_pending") => {
+  const leadUUID = String(selectedLifecycleLead.value?.lead_uuid || "").trim();
+  if (!leadUUID) return;
+  leadLifecycleSaving.value = true;
+  try {
+    await leadCaptureService.updateLeadQualification(leadUUID, { target_status: target });
+    await refreshLeads();
+    await loadLeadLifecycleTrace(leadUUID);
+    refreshSelectedLifecycleLead();
+    showToast(t("leadCapture.lifecycle.actions.statusSaved"), "success");
+  } catch (err: any) {
+    showToast(err?.data?.error?.message || err?.message || t("leadCapture.lifecycle.actions.statusFailed"), "error");
+  } finally {
+    leadLifecycleSaving.value = false;
   }
 };
 
@@ -3132,16 +4538,25 @@ watch([selectedLeadUUIDsForPush, statusFilter, channelFilter, appTypeFilter, sea
   pushLeadRejectedPage.value = 1;
 });
 
-watch(syncCenterOpen, (open) => {
-  if (open) return;
-  syncActivePollingTaskUUID.value = "";
-});
-
 let wsUnsubscribe: (() => void) | null = null;
 let wsRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 let wsRefreshInFlight = false;
 let wsRefreshQueued = false;
+let lastWsProgressSignature = "";
+let lastWsProgressRefreshAt = 0;
 const wsTopics = ["lead_sync.progress", "powerx.lead_sync.progress.v1"];
+const wsProgressRefreshIntervalMS = 1800;
+
+const isTerminalSyncTaskStatus = (status?: string) =>
+  ["success", "failed", "completed", "error", "cancelled", "canceled"].includes(String(status || "").trim().toLowerCase());
+
+const wsProgressSignature = (payload: any) => [
+  String(payload?.task_uuid || "").trim(),
+  String(payload?.status || "").trim().toLowerCase(),
+  String(payload?.processed || payload?.processed_count || "").trim(),
+  String(payload?.total || payload?.total_count || "").trim(),
+  String(payload?.finished_at || payload?.updated_at || "").trim(),
+].join("|");
 
 const scheduleRefreshSyncTasksByWs = () => {
   if (wsRefreshInFlight) {
@@ -3162,17 +4577,31 @@ const scheduleRefreshSyncTasksByWs = () => {
         scheduleRefreshSyncTasksByWs();
       }
     });
-  }, 280);
+  }, 300);
 };
 
 const handleLeadSyncWsProgress = (payload: any) => {
-  if (!payload || !syncCenterOpen.value) return;
+  if (!payload) return;
   const taskUUID = String(payload.task_uuid || "").trim();
   if (!taskUUID) return;
   const activeTaskUUID = String(syncActivePollingTaskUUID.value || "").trim();
   if (activeTaskUUID && taskUUID !== activeTaskUUID) {
     return;
   }
+  if (!activeTaskUUID && !syncCenterOpen.value) {
+    return;
+  }
+  const signature = wsProgressSignature(payload);
+  if (signature && signature === lastWsProgressSignature) {
+    return;
+  }
+  lastWsProgressSignature = signature;
+  const now = Date.now();
+  const terminal = isTerminalSyncTaskStatus(payload.status);
+  if (!terminal && now - lastWsProgressRefreshAt < wsProgressRefreshIntervalMS) {
+    return;
+  }
+  lastWsProgressRefreshAt = now;
   scheduleRefreshSyncTasksByWs();
 };
 
@@ -3184,11 +4613,31 @@ const ensureWsSubscription = () => {
   };
 };
 
+const stopWsSubscription = () => {
+  if (wsRefreshTimer) {
+    clearTimeout(wsRefreshTimer);
+    wsRefreshTimer = null;
+  }
+  wsRefreshInFlight = false;
+  wsRefreshQueued = false;
+  lastWsProgressSignature = "";
+  lastWsProgressRefreshAt = 0;
+  if (wsUnsubscribe) {
+    wsUnsubscribe();
+    wsUnsubscribe = null;
+  }
+};
+
+watch(syncCenterOpen, (open) => {
+  if (open) {
+    void refreshSyncTasks();
+  }
+});
+
 onMounted(async () => {
   ensureWsSubscription();
   await loadCreateLookupOptions();
   await refreshLeads();
-  await refreshSyncTasks();
   await loadWritebackPolicy();
   await refreshWritebackDeadLetters();
   await loadWeComCustomerDMRule();
@@ -3198,20 +4647,13 @@ onMounted(async () => {
 onActivated(() => {
   // 从详情返回时刷新，避免负责人刚改完列表仍显示旧状态
   void refreshLeads();
-  void refreshSyncTasks();
+  if (syncCenterOpen.value || syncActivePollingTaskUUID.value) {
+    void refreshSyncTasks();
+  }
 });
 
 onBeforeUnmount(() => {
   syncActivePollingTaskUUID.value = "";
-  if (wsRefreshTimer) {
-    clearTimeout(wsRefreshTimer);
-    wsRefreshTimer = null;
-  }
-  wsRefreshInFlight = false;
-  wsRefreshQueued = false;
-  if (wsUnsubscribe) {
-    wsUnsubscribe();
-    wsUnsubscribe = null;
-  }
+  stopWsSubscription();
 });
 </script>

@@ -1,0 +1,45 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "SCRM Backend (develop)",
+      "type": "node-terminal",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/backend",
+      "command": "go run ./cmd/plugin",
+      "env": {
+        "CONFIG_PATH": "${workspaceFolder}/backend/etc",
+        "POWERX_PROVIDER_MODE": "local",
+        "POWERX_PROXY": "0"
+      }
+    },
+    {
+      "name": "SCRM Web Admin (develop)",
+      "type": "node-terminal",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/web-admin",
+      "command": "npm run dev -- --host 127.0.0.1 --port 3033",
+      "env": {
+        "POWERX_PROVIDER_MODE": "local",
+        "NUXT_PUBLIC_POWERX_PROVIDER_MODE": "local",
+        "POWERX_PROXY": "0",
+        "NUXT_PUBLIC_POWERX_PROXY": "0",
+        "NUXT_DEV_PORT": "3033",
+        "NUXT_PUBLIC_API_BASE": "http://localhost:8092",
+        "NUXT_PUBLIC_API_PREFIX": "/api/v1",
+        "NUXT_DEV_API_PROXY": "http://127.0.0.1:8092",
+        "NUXT_DEV_WS_PROXY": "ws://127.0.0.1:8092"
+      }
+    }
+  ],
+  "compounds": [
+    {
+      "name": "SCRM Full Stack (develop)",
+      "configurations": [
+        "SCRM Backend (develop)",
+        "SCRM Web Admin (develop)"
+      ],
+      "stopAll": true
+    }
+  ]
+}

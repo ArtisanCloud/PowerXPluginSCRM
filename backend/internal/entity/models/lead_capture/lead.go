@@ -7,14 +7,18 @@ import (
 )
 
 const (
-	LeadStatusNew          = "new"
-	LeadStatusAssigned     = "assigned"
-	LeadStatusInProgress   = "in_progress"
-	LeadStatusMQL          = "mql"
-	LeadStatusSQL          = "sql"
-	LeadStatusConverted    = "converted"
-	LeadStatusClosed       = "closed"
-	LeadStatusDisconnected = "disconnected"
+	LeadStatusCaptured            = "captured"
+	LeadStatusEnriched            = "enriched"
+	LeadStatusDeduplicated        = "deduplicated"
+	LeadStatusRouted              = "routed"
+	LeadStatusEngaging            = "engaging"
+	LeadStatusQualifiedForHandoff = "qualified_for_handoff"
+	LeadStatusHandoffPending      = "handoff_pending"
+	LeadStatusHandoffAccepted     = "handoff_accepted"
+	LeadStatusInvalid             = "invalid"
+	LeadStatusArchived            = "archived"
+	LeadStatusDisconnected        = "disconnected"
+	LeadStatusHandoffFailed       = "handoff_failed"
 )
 
 // Lead represents a captured lead in the current tenant.
@@ -24,7 +28,7 @@ type Lead struct {
 	DisplayName        string    `gorm:"column:display_name;type:text" json:"display_name"`
 	Phone              string    `gorm:"column:phone;type:text" json:"phone"`
 	Email              string    `gorm:"column:email;type:text" json:"email"`
-	Status             string    `gorm:"column:status;type:varchar(32);not null;default:'new';index:idx_lead_capture_leads_status" json:"status"`
+	Status             string    `gorm:"column:status;type:varchar(32);not null;default:'captured';index:idx_lead_capture_leads_status" json:"status"`
 	OwnerUserUUID      string    `gorm:"column:owner_user_uuid;type:text;index:idx_lead_capture_leads_owner" json:"owner_user_uuid"`
 	SourceChannel      string    `gorm:"column:source_channel;type:varchar(64);index:idx_lead_capture_leads_source" json:"source_channel"`
 	SourceAppType      string    `gorm:"column:source_app_type;type:varchar(64)" json:"source_app_type"`

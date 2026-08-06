@@ -81,7 +81,7 @@
 - **FR-004**: 系统必须支持采集池状态流转，并记录状态历史。
 - **FR-005**: 系统必须基于手机号/邮箱执行去重与合并。
 - **FR-006**: 系统必须校验至少提供姓名/手机号/邮箱中的一项。
-- **FR-007**: 系统必须在创建线索时将状态设置为 `captured`，且分配后转为 `routed`。
+- **FR-007**: 系统必须在创建线索时将状态设置为 `captured`，补全后进入 `enriched`，去重后进入 `deduplicated`，分配后进入 `routed`。
 - **FR-008**: 线索负责人必须为当前租户 member，禁止绑定全局 user。
 - **FR-009**: 去重合并策略为“旧记录优先，新记录仅补全空字段”。 
 - **FR-010**: 状态流转必须遵循预定义状态机，不允许非法跳转。
@@ -100,8 +100,9 @@
 ### Assumptions
 
 - 去重规则以来源作用域内手机号/邮箱为主键，外部ID为可选扩展。
-- 采集池状态包含 `captured`、`routed`、`engaging`、`qualified_for_handoff`、`handoff_pending`、`handoff_accepted`、`handoff_failed`、`archived`、`disconnected`。
-- 默认状态为 `captured`，分配后进入 `routed`。
+- 采集池状态包含 `captured`、`enriched`、`deduplicated`、`routed`、`engaging`、`qualified_for_handoff`、`handoff_pending`、`handoff_accepted`、`handoff_failed`、`archived`、`disconnected`。
+- 默认状态为 `captured`，补全后进入 `enriched`，去重后进入 `deduplicated`，分配后进入 `routed`。
+- `captured`、`enriched`、`deduplicated` 主要由入池、标准化、补全、去重与合并服务驱动；`routed`、`engaging`、`qualified_for_handoff` 是第一版主要人工操作节点；`handoff_pending`、`handoff_accepted` 由下游交接结果驱动。
 - 负责人实体为当前租户 member。
 - 合并策略为旧记录优先，空字段补全。
 - 状态流转采用严格状态机。

@@ -16,26 +16,26 @@ func TestDedupService_PhoneHasHigherPriorityThanEmail(t *testing.T) {
 	db := openMergePolicyTestDB(t, "merge_policy_phone_priority")
 	now := time.Now().UTC()
 	require.NoError(t, db.Create(&leadmodel.Lead{
-		LeadUUID:   "10000000-0000-4000-8000-000000000001",
-		TenantUUID: "00000000-0000-0000-0000-000000000001",
-		Phone:      "13800000001",
-		Email:      "phone@example.com",
-		Status:     leadmodel.LeadStatusNew,
+		LeadUUID:      "10000000-0000-4000-8000-000000000001",
+		TenantUUID:    "00000000-0000-0000-0000-000000000001",
+		Phone:         "13800000001",
+		Email:         "phone@example.com",
+		Status:        leadmodel.LeadStatusCaptured,
 		SourceChannel: "wechat",
 		SourceAppType: "wecom",
-		CreatedAt:  now.Add(-2 * time.Minute),
-		UpdatedAt:  now.Add(-2 * time.Minute),
+		CreatedAt:     now.Add(-2 * time.Minute),
+		UpdatedAt:     now.Add(-2 * time.Minute),
 	}).Error)
 	require.NoError(t, db.Create(&leadmodel.Lead{
-		LeadUUID:   "10000000-0000-4000-8000-000000000002",
-		TenantUUID: "00000000-0000-0000-0000-000000000001",
-		Phone:      "",
-		Email:      "same@example.com",
-		Status:     leadmodel.LeadStatusNew,
+		LeadUUID:      "10000000-0000-4000-8000-000000000002",
+		TenantUUID:    "00000000-0000-0000-0000-000000000001",
+		Phone:         "",
+		Email:         "same@example.com",
+		Status:        leadmodel.LeadStatusCaptured,
 		SourceChannel: "wechat",
 		SourceAppType: "wecom",
-		CreatedAt:  now.Add(-1 * time.Minute),
-		UpdatedAt:  now.Add(-1 * time.Minute),
+		CreatedAt:     now.Add(-1 * time.Minute),
+		UpdatedAt:     now.Add(-1 * time.Minute),
 	}).Error)
 
 	svc := NewDedupService()
@@ -59,15 +59,15 @@ func TestDedupService_DoesNotMergeAcrossSourceScope(t *testing.T) {
 	db := openMergePolicyTestDB(t, "merge_policy_scope")
 	now := time.Now().UTC()
 	require.NoError(t, db.Create(&leadmodel.Lead{
-		LeadUUID:       "10000000-0000-4000-8000-000000000011",
-		TenantUUID:     "00000000-0000-0000-0000-000000000001",
-		Phone:          "13800000001",
-		Email:          "scope@example.com",
-		Status:         leadmodel.LeadStatusNew,
-		SourceChannel:  "wechat",
-		SourceAppType:  "wecom",
-		CreatedAt:      now.Add(-2 * time.Minute),
-		UpdatedAt:      now.Add(-2 * time.Minute),
+		LeadUUID:      "10000000-0000-4000-8000-000000000011",
+		TenantUUID:    "00000000-0000-0000-0000-000000000001",
+		Phone:         "13800000001",
+		Email:         "scope@example.com",
+		Status:        leadmodel.LeadStatusCaptured,
+		SourceChannel: "wechat",
+		SourceAppType: "wecom",
+		CreatedAt:     now.Add(-2 * time.Minute),
+		UpdatedAt:     now.Add(-2 * time.Minute),
 	}).Error)
 
 	svc := NewDedupService()

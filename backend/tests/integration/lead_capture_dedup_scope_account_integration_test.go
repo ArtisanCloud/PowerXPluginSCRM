@@ -40,7 +40,7 @@ func TestLeadCaptureDedupScopeIntegration_DoNotMergeAcrossSourceAccountUUID(t *t
 		DisplayName:     "A",
 		Status:          socialmodel.ChannelAccountStatusConnected,
 		OrgSyncDefault:  true,
-		OwnerMemberUUID: "owner-a",
+		OwnerMemberUUID: "00000000-0000-0000-0000-000000000111",
 	}).Error)
 	require.NoError(t, db.Create(&socialmodel.ChannelAccount{
 		AccountUUID:     accountB,
@@ -51,7 +51,7 @@ func TestLeadCaptureDedupScopeIntegration_DoNotMergeAcrossSourceAccountUUID(t *t
 		DisplayName:     "B",
 		Status:          socialmodel.ChannelAccountStatusConnected,
 		OrgSyncDefault:  false,
-		OwnerMemberUUID: "owner-b",
+		OwnerMemberUUID: "00000000-0000-0000-0000-000000000112",
 	}).Error)
 
 	taskRepo := leadrepo.NewLeadSyncTaskRepository(db)

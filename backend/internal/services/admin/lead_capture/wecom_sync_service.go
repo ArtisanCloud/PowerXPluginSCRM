@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	pwresponse "github.com/ArtisanCloud/PowerWeChat/v3/src/kernel/response"
 	pwexternalreq "github.com/ArtisanCloud/PowerWeChat/v3/src/work/externalContact/request"
 	leadmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/lead_capture"
 	orgmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/org_sync"
@@ -25,20 +26,27 @@ import (
 )
 
 type WeComSyncService struct {
-	taskRepo    *leadrepo.LeadSyncTaskRepository
-	leadRepo    *leadrepo.LeadRepository
-	leadService *LeadService
-	metrics     *leadobs.Metrics
-	realtime    *LeadSyncRealtimePublisher
-	syncFactory *ChannelSyncFactory
-	dedupSvc    *LeadDedupService
-	syncRepo    *socialrepo.SyncFoundationRepository
-	retrySvc    *socialsvc.RetryDeadletterService
-	writeMu     sync.Mutex
-	writeSeq    map[string]int64
-	identityMu  sync.RWMutex
-	identityMap map[string]string
+	taskRepo      *leadrepo.LeadSyncTaskRepository
+	leadRepo      *leadrepo.LeadRepository
+	leadService   *LeadService
+	metrics       *leadobs.Metrics
+	realtime      *LeadSyncRealtimePublisher
+	syncFactory   *ChannelSyncFactory
+	dedupSvc      *LeadDedupService
+	syncRepo      *socialrepo.SyncFoundationRepository
+	retrySvc      *socialsvc.RetryDeadletterService
+	writeMu       sync.Mutex
+	writeSeq      map[string]int64
+	identityMu    sync.RWMutex
+	identityMap   map[string]string
+	remarkFactory weComRemarkClientFactory
 }
+
+type weComRemarkClient interface {
+	Remark(ctx context.Context, data *pwexternalreq.RequestExternalContactRemark) (*pwresponse.ResponseWork, error)
+}
+
+type weComRemarkClientFactory func(ctx context.Context, appType string, credentials map[string]string) (weComRemarkClient, error)
 
 type TriggerSyncRequest struct {
 	TenantUUID         string
@@ -73,13 +81,25 @@ func NewWeComSyncService(taskRepo *leadrepo.LeadSyncTaskRepository, metrics *lea
 	_ = factory.Register("wechat", "wecom", NewDefaultWeComLeadAdapter(), providerAdapter)
 	_ = factory.Register("wechat", "openwork", NewDefaultWeComLeadAdapter(), providerAdapter)
 	return &WeComSyncService{
-		taskRepo:    taskRepo,
-		metrics:     metrics,
-		syncFactory: factory,
-		dedupSvc:    NewLeadDedupService(),
-		writeSeq:    map[string]int64{},
-		identityMap: map[string]string{},
+		taskRepo:      taskRepo,
+		metrics:       metrics,
+		syncFactory:   factory,
+		dedupSvc:      NewLeadDedupService(),
+		writeSeq:      map[string]int64{},
+		identityMap:   map[string]string{},
+		remarkFactory: defaultWeComRemarkClientFactory,
 	}
+}
+
+func defaultWeComRemarkClientFactory(_ context.Context, appType string, credentials map[string]string) (weComRemarkClient, error) {
+	app, err := newWeComLeadSyncApp("wechat", appType, credentials)
+	if err != nil {
+		return nil, err
+	}
+	if app == nil || app.ExternalContact == nil {
+		return nil, errors.New("wecom external contact client unavailable")
+	}
+	return app.ExternalContact, nil
 }
 
 func (s *WeComSyncService) WithLeadIngestion(leadRepo *leadrepo.LeadRepository, adapter WeComLeadAdapter) *WeComSyncService {
@@ -128,6 +148,28 @@ func (s *WeComSyncService) WithSyncFoundation(syncRepo *socialrepo.SyncFoundatio
 	s.syncRepo = syncRepo
 	if syncRepo != nil {
 		s.retrySvc = socialsvc.NewRetryDeadletterService(syncRepo)
+	}
+	return s
+}
+
+func (s *WeComSyncService) WithRemarkClientFactory(factory weComRemarkClientFactory) *WeComSyncService {
+	if s == nil {
+		return s
+	}
+	s.remarkFactory = factory
+	return s
+}
+
+func (s *WeComSyncService) WithRemarkClient(client weComRemarkClient) *WeComSyncService {
+	if s == nil {
+		return s
+	}
+	if client == nil {
+		s.remarkFactory = nil
+		return s
+	}
+	s.remarkFactory = func(context.Context, string, map[string]string) (weComRemarkClient, error) {
+		return client, nil
 	}
 	return s
 }
@@ -623,7 +665,7 @@ func (s *WeComSyncService) runLocalSyncIngestion(
 					DisplayName:       item.DisplayName,
 					Phone:             item.Phone,
 					Email:             item.Email,
-					Status:            leadmodel.LeadStatusNew,
+					Status:            leadmodel.LeadStatusCaptured,
 					SourceChannel:     req.Channel,
 					SourceAppType:     req.AppType,
 					SourceAccountUUID: &channelAccountUUID,
@@ -782,7 +824,11 @@ func (s *WeComSyncService) triggerLeadWriteback(ctx context.Context, req Trigger
 		s.publishTaskProgress(ctx, created)
 		return created, nil
 	}
-	app, err := newWeComLeadSyncApp("wechat", req.AppType, credentials)
+	remarkFactory := s.remarkFactory
+	if remarkFactory == nil {
+		remarkFactory = defaultWeComRemarkClientFactory
+	}
+	remarkClient, err := remarkFactory(ctx, req.AppType, credentials)
 	if err != nil {
 		_ = s.taskRepo.UpdateStatus(ctx, req.TenantUUID, created.TaskUUID, "failed", map[string]any{
 			"error_message": err.Error(),
@@ -793,7 +839,7 @@ func (s *WeComSyncService) triggerLeadWriteback(ctx context.Context, req Trigger
 		s.publishTaskProgress(ctx, created)
 		return created, nil
 	}
-	if app == nil || app.ExternalContact == nil {
+	if remarkClient == nil {
 		err = errors.New("wecom external contact client unavailable")
 		_ = s.taskRepo.UpdateStatus(ctx, req.TenantUUID, created.TaskUUID, "failed", map[string]any{
 			"error_message": err.Error(),
@@ -909,7 +955,7 @@ func (s *WeComSyncService) triggerLeadWriteback(ctx context.Context, req Trigger
 			remarkReq.Description = strings.Join(descParts, ",")
 		}
 		upstreamAttempted++
-		resp, callErr := app.ExternalContact.Remark(ctx, remarkReq)
+		resp, callErr := remarkClient.Remark(ctx, remarkReq)
 		if callErr != nil {
 			rejected++
 			rejectReasons["upstream_call_failed"]++
@@ -945,7 +991,7 @@ func (s *WeComSyncService) triggerLeadWriteback(ctx context.Context, req Trigger
 			if fallbackOperatorID != "" && fallbackOperatorID != operatorUserID {
 				retryReq := *remarkReq
 				retryReq.UserID = fallbackOperatorID
-				retryResp, retryErr := app.ExternalContact.Remark(ctx, &retryReq)
+				retryResp, retryErr := remarkClient.Remark(ctx, &retryReq)
 				if retryErr == nil && retryResp != nil {
 					resp = retryResp
 					operatorUserID = fallbackOperatorID
@@ -990,7 +1036,8 @@ func (s *WeComSyncService) triggerLeadWriteback(ctx context.Context, req Trigger
 		"reject_reasons":       rejectReasons,
 	}).Info("lead writeback summary")
 
-	if upstreamAttempted == 0 && len(req.LeadWriteback) > 0 {
+	idempotentSkipped := rejectReasons["idempotent_skipped"]
+	if upstreamAttempted == 0 && len(req.LeadWriteback) > 0 && idempotentSkipped < len(req.LeadWriteback) {
 		if firstErr == nil {
 			firstErr = fmt.Errorf("no upstream write attempted (rejected=%d)", rejected)
 		}
@@ -1632,17 +1679,6 @@ func upsertSyncTraceActivityTx(
 		return tx.WithContext(ctx).
 			Model(&leadmodel.LeadActivity{}).
 			Where("tenant_uuid = ? AND activity_uuid = ?", tenantUUID, item.ActivityUUID).
-			Updates(map[string]any{
-				"payload":    payload,
-				"updated_at": time.Now().UTC(),
-			}).Error
-	}
-	// 某些存储实现里 JSONMap 反序列化为非预期类型，会导致精确匹配失效；
-	// 若该 lead 仅存在一条 sync_trace，直接回退为更新该条，确保 sync_trace 行为为 upsert。
-	if len(candidates) == 1 && candidates[0] != nil {
-		return tx.WithContext(ctx).
-			Model(&leadmodel.LeadActivity{}).
-			Where("tenant_uuid = ? AND activity_uuid = ?", tenantUUID, candidates[0].ActivityUUID).
 			Updates(map[string]any{
 				"payload":    payload,
 				"updated_at": time.Now().UTC(),

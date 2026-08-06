@@ -236,10 +236,7 @@
     "scrmSocialChannelHealthOps": "连接健康",
     "scrmSocialChannelAttributionTracking": "来源归因",
     "scrmOpenWorkFoundation": "企微代开发基础",
-    "scrmLeadList": "线索管理",
-    "scrmOpportunity": "商机管理",
-    "scrmOpportunityAnalytics": "商机预测",
-    "scrmOpportunitySettings": "商机配置",
+    "scrmLeadList": "线索采集池",
     "scrmLeadSourceCatalog": "线索来源配置",
     "scrmLeadEntry": "线索跟踪",
     "scrmWecomSync": "企微线索同步",
@@ -272,7 +269,7 @@
     "scrmPlatformEcosystemExtensibility": "平台生态与可扩展性",
     "scrmSectionChannelsLeads": "触点与线索",
     "scrmSectionChannelAccess": "渠道接入",
-    "scrmSectionLeadsOpportunity": "线索与商机",
+    "scrmSectionLeadOperations": "线索运营",
     "scrmSectionChannelOrgTags": "渠道组织与标签",
     "scrmSectionAcquisition": "引流获客",
     "scrmSectionOperations": "客户运营",
@@ -313,6 +310,331 @@
   "scrm": {
     "placeholderTitle": "模块规划页面",
     "placeholderDescription": "该模块页面待实现，请先参考对应的规划文档。"
+  },
+  "leadCapture": {
+    "pool": {
+      "title": "线索采集池",
+      "description": "按私域运营漏斗查看线索采集、补全、去重、分配、互动与交接状态。",
+      "total": "共 {count} 条",
+      "emptyChannelSync": "暂无线索，请先完成渠道同步；local/dev 测试可开启样例线索种子。"
+    },
+    "actions": {
+      "sourceConfig": "来源配置",
+      "refresh": "刷新",
+      "batchImport": "批量导入",
+      "syncCenter": "同步中心",
+      "createLead": "新建线索"
+    },
+    "filters": {
+      "search": "搜索",
+      "searchPlaceholder": "搜索姓名/手机号/邮箱",
+      "status": "状态",
+      "allStatuses": "全部状态",
+      "trafficPlatform": "流量平台",
+      "allChannels": "全部渠道",
+      "trafficSource": "流量来源",
+      "allApps": "全部应用"
+    },
+    "funnel": {
+      "title": "私域运营漏斗",
+      "clear": "查看全部",
+      "metric": "线索数",
+      "filterAll": "当前清单显示全部线索",
+      "filterActive": "当前清单已筛选：{status}",
+      "short": {
+        "captured": "采集",
+        "enriched": "补全",
+        "deduplicated": "去重",
+        "routed": "分配",
+        "engaging": "互动",
+        "qualified_for_handoff": "交接",
+        "handoff_pending": "等待",
+        "handoff_accepted": "完成"
+      }
+    },
+    "lifecycle": {
+      "title": "私域线索生命周期",
+      "template": "系统模板：{code}",
+      "modalTitle": "线索节点处理",
+      "modalLeadSummary": "线索摘要",
+      "nodeChainTitle": "节点链条导航",
+      "advanceMode": "按生命周期推进",
+      "nodeActionTitle": "节点操作详情",
+      "currentStage": "当前阶段：{stage}",
+      "activityRecordAction": "记录活动",
+      "closeModal": "关闭",
+      "readonlyNode": "该节点不是当前可操作节点，仅用于查看留痕与上下文。",
+      "traceSummary": "节点留痕摘要",
+      "state": {
+        "done": "已完成",
+        "current": "进行中",
+        "pending": "未开始",
+        "terminal": "已结束"
+      },
+      "trace": {
+        "status": "状态",
+        "activity": "活动",
+        "source": "来源"
+      },
+      "summary": {
+        "name": "名称",
+        "contact": "联系方式",
+        "status": "当前状态",
+        "owner": "负责人",
+        "source": "来源",
+        "createdAt": "创建时间"
+      },
+      "assign": {
+        "owner": "负责人",
+        "reason": "分配说明",
+        "ownerRequired": "请选择负责人"
+      },
+      "enrichment": {
+        "displayName": "联系人",
+        "displayNamePlaceholder": "填写联系人姓名或称呼",
+        "phone": "手机号",
+        "phonePlaceholder": "填写手机号",
+        "email": "邮箱",
+        "emailPlaceholder": "填写邮箱",
+        "sourceChannel": "流量平台",
+        "sourceChannelPlaceholder": "选择来源渠道",
+        "sourceAppType": "流量来源",
+        "sourceAppTypePlaceholder": "选择应用类型",
+        "sourceAccount": "渠道账号",
+        "sourceAccountPlaceholder": "选择系统内渠道账号",
+        "identityRequired": "联系人、手机号、邮箱至少填写一项。",
+        "saved": "补全信息已保存，线索已进入已补全节点",
+        "saveFailed": "补全信息保存失败",
+        "checklistTitle": "补全检查清单",
+        "identityChecklist": "身份信息",
+        "sourceChecklist": "来源信息",
+        "accountChecklist": "渠道账号",
+        "identityMissing": "缺少联系人、手机号或邮箱，至少补齐一项身份信息。",
+        "sourceMissing": "缺少流量平台或流量来源，后续无法判断线索入口。",
+        "accountMissing": "缺少系统内渠道账号，后续同步、分配和回写会缺少上下文。",
+        "missingTitle": "当前缺失项",
+        "noMissing": "本节点必填信息已补齐，可以保存补全。",
+        "complete": "已补全",
+        "incomplete": "待补全"
+      },
+      "operation": {
+        "goal": "操作目标",
+        "requirements": "必填信息",
+        "result": "完成结果",
+        "captured": {
+          "goal": "确认这条线索可识别、可追溯，并补齐采集入口信息。",
+          "requirements": "联系人/手机号/邮箱至少一项；建议补齐流量平台、流量来源和渠道账号。",
+          "result": "保存后进入已补全节点，并写入补全与状态变更留痕。"
+        },
+        "enriched": {
+          "goal": "核对补全结果，等待或执行去重判断。",
+          "requirements": "身份信息和来源信息应可用于匹配重复线索。",
+          "result": "去重完成后进入已去重节点。"
+        },
+        "deduplicated": {
+          "goal": "确认重复线索已合并或排除，避免重复分配。",
+          "requirements": "需要有去重结果、合并记录或确认无重复。",
+          "result": "确认后进入已分配节点。"
+        },
+        "routed": {
+          "goal": "把线索分配给负责成员或运营队列。",
+          "requirements": "必须选择负责人；可填写分配说明。",
+          "result": "分配成功后进入互动中节点，并记录分配留痕。"
+        },
+        "engaging": {
+          "goal": "记录私域互动进展，判断是否达到交接条件。",
+          "requirements": "需要有有效触达、会话或运营动作记录。",
+          "result": "确认后进入可交接节点。"
+        },
+        "qualified_for_handoff": {
+          "goal": "确认线索满足下游接收条件。",
+          "requirements": "需要具备可交接原因和关键上下文。",
+          "result": "提交后进入交接中，等待下游确认。"
+        },
+        "handoff_pending": {
+          "goal": "等待下游接收结果。",
+          "requirements": "交接请求已提交，不在此节点重复补资料。",
+          "result": "下游确认后进入已交接；失败则进入交接失败。"
+        },
+        "handoff_accepted": {
+          "goal": "查看下游已接收结果。",
+          "requirements": "无新的人工推进动作。",
+          "result": "SCRM 采集生命周期结束。"
+        }
+      },
+      "tracePanel": {
+        "title": "节点留痕与活动",
+        "refresh": "刷新",
+        "loading": "正在加载节点记录...",
+        "auditTrail": "操作留痕",
+        "activityRecords": "活动记录",
+        "emptyAuditTrail": "暂无该节点操作留痕。",
+        "emptyActivityRecords": "暂无该节点活动记录。"
+      },
+      "activityTable": {
+        "time": "时间",
+        "type": "方式",
+        "subject": "主题",
+        "result": "结果"
+      },
+      "activityDetail": {
+        "title": "记录活动",
+        "occurredAt": "发生时间",
+        "operator": "操作人",
+        "stage": "所属阶段",
+        "action": "所属动作",
+        "method": "活动方式",
+        "subject": "活动主题",
+        "result": "活动结果",
+        "content": "活动内容",
+        "nextStep": "后续待办",
+        "nextFollowUpAt": "待办时间",
+        "systemOperator": "系统记录",
+        "empty": "暂无可查看的活动详情。"
+      },
+      "traceDetail": {
+        "title": "节点状态记录"
+      },
+      "activityForm": {
+        "title": "记录活动",
+        "method": "活动方式",
+        "result": "活动结果",
+        "subject": "活动主题",
+        "subjectPlaceholder": "例如：补全资料、客户回复、同步备注",
+        "content": "活动内容",
+        "contentPlaceholder": "填写本次活动内容",
+        "attachmentTitle": "活动附件",
+        "attachmentProvider": "SCRM 附件",
+        "chooseFile": "选择文件",
+        "attachmentPendingText": "活动保存后自动上传到本次活动下",
+        "attachmentPendingCount": "待随本次活动上传 {count} 个文件",
+        "attachmentMissingActivity": "活动已保存，但未返回活动 ID，无法绑定活动附件。",
+        "downloadFile": "下载",
+        "downloadFailed": "附件下载失败",
+        "emptyAttachments": "本次活动暂无附件。",
+        "createFollowUpTask": "创建后续待办",
+        "nextStep": "后续待办",
+        "nextStepPlaceholder": "例如：继续确认手机号、等待客户回复",
+        "nextFollowUpAt": "待办时间",
+        "submit": "提交活动",
+        "cancel": "取消",
+        "required": "请选择活动方式并填写活动内容。",
+        "saved": "活动记录已保存",
+        "saveFailed": "活动记录保存失败"
+      },
+      "activityMethod": {
+        "phone": "电话",
+        "wechat": "微信",
+        "email": "邮件",
+        "syncTrace": "同步留痕",
+        "note": "备注"
+      },
+      "activityResult": {
+        "done": "已完成",
+        "interested": "客户有兴趣",
+        "pending": "待反馈",
+        "invalid": "信息无效"
+      },
+      "traceItems": {
+        "statusChanged": "状态变更",
+        "assigned": "负责人分配",
+        "sourceCaptured": "来源采集"
+      },
+      "activityTypes": {
+        "intake": "线索采集",
+        "merge": "线索合并",
+        "profile_edit": "资料补全",
+        "status_change": "状态变更",
+        "assign": "负责人分配",
+        "manual_activity": "记录活动",
+        "bot_command": "Bot 回执",
+        "sync_trace": "同步留痕",
+        "external_activity": "外部活动",
+        "unknown": "活动"
+      },
+      "activityFields": {
+        "matchOn": "命中规则：",
+        "mergedFields": "合并字段：",
+        "noDetail": "暂无活动详情。"
+      },
+      "attachments": {
+        "title": "节点附件",
+        "provider": "未接入",
+        "upload": "上传",
+        "unavailableTitle": "附件服务未接入",
+        "unavailableDescription": "当前 SCRM 后端还没有线索节点附件的上传、下载和留痕接口；该区域先保留在节点工作台中，等附件数据契约补齐后接入统一附件组件。"
+      },
+      "actions": {
+        "open": "处理",
+        "qualifyHint": "确认该线索已具备交接条件后，提交到可交接节点。",
+        "handoffHint": "提交后该线索进入交接中，等待下游接收确认。",
+        "dedupHint": "核对身份字段和来源上下文，确认没有需要合并的重复线索后进入已去重。",
+        "startEngagementHint": "负责人已接手，可以开始私域触达、会话跟进和运营动作记录。",
+        "noManualAction": "该节点当前由同步、补全、去重或下游确认驱动，没有手动推进按钮。",
+        "assignSaved": "负责人已分配",
+        "assignFailed": "负责人分配失败",
+        "statusSaved": "生命周期状态已更新",
+        "statusFailed": "生命周期状态更新失败"
+      },
+      "nodes": {
+        "captured": {
+          "description": "线索从私域渠道或本地导入进入采集池。",
+          "action": "保存补全"
+        },
+        "enriched": {
+          "description": "联系人、来源和渠道上下文已补齐，等待做重复线索判断。",
+          "action": "去重确认"
+        },
+        "deduplicated": {
+          "description": "已确认无重复或已完成合并，线索可以交给负责人跟进。",
+          "action": "分配负责人"
+        },
+        "routed": {
+          "description": "负责人已接手，准备开始私域互动和运营跟进。",
+          "action": "开始互动"
+        },
+        "engaging": {
+          "description": "围绕私域会话、触达记录和运营动作持续跟进。",
+          "action": "标记可交接"
+        },
+        "qualified_for_handoff": {
+          "description": "线索已满足交接条件，准备提交给下游接收方。",
+          "action": "提交交接"
+        },
+        "handoff_pending": {
+          "description": "交接请求已提交，等待下游确认。",
+          "action": "查看交接"
+        },
+        "handoff_accepted": {
+          "description": "下游已确认接收，SCRM 采集生命周期结束。",
+          "action": "查看结果"
+        }
+      }
+    },
+    "listDisplay": {
+      "unnamedLead": "未命名线索",
+      "createdAt": "创建于 {time}",
+      "noSource": "暂无来源信息",
+      "sourceAccountLinked": "已关联渠道账号",
+      "sourceAccountUnknown": "未知渠道账号",
+      "ownerUnassigned": "未分配负责人",
+      "ownerUnknown": "未知负责人"
+    },
+    "status": {
+      "all": "全部",
+      "captured": "已采集",
+      "enriched": "已补全",
+      "deduplicated": "已去重",
+      "routed": "已分配",
+      "engaging": "互动中",
+      "qualified_for_handoff": "可交接",
+      "handoff_pending": "交接中",
+      "handoff_accepted": "已交接",
+      "invalid": "无效",
+      "archived": "已归档",
+      "disconnected": "已断开关系",
+      "handoff_failed": "交接失败"
+    }
   },
   "iam": {
     "notifications": {

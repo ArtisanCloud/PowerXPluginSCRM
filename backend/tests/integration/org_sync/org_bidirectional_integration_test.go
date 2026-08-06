@@ -239,6 +239,7 @@ func openOrgBidirectionalDB(t *testing.T, name string) *gorm.DB {
 	);`).Error)
 	require.NoError(t, db.Exec(`CREATE TABLE IF NOT EXISTS iam_users (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		tenant_uuid TEXT NOT NULL,
 		email TEXT,
 		phone TEXT,
 		display_name TEXT,

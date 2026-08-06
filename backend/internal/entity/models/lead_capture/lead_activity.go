@@ -13,6 +13,7 @@ const (
 	LeadActivityTypeProfileEdit  = "profile_edit"
 	LeadActivityTypeStatusChange = "status_change"
 	LeadActivityTypeAssign       = "assign"
+	LeadActivityTypeManual       = "manual_activity"
 	LeadActivityTypeBotCommand   = "bot_command"
 	LeadActivityTypeSyncTrace    = "sync_trace"
 )

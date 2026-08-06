@@ -38,7 +38,7 @@ func TestLeadConversationWSIntegration_BindingAndTopicPublish(t *testing.T) {
 		TenantUUID:  tenantUUID,
 		DisplayName: "Alice",
 		Phone:       "13800000001",
-		Status:      leadmodel.LeadStatusNew,
+		Status:      leadmodel.LeadStatusCaptured,
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}).Error)

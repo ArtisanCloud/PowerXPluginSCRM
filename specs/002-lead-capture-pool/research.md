@@ -1,7 +1,7 @@
 # Research: 线索采集池
 
 ## Decision 1: 状态机严格约束
-**Decision**: 采用严格采集池状态机（captured -> routed -> engaging -> qualified_for_handoff -> handoff_pending -> handoff_accepted）。
+**Decision**: 采用严格采集池状态机（captured -> enriched -> deduplicated -> routed -> engaging -> qualified_for_handoff -> handoff_pending -> handoff_accepted）。
 **Rationale**: 保证 SCRM 只管理获客处理与交接口径，不把 CRM 销售漏斗带入插件。
 **Alternatives considered**: 允许任意跳转；仅限制终态。
 

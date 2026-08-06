@@ -31,7 +31,7 @@ func TestConversationService_IdempotencyAndDuplicateWebhook(t *testing.T) {
 		LeadUUID:    leadUUID,
 		TenantUUID:  tenantUUID,
 		Phone:       "13800000001",
-		Status:      leadmodel.LeadStatusNew,
+		Status:      leadmodel.LeadStatusCaptured,
 		CreatedAt:   time.Now().UTC(),
 		UpdatedAt:   time.Now().UTC(),
 		DisplayName: "Alice",

@@ -114,12 +114,12 @@ frontend:
                 route: scrm/social_channel_governance/unified-access
                 order: 2
                 required_policies: ["scrm.social_channel_accounts:read"]
-          - id: plugins.com.powerx.plugins.scrm.leads_opportunity
-            title: 线索与商机
+          - id: plugins.com.powerx.plugins.scrm.lead_operations
+            title: 线索运营
             title_i18n:
               namespace: menus
-              key: menu.com.powerx.plugins.scrm.leads_opportunity.title
-              default: 线索与商机
+              key: menu.com.powerx.plugins.scrm.lead_operations.title
+              default: 线索运营
             icon: i-heroicons-funnel
             path: /scrm/lead_capture
             route: scrm/lead_capture
@@ -136,17 +136,6 @@ frontend:
                 route: scrm/lead_capture
                 order: 1
                 required_policies: ["scrm.leads:read"]
-              - id: plugins.com.powerx.plugins.scrm.opportunity
-                title: 商机管理
-                title_i18n:
-                  namespace: menus
-                  key: menu.com.powerx.plugins.scrm.opportunity.title
-                  default: 商机管理
-                icon: i-heroicons-currency-dollar
-                path: /scrm/opportunity
-                route: scrm/opportunity
-                order: 2
-                required_policies: ["scrm.opportunity:read"]
           - id: plugins.com.powerx.plugins.scrm.channel_org_tags
             title: 渠道组织与标签
             title_i18n:

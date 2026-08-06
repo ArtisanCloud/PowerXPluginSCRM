@@ -25,7 +25,7 @@ func TestLeadConversationAdminContract_ListAndBind(t *testing.T) {
 	now := time.Now().UTC()
 
 	db := openContractDB(t, "lead_conversation_admin_contract")
-	require.NoError(t, db.Create(&leadmodel.Lead{LeadUUID: leadUUID, TenantUUID: tenantUUID, DisplayName: "Alice", Status: leadmodel.LeadStatusNew, CreatedAt: now, UpdatedAt: now}).Error)
+	require.NoError(t, db.Create(&leadmodel.Lead{LeadUUID: leadUUID, TenantUUID: tenantUUID, DisplayName: "Alice", Status: leadmodel.LeadStatusCaptured, CreatedAt: now, UpdatedAt: now}).Error)
 	require.NoError(t, db.Create(&leadmodel.LeadConversationBinding{
 		BindingUUID:        "20000000-0000-4000-8000-000000000001",
 		TenantUUID:         tenantUUID,

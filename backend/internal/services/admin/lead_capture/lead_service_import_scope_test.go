@@ -41,7 +41,7 @@ func TestLeadService_ImportCSVWithMapping_PreserveExplicitSourceScope(t *testing
 	require.Nil(t, leads[0].SourceAccountUUID)
 }
 
-func TestLeadService_UpdateQualification_MQLSQLAndRollback(t *testing.T) {
+func TestLeadService_UpdateQualification_HandoffAndRollback(t *testing.T) {
 	db := openLeadServiceImportTestDB(t, "lead_service_qualification")
 	tenantUUID := "00000000-0000-0000-0000-000000000001"
 	leadUUID := uuid.NewString()
@@ -49,21 +49,21 @@ func TestLeadService_UpdateQualification_MQLSQLAndRollback(t *testing.T) {
 		LeadUUID:    leadUUID,
 		TenantUUID:  tenantUUID,
 		DisplayName: "资格线索",
-		Status:      leadmodel.LeadStatusInProgress,
+		Status:      leadmodel.LeadStatusEngaging,
 	}).Error)
 	svc := NewLeadService(leadrepo.NewLeadRepository(db))
 
-	updated, err := svc.UpdateQualification(context.Background(), tenantUUID, leadUUID, LeadStatusUpdateRequest{Status: "mql"})
+	updated, err := svc.UpdateQualification(context.Background(), tenantUUID, leadUUID, LeadStatusUpdateRequest{Status: leadmodel.LeadStatusQualifiedForHandoff})
 	require.NoError(t, err)
-	require.Equal(t, leadmodel.LeadStatusMQL, updated.Status)
+	require.Equal(t, leadmodel.LeadStatusQualifiedForHandoff, updated.Status)
 
-	updated, err = svc.UpdateQualification(context.Background(), tenantUUID, leadUUID, LeadStatusUpdateRequest{Status: "sql"})
+	updated, err = svc.UpdateQualification(context.Background(), tenantUUID, leadUUID, LeadStatusUpdateRequest{Status: leadmodel.LeadStatusHandoffPending})
 	require.NoError(t, err)
-	require.Equal(t, leadmodel.LeadStatusSQL, updated.Status)
+	require.Equal(t, leadmodel.LeadStatusHandoffPending, updated.Status)
 
 	updated, err = svc.UpdateQualification(context.Background(), tenantUUID, leadUUID, LeadStatusUpdateRequest{Status: "rollback"})
 	require.NoError(t, err)
-	require.Equal(t, leadmodel.LeadStatusMQL, updated.Status)
+	require.Equal(t, leadmodel.LeadStatusQualifiedForHandoff, updated.Status)
 
 	var count int64
 	require.NoError(t, db.Table("lead_capture_status_history").Where("lead_uuid = ?", leadUUID).Count(&count).Error)

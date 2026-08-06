@@ -103,7 +103,7 @@ export interface LeadStatusUpdatePayload {
 }
 
 export interface LeadQualificationPayload {
-  target_status: "mql" | "sql" | "rollback";
+  target_status: "qualified_for_handoff" | "handoff_pending" | "rollback";
 }
 
 export interface LeadAssignmentRecord {
@@ -132,6 +132,32 @@ export interface LeadActivityRecord {
   payload?: Record<string, any>;
   created_at: string;
   updated_at: string;
+}
+
+export interface LeadAttachmentRecord {
+  attachment_uuid: string;
+  tenant_uuid: string;
+  lead_uuid: string;
+  activity_uuid?: string;
+  stage_key?: string;
+  action_key?: string;
+  file_name: string;
+  content_type?: string;
+  file_size: number;
+  storage_provider: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LeadActivityCreatePayload {
+  method: string;
+  subject?: string;
+  content: string;
+  result?: string;
+  next_step?: string;
+  next_follow_up_at?: string;
+  stage_key?: string;
+  action_key?: string;
 }
 
 export interface LeadSourceEventRecord {
@@ -425,6 +451,31 @@ export const useLeadCaptureService = () => {
       apiClient.get<ApiResponse<{ items: LeadActivityRecord[] }>>(
         `${baseUrl}/${leadId}/activities`
       ),
+    createActivity: (leadId: string, payload: LeadActivityCreatePayload) =>
+      apiClient.post<ApiResponse<LeadActivityRecord>>(`${baseUrl}/${leadId}/activities`, payload),
+    listActivityAttachments: (leadId: string, activityId: string) =>
+      apiClient.get<ApiResponse<{ items: LeadAttachmentRecord[] }>>(
+        `${baseUrl}/${leadId}/activities/${activityId}/attachments`
+      ),
+    uploadActivityAttachment: (
+      leadId: string,
+      activityId: string,
+      file: File,
+      meta?: { stage_key?: string; action_key?: string }
+    ) => {
+      const form = new FormData();
+      form.append("file", file);
+      if (meta?.stage_key) form.append("stage_key", meta.stage_key);
+      if (meta?.action_key) form.append("action_key", meta.action_key);
+      return apiClient.post<ApiResponse<LeadAttachmentRecord>>(
+        `${baseUrl}/${leadId}/activities/${activityId}/attachments`,
+        form
+      );
+    },
+    downloadAttachment: (leadId: string, attachmentId: string) =>
+      apiClient.get<Blob>(`${baseUrl}/${leadId}/attachments/${attachmentId}/download`, {
+        responseType: "blob",
+      }),
     listSourceEvents: (leadId: string) =>
       apiClient.get<ApiResponse<{ items: LeadSourceEventRecord[] }>>(
         `${baseUrl}/${leadId}/sources`

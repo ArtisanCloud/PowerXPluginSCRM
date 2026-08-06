@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	pwresponse "github.com/ArtisanCloud/PowerWeChat/v3/src/kernel/response"
+	pwexternalreq "github.com/ArtisanCloud/PowerWeChat/v3/src/work/externalContact/request"
 	basemodels "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models"
 	leadmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/lead_capture"
 	socialmodel "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/models/social_channel_governance"
@@ -30,6 +32,12 @@ func (us3ExternalContactAdapter) FetchLeads(_ context.Context, _ leadsvc.Trigger
 	}, nil
 }
 
+type us3RemarkClient struct{}
+
+func (us3RemarkClient) Remark(_ context.Context, _ *pwexternalreq.RequestExternalContactRemark) (*pwresponse.ResponseWork, error) {
+	return &pwresponse.ResponseWork{ErrCode: 0, ErrMsg: "ok"}, nil
+}
+
 func TestExternalContactBidirectionalIntegration_DedupWritebackAndDeadLetter(t *testing.T) {
 	tenantUUID := "00000000-0000-0000-0000-000000000001"
 	accountUUID := "11111111-1111-4111-8111-111111111111"
@@ -44,7 +52,7 @@ func TestExternalContactBidirectionalIntegration_DedupWritebackAndDeadLetter(t *
 		DisplayName:     "US3测试账号",
 		Status:          socialmodel.ChannelAccountStatusConnected,
 		OrgSyncDefault:  true,
-		OwnerMemberUUID: "owner-us3",
+		OwnerMemberUUID: "00000000-0000-0000-0000-000000000141",
 	}).Error)
 
 	taskRepo := leadrepo.NewLeadSyncTaskRepository(db)
@@ -53,6 +61,7 @@ func TestExternalContactBidirectionalIntegration_DedupWritebackAndDeadLetter(t *
 	svc := leadsvc.NewWeComSyncService(taskRepo, nil, us3ProviderAdapter{}).
 		WithLeadIngestion(leadRepo, us3ExternalContactAdapter{}).
 		WithLeadService(leadsvc.NewLeadService(leadRepo)).
+		WithRemarkClient(us3RemarkClient{}).
 		WithSyncFoundation(syncRepo)
 
 	pullTask, err := svc.TriggerSync(context.Background(), leadsvc.TriggerSyncRequest{
@@ -96,7 +105,7 @@ func TestExternalContactBidirectionalIntegration_DedupWritebackAndDeadLetter(t *
 		Domain:     "leads",
 		Direction:  "push",
 		LeadWriteback: []leadsvc.LeadWritebackRecord{
-			{ExternalUserID: "ext-write-1", CorpID: "corp-001", Phone: "13800000022", OrderVersion: 2, Fields: map[string]any{"phone": "13800000022", "status": "converted"}},
+			{ExternalUserID: "ext-write-1", CorpID: "corp-001", Phone: "13800000022", OrderVersion: 2, Fields: map[string]any{"phone": "13800000022", "status": "converted", "userid": "owner-001"}},
 		},
 	})
 	require.NoError(t, err)
@@ -110,7 +119,7 @@ func TestExternalContactBidirectionalIntegration_DedupWritebackAndDeadLetter(t *
 		Domain:     "leads",
 		Direction:  "push",
 		LeadWriteback: []leadsvc.LeadWritebackRecord{
-			{ExternalUserID: "ext-write-1", CorpID: "corp-001", Phone: "13800000022", OrderVersion: 2, Fields: map[string]any{"phone": "13800000022"}},
+			{ExternalUserID: "ext-write-1", CorpID: "corp-001", Phone: "13800000022", OrderVersion: 2, Fields: map[string]any{"phone": "13800000022", "userid": "owner-001"}},
 		},
 	})
 	require.NoError(t, err)
@@ -136,7 +145,7 @@ func TestExternalContactBidirectionalIntegration_DedupWritebackAndDeadLetter(t *
 		Domain:     "leads",
 		Direction:  "push",
 		LeadWriteback: []leadsvc.LeadWritebackRecord{
-			{ExternalUserID: "ext-write-2", CorpID: "corp-001", Phone: "13800000023", OrderVersion: 1, Fields: map[string]any{"phone": "13800000023", "force_fail": true}},
+			{ExternalUserID: "ext-write-2", CorpID: "corp-001", Phone: "13800000023", OrderVersion: 1, Fields: map[string]any{"phone": "13800000023", "force_fail": true, "userid": "owner-001"}},
 		},
 	})
 	require.NoError(t, err)
@@ -194,6 +203,7 @@ func openUS3IntegrationDB(t *testing.T, name string) *gorm.DB {
 			stats_created INTEGER NOT NULL DEFAULT 0,
 			stats_updated INTEGER NOT NULL DEFAULT 0,
 			stats_merged INTEGER NOT NULL DEFAULT 0,
+			stats_failed INTEGER NOT NULL DEFAULT 0,
 			error_code TEXT,
 			error_message TEXT,
 			started_at DATETIME,
@@ -300,6 +310,42 @@ func openUS3IntegrationDB(t *testing.T, name string) *gorm.DB {
 			created_at DATETIME,
 			updated_at DATETIME
 		);`,
+		`CREATE TABLE IF NOT EXISTS social_wecom_auth_bindings (
+			binding_uuid TEXT PRIMARY KEY,
+			tenant_uuid TEXT NOT NULL,
+			channel_account_uuid TEXT,
+			channel_code TEXT NOT NULL DEFAULT 'wechat',
+			app_type TEXT NOT NULL DEFAULT 'wecom',
+			suite_id TEXT NOT NULL DEFAULT '',
+			corp_id TEXT NOT NULL DEFAULT '',
+			agent_id TEXT NOT NULL DEFAULT '',
+			corp_name TEXT NOT NULL DEFAULT '',
+			permanent_code TEXT NOT NULL DEFAULT '',
+			suite_access_token TEXT NOT NULL DEFAULT '',
+			suite_ticket TEXT NOT NULL DEFAULT '',
+			status TEXT NOT NULL DEFAULT 'active',
+			is_default BOOLEAN NOT NULL DEFAULT 0,
+			default_switched_at DATETIME,
+			last_event_type TEXT NOT NULL DEFAULT '',
+			last_event_at DATETIME,
+			auth_scope TEXT,
+			metadata TEXT,
+			created_at DATETIME,
+			updated_at DATETIME,
+			deleted_at DATETIME
+		);`,
+		`CREATE TABLE IF NOT EXISTS social_channel_platform_settings (
+			setting_uuid TEXT PRIMARY KEY,
+			channel_code TEXT NOT NULL,
+			provider_code TEXT NOT NULL,
+			enabled BOOLEAN NOT NULL DEFAULT 0,
+			config TEXT,
+			created_at DATETIME,
+			updated_at DATETIME,
+			deleted_at DATETIME
+		);`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS uq_social_channel_platform_settings
+			ON social_channel_platform_settings (channel_code, provider_code);`,
 	}
 	for _, stmt := range stmts {
 		require.NoError(t, db.Exec(stmt).Error)

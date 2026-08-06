@@ -90,10 +90,9 @@ dist-verify:
 	@awk '/^[[:space:]]*backend:[[:space:]]*$$/{in_backend=1; next} in_backend && /^[^[:space:]]/ {in_backend=0} in_backend && /^[[:space:]]*port:[[:space:]]*0[[:space:]]*$$/ {found=1} END{exit found?0:1}' "$(DIST_DIR)/plugin.yaml" || { echo "❌ plugin.yaml backend.port 必须是 0"; exit 1; }
 	@! rg -q '(^|[^0-9])(8078|8086)([^0-9]|$$)' "$(DIST_DIR)/plugin.yaml" || { echo "❌ plugin.yaml 不得固化旧 backend port：8078/8086"; exit 1; }
 	@awk '/^[[:space:]]*migrations:[[:space:]]*$$/{in_migrations=1; next} in_migrations && /^[^[:space:]]/ {in_migrations=0} in_migrations && /^[[:space:]]*entry:[[:space:]]*backend\/bin\/migrate[[:space:]]*$$/ {found=1} END{exit found?0:1}' "$(DIST_DIR)/plugin.yaml" || { echo "❌ plugin.yaml migrations.entry 必须是 backend/bin/migrate"; exit 1; }
-	@rg -q "resource: scrm.opportunity" "$(DIST_DIR)/plugin.d/rbac.yaml" || { echo "❌ dist 验证失败：rbac 缺少 scrm.opportunity"; exit 1; }
 	@rg -q "resource: scrm.leads" "$(DIST_DIR)/plugin.d/rbac.yaml" || { echo "❌ dist 验证失败：rbac 缺少 scrm.leads"; exit 1; }
 	@rg -q "resource: scrm.social_channel_accounts" "$(DIST_DIR)/plugin.d/rbac.yaml" || { echo "❌ dist 验证失败：rbac 缺少 scrm.social_channel_accounts"; exit 1; }
-	@rg -q "/admin/opportunity/records" "$(DIST_DIR)/plugin.d/exposure.yaml" || { echo "❌ dist 验证失败：exposure 缺少商机接口"; exit 1; }
+	@! rg -q "scrm.opportunity|/admin/opportunity|/scrm/opportunity" "$(DIST_DIR)/plugin.d/rbac.yaml" "$(DIST_DIR)/plugin.d/exposure.yaml" || { echo "❌ dist 验证失败：SCRM 不得暴露商机资源或接口"; exit 1; }
 	@rg -q "/admin/leads" "$(DIST_DIR)/plugin.d/exposure.yaml" || { echo "❌ dist 验证失败：exposure 缺少线索接口"; exit 1; }
 	@! rg -q "^[[:space:]]*-[[:space:]]+capability:" "$(DIST_DIR)/plugin.d/exposure.yaml" || { echo "❌ dist 验证失败：exposure channel 缺少 auth，请确保每个 channel 都先声明 auth"; exit 1; }
 	@echo "✅ dist 验证通过：$(DIST_DIR)"

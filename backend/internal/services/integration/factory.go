@@ -5,6 +5,7 @@ import (
 
 	idrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/integration"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/mcp/stream"
+	leadcapturesvc "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/services/admin/lead_capture"
 	srvtemplates "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/services/admin/templates"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/shared/app"
 	"github.com/sirupsen/logrus"
@@ -37,9 +38,10 @@ func BuildDispatchService(deps *app.Deps, logger *logrus.Entry) *DispatchService
 	repository := idrepo.NewIdempotencyRepository(deps.DB, nil, fallbackStore, logger.WithField("component", "integration.idempotency_repository"))
 
 	templateService := srvtemplates.NewTemplateService(deps.DB)
+	leadBridgeService := leadcapturesvc.NewLeadBridgeService(deps.DB)
 	hostLogger := logger.WithField("component", "integration.host_invoker")
 	noopInvoker := NewNoopInvoker(hostLogger)
-	invoker := NewCapabilityInvoker(templateService, stream.DefaultBroker(), hostLogger, noopInvoker)
+	invoker := NewCapabilityInvoker(templateService, leadBridgeService, stream.DefaultBroker(), hostLogger, noopInvoker)
 
 	return NewDispatchService(deps.Config, grantService, repository, invoker, logger.WithField("component", "integration.dispatch_service"))
 }

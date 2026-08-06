@@ -2,7 +2,11 @@
 .DS_Store
 Thumbs.db
 .idea/
-.vscode/
+.vscode/*
+!.vscode/
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/extensions.json
 
 # Environment / secrets
 .env
@@ -50,6 +54,7 @@ backend/coverage.out
 backend/etc/config.yaml
 backend/etc/host-values.yaml
 backend/vendor/
+__debug_bin*
 *.exe
 *.test
 *.out

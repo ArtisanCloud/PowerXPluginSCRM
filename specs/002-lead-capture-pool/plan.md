@@ -67,7 +67,7 @@ web-admin/
 ## Phase 0: Outline & Research
 
 ### Research Tasks
-- 采集池状态机（captured -> routed -> engaging -> qualified_for_handoff -> handoff_pending -> handoff_accepted）的最小可行流转与边界策略
+- 采集池状态机（captured -> enriched -> deduplicated -> routed -> engaging -> qualified_for_handoff -> handoff_pending -> handoff_accepted）的最小可行流转与边界策略
 - 线索去重合并的字段保留策略与审计规则
 - 线索负责人选择与 IAM member 绑定约束（租户隔离）
 - CRM 交接边界：本功能只保存外部引用，不创建本地商机、合同、回款

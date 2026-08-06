@@ -236,10 +236,7 @@
     "scrmSocialChannelHealthOps": "Connection Health",
     "scrmSocialChannelAttributionTracking": "Source Attribution",
     "scrmOpenWorkFoundation": "WeCom OpenWork Foundation",
-    "scrmLeadList": "Lead Management",
-    "scrmOpportunity": "Opportunities",
-    "scrmOpportunityAnalytics": "Opportunity Forecast",
-    "scrmOpportunitySettings": "Opportunity Settings",
+    "scrmLeadList": "Lead Capture Pool",
     "scrmLeadSourceCatalog": "Lead Source Config",
     "scrmLeadEntry": "Lead Tracking",
     "scrmWecomSync": "WeCom Lead Sync",
@@ -272,7 +269,7 @@
     "scrmPlatformEcosystemExtensibility": "Platform Ecosystem Extensibility",
     "scrmSectionChannelsLeads": "Channels & Leads",
     "scrmSectionChannelAccess": "Channel Access",
-    "scrmSectionLeadsOpportunity": "Leads & Opportunities",
+    "scrmSectionLeadOperations": "Lead Operations",
     "scrmSectionChannelOrgTags": "Channel Org & Tags",
     "scrmSectionAcquisition": "Lead Acquisition",
     "scrmSectionOperations": "Customer Operations",
@@ -313,6 +310,331 @@
   "scrm": {
     "placeholderTitle": "Module Planning",
     "placeholderDescription": "This module page is pending implementation. Refer to the plan document first."
+  },
+  "leadCapture": {
+    "pool": {
+      "title": "Lead Capture Pool",
+      "description": "Track captured, enriched, deduplicated, routed, engaged, and handoff-ready leads through the private-domain operations funnel.",
+      "total": "{count} total",
+      "emptyChannelSync": "No leads yet. Run channel sync first, or enable demo lead seeds in local/dev testing."
+    },
+    "actions": {
+      "sourceConfig": "Source Config",
+      "refresh": "Refresh",
+      "batchImport": "Batch Import",
+      "syncCenter": "Sync Center",
+      "createLead": "New Lead"
+    },
+    "filters": {
+      "search": "Search",
+      "searchPlaceholder": "Search name, phone, or email",
+      "status": "Status",
+      "allStatuses": "All statuses",
+      "trafficPlatform": "Traffic Platform",
+      "allChannels": "All channels",
+      "trafficSource": "Traffic Source",
+      "allApps": "All apps"
+    },
+    "funnel": {
+      "title": "Private-Domain Operations Funnel",
+      "clear": "View All",
+      "metric": "leads",
+      "filterAll": "Current list shows all leads",
+      "filterActive": "Current list filtered by: {status}",
+      "short": {
+        "captured": "Capture",
+        "enriched": "Enrich",
+        "deduplicated": "Dedup",
+        "routed": "Route",
+        "engaging": "Engage",
+        "qualified_for_handoff": "Ready",
+        "handoff_pending": "Pending",
+        "handoff_accepted": "Done"
+      }
+    },
+    "lifecycle": {
+      "title": "Private-Domain Lead Lifecycle",
+      "template": "System template: {code}",
+      "modalTitle": "Lead Node Action",
+      "modalLeadSummary": "Lead Summary",
+      "nodeChainTitle": "Node Chain Navigation",
+      "advanceMode": "Advance by lifecycle",
+      "nodeActionTitle": "Node Action Detail",
+      "currentStage": "Current stage: {stage}",
+      "activityRecordAction": "Record Activity",
+      "closeModal": "Close",
+      "readonlyNode": "This is not the current actionable node. Use it to inspect traces and context.",
+      "traceSummary": "Node Trace Summary",
+      "state": {
+        "done": "Done",
+        "current": "Current",
+        "pending": "Pending",
+        "terminal": "Ended"
+      },
+      "trace": {
+        "status": "Status",
+        "activity": "Activity",
+        "source": "Source"
+      },
+      "summary": {
+        "name": "Name",
+        "contact": "Contact",
+        "status": "Current Status",
+        "owner": "Owner",
+        "source": "Source",
+        "createdAt": "Created At"
+      },
+      "assign": {
+        "owner": "Owner",
+        "reason": "Assignment Note",
+        "ownerRequired": "Select an owner"
+      },
+      "enrichment": {
+        "displayName": "Contact",
+        "displayNamePlaceholder": "Enter contact name or display name",
+        "phone": "Phone",
+        "phonePlaceholder": "Enter phone number",
+        "email": "Email",
+        "emailPlaceholder": "Enter email address",
+        "sourceChannel": "Traffic Platform",
+        "sourceChannelPlaceholder": "Select source channel",
+        "sourceAppType": "Traffic Source",
+        "sourceAppTypePlaceholder": "Select app type",
+        "sourceAccount": "Channel Account",
+        "sourceAccountPlaceholder": "Select a channel account",
+        "identityRequired": "Contact, phone, or email is required.",
+        "saved": "Enrichment saved and the lead moved to enriched",
+        "saveFailed": "Failed to save enrichment",
+        "checklistTitle": "Enrichment Checklist",
+        "identityChecklist": "Identity fields",
+        "sourceChecklist": "Source fields",
+        "accountChecklist": "Channel account",
+        "identityMissing": "Contact, phone, or email is missing. Fill at least one identity field.",
+        "sourceMissing": "Traffic platform or traffic source is missing, so the lead entry point is unclear.",
+        "accountMissing": "Channel account is missing, so sync, routing, and writeback context is incomplete.",
+        "missingTitle": "Missing Items",
+        "noMissing": "Required information for this node is complete. You can save enrichment.",
+        "complete": "Complete",
+        "incomplete": "Incomplete"
+      },
+      "operation": {
+        "goal": "Goal",
+        "requirements": "Required Information",
+        "result": "Result",
+        "captured": {
+          "goal": "Confirm this lead is identifiable and traceable, then fill capture context.",
+          "requirements": "Contact, phone, or email is required. Traffic platform, traffic source, and channel account are recommended.",
+          "result": "After saving, the lead moves to enriched and records enrichment plus status traces."
+        },
+        "enriched": {
+          "goal": "Review enrichment and wait for or perform deduplication.",
+          "requirements": "Identity and source fields should support duplicate matching.",
+          "result": "After deduplication, the lead moves to deduplicated."
+        },
+        "deduplicated": {
+          "goal": "Confirm duplicates were merged or ruled out before routing.",
+          "requirements": "Deduplication result, merge record, or no-duplicate confirmation is required.",
+          "result": "After confirmation, the lead moves to routed."
+        },
+        "routed": {
+          "goal": "Assign the lead to an owner or operations queue.",
+          "requirements": "Owner is required. Assignment note is optional.",
+          "result": "After assignment, the lead moves to engaging and records assignment trace."
+        },
+        "engaging": {
+          "goal": "Track private-domain engagement and determine handoff readiness.",
+          "requirements": "Effective touch, conversation, or operations activity should exist.",
+          "result": "After confirmation, the lead moves to handoff-ready."
+        },
+        "qualified_for_handoff": {
+          "goal": "Confirm the lead meets downstream acceptance criteria.",
+          "requirements": "Handoff reason and key context should be available.",
+          "result": "After submission, the lead moves to handoff pending."
+        },
+        "handoff_pending": {
+          "goal": "Wait for downstream acceptance result.",
+          "requirements": "Handoff request has been submitted; do not repeat enrichment here.",
+          "result": "After downstream acceptance, the lead moves to accepted. Failure moves it to handoff failed."
+        },
+        "handoff_accepted": {
+          "goal": "Review downstream acceptance result.",
+          "requirements": "No further manual advance action.",
+          "result": "SCRM capture lifecycle is complete."
+        }
+      },
+      "tracePanel": {
+        "title": "Node Traces and Activities",
+        "refresh": "Refresh",
+        "loading": "Loading node records...",
+        "auditTrail": "Audit Trail",
+        "activityRecords": "Activity Records",
+        "emptyAuditTrail": "No audit trail for this node.",
+        "emptyActivityRecords": "No activity records for this node."
+      },
+      "activityTable": {
+        "time": "Time",
+        "type": "Method",
+        "subject": "Subject",
+        "result": "Result"
+      },
+      "activityDetail": {
+        "title": "Activity Detail",
+        "occurredAt": "Occurred At",
+        "operator": "Operator",
+        "stage": "Stage",
+        "action": "Action",
+        "method": "Method",
+        "subject": "Subject",
+        "result": "Result",
+        "content": "Content",
+        "nextStep": "Next Step",
+        "nextFollowUpAt": "Follow-up Time",
+        "systemOperator": "System Record",
+        "empty": "No activity detail available."
+      },
+      "traceDetail": {
+        "title": "Node Status Record"
+      },
+      "activityForm": {
+        "title": "Record Activity",
+        "method": "Activity Method",
+        "result": "Activity Result",
+        "subject": "Subject",
+        "subjectPlaceholder": "Example: enrich profile, customer replied, sync note",
+        "content": "Content",
+        "contentPlaceholder": "Enter activity content",
+        "attachmentTitle": "Activity Attachments",
+        "attachmentProvider": "SCRM Attachments",
+        "chooseFile": "Choose File",
+        "attachmentPendingText": "Files will upload to this activity after the activity is saved.",
+        "attachmentPendingCount": "{count} file(s) will upload with this activity",
+        "attachmentMissingActivity": "The activity was saved but no activity ID was returned, so attachments cannot be linked.",
+        "downloadFile": "Download",
+        "downloadFailed": "Failed to download attachment",
+        "emptyAttachments": "No attachments for this activity.",
+        "createFollowUpTask": "Create follow-up task",
+        "nextStep": "Next Step",
+        "nextStepPlaceholder": "Example: verify phone number, wait for customer reply",
+        "nextFollowUpAt": "Follow-up Time",
+        "submit": "Submit Activity",
+        "cancel": "Cancel",
+        "required": "Select an activity method and enter activity content.",
+        "saved": "Activity saved",
+        "saveFailed": "Failed to save activity"
+      },
+      "activityMethod": {
+        "phone": "Phone",
+        "wechat": "WeChat",
+        "email": "Email",
+        "syncTrace": "Sync Trace",
+        "note": "Note"
+      },
+      "activityResult": {
+        "done": "Done",
+        "interested": "Customer interested",
+        "pending": "Pending",
+        "invalid": "Invalid information"
+      },
+      "traceItems": {
+        "statusChanged": "Status Changed",
+        "assigned": "Owner Assigned",
+        "sourceCaptured": "Source Captured"
+      },
+      "activityTypes": {
+        "intake": "Lead Captured",
+        "merge": "Lead Merged",
+        "profile_edit": "Profile Enriched",
+        "status_change": "Status Changed",
+        "assign": "Owner Assigned",
+        "manual_activity": "Activity Recorded",
+        "bot_command": "Bot Receipt",
+        "sync_trace": "Sync Trace",
+        "external_activity": "External Activity",
+        "unknown": "Activity"
+      },
+      "activityFields": {
+        "matchOn": "Matched on:",
+        "mergedFields": "Merged fields:",
+        "noDetail": "No activity details."
+      },
+      "attachments": {
+        "title": "Node Attachments",
+        "provider": "Not connected",
+        "upload": "Upload",
+        "unavailableTitle": "Attachment service is not connected",
+        "unavailableDescription": "The current SCRM backend does not yet provide upload, download, or trace APIs for lead node attachments. This area is reserved in the node workspace and can connect to the unified attachment component after the data contract is added."
+      },
+      "actions": {
+        "open": "Handle",
+        "qualifyHint": "Submit this lead to the handoff-ready node after confirming it meets handoff criteria.",
+        "handoffHint": "After submission, this lead enters handoff pending and waits for downstream acceptance.",
+        "dedupHint": "Review identity fields and source context. Move forward after confirming duplicates were merged or ruled out.",
+        "startEngagementHint": "The owner has accepted the lead and can start private-domain outreach, conversations, and operations follow-up.",
+        "noManualAction": "This node is driven by sync, enrichment, deduplication, or downstream confirmation. There is no manual advance button.",
+        "assignSaved": "Owner assigned",
+        "assignFailed": "Failed to assign owner",
+        "statusSaved": "Lifecycle status updated",
+        "statusFailed": "Failed to update lifecycle status"
+      },
+      "nodes": {
+        "captured": {
+          "description": "The lead entered the capture pool from a private-domain channel or local import.",
+          "action": "Save Enrichment"
+        },
+        "enriched": {
+          "description": "Contact, source, and channel context are enriched and ready for duplicate review.",
+          "action": "Confirm dedup"
+        },
+        "deduplicated": {
+          "description": "Duplicates have been merged or ruled out, so the lead can be assigned to an owner.",
+          "action": "Assign owner"
+        },
+        "routed": {
+          "description": "An owner has accepted the lead and can start private-domain engagement.",
+          "action": "Start engagement"
+        },
+        "engaging": {
+          "description": "Private-domain conversations, touch records, and operations are in progress.",
+          "action": "Mark handoff-ready"
+        },
+        "qualified_for_handoff": {
+          "description": "The lead meets handoff criteria and is ready to submit downstream.",
+          "action": "Submit handoff"
+        },
+        "handoff_pending": {
+          "description": "The handoff request has been submitted and is waiting for downstream confirmation.",
+          "action": "View handoff"
+        },
+        "handoff_accepted": {
+          "description": "Downstream has accepted the lead and the SCRM capture lifecycle is complete.",
+          "action": "View result"
+        }
+      }
+    },
+    "listDisplay": {
+      "unnamedLead": "Unnamed lead",
+      "createdAt": "Created at {time}",
+      "noSource": "No source information",
+      "sourceAccountLinked": "Channel account linked",
+      "sourceAccountUnknown": "Unknown channel account",
+      "ownerUnassigned": "Unassigned owner",
+      "ownerUnknown": "Unknown owner"
+    },
+    "status": {
+      "all": "All",
+      "captured": "Captured",
+      "enriched": "Enriched",
+      "deduplicated": "Deduplicated",
+      "routed": "Routed",
+      "engaging": "Engaging",
+      "qualified_for_handoff": "Ready for Handoff",
+      "handoff_pending": "Handoff Pending",
+      "handoff_accepted": "Handoff Accepted",
+      "invalid": "Invalid",
+      "archived": "Archived",
+      "disconnected": "Disconnected",
+      "handoff_failed": "Handoff Failed"
+    }
   },
   "iam": {
     "notifications": {

@@ -1,9 +1,12 @@
 capabilities:
   imports:
+    - contracts/capabilities/com.powerx.plugins.scrm.lead.activity.record.yaml
+    - contracts/capabilities/com.powerx.plugins.scrm.lead.conflict.resolve.yaml
+    - contracts/capabilities/com.powerx.plugins.scrm.lead.identity.update.yaml
+    - contracts/capabilities/com.powerx.plugins.scrm.lead.mapping.upsert.yaml
+    - contracts/capabilities/com.powerx.plugins.scrm.lead.status.get.yaml
     - contracts/capabilities/com.powerx.plugins.scrm.leads.read.yaml
     - contracts/capabilities/com.powerx.plugins.scrm.leads.write.yaml
-    - contracts/capabilities/com.powerx.plugins.scrm.opportunity.read.yaml
-    - contracts/capabilities/com.powerx.plugins.scrm.opportunity.write.yaml
     - contracts/capabilities/com.powerx.plugins.scrm.runtime_ops.invoke.yaml
     - contracts/capabilities/com.powerx.plugins.scrm.social_channel_accounts.read.yaml
     - contracts/capabilities/com.powerx.plugins.scrm.social_channel_accounts.write.yaml
@@ -20,6 +23,36 @@ capabilities:
     - contracts/capabilities/com.powerx.plugins.scrm.template.update.yaml
     - contracts/capabilities/com.powerx.plugins.scrm.template.validate.yaml
   provides:
+    - descriptor: contracts/capabilities/com.powerx.plugins.scrm.lead.activity.record.yaml
+      id: com.powerx.plugins.scrm.lead.activity.record
+      schemas:
+        input: ""
+        output: ""
+      version: 1.0.0
+    - descriptor: contracts/capabilities/com.powerx.plugins.scrm.lead.conflict.resolve.yaml
+      id: com.powerx.plugins.scrm.lead.conflict.resolve
+      schemas:
+        input: ""
+        output: ""
+      version: 1.0.0
+    - descriptor: contracts/capabilities/com.powerx.plugins.scrm.lead.identity.update.yaml
+      id: com.powerx.plugins.scrm.lead.identity.update
+      schemas:
+        input: ""
+        output: ""
+      version: 1.0.0
+    - descriptor: contracts/capabilities/com.powerx.plugins.scrm.lead.mapping.upsert.yaml
+      id: com.powerx.plugins.scrm.lead.mapping.upsert
+      schemas:
+        input: ""
+        output: ""
+      version: 1.0.0
+    - descriptor: contracts/capabilities/com.powerx.plugins.scrm.lead.status.get.yaml
+      id: com.powerx.plugins.scrm.lead.status.get
+      schemas:
+        input: ""
+        output: ""
+      version: 1.0.0
     - descriptor: contracts/capabilities/com.powerx.plugins.scrm.leads.read.yaml
       id: com.powerx.plugins.scrm.leads.read
       schemas:
@@ -28,18 +61,6 @@ capabilities:
       version: 1.0.0
     - descriptor: contracts/capabilities/com.powerx.plugins.scrm.leads.write.yaml
       id: com.powerx.plugins.scrm.leads.write
-      schemas:
-        input: ""
-        output: ""
-      version: 1.0.0
-    - descriptor: contracts/capabilities/com.powerx.plugins.scrm.opportunity.read.yaml
-      id: com.powerx.plugins.scrm.opportunity.read
-      schemas:
-        input: ""
-        output: ""
-      version: 1.0.0
-    - descriptor: contracts/capabilities/com.powerx.plugins.scrm.opportunity.write.yaml
-      id: com.powerx.plugins.scrm.opportunity.write
       schemas:
         input: ""
         output: ""

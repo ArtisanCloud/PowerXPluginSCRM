@@ -17,7 +17,6 @@ import (
 	adminlead "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/transport/http/admin/lead_capture"
 	adminmarketplace "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/transport/http/admin/marketplace"
 	adminoperations "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/transport/http/admin/operations"
-	adminopportunity "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/transport/http/admin/opportunity"
 	adminruntime "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/transport/http/admin/runtime_ops"
 	adminsecurity "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/transport/http/admin/security"
 	AdminSocial "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/transport/http/admin/social_channel_governance"
@@ -69,7 +68,6 @@ func StaticRBACEntries(prefix string) map[string]authx.Permission {
 	merge(adminiam.RBACEntries(prefix))
 	merge(adminlead.RBACEntries(prefix))
 	merge(adminacquisition.RBACEntries(prefix))
-	merge(adminopportunity.RBACEntries(prefix))
 	merge(AdminSocial.RBACEntries(prefix))
 	merge(templates.RBACEntries(prefix))
 	merge(integrationRBACEntries(prefix))

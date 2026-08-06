@@ -46,8 +46,9 @@ func TestStaffWelcomeContract_SaveSyncAndStatus(t *testing.T) {
 	require.NoError(t, json.Unmarshal(syncRec.Body.Bytes(), &syncResp))
 	require.Equal(t, true, syncResp["success"])
 	syncData := syncResp["data"].(map[string]any)
-	require.Equal(t, "manual_required", syncData["sync_status"])
-	require.EqualValues(t, 3, syncData["attempt_no"])
+	require.Equal(t, "success", syncData["sync_status"])
+	require.EqualValues(t, 1, syncData["attempt_no"])
+	require.Contains(t, syncData["message"], "welcome_code")
 
 	statusReq := httptest.NewRequest(http.MethodGet, "/api/v1/admin/leads/acquisition/staff-codes/"+staffCodeUUID+"/welcome-config/sync-status", nil)
 	statusRec := httptest.NewRecorder()
@@ -56,9 +57,9 @@ func TestStaffWelcomeContract_SaveSyncAndStatus(t *testing.T) {
 	var statusResp map[string]any
 	require.NoError(t, json.Unmarshal(statusRec.Body.Bytes(), &statusResp))
 	statusData := statusResp["data"].(map[string]any)
-	require.Equal(t, "manual_required", statusData["sync_status"])
-	require.EqualValues(t, 3, statusData["latest_attempt_no"])
-	require.Contains(t, statusData["last_sync_error"], "not implemented")
+	require.Equal(t, "success", statusData["sync_status"])
+	require.EqualValues(t, 1, statusData["latest_attempt_no"])
+	require.Empty(t, statusData["last_sync_error"])
 }
 
 func setupStaffWelcomeContractRouter(db *gorm.DB, tenantUUID string) *gin.Engine {

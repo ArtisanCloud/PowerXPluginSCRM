@@ -1,0 +1,63 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "scrm: backend dev",
+      "type": "shell",
+      "command": "go run ./cmd/plugin",
+      "options": {
+        "cwd": "${workspaceFolder}/backend",
+        "env": {
+          "CONFIG_PATH": "${workspaceFolder}/backend/etc",
+          "POWERX_PROVIDER_MODE": "local",
+          "POWERX_PROXY": "0"
+        }
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "scrm"
+      }
+    },
+    {
+      "label": "scrm: web-admin dev",
+      "type": "shell",
+      "command": "npm run dev -- --host 127.0.0.1 --port 3033",
+      "options": {
+        "cwd": "${workspaceFolder}/web-admin",
+        "env": {
+          "POWERX_PROVIDER_MODE": "local",
+          "NUXT_PUBLIC_POWERX_PROVIDER_MODE": "local",
+          "POWERX_PROXY": "0",
+          "NUXT_PUBLIC_POWERX_PROXY": "0",
+          "NUXT_DEV_PORT": "3033",
+          "NUXT_PUBLIC_API_BASE": "http://localhost:8092",
+          "NUXT_PUBLIC_API_PREFIX": "/api/v1",
+          "NUXT_DEV_API_PROXY": "http://127.0.0.1:8092",
+          "NUXT_DEV_WS_PROXY": "ws://127.0.0.1:8092"
+        }
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "scrm"
+      }
+    },
+    {
+      "label": "scrm: full stack dev",
+      "dependsOn": [
+        "scrm: backend dev",
+        "scrm: web-admin dev"
+      ],
+      "dependsOrder": "parallel",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "scrm"
+      }
+    }
+  ]
+}

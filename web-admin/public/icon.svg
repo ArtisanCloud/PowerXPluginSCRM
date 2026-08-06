@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
   <title id="title">PowerX SCRM</title>
-  <desc id="desc">SCRM plugin icon with connected customer nodes and opportunity signal.</desc>
+  <desc id="desc">SCRM plugin icon with connected customer nodes and private-domain signal.</desc>
   <defs>
     <linearGradient id="bg" x1="18" y1="14" x2="110" y2="116" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#0f766e"/>

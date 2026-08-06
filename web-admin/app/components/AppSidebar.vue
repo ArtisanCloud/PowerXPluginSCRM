@@ -500,27 +500,12 @@ const scrmSections: ScrmNavSection[] = [
     ],
   },
   {
-    titleKey: "navigation.scrmSectionLeadsOpportunity",
+    titleKey: "navigation.scrmSectionLeadOperations",
     items: [
       {
         to: "/scrm/lead_capture",
         labelKey: "navigation.scrmLeadList",
         icon: "i-heroicons-bolt",
-      },
-      {
-        to: "/scrm/opportunity",
-        labelKey: "navigation.scrmOpportunity",
-        icon: "i-heroicons-currency-dollar",
-      },
-      {
-        to: "/scrm/opportunity/analytics",
-        labelKey: "navigation.scrmOpportunityAnalytics",
-        icon: "i-heroicons-chart-bar-square",
-      },
-      {
-        to: "/scrm/opportunity/settings",
-        labelKey: "navigation.scrmOpportunitySettings",
-        icon: "i-heroicons-adjustments-horizontal",
       },
     ],
   },
