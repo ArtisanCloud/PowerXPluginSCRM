@@ -32,6 +32,30 @@ exposure:
       type: rest
     - auth: jwt
       capability: com.powerx.plugins.scrm.leads.read
+      entrypoint: ${POWERX_PLUGIN_HTTP_BASE:-/api/v1}/admin/leads/{lead_id}/timeline
+      method: GET
+      rbac: scrm.leads:read
+      type: rest
+    - auth: jwt
+      capability: com.powerx.plugins.scrm.leads.read
+      entrypoint: ${POWERX_PLUGIN_HTTP_BASE:-/api/v1}/admin/leads/{lead_id}/activities/{activity_id}/attachments
+      method: GET
+      rbac: scrm.leads:read
+      type: rest
+    - auth: jwt
+      capability: com.powerx.plugins.scrm.leads.read
+      entrypoint: ${POWERX_PLUGIN_HTTP_BASE:-/api/v1}/admin/leads/{lead_id}/node-attachments
+      method: GET
+      rbac: scrm.leads:read
+      type: rest
+    - auth: jwt
+      capability: com.powerx.plugins.scrm.leads.read
+      entrypoint: ${POWERX_PLUGIN_HTTP_BASE:-/api/v1}/admin/leads/{lead_id}/attachments/{attachment_id}/download
+      method: GET
+      rbac: scrm.leads:read
+      type: rest
+    - auth: jwt
+      capability: com.powerx.plugins.scrm.leads.read
       entrypoint: ${POWERX_PLUGIN_HTTP_BASE:-/api/v1}/admin/leads/{lead_id}/sources
       method: GET
       rbac: scrm.leads:read
@@ -100,6 +124,30 @@ exposure:
       capability: com.powerx.plugins.scrm.leads.write
       entrypoint: ${POWERX_PLUGIN_HTTP_BASE:-/api/v1}/admin/leads/{lead_id}/status
       method: POST
+      rbac: scrm.leads:write
+      type: rest
+    - auth: jwt
+      capability: com.powerx.plugins.scrm.leads.write
+      entrypoint: ${POWERX_PLUGIN_HTTP_BASE:-/api/v1}/admin/leads/{lead_id}/activities
+      method: POST
+      rbac: scrm.leads:write
+      type: rest
+    - auth: jwt
+      capability: com.powerx.plugins.scrm.leads.write
+      entrypoint: ${POWERX_PLUGIN_HTTP_BASE:-/api/v1}/admin/leads/{lead_id}/activities/{activity_id}/attachments
+      method: POST
+      rbac: scrm.leads:write
+      type: rest
+    - auth: jwt
+      capability: com.powerx.plugins.scrm.leads.write
+      entrypoint: ${POWERX_PLUGIN_HTTP_BASE:-/api/v1}/admin/leads/{lead_id}/node-attachments
+      method: POST
+      rbac: scrm.leads:write
+      type: rest
+    - auth: jwt
+      capability: com.powerx.plugins.scrm.leads.write
+      entrypoint: ${POWERX_PLUGIN_HTTP_BASE:-/api/v1}/admin/leads/{lead_id}/attachments/{attachment_id}
+      method: DELETE
       rbac: scrm.leads:write
       type: rest
     - auth: jwt

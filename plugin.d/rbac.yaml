@@ -738,12 +738,37 @@ routes:
         action: read
         resource: scrm.leads
     - method: POST
+      path: /admin/leads/:lead_id/activities
+      permission:
+        action: write
+        resource: scrm.leads
+    - method: GET
+      path: /admin/leads/:lead_id/activities/:activity_id/attachments
+      permission:
+        action: read
+        resource: scrm.leads
+    - method: POST
+      path: /admin/leads/:lead_id/activities/:activity_id/attachments
+      permission:
+        action: write
+        resource: scrm.leads
+    - method: POST
       path: /admin/leads/:lead_id/assign
       permission:
         action: write
         resource: scrm.leads
     - method: GET
       path: /admin/leads/:lead_id/assignments
+      permission:
+        action: read
+        resource: scrm.leads
+    - method: DELETE
+      path: /admin/leads/:lead_id/attachments/:attachment_id
+      permission:
+        action: write
+        resource: scrm.leads
+    - method: GET
+      path: /admin/leads/:lead_id/attachments/:attachment_id/download
       permission:
         action: read
         resource: scrm.leads
@@ -754,6 +779,16 @@ routes:
         resource: scrm.leads
     - method: POST
       path: /admin/leads/:lead_id/conversations/bind
+      permission:
+        action: write
+        resource: scrm.leads
+    - method: GET
+      path: /admin/leads/:lead_id/node-attachments
+      permission:
+        action: read
+        resource: scrm.leads
+    - method: POST
+      path: /admin/leads/:lead_id/node-attachments
       permission:
         action: write
         resource: scrm.leads
@@ -769,6 +804,11 @@ routes:
         resource: scrm.leads
     - method: GET
       path: /admin/leads/:lead_id/status-history
+      permission:
+        action: read
+        resource: scrm.leads
+    - method: GET
+      path: /admin/leads/:lead_id/timeline
       permission:
         action: read
         resource: scrm.leads

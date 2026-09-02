@@ -53,13 +53,16 @@ type HealthResponse struct {
 // ErrorCode 错误码常量（全局）
 const (
 	// 通用错误码
-	ErrCodeInternalError    = "INTERNAL_ERROR"
-	ErrCodeInvalidRequest   = "INVALID_REQUEST"
-	ErrCodeUnauthorized     = "UNAUTHORIZED"
-	ErrCodeForbidden        = "FORBIDDEN"
-	ErrCodeNotFound         = "NOT_FOUND"
-	ErrCodeConflict         = "CONFLICT"
-	ErrCodeValidationFailed = "VALIDATION_FAILED"
+	ErrCodeInternalError          = "INTERNAL_ERROR"
+	ErrCodeInvalidRequest         = "INVALID_REQUEST"
+	ErrCodeUnauthorized           = "UNAUTHORIZED"
+	ErrCodeForbidden              = "FORBIDDEN"
+	ErrCodeNotFound               = "NOT_FOUND"
+	ErrCodeConflict               = "CONFLICT"
+	ErrCodeValidationFailed       = "VALIDATION_FAILED"
+	ErrCodeLeadAttachmentInvalid  = "LEAD_ATTACHMENT_INVALID"
+	ErrCodeLeadAttachmentTooLarge = "LEAD_ATTACHMENT_TOO_LARGE"
+	ErrCodeLeadAttachmentNotFound = "LEAD_ATTACHMENT_NOT_FOUND"
 
 	// 业务错误码（示例，按域在各自文件追加/复用）
 	ErrCodeNoteNotFound      = "NOTE_NOT_FOUND"

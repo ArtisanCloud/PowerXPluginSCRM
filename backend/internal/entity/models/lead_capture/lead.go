@@ -21,6 +21,26 @@ const (
 	LeadStatusHandoffFailed       = "handoff_failed"
 )
 
+func IsValidLeadStatus(status string) bool {
+	switch status {
+	case LeadStatusCaptured,
+		LeadStatusEnriched,
+		LeadStatusDeduplicated,
+		LeadStatusRouted,
+		LeadStatusEngaging,
+		LeadStatusQualifiedForHandoff,
+		LeadStatusHandoffPending,
+		LeadStatusHandoffAccepted,
+		LeadStatusInvalid,
+		LeadStatusArchived,
+		LeadStatusDisconnected,
+		LeadStatusHandoffFailed:
+		return true
+	default:
+		return false
+	}
+}
+
 // Lead represents a captured lead in the current tenant.
 type Lead struct {
 	LeadUUID           string    `gorm:"column:lead_uuid;type:uuid;default:gen_random_uuid();primaryKey" json:"lead_uuid"`

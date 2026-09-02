@@ -165,8 +165,8 @@ func seedLocalDemoLeadPool(ctx context.Context, db *gorm.DB, opts PluginSeedOpti
 		{
 			LeadUUID:       "10000000-0000-4000-8000-000000000101",
 			DisplayName:    "王采集",
-			Phone:          "13800000101",
-			Email:          "captured.local@example.com",
+			Phone:          "",
+			Email:          "",
 			Status:         leadmodel.LeadStatusCaptured,
 			ExternalUserID: "wm_demo_captured",
 			WechatID:       "wx_demo_captured",

@@ -558,6 +558,45 @@ func (h *LeadHandler) ListActivities(c *gin.Context) {
 	contracts.ResponseSuccess(c, gin.H{"items": items})
 }
 
+func (h *LeadHandler) ListTimeline(c *gin.Context) {
+	if h.svc == nil {
+		contracts.ResponseServiceUnavailable(c, "leadCapture.errors.serviceUnavailable", nil)
+		return
+	}
+	leadUUID := strings.TrimSpace(c.Param("lead_id"))
+	if leadUUID == "" {
+		contracts.ResponseBadRequest(c, "leadCapture.errors.invalidLead")
+		return
+	}
+	var query dto.LeadTimelineQuery
+	if err := c.ShouldBindQuery(&query); err != nil {
+		contracts.ResponseBadRequest(c, "leadCapture.errors.invalidTimelineQuery")
+		return
+	}
+	tenantUUID, ok := middleware.TenantUUIDFromContext(c)
+	if !ok || tenantUUID == "" {
+		contracts.ResponseUnauthorized(c, "leadCapture.errors.tenantContextMissing")
+		return
+	}
+	result, err := h.svc.ListTimeline(c.Request.Context(), tenantUUID, leadUUID, leadsvc.LeadTimelineQuery{
+		StageKey: query.StageKey, EventType: query.EventType, Page: query.Page, PageSize: query.PageSize,
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, leadsvc.ErrInvalidLeadTimelineQuery):
+			contracts.ResponseBadRequest(c, "leadCapture.errors.invalidTimelineQuery")
+		case errors.Is(err, leadrepo.ErrLeadNotFound):
+			contracts.ResponseNotFound(c, "leadCapture.errors.leadNotFound")
+		case errors.Is(err, repository.ErrTenantUuidRequired):
+			contracts.ResponseBadRequest(c, "leadCapture.errors.tenantRequired")
+		default:
+			contracts.ResponseInternalError(c, err)
+		}
+		return
+	}
+	contracts.ResponseSuccess(c, result)
+}
+
 func (h *LeadHandler) RecordActivity(c *gin.Context) {
 	if h.svc == nil {
 		contracts.ResponseServiceUnavailable(c, "lead service unavailable", nil)
@@ -606,28 +645,28 @@ func (h *LeadHandler) RecordActivity(c *gin.Context) {
 
 func (h *LeadHandler) UploadActivityAttachment(c *gin.Context) {
 	if h.svc == nil {
-		contracts.ResponseServiceUnavailable(c, "lead service unavailable", nil)
+		contracts.ResponseServiceUnavailable(c, "leadCapture.errors.serviceUnavailable", nil)
 		return
 	}
 	leadUUID := strings.TrimSpace(c.Param("lead_id"))
 	activityUUID := strings.TrimSpace(c.Param("activity_id"))
 	if leadUUID == "" || activityUUID == "" {
-		contracts.ResponseBadRequest(c, "lead_id and activity_id are required")
+		contracts.ResponseError(c, http.StatusBadRequest, contracts.ErrCodeLeadAttachmentInvalid, "leadCapture.errors.attachmentInvalid")
 		return
 	}
 	tenantUUID, ok := middleware.TenantUUIDFromContext(c)
 	if !ok || tenantUUID == "" {
-		contracts.ResponseUnauthorized(c, "tenant context missing")
+		contracts.ResponseUnauthorized(c, "leadCapture.errors.tenantContextMissing")
 		return
 	}
 	fileHeader, err := c.FormFile("file")
 	if err != nil {
-		contracts.ResponseBadRequest(c, "file is required")
+		contracts.ResponseError(c, http.StatusBadRequest, contracts.ErrCodeLeadAttachmentInvalid, "leadCapture.errors.attachmentInvalid")
 		return
 	}
 	opened, err := fileHeader.Open()
 	if err != nil {
-		contracts.ResponseInternalError(c, err)
+		contracts.ResponseError(c, http.StatusInternalServerError, contracts.ErrCodeInternalError, "leadCapture.errors.internal")
 		return
 	}
 	defer opened.Close()
@@ -641,18 +680,7 @@ func (h *LeadHandler) UploadActivityAttachment(c *gin.Context) {
 		Content:      opened,
 	})
 	if err != nil {
-		switch {
-		case errors.Is(err, leadsvc.ErrLeadAttachmentTooLarge):
-			contracts.ResponseError(c, http.StatusRequestEntityTooLarge, contracts.ErrCodeValidationFailed, "attachment is too large")
-		case errors.Is(err, leadsvc.ErrInvalidLeadPayload):
-			contracts.ResponseError(c, http.StatusBadRequest, contracts.ErrCodeValidationFailed, "invalid attachment payload")
-		case errors.Is(err, leadrepo.ErrLeadNotFound):
-			contracts.ResponseNotFound(c, "lead not found")
-		case errors.Is(err, repository.ErrTenantUuidRequired):
-			contracts.ResponseBadRequest(c, "tenant_uuid is required")
-		default:
-			contracts.ResponseInternalError(c, err)
-		}
+		respondLeadAttachmentError(c, err)
 		return
 	}
 	contracts.ResponseCreated(c, item)
@@ -660,28 +688,89 @@ func (h *LeadHandler) UploadActivityAttachment(c *gin.Context) {
 
 func (h *LeadHandler) ListActivityAttachments(c *gin.Context) {
 	if h.svc == nil {
-		contracts.ResponseServiceUnavailable(c, "lead service unavailable", nil)
+		contracts.ResponseServiceUnavailable(c, "leadCapture.errors.serviceUnavailable", nil)
 		return
 	}
 	leadUUID := strings.TrimSpace(c.Param("lead_id"))
 	activityUUID := strings.TrimSpace(c.Param("activity_id"))
 	if leadUUID == "" || activityUUID == "" {
-		contracts.ResponseBadRequest(c, "lead_id and activity_id are required")
+		contracts.ResponseError(c, http.StatusBadRequest, contracts.ErrCodeLeadAttachmentInvalid, "leadCapture.errors.attachmentInvalid")
 		return
 	}
 	tenantUUID, ok := middleware.TenantUUIDFromContext(c)
 	if !ok || tenantUUID == "" {
-		contracts.ResponseUnauthorized(c, "tenant context missing")
+		contracts.ResponseUnauthorized(c, "leadCapture.errors.tenantContextMissing")
 		return
 	}
 	items, err := h.svc.ListActivityAttachments(c.Request.Context(), tenantUUID, leadUUID, activityUUID)
 	if err != nil {
-		switch {
-		case errors.Is(err, repository.ErrTenantUuidRequired):
-			contracts.ResponseBadRequest(c, "tenant_uuid is required")
-		default:
-			contracts.ResponseInternalError(c, err)
-		}
+		respondLeadAttachmentError(c, err)
+		return
+	}
+	contracts.ResponseSuccess(c, gin.H{"items": items})
+}
+
+func (h *LeadHandler) UploadNodeAttachment(c *gin.Context) {
+	if h.svc == nil {
+		contracts.ResponseServiceUnavailable(c, "leadCapture.errors.serviceUnavailable", nil)
+		return
+	}
+	leadUUID := strings.TrimSpace(c.Param("lead_id"))
+	stageKey := strings.TrimSpace(c.PostForm("stage_key"))
+	if leadUUID == "" || stageKey == "" {
+		contracts.ResponseError(c, http.StatusBadRequest, contracts.ErrCodeLeadAttachmentInvalid, "leadCapture.errors.attachmentInvalid")
+		return
+	}
+	tenantUUID, ok := middleware.TenantUUIDFromContext(c)
+	if !ok || tenantUUID == "" {
+		contracts.ResponseUnauthorized(c, "leadCapture.errors.tenantContextMissing")
+		return
+	}
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		contracts.ResponseError(c, http.StatusBadRequest, contracts.ErrCodeLeadAttachmentInvalid, "leadCapture.errors.attachmentInvalid")
+		return
+	}
+	opened, err := fileHeader.Open()
+	if err != nil {
+		contracts.ResponseError(c, http.StatusInternalServerError, contracts.ErrCodeInternalError, "leadCapture.errors.internal")
+		return
+	}
+	defer opened.Close()
+	item, err := h.svc.UploadNodeAttachment(c.Request.Context(), tenantUUID, leadUUID, leadsvc.LeadAttachmentUploadRequest{
+		StageKey:    stageKey,
+		ActionKey:   c.PostForm("action_key"),
+		FileName:    filepath.Base(fileHeader.Filename),
+		ContentType: fileHeader.Header.Get("Content-Type"),
+		FileSize:    fileHeader.Size,
+		Content:     opened,
+	})
+	if err != nil {
+		respondLeadAttachmentError(c, err)
+		return
+	}
+	contracts.ResponseCreated(c, item)
+}
+
+func (h *LeadHandler) ListNodeAttachments(c *gin.Context) {
+	if h.svc == nil {
+		contracts.ResponseServiceUnavailable(c, "leadCapture.errors.serviceUnavailable", nil)
+		return
+	}
+	leadUUID := strings.TrimSpace(c.Param("lead_id"))
+	stageKey := strings.TrimSpace(c.Query("stage_key"))
+	if leadUUID == "" || stageKey == "" {
+		contracts.ResponseError(c, http.StatusBadRequest, contracts.ErrCodeLeadAttachmentInvalid, "leadCapture.errors.attachmentInvalid")
+		return
+	}
+	tenantUUID, ok := middleware.TenantUUIDFromContext(c)
+	if !ok || tenantUUID == "" {
+		contracts.ResponseUnauthorized(c, "leadCapture.errors.tenantContextMissing")
+		return
+	}
+	items, err := h.svc.ListNodeAttachments(c.Request.Context(), tenantUUID, leadUUID, stageKey, c.Query("action_key"))
+	if err != nil {
+		respondLeadAttachmentError(c, err)
 		return
 	}
 	contracts.ResponseSuccess(c, gin.H{"items": items})
@@ -689,35 +778,29 @@ func (h *LeadHandler) ListActivityAttachments(c *gin.Context) {
 
 func (h *LeadHandler) DownloadAttachment(c *gin.Context) {
 	if h.svc == nil {
-		contracts.ResponseServiceUnavailable(c, "lead service unavailable", nil)
+		contracts.ResponseServiceUnavailable(c, "leadCapture.errors.serviceUnavailable", nil)
 		return
 	}
 	leadUUID := strings.TrimSpace(c.Param("lead_id"))
 	attachmentUUID := strings.TrimSpace(c.Param("attachment_id"))
 	if leadUUID == "" || attachmentUUID == "" {
-		contracts.ResponseBadRequest(c, "lead_id and attachment_id are required")
+		contracts.ResponseError(c, http.StatusBadRequest, contracts.ErrCodeLeadAttachmentInvalid, "leadCapture.errors.attachmentInvalid")
 		return
 	}
 	tenantUUID, ok := middleware.TenantUUIDFromContext(c)
 	if !ok || tenantUUID == "" {
-		contracts.ResponseUnauthorized(c, "tenant context missing")
+		contracts.ResponseUnauthorized(c, "leadCapture.errors.tenantContextMissing")
 		return
 	}
 	item, err := h.svc.GetAttachment(c.Request.Context(), tenantUUID, leadUUID, attachmentUUID)
 	if err != nil {
-		switch {
-		case errors.Is(err, leadrepo.ErrLeadNotFound):
-			contracts.ResponseNotFound(c, "attachment not found")
-		case errors.Is(err, repository.ErrTenantUuidRequired):
-			contracts.ResponseBadRequest(c, "tenant_uuid is required")
-		default:
-			contracts.ResponseInternalError(c, err)
-		}
+		respondLeadAttachmentError(c, err)
 		return
 	}
 	fileName := filepath.Base(strings.TrimSpace(item.FileName))
 	if fileName == "" || fileName == "." || fileName == string(filepath.Separator) {
-		fileName = "attachment"
+		contracts.ResponseError(c, http.StatusInternalServerError, contracts.ErrCodeInternalError, "leadCapture.errors.internal")
+		return
 	}
 	contentType := strings.TrimSpace(item.ContentType)
 	if contentType == "" {
@@ -725,6 +808,45 @@ func (h *LeadHandler) DownloadAttachment(c *gin.Context) {
 	}
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%q", fileName))
 	c.Data(http.StatusOK, contentType, item.Content)
+}
+
+func (h *LeadHandler) DeleteAttachment(c *gin.Context) {
+	if h.svc == nil {
+		contracts.ResponseServiceUnavailable(c, "leadCapture.errors.serviceUnavailable", nil)
+		return
+	}
+	leadUUID := strings.TrimSpace(c.Param("lead_id"))
+	attachmentUUID := strings.TrimSpace(c.Param("attachment_id"))
+	if leadUUID == "" || attachmentUUID == "" {
+		contracts.ResponseError(c, http.StatusBadRequest, contracts.ErrCodeLeadAttachmentInvalid, "leadCapture.errors.attachmentInvalid")
+		return
+	}
+	tenantUUID, ok := middleware.TenantUUIDFromContext(c)
+	if !ok || tenantUUID == "" {
+		contracts.ResponseUnauthorized(c, "leadCapture.errors.tenantContextMissing")
+		return
+	}
+	item, err := h.svc.DeleteAttachment(c.Request.Context(), tenantUUID, leadUUID, attachmentUUID)
+	if err != nil {
+		respondLeadAttachmentError(c, err)
+		return
+	}
+	contracts.ResponseSuccess(c, gin.H{"attachment_uuid": item.AttachmentUUID})
+}
+
+func respondLeadAttachmentError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, leadsvc.ErrLeadAttachmentTooLarge):
+		contracts.ResponseError(c, http.StatusRequestEntityTooLarge, contracts.ErrCodeLeadAttachmentTooLarge, "leadCapture.errors.attachmentTooLarge")
+	case errors.Is(err, leadsvc.ErrInvalidLeadPayload), errors.Is(err, leadrepo.ErrLeadActivityNotFound):
+		contracts.ResponseError(c, http.StatusBadRequest, contracts.ErrCodeLeadAttachmentInvalid, "leadCapture.errors.attachmentInvalid")
+	case errors.Is(err, leadrepo.ErrLeadNotFound), errors.Is(err, leadrepo.ErrLeadAttachmentNotFound):
+		contracts.ResponseError(c, http.StatusNotFound, contracts.ErrCodeLeadAttachmentNotFound, "leadCapture.errors.attachmentNotFound")
+	case errors.Is(err, repository.ErrTenantUuidRequired):
+		contracts.ResponseError(c, http.StatusBadRequest, contracts.ErrCodeInvalidRequest, "leadCapture.errors.tenantRequired")
+	default:
+		contracts.ResponseError(c, http.StatusInternalServerError, contracts.ErrCodeInternalError, "leadCapture.errors.internal")
+	}
 }
 
 func (h *LeadHandler) ListSourceEvents(c *gin.Context) {

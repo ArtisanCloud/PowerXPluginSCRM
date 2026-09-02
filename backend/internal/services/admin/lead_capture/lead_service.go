@@ -18,6 +18,7 @@ import (
 	leadrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/lead_capture"
 	socialrepo "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/entity/repository/social_channel_governance"
 	"github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/logger"
+	authx "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/middleware"
 	leadobs "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/observability/lead_capture"
 	wecomauth "github.com/ArtisanCloud/PowerXPlugin/plugins/com-powerx-plugin-scrm/backend/internal/shared/wecomauth"
 	"github.com/google/uuid"
@@ -39,6 +40,7 @@ const maxLeadAttachmentBytes int64 = 20 << 20
 // LeadService orchestrates lead management operations.
 type LeadService struct {
 	repo             *leadrepo.LeadRepository
+	attachmentRepo   *leadrepo.LeadAttachmentRepository
 	sourceEventRepo  *leadrepo.LeadSourceEventRepository
 	normalizationSvc *NormalizationService
 	dedupSvc         *DedupService
@@ -53,6 +55,7 @@ func NewLeadService(repo *leadrepo.LeadRepository) *LeadService {
 		assignmentSvc:    NewAssignmentService(),
 	}
 	if repo != nil && repo.DB != nil {
+		svc.attachmentRepo = leadrepo.NewLeadAttachmentRepository(repo.DB)
 		svc.sourceEventRepo = leadrepo.NewLeadSourceEventRepository(repo.DB)
 	}
 	return svc
@@ -125,6 +128,13 @@ type LeadAttachmentUploadRequest struct {
 	ContentType  string
 	FileSize     int64
 	Content      io.Reader
+}
+
+func (s *LeadService) RepairHistoricalAttachmentAudits(ctx context.Context, tenantUUID string, apply bool) (*leadrepo.LeadAttachmentAuditRepairResult, error) {
+	if s == nil || s.attachmentRepo == nil {
+		return nil, errors.New("lead repository not configured")
+	}
+	return s.attachmentRepo.RepairMissingUploadAudits(ctx, tenantUUID, apply)
 }
 
 func (s *LeadService) Create(ctx context.Context, tenantUUID string, req LeadCreateRequest) (*model.Lead, error) {
@@ -710,26 +720,48 @@ func (s *LeadService) Assign(ctx context.Context, tenantUUID, leadUUID string, r
 			return err
 		}
 		assignment := &model.LeadAssignment{
-			TenantUUID:    tenantUUID,
-			LeadUUID:      leadUUID,
-			OwnerUserUUID: ownerUserUUID,
-			Reason:        strings.TrimSpace(req.Reason),
-			CreatedAt:     time.Now().UTC(),
+			AssignmentUUID: uuid.NewString(),
+			TenantUUID:     tenantUUID,
+			LeadUUID:       leadUUID,
+			OwnerUserUUID:  ownerUserUUID,
+			Reason:         strings.TrimSpace(req.Reason),
+			CreatedAt:      time.Now().UTC(),
 		}
 		if err := tx.Create(assignment).Error; err != nil {
 			return err
 		}
+		auditPayload := datatypes.JSONMap{
+			"assignment_uuid": assignment.AssignmentUUID,
+			"owner_user_uuid": ownerUserUUID,
+			"reason":          assignment.Reason,
+			"stage_key":       lead.Status,
+			"action_key":      "assign",
+		}
+		appendOperatorMemberUUID(ctx, auditPayload)
 		if fromStatus != lead.Status {
 			history := &model.LeadStatusHistory{
-				TenantUUID: tenantUUID,
-				LeadUUID:   leadUUID,
-				FromStatus: fromStatus,
-				ToStatus:   lead.Status,
-				ChangedAt:  time.Now().UTC(),
+				HistoryUUID: uuid.NewString(),
+				TenantUUID:  tenantUUID,
+				LeadUUID:    leadUUID,
+				FromStatus:  fromStatus,
+				ToStatus:    lead.Status,
+				ChangedAt:   time.Now().UTC(),
 			}
 			if err := tx.Create(history).Error; err != nil {
 				return err
 			}
+			auditPayload["history_uuid"] = history.HistoryUUID
+			auditPayload["from_status"] = fromStatus
+			auditPayload["to_status"] = lead.Status
+		}
+		if err := tx.Create(&model.LeadActivity{
+			ActivityUUID: uuid.NewString(),
+			TenantUUID:   tenantUUID,
+			LeadUUID:     leadUUID,
+			ActivityType: model.LeadActivityTypeAssign,
+			Payload:      auditPayload,
+		}).Error; err != nil {
+			return err
 		}
 		updated = lead
 		return nil
@@ -1148,13 +1180,31 @@ func (s *LeadService) UpdateStatus(ctx context.Context, tenantUUID, leadUUID str
 			return err
 		}
 		history := &model.LeadStatusHistory{
-			TenantUUID: tenantUUID,
-			LeadUUID:   leadUUID,
-			FromStatus: fromStatus,
-			ToStatus:   toStatus,
-			ChangedAt:  time.Now().UTC(),
+			HistoryUUID: uuid.NewString(),
+			TenantUUID:  tenantUUID,
+			LeadUUID:    leadUUID,
+			FromStatus:  fromStatus,
+			ToStatus:    toStatus,
+			ChangedAt:   time.Now().UTC(),
 		}
 		if err := tx.Create(history).Error; err != nil {
+			return err
+		}
+		auditPayload := datatypes.JSONMap{
+			"history_uuid": history.HistoryUUID,
+			"from_status":  fromStatus,
+			"to_status":    toStatus,
+			"stage_key":    toStatus,
+			"action_key":   "status",
+		}
+		appendOperatorMemberUUID(ctx, auditPayload)
+		if err := tx.Create(&model.LeadActivity{
+			ActivityUUID: uuid.NewString(),
+			TenantUUID:   tenantUUID,
+			LeadUUID:     leadUUID,
+			ActivityType: model.LeadActivityTypeStatusChange,
+			Payload:      auditPayload,
+		}).Error; err != nil {
 			return err
 		}
 		updated = lead
@@ -1284,6 +1334,7 @@ func (s *LeadService) RecordActivity(ctx context.Context, tenantUUID, leadUUID s
 		"method":  method,
 		"content": content,
 	}
+	appendOperatorMemberUUID(ctx, payload)
 	if subject := strings.TrimSpace(req.Subject); subject != "" {
 		payload["subject"] = subject
 	}
@@ -1326,17 +1377,17 @@ func (s *LeadService) RecordActivity(ctx context.Context, tenantUUID, leadUUID s
 }
 
 func (s *LeadService) UploadActivityAttachment(ctx context.Context, tenantUUID, leadUUID string, req LeadAttachmentUploadRequest) (*model.LeadAttachment, error) {
-	if s == nil || s.repo == nil {
+	if s == nil || s.attachmentRepo == nil {
 		return nil, errors.New("lead repository not configured")
 	}
 	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
 	leadUUID = strings.ToLower(strings.TrimSpace(leadUUID))
 	activityUUID := strings.ToLower(strings.TrimSpace(req.ActivityUUID))
 	fileName := strings.TrimSpace(req.FileName)
-	if tenantUUID == "" || leadUUID == "" || activityUUID == "" {
+	if tenantUUID == "" {
 		return nil, repository.ErrTenantUuidRequired
 	}
-	if fileName == "" || req.Content == nil {
+	if leadUUID == "" || activityUUID == "" || fileName == "" || req.Content == nil {
 		return nil, ErrInvalidLeadPayload
 	}
 	if req.FileSize > maxLeadAttachmentBytes {
@@ -1349,92 +1400,166 @@ func (s *LeadService) UploadActivityAttachment(ctx context.Context, tenantUUID, 
 	if int64(len(content)) > maxLeadAttachmentBytes {
 		return nil, ErrLeadAttachmentTooLarge
 	}
-	var created *model.LeadAttachment
-	err = s.repo.WithTenantTx(ctx, tenantUUID, func(tx *gorm.DB) error {
-		if _, err := getLeadByUUIDTx(ctx, tx, tenantUUID, leadUUID); err != nil {
-			return err
-		}
-		var activity model.LeadActivity
-		if err := tx.WithContext(ctx).
-			Where("tenant_uuid = ? AND lead_uuid = ? AND activity_uuid = ?", tenantUUID, leadUUID, activityUUID).
-			First(&activity).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return ErrInvalidLeadPayload
-			}
-			return err
-		}
-		attachment := &model.LeadAttachment{
-			TenantUUID:      tenantUUID,
-			LeadUUID:        leadUUID,
-			ActivityUUID:    activityUUID,
-			StageKey:        normalizeLeadStatus(req.StageKey),
-			ActionKey:       strings.TrimSpace(req.ActionKey),
-			FileName:        fileName,
-			ContentType:     strings.TrimSpace(req.ContentType),
-			FileSize:        int64(len(content)),
-			StorageProvider: model.LeadAttachmentStorageProviderDatabase,
-			Content:         content,
-		}
-		if attachment.StageKey == "" {
-			payload := map[string]any(activity.Payload)
-			attachment.StageKey = normalizeLeadStatus(fmt.Sprint(payload["stage_key"]))
-		}
-		if attachment.ActionKey == "" {
-			payload := map[string]any(activity.Payload)
-			attachment.ActionKey = strings.TrimSpace(fmt.Sprint(payload["action_key"]))
-		}
-		if err := tx.WithContext(ctx).Create(attachment).Error; err != nil {
-			return err
-		}
-		created = attachment
-		return nil
-	})
+	attachment := &model.LeadAttachment{
+		AttachmentUUID:  uuid.NewString(),
+		TenantUUID:      tenantUUID,
+		LeadUUID:        leadUUID,
+		ActivityUUID:    &activityUUID,
+		StageKey:        normalizeLeadStatus(req.StageKey),
+		ActionKey:       strings.TrimSpace(req.ActionKey),
+		FileName:        fileName,
+		ContentType:     strings.TrimSpace(req.ContentType),
+		FileSize:        int64(len(content)),
+		StorageProvider: model.LeadAttachmentStorageProviderDatabase,
+		Content:         content,
+	}
+	auditActivity := newAttachmentAuditActivity(ctx, tenantUUID, leadUUID, model.LeadActivityTypeAttachmentUploaded)
+	err = s.attachmentRepo.CreateForActivity(ctx, tenantUUID, leadUUID, activityUUID, attachment, auditActivity)
+	if errors.Is(err, leadrepo.ErrLeadActivityNotFound) || errors.Is(err, leadrepo.ErrLeadAttachmentScopeInvalid) {
+		return nil, ErrInvalidLeadPayload
+	}
 	if err != nil {
 		return nil, err
 	}
-	return created, nil
+	return attachment, nil
 }
 
-func (s *LeadService) ListActivityAttachments(ctx context.Context, tenantUUID, leadUUID, activityUUID string) ([]*model.LeadAttachment, error) {
-	if s == nil || s.repo == nil || s.repo.DB == nil {
+func (s *LeadService) UploadNodeAttachment(ctx context.Context, tenantUUID, leadUUID string, req LeadAttachmentUploadRequest) (*model.LeadAttachment, error) {
+	if s == nil || s.attachmentRepo == nil {
 		return nil, errors.New("lead repository not configured")
 	}
 	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
 	leadUUID = strings.ToLower(strings.TrimSpace(leadUUID))
-	activityUUID = strings.ToLower(strings.TrimSpace(activityUUID))
-	if tenantUUID == "" || leadUUID == "" || activityUUID == "" {
+	stageKey := normalizeLeadStatus(req.StageKey)
+	actionKey := strings.TrimSpace(req.ActionKey)
+	fileName := strings.TrimSpace(req.FileName)
+	if tenantUUID == "" {
 		return nil, repository.ErrTenantUuidRequired
 	}
-	var out []*model.LeadAttachment
-	err := s.repo.DB.WithContext(ctx).
-		Select("attachment_uuid", "tenant_uuid", "lead_uuid", "activity_uuid", "stage_key", "action_key", "file_name", "content_type", "file_size", "storage_provider", "created_at", "updated_at").
-		Where("tenant_uuid = ? AND lead_uuid = ? AND activity_uuid = ?", tenantUUID, leadUUID, activityUUID).
-		Order("created_at DESC").
-		Find(&out).Error
-	return out, err
+	if leadUUID == "" || !isValidLeadStatus(stageKey) || fileName == "" || req.Content == nil {
+		return nil, ErrInvalidLeadPayload
+	}
+	if req.FileSize > maxLeadAttachmentBytes {
+		return nil, ErrLeadAttachmentTooLarge
+	}
+	content, err := io.ReadAll(io.LimitReader(req.Content, maxLeadAttachmentBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(content)) > maxLeadAttachmentBytes {
+		return nil, ErrLeadAttachmentTooLarge
+	}
+	attachment := &model.LeadAttachment{
+		AttachmentUUID:  uuid.NewString(),
+		TenantUUID:      tenantUUID,
+		LeadUUID:        leadUUID,
+		StageKey:        stageKey,
+		ActionKey:       actionKey,
+		FileName:        fileName,
+		ContentType:     strings.TrimSpace(req.ContentType),
+		FileSize:        int64(len(content)),
+		StorageProvider: model.LeadAttachmentStorageProviderDatabase,
+		Content:         content,
+	}
+	auditActivity := newAttachmentAuditActivity(ctx, tenantUUID, leadUUID, model.LeadActivityTypeAttachmentUploaded)
+	err = s.attachmentRepo.CreateForNode(ctx, tenantUUID, leadUUID, attachment, auditActivity)
+	if err != nil {
+		return nil, err
+	}
+	return attachment, nil
 }
 
-func (s *LeadService) GetAttachment(ctx context.Context, tenantUUID, leadUUID, attachmentUUID string) (*model.LeadAttachment, error) {
-	if s == nil || s.repo == nil || s.repo.DB == nil {
+func newAttachmentAuditActivity(ctx context.Context, tenantUUID, leadUUID, activityType string) *model.LeadActivity {
+	payload := datatypes.JSONMap{}
+	appendOperatorMemberUUID(ctx, payload)
+	return &model.LeadActivity{
+		ActivityUUID: uuid.NewString(),
+		TenantUUID:   tenantUUID,
+		LeadUUID:     leadUUID,
+		ActivityType: activityType,
+		Payload:      payload,
+	}
+}
+
+func appendOperatorMemberUUID(ctx context.Context, payload datatypes.JSONMap) {
+	if payload == nil {
+		return
+	}
+	if operatorMemberUUID, ok := authx.MemberUUIDFromContext(ctx); ok {
+		operatorMemberUUID = strings.ToLower(strings.TrimSpace(operatorMemberUUID))
+		if operatorMemberUUID != "" {
+			payload["operator_member_uuid"] = operatorMemberUUID
+			payload["actor_type"] = model.LeadAuditActorTypeMember
+			return
+		}
+	}
+	payload["actor_type"] = model.LeadAuditActorTypeSystem
+}
+
+func (s *LeadService) DeleteAttachment(ctx context.Context, tenantUUID, leadUUID, attachmentUUID string) (*model.LeadAttachment, error) {
+	if s == nil || s.attachmentRepo == nil {
 		return nil, errors.New("lead repository not configured")
 	}
 	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
 	leadUUID = strings.ToLower(strings.TrimSpace(leadUUID))
 	attachmentUUID = strings.ToLower(strings.TrimSpace(attachmentUUID))
-	if tenantUUID == "" || leadUUID == "" || attachmentUUID == "" {
+	if tenantUUID == "" {
 		return nil, repository.ErrTenantUuidRequired
 	}
-	var out model.LeadAttachment
-	err := s.repo.DB.WithContext(ctx).
-		Where("tenant_uuid = ? AND lead_uuid = ? AND attachment_uuid = ?", tenantUUID, leadUUID, attachmentUUID).
-		First(&out).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, leadrepo.ErrLeadNotFound
+	if leadUUID == "" || attachmentUUID == "" {
+		return nil, ErrInvalidLeadPayload
 	}
-	if err != nil {
-		return nil, err
+	auditActivity := newAttachmentAuditActivity(ctx, tenantUUID, leadUUID, model.LeadActivityTypeAttachmentDeleted)
+	return s.attachmentRepo.DeleteWithAudit(ctx, tenantUUID, leadUUID, attachmentUUID, auditActivity)
+}
+
+func (s *LeadService) ListActivityAttachments(ctx context.Context, tenantUUID, leadUUID, activityUUID string) ([]*model.LeadAttachment, error) {
+	if s == nil || s.attachmentRepo == nil {
+		return nil, errors.New("lead repository not configured")
 	}
-	return &out, nil
+	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
+	leadUUID = strings.ToLower(strings.TrimSpace(leadUUID))
+	activityUUID = strings.ToLower(strings.TrimSpace(activityUUID))
+	if tenantUUID == "" {
+		return nil, repository.ErrTenantUuidRequired
+	}
+	if leadUUID == "" || activityUUID == "" {
+		return nil, ErrInvalidLeadPayload
+	}
+	return s.attachmentRepo.ListForActivity(ctx, tenantUUID, leadUUID, activityUUID)
+}
+
+func (s *LeadService) ListNodeAttachments(ctx context.Context, tenantUUID, leadUUID, stageKey, actionKey string) ([]*model.LeadAttachment, error) {
+	if s == nil || s.attachmentRepo == nil {
+		return nil, errors.New("lead repository not configured")
+	}
+	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
+	leadUUID = strings.ToLower(strings.TrimSpace(leadUUID))
+	stageKey = normalizeLeadStatus(stageKey)
+	actionKey = strings.TrimSpace(actionKey)
+	if tenantUUID == "" {
+		return nil, repository.ErrTenantUuidRequired
+	}
+	if leadUUID == "" || !isValidLeadStatus(stageKey) {
+		return nil, ErrInvalidLeadPayload
+	}
+	return s.attachmentRepo.ListForNode(ctx, tenantUUID, leadUUID, stageKey, actionKey)
+}
+
+func (s *LeadService) GetAttachment(ctx context.Context, tenantUUID, leadUUID, attachmentUUID string) (*model.LeadAttachment, error) {
+	if s == nil || s.attachmentRepo == nil {
+		return nil, errors.New("lead repository not configured")
+	}
+	tenantUUID = strings.ToLower(strings.TrimSpace(tenantUUID))
+	leadUUID = strings.ToLower(strings.TrimSpace(leadUUID))
+	attachmentUUID = strings.ToLower(strings.TrimSpace(attachmentUUID))
+	if tenantUUID == "" {
+		return nil, repository.ErrTenantUuidRequired
+	}
+	if leadUUID == "" || attachmentUUID == "" {
+		return nil, ErrInvalidLeadPayload
+	}
+	return s.attachmentRepo.Get(ctx, tenantUUID, leadUUID, attachmentUUID)
 }
 
 func (s *LeadService) ListSourceEvents(ctx context.Context, tenantUUID, leadUUID string) ([]*model.LeadSource, error) {
@@ -1696,23 +1821,7 @@ func normalizeLeadStatus(status string) string {
 }
 
 func isValidLeadStatus(status string) bool {
-	switch status {
-	case model.LeadStatusCaptured,
-		model.LeadStatusEnriched,
-		model.LeadStatusDeduplicated,
-		model.LeadStatusRouted,
-		model.LeadStatusEngaging,
-		model.LeadStatusQualifiedForHandoff,
-		model.LeadStatusHandoffPending,
-		model.LeadStatusHandoffAccepted,
-		model.LeadStatusInvalid,
-		model.LeadStatusArchived,
-		model.LeadStatusDisconnected,
-		model.LeadStatusHandoffFailed:
-		return true
-	default:
-		return false
-	}
+	return model.IsValidLeadStatus(status)
 }
 
 func isAllowedLeadStatusTransition(fromStatus, toStatus string) bool {

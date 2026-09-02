@@ -39,6 +39,8 @@ web-admin/.nitro/
 web-admin/.vercel/
 web-admin/.eslintcache
 web-admin/.stylelintcache
+web-admin/test-results/
+web-admin/playwright-report/
 
 # Backend (Go)
 backend/bin/

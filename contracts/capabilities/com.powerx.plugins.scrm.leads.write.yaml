@@ -27,6 +27,14 @@ metadata:
       - method: POST
         path: /api/v1/admin/leads/{lead_id}/status
       - method: POST
+        path: /api/v1/admin/leads/{lead_id}/activities
+      - method: POST
+        path: /api/v1/admin/leads/{lead_id}/activities/{activity_id}/attachments
+      - method: POST
+        path: /api/v1/admin/leads/{lead_id}/node-attachments
+      - method: DELETE
+        path: /api/v1/admin/leads/{lead_id}/attachments/{attachment_id}
+      - method: POST
         path: /api/v1/admin/leads/{lead_id}/conversations/bind
       - method: POST
         path: /api/v1/admin/leads/source-catalogs
@@ -34,4 +42,3 @@ metadata:
         path: /api/v1/admin/leads/source-catalogs/{catalog_id}
       - method: DELETE
         path: /api/v1/admin/leads/source-catalogs/{catalog_id}
-

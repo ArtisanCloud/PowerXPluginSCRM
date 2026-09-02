@@ -312,6 +312,18 @@
     "placeholderDescription": "This module page is pending implementation. Refer to the plan document first."
   },
   "leadCapture": {
+    "errors": {
+      "serviceUnavailable": "The lead service is temporarily unavailable. Try again later.",
+      "tenantContextMissing": "The tenant context is missing. Reopen this page and try again.",
+      "tenantRequired": "Tenant information is required to access lead attachments.",
+      "attachmentInvalid": "The attachment request is invalid. Check the lead, lifecycle stage, and file.",
+      "attachmentTooLarge": "Attachments must not exceed 20 MB.",
+      "attachmentNotFound": "The attachment does not exist or is unavailable to this tenant.",
+      "invalidLead": "The lead identifier is invalid.",
+      "invalidTimelineQuery": "The timeline query is invalid.",
+      "leadNotFound": "The lead does not exist or is unavailable to this tenant.",
+      "internal": "The attachment service could not complete the request. Try again later."
+    },
     "pool": {
       "title": "Lead Capture Pool",
       "description": "Track captured, enriched, deduplicated, routed, engaged, and handoff-ready leads through the private-domain operations funnel.",
@@ -468,6 +480,20 @@
         "loading": "Loading node records...",
         "auditTrail": "Audit Trail",
         "activityRecords": "Activity Records",
+        "timelineTitle": "Node Timeline",
+        "timelineCount": "{filtered} / {total}",
+        "previousPage": "Previous",
+        "nextPage": "Next",
+        "pageStatus": "Page {page} / {total}",
+        "filters": {
+          "all": "All Records",
+          "status": "Status Changes",
+          "assignment": "Assignments",
+          "activity": "Manual Activities",
+          "attachment": "Attachment Uploads",
+          "attachmentDeleted": "Attachment Deletions",
+          "source": "Source Capture"
+        },
         "emptyAuditTrail": "No audit trail for this node.",
         "emptyActivityRecords": "No activity records for this node."
       },
@@ -487,13 +513,45 @@
         "subject": "Subject",
         "result": "Result",
         "content": "Content",
+        "change": "Change",
         "nextStep": "Next Step",
         "nextFollowUpAt": "Follow-up Time",
         "systemOperator": "System Record",
         "empty": "No activity detail available."
       },
       "traceDetail": {
-        "title": "Node Status Record"
+        "title": "Node Status Record",
+        "emptyReason": "No operation note entered.",
+        "badges": {
+          "activity": "Activity Record",
+          "status": "Status Record",
+          "assignment": "Assignment Record",
+          "source": "Source Record",
+          "attachment": "Attachment Upload",
+          "attachmentDeleted": "Attachment Deletion"
+        },
+        "fields": {
+          "stage": "Stage",
+          "time": "Recorded At",
+          "fromStatus": "From Status",
+          "toStatus": "To Status",
+          "owner": "Owner",
+          "action": "Node Action",
+          "reason": "Operation Note",
+          "change": "Status Change",
+          "channel": "Source Channel",
+          "account": "Source Account",
+          "fileName": "File Name",
+          "contentType": "Content Type",
+          "fileSize": "File Size",
+          "storageProvider": "Storage Provider",
+          "operator": "Operator",
+          "sourceContext": "Source Context",
+          "campaign": "Campaign:",
+          "utmSource": "UTM Source:",
+          "utmMedium": "UTM Medium:",
+          "utmCampaign": "UTM Campaign:"
+        }
       },
       "activityForm": {
         "title": "Record Activity",
@@ -538,7 +596,9 @@
       "traceItems": {
         "statusChanged": "Status Changed",
         "assigned": "Owner Assigned",
-        "sourceCaptured": "Source Captured"
+        "sourceCaptured": "Source Captured",
+        "attachmentUploaded": "Attachment Uploaded",
+        "attachmentDeleted": "Attachment Deleted"
       },
       "activityTypes": {
         "intake": "Lead Captured",
@@ -547,6 +607,8 @@
         "status_change": "Status Changed",
         "assign": "Owner Assigned",
         "manual_activity": "Activity Recorded",
+        "attachment_uploaded": "Attachment Uploaded",
+        "attachment_deleted": "Attachment Deleted",
         "bot_command": "Bot Receipt",
         "sync_trace": "Sync Trace",
         "external_activity": "External Activity",
@@ -559,10 +621,28 @@
       },
       "attachments": {
         "title": "Node Attachments",
-        "provider": "Not connected",
         "upload": "Upload",
-        "unavailableTitle": "Attachment service is not connected",
-        "unavailableDescription": "The current SCRM backend does not yet provide upload, download, or trace APIs for lead node attachments. This area is reserved in the node workspace and can connect to the unified attachment component after the data contract is added."
+        "emptyTitle": "No node attachments",
+        "emptyDescription": "Uploaded files are archived to the current lead node as operation materials.",
+        "unknownType": "Unknown type",
+        "unknownFile": "Unnamed attachment",
+        "download": "Open attachment",
+        "delete": "Delete attachment",
+        "deleteConfirmTitle": "Delete attachment",
+        "deleteConfirmDescription": "Delete “{file}”?",
+        "deleteAuditNotice": "The file content cannot be recovered after deletion. The deletion audit event will be retained permanently.",
+        "cancelDelete": "Cancel",
+        "confirmDelete": "Delete",
+        "deleted": "Node attachment deleted",
+        "deletedDescription": "Removed {file}",
+        "deleteFailed": "Failed to delete node attachment",
+        "storageProvider": {
+          "database": "Local",
+          "unknown": "Unknown storage"
+        },
+        "uploaded": "Node attachments uploaded",
+        "uploadFailed": "Failed to upload node attachments",
+        "loadFailed": "Failed to load node attachments"
       },
       "actions": {
         "open": "Handle",

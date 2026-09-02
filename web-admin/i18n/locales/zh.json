@@ -312,6 +312,18 @@
     "placeholderDescription": "该模块页面待实现，请先参考对应的规划文档。"
   },
   "leadCapture": {
+    "errors": {
+      "serviceUnavailable": "线索服务暂不可用，请稍后重试。",
+      "tenantContextMissing": "当前租户上下文缺失，请重新进入页面。",
+      "tenantRequired": "缺少租户信息，无法访问线索附件。",
+      "attachmentInvalid": "附件请求无效，请检查线索、节点和文件。",
+      "attachmentTooLarge": "附件不能超过 20 MB。",
+      "attachmentNotFound": "附件不存在或当前租户无权访问。",
+      "invalidLead": "线索标识无效。",
+      "invalidTimelineQuery": "时间线查询条件无效。",
+      "leadNotFound": "线索不存在或当前租户无权访问。",
+      "internal": "附件服务处理失败，请稍后重试。"
+    },
     "pool": {
       "title": "线索采集池",
       "description": "按私域运营漏斗查看线索采集、补全、去重、分配、互动与交接状态。",
@@ -468,6 +480,20 @@
         "loading": "正在加载节点记录...",
         "auditTrail": "操作留痕",
         "activityRecords": "活动记录",
+        "timelineTitle": "节点时间轴",
+        "timelineCount": "{filtered} / {total} 条",
+        "previousPage": "上一页",
+        "nextPage": "下一页",
+        "pageStatus": "第 {page} / {total} 页",
+        "filters": {
+          "all": "全部记录",
+          "status": "状态变更",
+          "assignment": "负责人分配",
+          "activity": "人工活动",
+          "attachment": "附件上传",
+          "attachmentDeleted": "附件删除",
+          "source": "来源采集"
+        },
         "emptyAuditTrail": "暂无该节点操作留痕。",
         "emptyActivityRecords": "暂无该节点活动记录。"
       },
@@ -478,7 +504,7 @@
         "result": "结果"
       },
       "activityDetail": {
-        "title": "记录活动",
+        "title": "活动详情",
         "occurredAt": "发生时间",
         "operator": "操作人",
         "stage": "所属阶段",
@@ -487,13 +513,45 @@
         "subject": "活动主题",
         "result": "活动结果",
         "content": "活动内容",
+        "change": "变更内容",
         "nextStep": "后续待办",
         "nextFollowUpAt": "待办时间",
         "systemOperator": "系统记录",
         "empty": "暂无可查看的活动详情。"
       },
       "traceDetail": {
-        "title": "节点状态记录"
+        "title": "节点状态记录",
+        "emptyReason": "未填写操作说明。",
+        "badges": {
+          "activity": "活动记录",
+          "status": "状态记录",
+          "assignment": "分配记录",
+          "source": "来源记录",
+          "attachment": "附件上传",
+          "attachmentDeleted": "附件删除"
+        },
+        "fields": {
+          "stage": "所属阶段",
+          "time": "记录时间",
+          "fromStatus": "来源状态",
+          "toStatus": "目标状态",
+          "owner": "负责人",
+          "action": "节点动作",
+          "reason": "操作说明",
+          "change": "状态变更",
+          "channel": "来源渠道",
+          "account": "来源账号",
+          "fileName": "文件名称",
+          "contentType": "文件类型",
+          "fileSize": "文件大小",
+          "storageProvider": "存储位置",
+          "operator": "操作人",
+          "sourceContext": "来源上下文",
+          "campaign": "活动码：",
+          "utmSource": "UTM 来源：",
+          "utmMedium": "UTM 媒介：",
+          "utmCampaign": "UTM 活动："
+        }
       },
       "activityForm": {
         "title": "记录活动",
@@ -538,7 +596,9 @@
       "traceItems": {
         "statusChanged": "状态变更",
         "assigned": "负责人分配",
-        "sourceCaptured": "来源采集"
+        "sourceCaptured": "来源采集",
+        "attachmentUploaded": "上传附件",
+        "attachmentDeleted": "删除附件"
       },
       "activityTypes": {
         "intake": "线索采集",
@@ -547,6 +607,8 @@
         "status_change": "状态变更",
         "assign": "负责人分配",
         "manual_activity": "记录活动",
+        "attachment_uploaded": "上传附件",
+        "attachment_deleted": "删除附件",
         "bot_command": "Bot 回执",
         "sync_trace": "同步留痕",
         "external_activity": "外部活动",
@@ -559,10 +621,28 @@
       },
       "attachments": {
         "title": "节点附件",
-        "provider": "未接入",
         "upload": "上传",
-        "unavailableTitle": "附件服务未接入",
-        "unavailableDescription": "当前 SCRM 后端还没有线索节点附件的上传、下载和留痕接口；该区域先保留在节点工作台中，等附件数据契约补齐后接入统一附件组件。"
+        "emptyTitle": "暂无节点附件",
+        "emptyDescription": "上传的文件会归档到当前线索节点，用于保留本节点操作材料。",
+        "unknownType": "未知类型",
+        "unknownFile": "未命名附件",
+        "download": "打开附件",
+        "delete": "删除附件",
+        "deleteConfirmTitle": "确认删除附件",
+        "deleteConfirmDescription": "确认删除“{file}”吗？",
+        "deleteAuditNotice": "删除后文件内容不可恢复，系统会永久保留本次删除操作的审计留痕。",
+        "cancelDelete": "取消",
+        "confirmDelete": "确认删除",
+        "deleted": "节点附件已删除",
+        "deletedDescription": "已移除 {file}",
+        "deleteFailed": "节点附件删除失败",
+        "storageProvider": {
+          "database": "本地",
+          "unknown": "未知存储"
+        },
+        "uploaded": "节点附件已上传",
+        "uploadFailed": "节点附件上传失败",
+        "loadFailed": "节点附件加载失败"
       },
       "actions": {
         "open": "处理",

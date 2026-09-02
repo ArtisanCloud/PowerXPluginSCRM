@@ -113,6 +113,8 @@ export interface LeadAssignmentRecord {
   owner_user_uuid: string;
   reason?: string;
   created_at: string;
+  operator_member_uuid?: string;
+  actor_type?: "member" | "system";
 }
 
 export interface LeadStatusHistoryRecord {
@@ -122,6 +124,8 @@ export interface LeadStatusHistoryRecord {
   from_status: string;
   to_status: string;
   changed_at: string;
+  operator_member_uuid?: string;
+  actor_type?: "member" | "system";
 }
 
 export interface LeadActivityRecord {
@@ -132,6 +136,32 @@ export interface LeadActivityRecord {
   payload?: Record<string, any>;
   created_at: string;
   updated_at: string;
+}
+
+export type LeadTimelineEventType =
+  | "status_changed"
+  | "assigned"
+  | "source_captured"
+  | "manual_activity"
+  | "attachment_uploaded"
+  | "attachment_deleted";
+
+export interface LeadTimelineEventRecord {
+  event_uuid: string;
+  event_type: LeadTimelineEventType;
+  actor_type: "member" | "system";
+  actor_member_uuid?: string;
+  stage_key?: string;
+  action_key?: string;
+  occurred_at: string;
+  data: Record<string, any>;
+}
+
+export interface LeadTimelineResponse {
+  items: LeadTimelineEventRecord[];
+  total: number;
+  page: number;
+  page_size: number;
 }
 
 export interface LeadAttachmentRecord {
@@ -451,8 +481,31 @@ export const useLeadCaptureService = () => {
       apiClient.get<ApiResponse<{ items: LeadActivityRecord[] }>>(
         `${baseUrl}/${leadId}/activities`
       ),
+    listTimeline: (
+      leadId: string,
+      params?: { stage_key?: string; event_type?: LeadTimelineEventType; page?: number; page_size?: number }
+    ) => apiClient.get<ApiResponse<LeadTimelineResponse>>(`${baseUrl}/${leadId}/timeline`, { params }),
     createActivity: (leadId: string, payload: LeadActivityCreatePayload) =>
       apiClient.post<ApiResponse<LeadActivityRecord>>(`${baseUrl}/${leadId}/activities`, payload),
+    listNodeAttachments: (leadId: string, meta: { stage_key: string; action_key?: string }) =>
+      apiClient.get<ApiResponse<{ items: LeadAttachmentRecord[] }>>(
+        `${baseUrl}/${leadId}/node-attachments`,
+        { params: meta }
+      ),
+    uploadNodeAttachment: (
+      leadId: string,
+      file: File,
+      meta: { stage_key: string; action_key?: string }
+    ) => {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("stage_key", meta.stage_key);
+      if (meta.action_key) form.append("action_key", meta.action_key);
+      return apiClient.post<ApiResponse<LeadAttachmentRecord>>(
+        `${baseUrl}/${leadId}/node-attachments`,
+        form
+      );
+    },
     listActivityAttachments: (leadId: string, activityId: string) =>
       apiClient.get<ApiResponse<{ items: LeadAttachmentRecord[] }>>(
         `${baseUrl}/${leadId}/activities/${activityId}/attachments`
@@ -476,6 +529,10 @@ export const useLeadCaptureService = () => {
       apiClient.get<Blob>(`${baseUrl}/${leadId}/attachments/${attachmentId}/download`, {
         responseType: "blob",
       }),
+    deleteAttachment: (leadId: string, attachmentId: string) =>
+      apiClient.delete<ApiResponse<{ attachment_uuid: string }>>(
+        `${baseUrl}/${leadId}/attachments/${attachmentId}`
+      ),
     listSourceEvents: (leadId: string) =>
       apiClient.get<ApiResponse<{ items: LeadSourceEventRecord[] }>>(
         `${baseUrl}/${leadId}/sources`

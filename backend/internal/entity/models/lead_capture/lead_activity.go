@@ -8,14 +8,18 @@ import (
 )
 
 const (
-	LeadActivityTypeIntake       = "intake"
-	LeadActivityTypeMerge        = "merge"
-	LeadActivityTypeProfileEdit  = "profile_edit"
-	LeadActivityTypeStatusChange = "status_change"
-	LeadActivityTypeAssign       = "assign"
-	LeadActivityTypeManual       = "manual_activity"
-	LeadActivityTypeBotCommand   = "bot_command"
-	LeadActivityTypeSyncTrace    = "sync_trace"
+	LeadActivityTypeIntake             = "intake"
+	LeadActivityTypeMerge              = "merge"
+	LeadActivityTypeProfileEdit        = "profile_edit"
+	LeadActivityTypeStatusChange       = "status_change"
+	LeadActivityTypeAssign             = "assign"
+	LeadActivityTypeManual             = "manual_activity"
+	LeadActivityTypeAttachmentUploaded = "attachment_uploaded"
+	LeadActivityTypeAttachmentDeleted  = "attachment_deleted"
+	LeadActivityTypeBotCommand         = "bot_command"
+	LeadActivityTypeSyncTrace          = "sync_trace"
+	LeadAuditActorTypeMember           = "member"
+	LeadAuditActorTypeSystem           = "system"
 )
 
 // LeadActivity records lead lifecycle actions for audit tracking.

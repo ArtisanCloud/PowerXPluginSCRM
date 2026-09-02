@@ -908,6 +908,8 @@
               variant="soft"
               :color="leadLifecycleActionButton(row.original).color"
               :icon="leadLifecycleActionButton(row.original).icon"
+              data-testid="lead-lifecycle-open"
+              :data-lead-uuid="row.original.lead_uuid"
               @click="openLeadLifecycleModal(row.original)"
             >
               {{ leadLifecycleActionButton(row.original).label }}
@@ -952,9 +954,9 @@
         {{ selectedLifecycleLead ? leadDisplayName(selectedLifecycleLead) : "" }}
       </template>
       <template #body>
-        <div v-if="selectedLifecycleLead" class="grid gap-6 p-1 lg:grid-cols-[minmax(0,1.65fr)_minmax(360px,0.8fr)]">
+        <div v-if="selectedLifecycleLead" data-testid="lead-lifecycle-workbench" class="grid gap-6 p-1 lg:grid-cols-[minmax(0,1.65fr)_minmax(360px,0.8fr)]">
           <div class="flex flex-col gap-4">
-            <div class="order-1 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950">
+            <div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950">
               <div class="mb-3 flex items-center justify-between gap-3">
                 <div class="text-sm font-semibold text-gray-900 dark:text-gray-100">
                   {{ t("leadCapture.lifecycle.nodeChainTitle") }}
@@ -970,18 +972,33 @@
               />
             </div>
 
-            <div class="order-4 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950">
-              <div class="mb-4 flex items-start justify-between gap-3">
+            <div class="flex flex-col gap-4 rounded border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950">
+              <div class="flex items-center justify-between gap-3">
                 <div>
-                  <div class="text-base font-semibold text-gray-900 dark:text-gray-100">
+                  <div class="font-medium text-gray-900 dark:text-gray-100">
                     {{ t("leadCapture.lifecycle.nodeActionTitle") }}
                   </div>
-                  <div class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                     {{ selectedLeadLifecycleNode?.label }}
                   </div>
                 </div>
-                <UBadge :color="selectedLeadLifecycleNode?.color || 'neutral'" variant="soft">
-                  {{ t("leadCapture.lifecycle.currentStage", { stage: selectedLeadLifecycleNode?.label || '' }) }}
+                <UBadge color="neutral" variant="soft" size="xs">
+                  {{ t("leadCapture.lifecycle.currentStage", { stage: statusMeta(selectedLifecycleLead.status).label }) }}
+                </UBadge>
+              </div>
+
+            <div class="order-3 rounded border border-gray-200 bg-gray-50/80 p-4 dark:border-gray-800 dark:bg-gray-900/60">
+              <div class="mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <div class="text-base font-semibold text-gray-900 dark:text-gray-100">
+                    {{ selectedLeadLifecycleNode?.label }}
+                  </div>
+                  <div class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    {{ selectedLeadLifecycleNode?.description }}
+                  </div>
+                </div>
+                <UBadge :color="selectedLeadLifecycleNode?.color || 'neutral'" variant="soft" size="xs">
+                  {{ lifecycleStateLabel(selectedLeadLifecycleNode?.state) }}
                 </UBadge>
               </div>
 
@@ -1123,6 +1140,7 @@
                         color="primary"
                         :loading="leadLifecycleSaving"
                         icon="i-heroicons-sparkles"
+                        data-testid="lead-lifecycle-enrich-submit"
                       >
                         {{ selectedLeadLifecycleNode.actionLabel }}
                       </UButton>
@@ -1222,7 +1240,7 @@
               </div>
             </div>
 
-            <div class="order-2 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950">
+            <div class="order-1 rounded border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950">
               <div class="mb-3 flex items-center justify-between gap-3">
                 <div class="flex min-w-0 items-center gap-2">
                   <UIcon name="i-heroicons-pencil-square" class="text-primary" />
@@ -1233,7 +1251,15 @@
                     {{ selectedLeadLifecycleActivities.length }}
                   </UBadge>
                 </div>
-                <UButton size="xs" color="primary" variant="soft" icon="i-heroicons-plus" @click.stop="openLeadLifecycleActivityModal">
+                <UButton
+                  v-if="selectedLeadLifecycleNode?.state === 'current'"
+                  size="xs"
+                  color="primary"
+                  variant="soft"
+                  icon="i-heroicons-plus"
+                  data-testid="lead-activity-open"
+                  @click.stop="openLeadLifecycleActivityModal"
+                >
                   {{ t("leadCapture.lifecycle.activityRecordAction") }}
                 </UButton>
               </div>
@@ -1249,16 +1275,17 @@
                   v-for="item in selectedLeadLifecycleActivities.slice(0, 5)"
                   :key="item.activity_uuid"
                   type="button"
+                  data-testid="lead-activity-row"
                   class="grid w-full grid-cols-[92px_90px_minmax(0,1fr)_96px_28px] items-center gap-2 border-t px-3 py-2 text-left text-sm transition hover:bg-gray-50 dark:hover:bg-gray-900"
                   :class="selectedLeadLifecycleActivity?.activity_uuid === item.activity_uuid
                     ? 'border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/30'
                     : 'border-gray-100 dark:border-gray-800'"
-                  @click="selectedLeadLifecycleActivityId = item.activity_uuid"
+                  @click="openLeadLifecycleActivityDetail(item)"
                 >
                   <span class="truncate text-gray-500">{{ formatLeadLifecycleTime(item.created_at) }}</span>
-                  <span class="truncate text-gray-600 dark:text-gray-300">{{ activityMethodLabel(item.payload?.method) }}</span>
-                  <span class="truncate font-medium text-gray-900 dark:text-gray-100">{{ activityDescription(item) }}</span>
-                  <span class="truncate text-gray-500">{{ activityResultLabel(item.payload?.result) }}</span>
+                  <span class="truncate text-gray-600 dark:text-gray-300">{{ leadLifecycleActivityDetail(item).method }}</span>
+                  <span class="truncate font-medium text-gray-900 dark:text-gray-100">{{ leadLifecycleActivityDetail(item).subject }}</span>
+                  <span class="truncate text-gray-500">{{ leadLifecycleActivityDetail(item).result }}</span>
                   <UIcon name="i-heroicons-chevron-right" class="h-4 w-4 text-gray-400" />
                 </button>
               </div>
@@ -1267,7 +1294,7 @@
               </div>
             </div>
 
-            <div class="order-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950">
+            <div class="order-2 rounded border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950">
               <div class="mb-3 flex items-center justify-between gap-3">
                 <div class="flex items-center gap-2">
                   <UIcon name="i-heroicons-paper-clip" class="text-primary" />
@@ -1275,21 +1302,92 @@
                     {{ t("leadCapture.lifecycle.attachments.title") }}
                   </span>
                   <UBadge size="xs" variant="soft" color="neutral">
-                    {{ t("leadCapture.lifecycle.attachments.provider") }}
+                    {{ leadLifecycleNodeAttachments.length }}
                   </UBadge>
                 </div>
-                <UButton size="xs" color="primary" icon="i-heroicons-arrow-up-tray" disabled>
+                <input
+                  ref="leadLifecycleNodeAttachmentInputRef"
+                  type="file"
+                  multiple
+                  class="hidden"
+                  data-testid="lead-node-attachment-input"
+                  @change="uploadLeadLifecycleNodeAttachments(($event.target as HTMLInputElement).files)"
+                />
+                <UButton
+                  v-if="selectedLeadLifecycleNode?.state === 'current'"
+                  size="xs"
+                  color="primary"
+                  icon="i-heroicons-arrow-up-tray"
+                  :loading="leadLifecycleNodeAttachmentUploading"
+                  :disabled="leadLifecycleNodeAttachmentUploading"
+                  @click="leadLifecycleNodeAttachmentInputRef?.click()"
+                >
                   {{ t("leadCapture.lifecycle.attachments.upload") }}
                 </UButton>
               </div>
-              <div class="rounded-md border border-dashed border-gray-200 bg-gray-50 p-4 text-sm text-gray-600 dark:border-gray-800 dark:bg-gray-900/60 dark:text-gray-300">
-                <div class="font-medium text-gray-900 dark:text-gray-100">
-                  {{ t("leadCapture.lifecycle.attachments.unavailableTitle") }}
-                </div>
-                <div class="mt-2 leading-5">
-                  {{ t("leadCapture.lifecycle.attachments.unavailableDescription") }}
+              <div v-if="leadLifecycleNodeAttachments.length" class="overflow-hidden rounded-md border border-gray-200 dark:border-gray-800">
+                <div
+                  v-for="file in leadLifecycleNodeAttachments"
+                  :key="file.attachment_uuid"
+                  data-testid="lead-node-attachment-row"
+                  class="flex items-center justify-between gap-3 border-t border-gray-100 px-3 py-2 first:border-t-0 dark:border-gray-800"
+                >
+                  <div class="min-w-0">
+                    <button
+                      type="button"
+                      class="max-w-full truncate text-left text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400"
+                      @click="downloadLeadLifecycleAttachment(file)"
+                    >
+                      {{ file.file_name }}
+                    </button>
+                    <div class="mt-1 truncate text-xs text-gray-500">
+                      {{ file.content_type || t("leadCapture.lifecycle.attachments.unknownType") }} · {{ formatFileSize(file.file_size) }} · {{ formatLeadLifecycleTime(file.created_at) }}
+                    </div>
+                  </div>
+                  <div class="flex shrink-0 items-center gap-2">
+                    <UBadge size="xs" variant="soft" color="neutral">
+                      {{ leadAttachmentStorageProviderLabel(file.storage_provider) }}
+                    </UBadge>
+                    <UButton
+                      v-if="selectedLeadLifecycleNode?.state === 'current'"
+                      size="xs"
+                      icon="i-heroicons-trash"
+                      variant="ghost"
+                      color="error"
+                      data-testid="lead-node-attachment-delete"
+                      :data-attachment-uuid="file.attachment_uuid"
+                      :aria-label="t('leadCapture.lifecycle.attachments.delete')"
+                      @click="openLeadLifecycleAttachmentDelete(file)"
+                    />
+                    <UButton
+                      size="xs"
+                      icon="i-heroicons-arrow-down-tray"
+                      variant="ghost"
+                      color="primary"
+                      :aria-label="t('leadCapture.lifecycle.activityForm.downloadFile')"
+                      @click="downloadLeadLifecycleAttachment(file)"
+                    />
+                  </div>
                 </div>
               </div>
+              <div v-else class="rounded-md border border-dashed border-gray-200 bg-gray-50 p-4 text-sm text-gray-600 dark:border-gray-800 dark:bg-gray-900/60 dark:text-gray-300">
+                <div class="font-medium text-gray-900 dark:text-gray-100">
+                  {{ t("leadCapture.lifecycle.attachments.emptyTitle") }}
+                </div>
+                <div class="mt-2 leading-5">
+                  {{ t("leadCapture.lifecycle.attachments.emptyDescription") }}
+                </div>
+              </div>
+            </div>
+
+              <LeadAuditEventDetail
+                v-if="selectedLeadLifecycleTimelineItem"
+                class="order-4"
+                :item="selectedLeadLifecycleTimelineItem"
+                :format-time="formatLeadLifecycleTime"
+                :format-file-size="formatFileSize"
+                @download="downloadLeadLifecycleAttachment"
+              />
             </div>
           </div>
 
@@ -1341,160 +1439,89 @@
               </div>
             </div>
 
-            <div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950">
-              <div class="mb-3 flex items-center justify-between gap-3">
-                <div class="flex items-center gap-2">
-                  <UIcon name="i-heroicons-pencil-square" class="text-primary" />
-                  <span class="text-sm font-medium text-gray-900 dark:text-gray-100">
-                    {{ t("leadCapture.lifecycle.activityDetail.title") }}
-                  </span>
-                </div>
-                <UBadge size="xs" variant="soft" color="neutral">
-                  {{ t("leadCapture.lifecycle.activityRecordAction") }}
-                </UBadge>
-              </div>
-              <div v-if="selectedLeadLifecycleActivity" class="space-y-3 text-sm">
-                <div class="grid grid-cols-2 gap-3">
-                  <div>
-                    <div class="text-xs text-gray-500">{{ t("leadCapture.lifecycle.activityDetail.occurredAt") }}</div>
-                    <div class="mt-1 text-gray-900 dark:text-gray-100">
-                      {{ formatLeadLifecycleTime(selectedLeadLifecycleActivity.created_at) }}
-                    </div>
-                  </div>
-                  <div>
-                    <div class="text-xs text-gray-500">{{ t("leadCapture.lifecycle.activityDetail.operator") }}</div>
-                    <div class="mt-1 text-gray-900 dark:text-gray-100">
-                      {{ t("leadCapture.lifecycle.activityDetail.systemOperator") }}
-                    </div>
-                  </div>
-                  <div>
-                    <div class="text-xs text-gray-500">{{ t("leadCapture.lifecycle.activityDetail.stage") }}</div>
-                    <div class="mt-1 text-gray-900 dark:text-gray-100">
-                      {{ selectedLeadLifecycleActivityStageLabel }}
-                    </div>
-                  </div>
-                  <div>
-                    <div class="text-xs text-gray-500">{{ t("leadCapture.lifecycle.activityDetail.method") }}</div>
-                    <div class="mt-1 text-gray-900 dark:text-gray-100">
-                      {{ activityMethodLabel(selectedLeadLifecycleActivityPayload.method) }}
-                    </div>
-                  </div>
-                </div>
-                <div class="grid grid-cols-2 gap-3">
-                  <div>
-                    <div class="text-xs text-gray-500">{{ t("leadCapture.lifecycle.activityDetail.subject") }}</div>
-                    <div class="mt-1 text-gray-900 dark:text-gray-100">
-                      {{ selectedLeadLifecycleActivityPayload.subject || "-" }}
-                    </div>
-                  </div>
-                  <div>
-                    <div class="text-xs text-gray-500">{{ t("leadCapture.lifecycle.activityDetail.result") }}</div>
-                    <div class="mt-1 text-gray-900 dark:text-gray-100">
-                      {{ activityResultLabel(selectedLeadLifecycleActivityPayload.result) }}
-                    </div>
-                  </div>
-                </div>
-                <div class="rounded-md bg-gray-50 p-3 text-gray-700 dark:bg-gray-900 dark:text-gray-200">
-                  <div class="mb-1 text-xs text-gray-500">{{ t("leadCapture.lifecycle.activityDetail.content") }}</div>
-                  <div class="whitespace-pre-wrap break-words leading-6">
-                    {{ selectedLeadLifecycleActivityPayload.content || activityDescription(selectedLeadLifecycleActivity) }}
-                  </div>
-                </div>
-                <div
-                  v-if="selectedLeadLifecycleActivityPayload.next_step || selectedLeadLifecycleActivityPayload.next_follow_up_at"
-                  class="rounded-md bg-gray-50 p-3 text-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                >
-                  <div class="mb-1 text-xs text-gray-500">{{ t("leadCapture.lifecycle.activityDetail.nextStep") }}</div>
-                  <div class="whitespace-pre-wrap break-words leading-6">
-                    {{ selectedLeadLifecycleActivityPayload.next_step || "-" }}
-                  </div>
-                  <div v-if="selectedLeadLifecycleActivityPayload.next_follow_up_at" class="mt-2 text-xs text-gray-500">
-                    {{ t("leadCapture.lifecycle.activityDetail.nextFollowUpAt") }} {{ formatLeadLifecycleTime(selectedLeadLifecycleActivityPayload.next_follow_up_at) }}
-                  </div>
-                </div>
-                <div class="rounded-md border border-gray-100 p-3 dark:border-gray-800">
-                  <div class="mb-2 flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-gray-100">
-                    <UIcon name="i-heroicons-paper-clip" class="h-4 w-4 text-gray-500" />
-                    {{ t("leadCapture.lifecycle.activityForm.attachmentTitle") }}
-                  </div>
-                  <div v-if="selectedLeadLifecycleActivityAttachments.length" class="divide-y divide-gray-100 dark:divide-gray-800">
-                    <div
-                      v-for="file in selectedLeadLifecycleActivityAttachments"
-                      :key="file.attachment_uuid"
-                      class="flex items-center justify-between gap-3 py-2"
-                    >
-                      <div class="min-w-0">
-                        <div class="truncate text-gray-900 dark:text-gray-100">{{ file.file_name }}</div>
-                        <div class="text-xs text-gray-500">{{ formatFileSize(file.file_size) }}</div>
-                      </div>
-                      <UButton
-                        size="xs"
-                        variant="soft"
-                        icon="i-heroicons-arrow-down-tray"
-                        @click="downloadLeadLifecycleAttachment(file)"
-                      >
-                        {{ t("leadCapture.lifecycle.activityForm.downloadFile") }}
-                      </UButton>
-                    </div>
-                  </div>
-                  <div v-else class="text-sm text-gray-500">
-                    {{ t("leadCapture.lifecycle.activityForm.emptyAttachments") }}
-                  </div>
-                </div>
-              </div>
-              <div v-else class="text-sm text-gray-500">
-                {{ t("leadCapture.lifecycle.activityDetail.empty") }}
-              </div>
-            </div>
-
-            <div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950">
+            <div class="rounded border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-950">
               <div class="mb-3 flex items-center justify-between gap-3">
                 <div class="flex min-w-0 items-center gap-2">
-                  <UIcon name="i-heroicons-clipboard-document-list" class="text-primary" />
                   <span class="text-sm font-medium text-gray-900 dark:text-gray-100">
-                    {{ t("leadCapture.lifecycle.traceDetail.title") }}
+                    {{ t("leadCapture.lifecycle.tracePanel.timelineTitle") }}
                   </span>
                 </div>
-                <div class="text-xs text-gray-500">
-                  {{ selectedLeadLifecycleTimelineIndex }} / {{ selectedLeadLifecycleTimelineItems.length }}
+                <div class="flex items-center gap-2">
+                  <USelect
+                    v-model="leadLifecycleTimelineEventType"
+                    :items="leadLifecycleTimelineEventTypeOptions"
+                    value-key="value"
+                    label-key="label"
+                    size="xs"
+                    class="w-36"
+                    @update:model-value="onLeadLifecycleTimelineFilterChange"
+                  />
+                  <div class="text-xs text-gray-500">
+                    {{ t("leadCapture.lifecycle.tracePanel.timelineCount", { filtered: selectedLeadLifecycleTimelineItems.length, total: leadLifecycleTimelineTotalCount }) }}
+                  </div>
                 </div>
               </div>
               <div v-if="leadLifecycleTraceLoading" class="text-sm text-gray-500">
                 {{ t("leadCapture.lifecycle.tracePanel.loading") }}
               </div>
-              <div v-else-if="selectedLeadLifecycleTimelineItems.length" class="space-y-3">
-                <button
-                  v-for="item in selectedLeadLifecycleTimelineItems.slice(0, 6)"
-                  :key="item.id"
-                  type="button"
-                  class="relative w-full rounded-lg border p-3 pl-11 text-left text-sm transition hover:border-primary-300"
-                  :class="selectedLeadLifecycleTimelineItem?.id === item.id
-                    ? 'border-green-500 bg-green-50 ring-1 ring-green-500 dark:bg-green-950/30'
-                    : 'border-gray-100 bg-gray-50 dark:border-gray-800 dark:bg-gray-900/60'"
-                  @click="selectedLeadLifecycleTraceId = item.id"
-                >
-                  <div class="absolute left-3 top-3 flex h-6 w-6 items-center justify-center rounded-full bg-primary-50 text-primary-600 dark:bg-primary-950/40">
-                    <UIcon :name="item.kind === 'activity' ? 'i-heroicons-pencil-square' : 'i-heroicons-plus-circle'" class="h-4 w-4" />
-                  </div>
-                  <div class="flex items-start justify-between gap-3">
-                    <div class="font-medium text-gray-900 dark:text-gray-100">{{ item.title }}</div>
-                    <div class="shrink-0 text-xs text-gray-500">{{ formatLeadLifecycleTime(item.time) }}</div>
-                  </div>
-                  <div class="mt-1 text-xs text-gray-500">{{ item.subtitle }}</div>
-                  <div class="mt-1 text-gray-600 dark:text-gray-300">{{ item.description }}</div>
-                </button>
+              <div v-else class="max-h-[420px] min-h-56 overflow-y-auto rounded border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900">
+                <LeadAuditTimeline
+                  v-if="selectedLeadLifecycleTimelineItems.length"
+                  :items="selectedLeadLifecycleTimelineItems"
+                  :selected-id="selectedLeadLifecycleTimelineItem?.id"
+                  :format-time="formatLeadLifecycleTime"
+                  @select="selectedLeadLifecycleTraceId = $event.id"
+                />
+                <div v-else class="py-8 text-center text-sm text-gray-500">
+                  {{ t("leadCapture.lifecycle.tracePanel.emptyAuditTrail") }}
+                </div>
               </div>
-              <div v-else class="text-sm text-gray-500">
-                {{ t("leadCapture.lifecycle.tracePanel.emptyAuditTrail") }}
+              <div v-if="leadLifecycleTimelineTotalPages > 1" class="mt-3 flex items-center justify-end gap-2">
+                <UButton size="xs" variant="ghost" :disabled="leadLifecycleTimelinePage <= 1" @click="changeLeadLifecycleTimelinePage(-1)">
+                  {{ t("leadCapture.lifecycle.tracePanel.previousPage") }}
+                </UButton>
+                <span class="text-xs text-gray-500">
+                  {{ t("leadCapture.lifecycle.tracePanel.pageStatus", { page: leadLifecycleTimelinePage, total: leadLifecycleTimelineTotalPages }) }}
+                </span>
+                <UButton size="xs" variant="ghost" :disabled="leadLifecycleTimelinePage >= leadLifecycleTimelineTotalPages" @click="changeLeadLifecycleTimelinePage(1)">
+                  {{ t("leadCapture.lifecycle.tracePanel.nextPage") }}
+                </UButton>
               </div>
             </div>
           </div>
         </div>
       </template>
       <template #footer>
-        <div class="flex w-full justify-end">
+        <div class="flex w-full justify-start">
           <UButton variant="ghost" :disabled="leadLifecycleSaving" @click="closeLeadLifecycleModal">
             {{ t("leadCapture.lifecycle.closeModal") }}
+          </UButton>
+        </div>
+      </template>
+    </UModal>
+
+    <UModal
+      v-model:open="leadLifecycleAttachmentDeleteOpen"
+      :prevent-close="leadLifecycleAttachmentDeleting"
+      :dismissible="!leadLifecycleAttachmentDeleting"
+      :ui="{ content: 'w-[min(92vw,460px)] max-w-none' }"
+    >
+      <template #title>{{ t("leadCapture.lifecycle.attachments.deleteConfirmTitle") }}</template>
+      <template #description>
+        {{ t("leadCapture.lifecycle.attachments.deleteConfirmDescription", { file: leadLifecycleAttachmentDeleteTarget?.file_name || '' }) }}
+      </template>
+      <template #body>
+        <div class="rounded border border-error-200 bg-error-50 p-4 text-sm text-error-700 dark:border-error-900 dark:bg-error-950/30 dark:text-error-300">
+          {{ t("leadCapture.lifecycle.attachments.deleteAuditNotice") }}
+        </div>
+      </template>
+      <template #footer>
+        <div class="flex w-full justify-end gap-2">
+          <UButton color="neutral" variant="subtle" :disabled="leadLifecycleAttachmentDeleting" @click="closeLeadLifecycleAttachmentDelete">
+            {{ t("leadCapture.lifecycle.attachments.cancelDelete") }}
+          </UButton>
+          <UButton data-testid="lead-node-attachment-delete-confirm" color="error" :loading="leadLifecycleAttachmentDeleting" @click="confirmLeadLifecycleAttachmentDelete">
+            {{ t("leadCapture.lifecycle.attachments.confirmDelete") }}
           </UButton>
         </div>
       </template>
@@ -1528,6 +1555,7 @@
             <UInput
               v-model="leadLifecycleActivityForm.subject"
               :placeholder="t('leadCapture.lifecycle.activityForm.subjectPlaceholder')"
+              data-testid="lead-activity-subject"
               class="w-full"
             />
           </UFormField>
@@ -1536,6 +1564,7 @@
               v-model="leadLifecycleActivityForm.content"
               :rows="4"
               :placeholder="t('leadCapture.lifecycle.activityForm.contentPlaceholder')"
+              data-testid="lead-activity-content"
               class="w-full"
             />
           </UFormField>
@@ -1613,11 +1642,38 @@
       </template>
       <template #footer>
         <div class="flex w-full justify-start gap-2">
-          <UButton color="primary" :loading="leadLifecycleActivitySaving" @click="submitLeadLifecycleActivity">
+          <UButton data-testid="lead-activity-submit" color="primary" :loading="leadLifecycleActivitySaving" @click="submitLeadLifecycleActivity">
             {{ t("leadCapture.lifecycle.activityForm.submit") }}
           </UButton>
           <UButton variant="ghost" :disabled="leadLifecycleActivitySaving" @click="closeLeadLifecycleActivityModal">
             {{ t("leadCapture.lifecycle.activityForm.cancel") }}
+          </UButton>
+        </div>
+      </template>
+    </UModal>
+
+    <UModal
+      v-model:open="leadLifecycleActivityDetailModalOpen"
+      :modal="true"
+      :ui="{ content: 'w-[min(92vw,560px)] max-w-none' }"
+    >
+      <template #title>{{ t("leadCapture.lifecycle.activityDetail.title") }}</template>
+      <template #description>
+        {{ leadLifecycleActivityDetailRecord ? formatLeadLifecycleTime(leadLifecycleActivityDetailRecord.created_at) : "" }}
+      </template>
+      <template #body>
+        <LeadActivityDetail
+          :activity="leadLifecycleActivityDetailRecord"
+          :attachments="leadLifecycleActivityDetailAttachments"
+          :format-time="formatLeadLifecycleTime"
+          :format-file-size="formatFileSize"
+          @download="downloadLeadLifecycleAttachment"
+        />
+      </template>
+      <template #footer>
+        <div class="flex w-full justify-start">
+          <UButton variant="ghost" @click="closeLeadLifecycleActivityDetail">
+            {{ t("leadCapture.lifecycle.closeModal") }}
           </UButton>
         </div>
       </template>
@@ -1986,6 +2042,9 @@ import type { LeadCreatePayload } from "~/types/lead_capture/lead";
 import { useLeadCaptureStore } from "~/stores/scrm/lead_capture/lead_store";
 import { useLeadChannelCodeStore } from "~/stores/scrm/lead_capture/channel_code_store";
 import { useUserStore } from "~/stores/user";
+import LeadActivityDetail from "~/components/scrm/lead_capture/LeadActivityDetail.vue";
+import LeadAuditEventDetail from "~/components/scrm/lead_capture/LeadAuditEventDetail.vue";
+import LeadAuditTimeline from "~/components/scrm/lead_capture/LeadAuditTimeline.vue";
 import LeadLifecycleNav from "~/components/scrm/lead_capture/LeadLifecycleNav.vue";
 import ToastAlert from "~/components/ToastAlert.vue";
 import {
@@ -2002,6 +2061,8 @@ import {
   type LeadAssignmentRecord,
   type LeadSourceEventRecord,
   type LeadStatusHistoryRecord,
+  type LeadTimelineEventRecord,
+  type LeadTimelineEventType,
 } from "~/composables/api/services/leadCapture";
 import {
   RuntimeDictionaryNamespaces,
@@ -2022,6 +2083,11 @@ import {
   useLeadLifecycle,
 } from "~/composables/scrm/lead_capture/useLeadLifecycle";
 import { useWsBusClient } from "~/composables/useWsBusClient";
+import {
+  mergeLeadLifecycleTimelineItems,
+  resolveLeadAuditOperatorName,
+  type LeadLifecycleTimelineItem,
+} from "~/utils/leadLifecycleTimeline";
 
 definePageMeta({
   layout: "default",
@@ -2062,13 +2128,25 @@ const leadLifecycleActivityModalOpen = ref(false);
 const leadLifecycleActivitySaving = ref(false);
 const leadLifecycleActivityAttachmentInputRef = ref<HTMLInputElement | null>(null);
 const leadLifecycleActivityPendingFiles = ref<File[]>([]);
+const leadLifecycleNodeAttachmentInputRef = ref<HTMLInputElement | null>(null);
+const leadLifecycleNodeAttachmentUploading = ref(false);
+const leadLifecycleAttachmentDeleteOpen = ref(false);
+const leadLifecycleAttachmentDeleting = ref(false);
+const leadLifecycleAttachmentDeleteTarget = ref<LeadAttachmentRecord | null>(null);
 const selectedLeadLifecycleActivityId = ref("");
+const leadLifecycleActivityDetailModalOpen = ref(false);
+const leadLifecycleActivityDetailRecord = ref<LeadActivityRecord | null>(null);
 const selectedLeadLifecycleTraceId = ref("");
 const leadLifecycleActivities = ref<LeadActivityRecord[]>([]);
 const leadLifecycleActivityAttachments = ref<Record<string, LeadAttachmentRecord[]>>({});
+const leadLifecycleNodeAttachments = ref<LeadAttachmentRecord[]>([]);
 const leadLifecycleAssignments = ref<LeadAssignmentRecord[]>([]);
 const leadLifecycleSourceEvents = ref<LeadSourceEventRecord[]>([]);
 const leadLifecycleStatusHistory = ref<LeadStatusHistoryRecord[]>([]);
+const leadLifecycleTimelinePage = ref(1);
+const leadLifecycleTimelinePageSize = 20;
+const leadLifecycleTimelineTotalCount = ref(0);
+const leadLifecycleTimelineEventType = ref<LeadTimelineEventType | typeof ALL_OPTION_VALUE>(ALL_OPTION_VALUE);
 const currentPage = ref(1);
 const pageSize = ref(10);
 const importModalOpen = ref(false);
@@ -2302,11 +2380,29 @@ const selectLeadLifecycleNode = (node: { key: string }) => {
   selectedLeadLifecycleNodeKey.value = node.key;
   selectedLeadLifecycleActivityId.value = "";
   selectedLeadLifecycleTraceId.value = "";
+  leadLifecycleTimelinePage.value = 1;
+  const leadUUID = String(selectedLifecycleLead.value?.lead_uuid || "").trim();
+  if (leadUUID) void loadLeadLifecycleTrace(leadUUID);
 };
 
 const selectedLeadLifecycleNodeKeyValue = computed(() =>
   String(selectedLeadLifecycleNode.value?.key || selectedLeadLifecycleStatus.value || "captured")
 );
+
+const selectedLeadLifecycleNodeActionKey = computed(() => {
+  const key = selectedLeadLifecycleNodeKeyValue.value;
+  const map: Record<string, string> = {
+    captured: "enrichment",
+    enriched: "deduplication",
+    deduplicated: "assign",
+    routed: "engagement",
+    engaging: "qualification",
+    qualified_for_handoff: "handoff",
+    handoff_pending: "handoff",
+    handoff_accepted: "completed",
+  };
+  return map[key] || "detail";
+});
 
 const memberOptions = computed(() =>
   iamMembers.value
@@ -2341,6 +2437,16 @@ const leadLifecycleActivityResultOptions = computed(() => [
   { label: t("leadCapture.lifecycle.activityResult.interested"), value: "interested" },
   { label: t("leadCapture.lifecycle.activityResult.pending"), value: "pending" },
   { label: t("leadCapture.lifecycle.activityResult.invalid"), value: "invalid" },
+]);
+
+const leadLifecycleTimelineEventTypeOptions = computed(() => [
+  { label: t("leadCapture.lifecycle.tracePanel.filters.all"), value: ALL_OPTION_VALUE },
+  { label: t("leadCapture.lifecycle.tracePanel.filters.status"), value: "status_changed" },
+  { label: t("leadCapture.lifecycle.tracePanel.filters.assignment"), value: "assigned" },
+  { label: t("leadCapture.lifecycle.tracePanel.filters.activity"), value: "manual_activity" },
+  { label: t("leadCapture.lifecycle.tracePanel.filters.attachment"), value: "attachment_uploaded" },
+  { label: t("leadCapture.lifecycle.tracePanel.filters.attachmentDeleted"), value: "attachment_deleted" },
+  { label: t("leadCapture.lifecycle.tracePanel.filters.source"), value: "source_captured" },
 ]);
 
 const pushLeadSelectionOptions = computed(() =>
@@ -2798,41 +2904,39 @@ const selectedLeadLifecycleActivity = computed(() =>
   null
 );
 
-const selectedLeadLifecycleActivityPayload = computed<Record<string, any>>(
-  () => (selectedLeadLifecycleActivity.value?.payload || {}) as Record<string, any>
-);
-
-const selectedLeadLifecycleActivityStageLabel = computed(() =>
-  statusMeta(activityStageKey(selectedLeadLifecycleActivity.value) || selectedLeadLifecycleNodeKeyValue.value).label
-);
-
 const selectedLeadLifecycleTraceItems = computed(() => {
   const key = selectedLeadLifecycleNodeKeyValue.value;
   const statusItems = leadLifecycleStatusHistory.value
     .filter((item) => item.from_status === key || item.to_status === key)
     .map((item) => ({
       id: `status:${item.history_uuid}`,
+      kind: "status" as const,
       title: t("leadCapture.lifecycle.traceItems.statusChanged"),
       description: `${statusMeta(item.from_status).label} -> ${statusMeta(item.to_status).label}`,
       time: item.changed_at,
+      item,
     }));
   const assignmentItems = key === "routed"
     ? leadLifecycleAssignments.value.map((item) => ({
         id: `assign:${item.assignment_uuid}`,
+        kind: "assignment" as const,
         title: t("leadCapture.lifecycle.traceItems.assigned"),
         description: [
           resolveLeadOwnerDisplayName(item.owner_user_uuid),
           String(item.reason || "").trim(),
         ].filter(Boolean).join(" / "),
         time: item.created_at,
+        item,
       }))
     : [];
   const sourceItems = key === "captured"
     ? leadLifecycleSourceEvents.value.map((item) => ({
         id: `source:${item.source_uuid}`,
+        kind: "source" as const,
         title: t("leadCapture.lifecycle.traceItems.sourceCaptured"),
         description: [item.channel_code, item.app_type].filter(Boolean).join(" / ") || t("leadCapture.listDisplay.noSource"),
         time: item.created_at,
+        item,
       }))
     : [];
   return [...statusItems, ...assignmentItems, ...sourceItems]
@@ -2841,19 +2945,166 @@ const selectedLeadLifecycleTraceItems = computed(() => {
 
 const selectedLeadLifecycleTimelineItems = computed<LeadLifecycleTimelineItem[]>(() => {
   const key = selectedLeadLifecycleNodeKeyValue.value;
-  const traceItems = selectedLeadLifecycleTraceItems.value.map((item) => ({
-    id: item.id,
-    kind: "trace" as const,
-    title: item.title,
-    subtitle: t("leadCapture.lifecycle.tracePanel.auditTrail"),
-    description: item.description,
-    time: item.time,
-    stageLabel: selectedLeadLifecycleNode.value?.label || statusMeta(key).label,
-    operator: t("leadCapture.lifecycle.activityDetail.systemOperator"),
-    actionLabel: item.title,
-  }));
-  return traceItems
-    .sort((a, b) => new Date(b.time || 0).getTime() - new Date(a.time || 0).getTime());
+  const stageLabel = selectedLeadLifecycleNode.value?.label || statusMeta(key).label;
+  const activityItems = selectedLeadLifecycleActivities.value.map((activity) => {
+    const detail = leadLifecycleActivityDetail(activity);
+    const payload = (activity.payload || {}) as Record<string, any>;
+    return {
+      id: `activity:${activity.activity_uuid}`,
+      kind: "activity" as const,
+      title: detail.subject || t("leadCapture.lifecycle.activityTypes.manual_activity"),
+      subtitle: detail.method,
+      description: detail.content || detail.result || "-",
+      time: activity.created_at,
+      stageLabel,
+      operator: detail.operator,
+      actionLabel: t("leadCapture.lifecycle.activityRecordAction"),
+      badgeLabel: t("leadCapture.lifecycle.traceDetail.badges.activity"),
+      fields: [
+        { label: t("leadCapture.lifecycle.activityDetail.method"), value: detail.method },
+        { label: t("leadCapture.lifecycle.activityDetail.result"), value: detail.result },
+        { label: t("leadCapture.lifecycle.traceDetail.fields.stage"), value: stageLabel },
+        { label: t("leadCapture.lifecycle.traceDetail.fields.time"), value: formatLeadLifecycleTime(activity.created_at) },
+      ],
+      bodyLabel: t("leadCapture.lifecycle.activityDetail.content"),
+      body: detail.content || "-",
+      footerLabel: payload.next_step || payload.next_follow_up_at ? t("leadCapture.lifecycle.activityDetail.nextStep") : "",
+      footer: [
+        String(payload.next_step || "").trim(),
+        payload.next_follow_up_at ? `${t("leadCapture.lifecycle.activityDetail.nextFollowUpAt")} ${formatLeadLifecycleTime(String(payload.next_follow_up_at))}` : "",
+      ].filter(Boolean).join("\n"),
+    };
+  });
+  const attachmentItems = leadLifecycleActivities.value
+    .filter((activity) => {
+      const activityType = String(activity.activity_type || "").trim();
+      if (!["attachment_uploaded", "attachment_deleted"].includes(activityType)) return false;
+      const activityStage = activityStageKey(activity);
+      return activityStage === key || (!activityStage && key === selectedLeadLifecycleStatus.value);
+    })
+    .map((activity) => {
+      const payload = (activity.payload || {}) as Record<string, any>;
+      const isDeleted = String(activity.activity_type || "").trim() === "attachment_deleted";
+      const fileName = String(payload.file_name || "").trim() || t("leadCapture.lifecycle.attachments.unknownFile");
+      const contentType = String(payload.content_type || "").trim();
+      const fileSize = Number(payload.file_size || 0);
+      const storageProvider = String(payload.storage_provider || "").trim();
+      const storageProviderLabel = leadAttachmentStorageProviderLabel(storageProvider);
+      const actionKey = String(payload.action_key || "").trim();
+      const operator = resolveLeadAuditOperator(payload);
+      const deletedDescription = t("leadCapture.lifecycle.attachments.deletedDescription", { file: fileName });
+      return {
+        id: `activity:${activity.activity_uuid}`,
+        kind: isDeleted ? "attachmentDeleted" as const : "attachment" as const,
+        title: fileName,
+        subtitle: t("leadCapture.lifecycle.tracePanel.auditTrail"),
+        description: isDeleted
+          ? deletedDescription
+          : [contentType, formatFileSize(fileSize), storageProviderLabel].filter(Boolean).join(" · "),
+        time: activity.created_at,
+        stageLabel,
+        operator,
+        actionLabel: t(isDeleted ? "leadCapture.lifecycle.traceItems.attachmentDeleted" : "leadCapture.lifecycle.traceItems.attachmentUploaded"),
+        badgeLabel: t(isDeleted ? "leadCapture.lifecycle.traceDetail.badges.attachmentDeleted" : "leadCapture.lifecycle.traceDetail.badges.attachment"),
+        fields: [
+          { label: t("leadCapture.lifecycle.traceDetail.fields.fileName"), value: fileName },
+          { label: t("leadCapture.lifecycle.traceDetail.fields.contentType"), value: contentType || "-" },
+          { label: t("leadCapture.lifecycle.traceDetail.fields.fileSize"), value: formatFileSize(fileSize) },
+          { label: t("leadCapture.lifecycle.traceDetail.fields.storageProvider"), value: storageProviderLabel },
+          { label: t("leadCapture.lifecycle.traceDetail.fields.stage"), value: stageLabel },
+          { label: t("leadCapture.lifecycle.traceDetail.fields.action"), value: actionKey || "-" },
+          { label: t("leadCapture.lifecycle.traceDetail.fields.operator"), value: operator },
+          { label: t("leadCapture.lifecycle.traceDetail.fields.time"), value: formatLeadLifecycleTime(activity.created_at) },
+        ],
+        bodyLabel: isDeleted ? t("leadCapture.lifecycle.activityDetail.change") : undefined,
+        body: isDeleted ? deletedDescription : undefined,
+        attachment: isDeleted ? undefined : {
+          attachment_uuid: String(payload.attachment_uuid || "").trim(),
+          file_name: fileName,
+          content_type: contentType,
+          file_size: fileSize,
+          storage_provider: storageProviderLabel,
+        },
+      };
+    });
+  const traceItems = selectedLeadLifecycleTraceItems.value.map((trace) => {
+    const baseFields = [
+      { label: t("leadCapture.lifecycle.traceDetail.fields.stage"), value: stageLabel },
+      { label: t("leadCapture.lifecycle.traceDetail.fields.time"), value: formatLeadLifecycleTime(trace.time) },
+    ];
+    if (trace.kind === "status") {
+      const item = trace.item as LeadStatusHistoryRecord;
+      return {
+        id: trace.id,
+        kind: trace.kind,
+        title: trace.title,
+        subtitle: t("leadCapture.lifecycle.tracePanel.auditTrail"),
+        description: trace.description,
+        time: trace.time,
+        stageLabel,
+        operator: resolveLeadAuditOperator({ operator_member_uuid: item.operator_member_uuid, actor_type: item.actor_type }),
+        actionLabel: trace.title,
+        badgeLabel: t("leadCapture.lifecycle.traceDetail.badges.status"),
+        fields: [
+          { label: t("leadCapture.lifecycle.traceDetail.fields.fromStatus"), value: statusMeta(item.from_status).label },
+          { label: t("leadCapture.lifecycle.traceDetail.fields.toStatus"), value: statusMeta(item.to_status).label },
+          ...baseFields,
+        ],
+        bodyLabel: t("leadCapture.lifecycle.traceDetail.fields.change"),
+        body: trace.description,
+      };
+    }
+    if (trace.kind === "assignment") {
+      const item = trace.item as LeadAssignmentRecord;
+      const owner = resolveLeadOwnerDisplayName(item.owner_user_uuid);
+      const reason = String(item.reason || "").trim();
+      return {
+        id: trace.id,
+        kind: trace.kind,
+        title: trace.title,
+        subtitle: t("leadCapture.lifecycle.tracePanel.auditTrail"),
+        description: trace.description || owner,
+        time: trace.time,
+        stageLabel,
+        operator: resolveLeadAuditOperator({ operator_member_uuid: item.operator_member_uuid, actor_type: item.actor_type }),
+        actionLabel: trace.title,
+        badgeLabel: t("leadCapture.lifecycle.traceDetail.badges.assignment"),
+        fields: [
+          { label: t("leadCapture.lifecycle.traceDetail.fields.owner"), value: owner },
+          { label: t("leadCapture.lifecycle.traceDetail.fields.action"), value: t("leadCapture.lifecycle.nodes.deduplicated.action") },
+          ...baseFields,
+        ],
+        bodyLabel: t("leadCapture.lifecycle.traceDetail.fields.reason"),
+        body: reason || t("leadCapture.lifecycle.traceDetail.emptyReason"),
+      };
+    }
+    const item = trace.item as LeadSourceEventRecord;
+    return {
+      id: trace.id,
+      kind: trace.kind,
+      title: trace.title,
+      subtitle: t("leadCapture.lifecycle.tracePanel.auditTrail"),
+      description: trace.description,
+      time: trace.time,
+      stageLabel,
+      operator: t("leadCapture.lifecycle.activityDetail.systemOperator"),
+      actionLabel: trace.title,
+      badgeLabel: t("leadCapture.lifecycle.traceDetail.badges.source"),
+      fields: [
+        { label: t("leadCapture.lifecycle.traceDetail.fields.channel"), value: [item.channel_code, item.app_type].filter(Boolean).join(" / ") || "-" },
+        { label: t("leadCapture.lifecycle.traceDetail.fields.account"), value: resolveSourceAccountName(item.account_uuid) },
+        ...baseFields,
+      ],
+      bodyLabel: t("leadCapture.lifecycle.traceDetail.fields.sourceContext"),
+      body: [
+        item.campaign_code ? `${t("leadCapture.lifecycle.traceDetail.fields.campaign")} ${item.campaign_code}` : "",
+        item.utm_source ? `${t("leadCapture.lifecycle.traceDetail.fields.utmSource")} ${item.utm_source}` : "",
+        item.utm_medium ? `${t("leadCapture.lifecycle.traceDetail.fields.utmMedium")} ${item.utm_medium}` : "",
+        item.utm_campaign ? `${t("leadCapture.lifecycle.traceDetail.fields.utmCampaign")} ${item.utm_campaign}` : "",
+      ].filter(Boolean).join("\n") || trace.description || "-",
+    };
+  });
+  return mergeLeadLifecycleTimelineItems(activityItems, attachmentItems, traceItems);
 });
 
 const selectedLeadLifecycleTimelineItem = computed(() =>
@@ -2862,19 +3113,12 @@ const selectedLeadLifecycleTimelineItem = computed(() =>
   null
 );
 
-const selectedLeadLifecycleTimelineIndex = computed(() => {
-  const selected = selectedLeadLifecycleTimelineItem.value;
-  if (!selected) return 0;
-  const index = selectedLeadLifecycleTimelineItems.value.findIndex((item) => item.id === selected.id);
-  return index >= 0 ? index + 1 : 0;
-});
+const leadLifecycleTimelineTotalPages = computed(() =>
+  Math.max(1, Math.ceil(leadLifecycleTimelineTotalCount.value / leadLifecycleTimelinePageSize))
+);
 
-const selectedLeadLifecycleActivityUUID = computed(() => {
-  return String(selectedLeadLifecycleActivity.value?.activity_uuid || "").trim();
-});
-
-const selectedLeadLifecycleActivityAttachments = computed(() => {
-  const activityUUID = selectedLeadLifecycleActivityUUID.value;
+const leadLifecycleActivityDetailAttachments = computed(() => {
+  const activityUUID = String(leadLifecycleActivityDetailRecord.value?.activity_uuid || "").trim();
   return activityUUID ? leadLifecycleActivityAttachments.value[activityUUID] || [] : [];
 });
 
@@ -2936,12 +3180,23 @@ const iamMemberNameMap = computed(() => {
   const map = new Map<string, string>();
   iamMembers.value.forEach((member) => {
     const id = String((member as any).member_id ?? member.id ?? "").trim();
+    const memberUUID = String(member.member_uuid || "").trim().toLowerCase();
     const name = String(member.display_name || member.username || member.email || "").trim();
-    if (!id || !name) return;
-    map.set(id, name);
+    if (!name) return;
+    if (id) map.set(id, name);
+    if (memberUUID) map.set(memberUUID, name);
   });
   return map;
 });
+
+const resolveLeadAuditOperator = (payload?: Record<string, any>) =>
+  resolveLeadAuditOperatorName(
+    payload,
+    iamMemberNameMap.value,
+    userStore.currentMemberUuid,
+    userStore.displayName,
+    t("leadCapture.lifecycle.activityDetail.systemOperator"),
+  );
 
 const filteredLeads = computed(() => {
   const keyword = searchText.value.trim().toLowerCase();
@@ -3362,6 +3617,12 @@ const resolveLeadSourceAccountLabel = (lead?: any) => {
   return t("leadCapture.listDisplay.sourceAccountLinked");
 };
 
+const resolveSourceAccountName = (accountUUID?: string) => {
+  const uuid = String(accountUUID || "").trim().toLowerCase();
+  if (!uuid) return "-";
+  return syncAccountLabelMap.value.get(uuid) || t("leadCapture.listDisplay.sourceAccountLinked");
+};
+
 const resolveLeadOwnerDisplayName = (ownerUserUUID?: string) => {
   const id = String(ownerUserUUID || "").trim();
   if (!id) return t("leadCapture.listDisplay.ownerUnassigned");
@@ -3657,22 +3918,126 @@ const formatFileSize = (value?: number) => {
   return `${(size / 1024 / 1024).toFixed(1)} MB`;
 };
 
-const downloadLeadLifecycleAttachment = async (file: LeadAttachmentRecord) => {
+const leadAttachmentStorageProviderLabel = (provider?: string) => {
+  const key = String(provider || "unknown").trim().toLowerCase();
+  return t(`leadCapture.lifecycle.attachments.storageProvider.${key}`);
+};
+
+const leadAttachmentErrorKeyByCode: Record<string, string> = {
+  LEAD_ATTACHMENT_INVALID: "leadCapture.errors.attachmentInvalid",
+  LEAD_ATTACHMENT_TOO_LARGE: "leadCapture.errors.attachmentTooLarge",
+  LEAD_ATTACHMENT_NOT_FOUND: "leadCapture.errors.attachmentNotFound",
+  UNAUTHORIZED: "leadCapture.errors.tenantContextMissing",
+};
+
+const resolveLeadAttachmentErrorMessage = (err: any, fallbackKey: string) => {
+  const code = String(err?.data?.error?.code || "").trim();
+  const mappedKey = leadAttachmentErrorKeyByCode[code];
+  if (mappedKey) return t(mappedKey);
+  const serverMessage = String(err?.data?.error?.message || "").trim();
+  if (serverMessage.startsWith("leadCapture.")) return t(serverMessage);
+  return String(err?.message || "").trim() || t(fallbackKey);
+};
+
+const downloadLeadLifecycleAttachment = async (file: Pick<LeadAttachmentRecord, "attachment_uuid" | "file_name">) => {
   const leadUUID = String(selectedLifecycleLead.value?.lead_uuid || "").trim();
   const attachmentUUID = String(file?.attachment_uuid || "").trim();
-  if (!leadUUID || !attachmentUUID) return;
+  const fileName = String(file?.file_name || "").trim();
+  if (!leadUUID || !attachmentUUID || !fileName) {
+    showToast(t("leadCapture.errors.attachmentInvalid"), "error");
+    return;
+  }
   try {
     const blob = await leadCaptureService.downloadAttachment(leadUUID, attachmentUUID);
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = String(file.file_name || "attachment").trim() || "attachment";
+    link.download = fileName;
     document.body.appendChild(link);
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
   } catch (err: any) {
-    showToast(err?.data?.error?.message || err?.message || t("leadCapture.lifecycle.activityForm.downloadFailed"), "error");
+    showToast(resolveLeadAttachmentErrorMessage(err, "leadCapture.lifecycle.activityForm.downloadFailed"), "error");
+  }
+};
+
+const openLeadLifecycleAttachmentDelete = (file: LeadAttachmentRecord) => {
+  if (selectedLeadLifecycleNode.value?.state !== "current") return;
+  leadLifecycleAttachmentDeleteTarget.value = file;
+  leadLifecycleAttachmentDeleteOpen.value = true;
+};
+
+const closeLeadLifecycleAttachmentDelete = () => {
+  if (leadLifecycleAttachmentDeleting.value) return;
+  if (document.activeElement instanceof HTMLElement) {
+    document.activeElement.blur();
+  }
+  leadLifecycleAttachmentDeleteOpen.value = false;
+  leadLifecycleAttachmentDeleteTarget.value = null;
+};
+
+const confirmLeadLifecycleAttachmentDelete = async () => {
+  const leadUUID = String(selectedLifecycleLead.value?.lead_uuid || "").trim();
+  const attachmentUUID = String(leadLifecycleAttachmentDeleteTarget.value?.attachment_uuid || "").trim();
+  if (!leadUUID || !attachmentUUID || leadLifecycleAttachmentDeleting.value) return;
+  leadLifecycleAttachmentDeleting.value = true;
+  try {
+    await leadCaptureService.deleteAttachment(leadUUID, attachmentUUID);
+    leadLifecycleAttachmentDeleteOpen.value = false;
+    leadLifecycleAttachmentDeleteTarget.value = null;
+    selectedLeadLifecycleTraceId.value = "";
+    await loadLeadLifecycleTrace(leadUUID);
+    showToast(t("leadCapture.lifecycle.attachments.deleted"), "success");
+  } catch (err: any) {
+    showToast(resolveLeadAttachmentErrorMessage(err, "leadCapture.lifecycle.attachments.deleteFailed"), "error");
+  } finally {
+    leadLifecycleAttachmentDeleting.value = false;
+  }
+};
+
+const loadLeadLifecycleNodeAttachments = async () => {
+  const leadUUID = String(selectedLifecycleLead.value?.lead_uuid || "").trim();
+  const stageKey = selectedLeadLifecycleNodeKeyValue.value;
+  if (!leadUUID || !stageKey) {
+    leadLifecycleNodeAttachments.value = [];
+    return;
+  }
+  try {
+    const result = await leadCaptureService.listNodeAttachments(leadUUID, {
+      stage_key: stageKey,
+      action_key: selectedLeadLifecycleNodeActionKey.value,
+    });
+    leadLifecycleNodeAttachments.value = (((result as any)?.data?.items || []) as LeadAttachmentRecord[]);
+  } catch (err: any) {
+    leadLifecycleNodeAttachments.value = [];
+    showToast(resolveLeadAttachmentErrorMessage(err, "leadCapture.lifecycle.attachments.loadFailed"), "error");
+  }
+};
+
+const uploadLeadLifecycleNodeAttachments = async (files: FileList | null) => {
+  const leadUUID = String(selectedLifecycleLead.value?.lead_uuid || "").trim();
+  const stageKey = selectedLeadLifecycleNodeKeyValue.value;
+  const selectedFiles = files?.length ? Array.from(files) : [];
+  if (leadLifecycleNodeAttachmentInputRef.value) {
+    leadLifecycleNodeAttachmentInputRef.value.value = "";
+  }
+  if (!leadUUID || !stageKey || selectedFiles.length === 0) return;
+  leadLifecycleNodeAttachmentUploading.value = true;
+  try {
+    for (const file of selectedFiles) {
+      await leadCaptureService.uploadNodeAttachment(leadUUID, file, {
+        stage_key: stageKey,
+        action_key: selectedLeadLifecycleNodeActionKey.value,
+      });
+    }
+    await loadLeadLifecycleTrace(leadUUID);
+    showToast(t("leadCapture.lifecycle.attachments.uploaded"), "success");
+  } catch (err: any) {
+    await loadLeadLifecycleTrace(leadUUID);
+    showToast(resolveLeadAttachmentErrorMessage(err, "leadCapture.lifecycle.attachments.uploadFailed"), "error");
+  } finally {
+    leadLifecycleNodeAttachmentUploading.value = false;
   }
 };
 
@@ -3694,6 +4059,77 @@ const activityResultLabel = (result?: string) => {
   return found?.label || key;
 };
 
+const firstPayloadText = (payload: Record<string, any>, keys: string[]) => {
+  for (const key of keys) {
+    const value = String(payload[key] || "").trim();
+    if (value) return value;
+  }
+  return "";
+};
+
+const activityPayloadValueLabel = (value?: string) => {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  if (privateDomainStatusValues.includes(text as PrivateDomainLeadStatus)) {
+    return statusMeta(text).label;
+  }
+  const result = leadLifecycleActivityResultOptions.value.find((item) => item.value === text);
+  return result?.label || text;
+};
+
+const leadLifecycleActivityDetail = (activity?: LeadActivityRecord) => {
+  const payload = (activity?.payload || {}) as Record<string, any>;
+  const type = String(activity?.activity_type || "").trim();
+  const methodSource = firstPayloadText(payload, ["method", "activity_method", "channel", "source_channel"]) || type || "note";
+  const method = activityMethodLabel(methodSource);
+  const subject = firstPayloadText(payload, [
+    "subject",
+    "activity_subject",
+    "title",
+    "summary",
+    "status",
+    "to_status",
+    "source_channel",
+  ]);
+  const resultSource = firstPayloadText(payload, ["result", "activity_result", "outcome", "status", "to_status"]);
+  const operator = firstPayloadText(payload, [
+    "operator_name",
+    "operator",
+    "changed_by",
+    "created_by",
+    "actor",
+    "assignee_name",
+  ]) || resolveLeadAuditOperator(payload);
+  const statusChange = payload.from_status && payload.to_status
+    ? `${statusMeta(payload.from_status).label} -> ${statusMeta(payload.to_status).label}`
+    : "";
+  const profileParts = [
+    payload.display_name,
+    payload.phone,
+    payload.email,
+    payload.source_channel,
+    payload.source_app_type,
+  ].map((item) => String(item || "").trim()).filter(Boolean);
+  const sourceParts = [
+    payload.source_channel,
+    payload.source_app_type,
+    payload.external_lead_id,
+    payload.external_wechat_id,
+  ].map((item) => String(item || "").trim()).filter(Boolean);
+  const content = firstPayloadText(payload, ["content", "activity_content", "message", "reason", "description", "note"]) ||
+    statusChange ||
+    (profileParts.length ? profileParts.join(" / ") : "") ||
+    (sourceParts.length ? sourceParts.join(" / ") : "") ||
+    activityDescription(activity);
+  return {
+    method,
+    subject: activityPayloadValueLabel(subject) || activityTypeLabel(type),
+    result: activityPayloadValueLabel(resultSource) || "-",
+    content,
+    operator,
+  };
+};
+
 const activityDescription = (activity?: LeadActivityRecord) => {
   const payload = (activity?.payload || {}) as Record<string, any>;
   const parts = [
@@ -3712,26 +4148,77 @@ const activityDescription = (activity?: LeadActivityRecord) => {
   return parts[0] || t("leadCapture.lifecycle.activityFields.noDetail");
 };
 
-type LeadLifecycleTimelineItem = {
-  id: string;
-  kind: "activity" | "trace";
-  title: string;
-  subtitle: string;
-  description: string;
-  time: string;
-  stageLabel: string;
-  operator: string;
-  actionLabel: string;
-};
-
 const clearLeadLifecycleTrace = () => {
   leadLifecycleActivities.value = [];
   leadLifecycleActivityAttachments.value = {};
   leadLifecycleAssignments.value = [];
   leadLifecycleSourceEvents.value = [];
   leadLifecycleStatusHistory.value = [];
+  leadLifecycleNodeAttachments.value = [];
+  leadLifecycleTimelineTotalCount.value = 0;
   selectedLeadLifecycleActivityId.value = "";
   selectedLeadLifecycleTraceId.value = "";
+};
+
+const hydrateLeadLifecycleTimeline = (events: LeadTimelineEventRecord[], leadUUID: string) => {
+  const tenantUUID = userStore.currentTenantUuid || "";
+  leadLifecycleActivities.value = events
+    .filter((event) => ["manual_activity", "attachment_uploaded", "attachment_deleted"].includes(event.event_type))
+    .map((event) => ({
+      activity_uuid: String(event.data?.activity_uuid || event.event_uuid),
+      lead_uuid: leadUUID,
+      tenant_uuid: tenantUUID,
+      activity_type: String(event.data?.activity_type || event.event_type),
+      payload: {
+        ...(event.data || {}),
+        actor_type: event.actor_type,
+        operator_member_uuid: event.actor_member_uuid,
+        stage_key: event.stage_key,
+        action_key: event.action_key,
+      },
+      created_at: event.occurred_at,
+      updated_at: event.occurred_at,
+    }));
+  leadLifecycleAssignments.value = events
+    .filter((event) => event.event_type === "assigned")
+    .map((event) => ({
+      assignment_uuid: String(event.data?.assignment_uuid || event.event_uuid),
+      tenant_uuid: tenantUUID,
+      lead_uuid: leadUUID,
+      owner_user_uuid: String(event.data?.owner_user_uuid || ""),
+      reason: String(event.data?.reason || ""),
+      created_at: event.occurred_at,
+      operator_member_uuid: event.actor_member_uuid,
+      actor_type: event.actor_type,
+    } as LeadAssignmentRecord));
+  leadLifecycleStatusHistory.value = events
+    .filter((event) => event.event_type === "status_changed")
+    .map((event) => ({
+      history_uuid: String(event.data?.history_uuid || event.event_uuid),
+      tenant_uuid: tenantUUID,
+      lead_uuid: leadUUID,
+      from_status: String(event.data?.from_status || ""),
+      to_status: String(event.data?.to_status || ""),
+      changed_at: event.occurred_at,
+      operator_member_uuid: event.actor_member_uuid,
+      actor_type: event.actor_type,
+    } as LeadStatusHistoryRecord));
+  leadLifecycleSourceEvents.value = events
+    .filter((event) => event.event_type === "source_captured")
+    .map((event) => ({
+      source_uuid: String(event.data?.source_uuid || event.event_uuid),
+      tenant_uuid: tenantUUID,
+      lead_uuid: leadUUID,
+      channel_code: String(event.data?.channel_code || ""),
+      app_type: String(event.data?.app_type || ""),
+      account_uuid: event.data?.account_uuid ? String(event.data.account_uuid) : undefined,
+      campaign_code: String(event.data?.campaign_code || ""),
+      utm_source: String(event.data?.utm_source || ""),
+      utm_medium: String(event.data?.utm_medium || ""),
+      utm_campaign: String(event.data?.utm_campaign || ""),
+      created_at: event.occurred_at,
+      updated_at: event.occurred_at,
+    } as LeadSourceEventRecord));
 };
 
 const loadLeadLifecycleTrace = async (leadUUID: string) => {
@@ -3742,18 +4229,21 @@ const loadLeadLifecycleTrace = async (leadUUID: string) => {
   }
   leadLifecycleTraceLoading.value = true;
   try {
-    const [activitiesResult, assignmentsResult, sourceEventsResult, statusHistoryResult] = await Promise.allSettled([
-      leadCaptureService.listActivities(id),
-      leadCaptureService.listAssignments(id),
-      leadCaptureService.listSourceEvents(id),
-      leadCaptureService.listStatusHistory(id),
-    ]);
-    leadLifecycleActivities.value =
-      activitiesResult.status === "fulfilled"
-        ? (((activitiesResult.value as any)?.data?.items || []) as LeadActivityRecord[])
-        : [];
+    const timelineResult = await leadCaptureService.listTimeline(id, {
+      stage_key: selectedLeadLifecycleNodeKeyValue.value,
+      event_type: leadLifecycleTimelineEventType.value === ALL_OPTION_VALUE
+        ? undefined
+        : leadLifecycleTimelineEventType.value,
+      page: leadLifecycleTimelinePage.value,
+      page_size: leadLifecycleTimelinePageSize,
+    });
+    const timelineData = (timelineResult as any)?.data || {};
+    const timelineEvents = (timelineData.items || []) as LeadTimelineEventRecord[];
+    leadLifecycleTimelineTotalCount.value = Number(timelineData.total || 0);
+    hydrateLeadLifecycleTimeline(timelineEvents, id);
     const attachmentEntries = await Promise.allSettled(
       leadLifecycleActivities.value
+        .filter((item) => item.activity_type === "manual_activity")
         .map((item) => String(item.activity_uuid || "").trim())
         .filter(Boolean)
         .map(async (activityUUID) => {
@@ -3767,18 +4257,6 @@ const loadLeadLifecycleTrace = async (leadUUID: string) => {
       }
       return acc;
     }, {});
-    leadLifecycleAssignments.value =
-      assignmentsResult.status === "fulfilled"
-        ? (((assignmentsResult.value as any)?.data?.items || []) as LeadAssignmentRecord[])
-        : [];
-    leadLifecycleSourceEvents.value =
-      sourceEventsResult.status === "fulfilled"
-        ? (((sourceEventsResult.value as any)?.data?.items || []) as LeadSourceEventRecord[])
-        : [];
-    leadLifecycleStatusHistory.value =
-      statusHistoryResult.status === "fulfilled"
-        ? (((statusHistoryResult.value as any)?.data?.items || []) as LeadStatusHistoryRecord[])
-        : [];
     const currentActivity = selectedLeadLifecycleActivities.value.find((item) => item.activity_uuid === selectedLeadLifecycleActivityId.value);
     if (!currentActivity) {
       selectedLeadLifecycleActivityId.value = selectedLeadLifecycleActivities.value[0]?.activity_uuid || "";
@@ -3787,9 +4265,27 @@ const loadLeadLifecycleTrace = async (leadUUID: string) => {
     if (!current) {
       selectedLeadLifecycleTraceId.value = selectedLeadLifecycleTimelineItems.value[0]?.id || "";
     }
+    await loadLeadLifecycleNodeAttachments();
   } finally {
     leadLifecycleTraceLoading.value = false;
   }
+};
+
+const onLeadLifecycleTimelineFilterChange = () => {
+  leadLifecycleTimelinePage.value = 1;
+  const leadUUID = String(selectedLifecycleLead.value?.lead_uuid || "").trim();
+  if (leadUUID) void loadLeadLifecycleTrace(leadUUID);
+};
+
+const changeLeadLifecycleTimelinePage = (offset: number) => {
+  const next = Math.min(
+    leadLifecycleTimelineTotalPages.value,
+    Math.max(1, leadLifecycleTimelinePage.value + offset),
+  );
+  if (next === leadLifecycleTimelinePage.value) return;
+  leadLifecycleTimelinePage.value = next;
+  const leadUUID = String(selectedLifecycleLead.value?.lead_uuid || "").trim();
+  if (leadUUID) void loadLeadLifecycleTrace(leadUUID);
 };
 
 const resetLeadLifecycleEnrichmentForm = () => {
@@ -3833,6 +4329,18 @@ const handleLeadLifecycleActivityFiles = (files: FileList | null) => {
   }
 };
 
+const openLeadLifecycleActivityDetail = (activity: LeadActivityRecord) => {
+  selectedLeadLifecycleActivityId.value = String(activity.activity_uuid || "").trim();
+  leadLifecycleActivityDetailRecord.value = activity;
+  leadLifecycleActivityDetailModalOpen.value = true;
+};
+
+const closeLeadLifecycleActivityDetail = () => {
+  blurActiveElement();
+  leadLifecycleActivityDetailModalOpen.value = false;
+  leadLifecycleActivityDetailRecord.value = null;
+};
+
 const openLeadLifecycleActivityModal = () => {
   resetLeadLifecycleActivityForm();
   leadLifecycleActivityForm.subject = selectedLeadLifecycleNode.value?.label || "";
@@ -3863,6 +4371,7 @@ const closeLeadLifecycleModal = () => {
   if (leadLifecycleSaving.value) return;
   blurActiveElement();
   leadLifecycleModalOpen.value = false;
+  closeLeadLifecycleActivityDetail();
   resetLeadLifecycleEnrichmentForm();
   clearLeadLifecycleTrace();
 };
@@ -3967,7 +4476,7 @@ const submitLeadLifecycleActivity = async () => {
     resetLeadLifecycleActivityForm();
     showToast(t("leadCapture.lifecycle.activityForm.saved"), "success");
   } catch (err: any) {
-    showToast(err?.data?.error?.message || err?.message || t("leadCapture.lifecycle.activityForm.saveFailed"), "error");
+    showToast(resolveLeadAttachmentErrorMessage(err, "leadCapture.lifecycle.activityForm.saveFailed"), "error");
   } finally {
     leadLifecycleActivitySaving.value = false;
   }

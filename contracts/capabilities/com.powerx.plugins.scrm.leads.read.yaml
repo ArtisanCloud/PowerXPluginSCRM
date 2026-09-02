@@ -19,9 +19,16 @@ metadata:
       - method: GET
         path: /api/v1/admin/leads/{lead_id}/activities
       - method: GET
+        path: /api/v1/admin/leads/{lead_id}/timeline
+      - method: GET
+        path: /api/v1/admin/leads/{lead_id}/activities/{activity_id}/attachments
+      - method: GET
+        path: /api/v1/admin/leads/{lead_id}/node-attachments
+      - method: GET
+        path: /api/v1/admin/leads/{lead_id}/attachments/{attachment_id}/download
+      - method: GET
         path: /api/v1/admin/leads/{lead_id}/sources
       - method: GET
         path: /api/v1/admin/leads/{lead_id}/conversations
       - method: GET
         path: /api/v1/admin/leads/source-catalogs
-

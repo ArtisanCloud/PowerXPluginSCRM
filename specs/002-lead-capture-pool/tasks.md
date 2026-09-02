@@ -88,7 +88,23 @@
 - [x] T206 [US2] 前端详情页增加“负责人选择 + 状态变更 + 历史记录”
 - [x] T207 [US2] 负责人为租户 member 校验：`backend/internal/services/admin/lead_capture/lead_service.go`
 - [x] T208 [US2] 采集池状态机约束校验：`backend/internal/services/admin/lead_capture/lead_service.go`
-- [ ] T209 [US2] 去除 SCRM 内 MQL/SQL、商机、合同、回款状态依赖，仅保留 CRM 交接外部引用
+- [x] T209 [US2] 去除 SCRM 内 MQL/SQL、商机、合同、回款状态依赖，仅保留 CRM 交接外部引用
+- [x] T210 [US2] 节点附件与活动附件使用独立归属契约，`activity_uuid` 可空且外部引用使用 UUID
+- [x] T211 [US2] 增加节点附件上传/查询接口并同步路由、RBAC 与 `plugin.d/exposure.yaml`
+- [x] T212 [US2] 生命周期工作台支持节点附件上传、下载和活动详情弹窗
+- [x] T213 [US2] 状态、分配、来源与人工活动统一进入节点审计时间线
+- [x] T214 [US2] 节点附件持久化收敛到 Repository，并通过租户事务执行读写
+- [x] T215 [US2] 附件错误码由前端 locale 映射为用户可读文案
+- [x] T216 [US2] 增加节点/活动附件隔离、租户隔离、非法节点和时间线排序测试
+- [x] T217 [US2] 附件上传与 `attachment_uploaded` 留痕事件原子落库，并按 CRM 审计字段展示详情与下载入口
+- [x] T218 [US2] 对齐 CRM 节点工作台布局，支持附件确认删除并原子保留 `attachment_deleted` 审计事件
+- [x] T219 [US2] 附件与人工活动留痕保存操作人 `member_uuid`，通过可信成员目录解析人类可读名称并增加回归测试
+- [x] T220 [US2] 状态变更与负责人分配在业务事务内同步写入关联审计活动和操作主体
+- [x] T221 [US2] 统一定义成员与系统操作主体语义，旧记录缺少可信主体时明确归为系统记录
+- [x] T222 [US2] 新增统一节点时间线 REST 契约，聚合状态、分配、来源、人工活动与附件操作
+- [x] T223 [US2] 节点时间线支持事件类型筛选、服务端分页及前端翻页交互
+- [x] T224 [US2] 提供历史附件留痕修复工具，支持租户范围、dry-run、幂等执行且不猜测操作人
+- [x] T225 [US2] 增加 Playwright 端到端验收，覆盖上传、删除、活动、状态、刷新持久化及跨租户权限
 
 **Checkpoint**: US1 与 US2 可独立验收
 

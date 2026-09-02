@@ -50,18 +50,20 @@ type UserDirectoryView struct {
 }
 
 type UserView struct {
-	ID           uint64     `json:"id"`
-	UserID       uint64     `json:"user_id"`
-	TenantUUID   string     `json:"tenant_uuid"`
-	Email        string     `json:"email"`
-	Phone        string     `json:"phone"`
-	DisplayName  string     `json:"display_name"`
-	Username     string     `json:"username"`
-	Status       string     `json:"status"`
-	DepartmentID *uint64    `json:"department_id"`
-	LastLoginAt  *time.Time `json:"last_login_at,omitempty"`
-	CreatedAt    time.Time  `json:"created_at"`
-	Roles        []string   `json:"roles" gorm:"-"`
+	ID           uint64            `json:"id"`
+	MemberUUID   string            `json:"member_uuid"`
+	UserID       uint64            `json:"user_id"`
+	TenantUUID   string            `json:"tenant_uuid"`
+	Email        string            `json:"email"`
+	Phone        string            `json:"phone"`
+	DisplayName  string            `json:"display_name"`
+	Username     string            `json:"username"`
+	Status       string            `json:"status"`
+	DepartmentID *uint64           `json:"department_id"`
+	LastLoginAt  *time.Time        `json:"last_login_at,omitempty"`
+	CreatedAt    time.Time         `json:"created_at"`
+	Roles        []string          `json:"roles" gorm:"-"`
+	Meta         datatypes.JSONMap `json:"-" gorm:"column:meta"`
 }
 
 type UserBulkImportResult struct {
@@ -86,9 +88,9 @@ func (s *UserService) List(ctx context.Context, filter UserFilter) ([]UserView, 
 	}
 	query := s.db.WithContext(ctx).
 		Table(iamm.Member{}.TableName()+" u").
-		Select(`u.id AS id, u.user_id AS user_id, u.tenant_uuid, u.username, u.status, u.department_id,
-            u.last_login_at, u.created_at, COALESCE(u.display_name, a.display_name) AS display_name,
-            a.email, a.phone`).
+		Select(`u.id AS id, u.user_id AS user_id, u.tenant_uuid, u.username, u.status, u.department_id, u.meta,
+			u.last_login_at, u.created_at, COALESCE(NULLIF(u.display_name, ''), NULLIF(a.display_name, ''), u.username) AS display_name,
+			a.email, a.phone`).
 		Joins("JOIN "+iamm.User{}.TableName()+" a ON a.id = u.user_id").
 		Where("u.tenant_uuid = ?", tenantUUID)
 	if status := strings.TrimSpace(filter.Status); status != "" {
@@ -116,6 +118,7 @@ func (s *UserService) List(ctx context.Context, filter UserFilter) ([]UserView, 
 		if err := s.db.ScanRows(rows, &view); err != nil {
 			return nil, err
 		}
+		view.MemberUUID = resolveUUIDFromMeta(view.Meta, "member_uuid", "actor_uuid")
 		result = append(result, view)
 	}
 	if len(result) == 0 {
@@ -311,6 +314,7 @@ func (s *UserService) Create(ctx context.Context, input CreateUserInput) (*UserV
 		}
 		created = &UserView{
 			ID:           record.ID,
+			MemberUUID:   resolveUUIDFromMeta(record.Meta, "member_uuid", "actor_uuid"),
 			UserID:       account.ID,
 			TenantUUID:   tenantUUID,
 			Email:        account.Email,
@@ -449,6 +453,7 @@ func (s *UserService) Update(ctx context.Context, id uint64, input UpdateUserInp
 	}
 	view := &UserView{
 		ID:           user.ID,
+		MemberUUID:   resolveUUIDFromMeta(user.Meta, "member_uuid", "actor_uuid"),
 		UserID:       account.ID,
 		TenantUUID:   user.TenantUuid,
 		Email:        account.Email,

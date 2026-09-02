@@ -34,6 +34,7 @@ export interface Department {
 export interface MemberRecord {
   id: number;
   member_id?: number;
+  member_uuid?: string;
   tenant_uuid: string;
   user_id: number;
   email: string;

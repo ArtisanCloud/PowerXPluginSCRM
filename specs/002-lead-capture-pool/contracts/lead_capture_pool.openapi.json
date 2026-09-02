@@ -51,6 +51,180 @@
           "200": {"description": "OK"}
         }
       }
+    },
+    "/api/v1/admin/leads/{lead_id}/timeline": {
+      "get": {
+        "summary": "List unified lead lifecycle audit timeline",
+        "parameters": [
+          {"name": "lead_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}},
+          {"name": "stage_key", "in": "query", "required": false, "schema": {"$ref": "#/components/schemas/LeadLifecycleStage"}},
+          {"name": "event_type", "in": "query", "required": false, "schema": {"$ref": "#/components/schemas/LeadTimelineEventType"}},
+          {"name": "page", "in": "query", "required": false, "schema": {"type": "integer", "minimum": 1, "default": 1}},
+          {"name": "page_size", "in": "query", "required": false, "schema": {"type": "integer", "minimum": 1, "maximum": 100, "default": 20}}
+        ],
+        "responses": {
+          "200": {
+            "description": "Unified paged audit timeline",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/LeadTimelinePage"}}}
+          },
+          "404": {"description": "Lead not found in the current tenant"}
+        }
+      }
+    },
+    "/api/v1/admin/leads/{lead_id}/node-attachments": {
+      "get": {
+        "summary": "List lifecycle node attachments",
+        "parameters": [
+          {"name": "lead_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}},
+          {"name": "stage_key", "in": "query", "required": true, "schema": {"$ref": "#/components/schemas/LeadLifecycleStage"}},
+          {"name": "action_key", "in": "query", "required": false, "schema": {"type": "string", "maxLength": 64}}
+        ],
+        "responses": {
+          "200": {"description": "Node attachments"},
+          "400": {"description": "Invalid attachment scope"}
+        }
+      },
+      "post": {
+        "summary": "Upload lifecycle node attachment",
+        "parameters": [
+          {"name": "lead_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file", "stage_key"],
+                "properties": {
+                  "file": {"type": "string", "format": "binary", "description": "Maximum 20 MB"},
+                  "stage_key": {"$ref": "#/components/schemas/LeadLifecycleStage"},
+                  "action_key": {"type": "string", "maxLength": 64}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {"description": "Attachment created"},
+          "400": {"description": "Invalid attachment request"},
+          "404": {"description": "Lead not found"},
+          "413": {"description": "Attachment exceeds 20 MB"}
+        }
+      }
+    },
+    "/api/v1/admin/leads/{lead_id}/activities/{activity_id}/attachments": {
+      "get": {
+        "summary": "List activity attachments",
+        "parameters": [
+          {"name": "lead_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}},
+          {"name": "activity_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}
+        ],
+        "responses": {"200": {"description": "Activity attachments"}}
+      },
+      "post": {
+        "summary": "Upload activity attachment",
+        "parameters": [
+          {"name": "lead_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}},
+          {"name": "activity_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file"],
+                "properties": {
+                  "file": {"type": "string", "format": "binary", "description": "Maximum 20 MB"},
+                  "stage_key": {"$ref": "#/components/schemas/LeadLifecycleStage"},
+                  "action_key": {"type": "string", "maxLength": 64}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {"description": "Attachment created"},
+          "400": {"description": "Activity does not belong to the lead"},
+          "413": {"description": "Attachment exceeds 20 MB"}
+        }
+      }
+    },
+    "/api/v1/admin/leads/{lead_id}/attachments/{attachment_id}/download": {
+      "get": {
+        "summary": "Download lead attachment",
+        "parameters": [
+          {"name": "lead_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}},
+          {"name": "attachment_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}
+        ],
+        "responses": {
+          "200": {"description": "Attachment binary"},
+          "404": {"description": "Attachment not found in the current tenant and lead"}
+        }
+      }
+    },
+    "/api/v1/admin/leads/{lead_id}/attachments/{attachment_id}": {
+      "delete": {
+        "summary": "Delete lead attachment and retain an audit event",
+        "parameters": [
+          {"name": "lead_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}},
+          {"name": "attachment_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}
+        ],
+        "responses": {
+          "200": {"description": "Attachment deleted and audit event retained"},
+          "404": {"description": "Attachment not found in the current tenant and lead"}
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "LeadLifecycleStage": {
+        "type": "string",
+        "enum": [
+          "captured",
+          "enriched",
+          "deduplicated",
+          "routed",
+          "engaging",
+          "qualified_for_handoff",
+          "handoff_pending",
+          "handoff_accepted",
+          "handoff_failed",
+          "invalid",
+          "archived",
+          "disconnected"
+        ]
+      },
+      "LeadTimelineEventType": {
+        "type": "string",
+        "enum": ["status_changed", "assigned", "source_captured", "manual_activity", "attachment_uploaded", "attachment_deleted"]
+      },
+      "LeadTimelineEvent": {
+        "type": "object",
+        "required": ["event_uuid", "event_type", "actor_type", "occurred_at", "data"],
+        "properties": {
+          "event_uuid": {"type": "string", "format": "uuid"},
+          "event_type": {"$ref": "#/components/schemas/LeadTimelineEventType"},
+          "actor_type": {"type": "string", "enum": ["member", "system"]},
+          "actor_member_uuid": {"type": "string", "format": "uuid"},
+          "stage_key": {"$ref": "#/components/schemas/LeadLifecycleStage"},
+          "action_key": {"type": "string"},
+          "occurred_at": {"type": "string", "format": "date-time"},
+          "data": {"type": "object", "additionalProperties": true}
+        }
+      },
+      "LeadTimelinePage": {
+        "type": "object",
+        "required": ["items", "total", "page", "page_size"],
+        "properties": {
+          "items": {"type": "array", "items": {"$ref": "#/components/schemas/LeadTimelineEvent"}},
+          "total": {"type": "integer"},
+          "page": {"type": "integer"},
+          "page_size": {"type": "integer"}
+        }
+      }
     }
   }
 }
